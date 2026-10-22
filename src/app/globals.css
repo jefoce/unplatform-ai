@@ -1,0 +1,148 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-page: #0f1113; /* app background */
+  --color-page-2: #131517; /* page-primary: left panel */
+  --color-surface: #1c1e20; /* surface-primary: form surfaces */
+  --color-surface-2: #23262a; /* secondary surface */
+  --color-subtle: #23262a; /* legacy secondary surface alias */
+  --color-line: #d9d9d90a; /* separator-card */
+  --color-line-strong: #ffffff1a; /* panel outlines */
+  --color-divider: #ffffff14; /* dashed borders */
+  --color-hover: #ffffff0d; /* overlay hover */
+  --color-overlay: #ffffff0d; /* generic overlay */
+  --color-fg: #ffffff;
+  --color-fg-2: #898a8b; /* font-secondary */
+  --color-fg-3: #626262; /* tertiary/inactive */
+  --color-lime: #A8FF3E; /* brand */
+  --color-lime-hi: #C6FF7A; /* generate button radial highlight */
+  --color-on-lime: #0B1205;
+  --color-danger: #e72930; /* error */
+  --color-warn: #f87171; /* soft warning red */
+  --color-amber: #f5a524; /* credit warning */
+  --color-favorite: #ff005b; /* liked hearts */
+  --color-veil: #ffffff05; /* faint chip veil */
+  --color-toolbar-start: #ffffff0a; /* history toolbar gradient */
+  --color-toolbar-mid: #ffffff0f;
+  --color-toolbar-end: #ffffff05;
+  --color-info: #5cc8ff; /* cool cyan: downscaled references */
+  --color-disabled: #737475;
+  --color-disabled-surface: #292b2c;
+  --color-glass: #23262abf;
+  --color-backdrop: #00000080; /* modal scrim and drop shadow */
+  --shadow-toolbar: 0 2px 2px 0 #0000001f, inset 0 2px 3px 0 #ffffff0d;
+  --shadow-selection: 0 18px 45px -15px #000c;
+  --radius-panel: 1.25rem;
+  --radius-card: 1rem;
+  --radius-chip: 0.5rem;
+  --radius-control: 0.625rem;
+  --text-3xs: 0.5rem;
+  --text-3xs--line-height: 0.78125rem;
+  --text-xxs: 0.625rem;
+  --text-xxs--line-height: 0.875rem;
+  --breakpoint-compact: 900px;
+  --text-xs--line-height: 1.125rem;
+  --text-sm--line-height: 1.25rem;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-grotesk: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* WebKitGTK may ignore backdrop-filter, solid glass keeps menus readable */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --color-glass: #23262af2;
+  }
+}
+
+/* Document scroll is disabled, panes scroll internally */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--color-page);
+  color: var(--color-fg);
+}
+
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  a[href] {
+    cursor: pointer;
+  }
+
+  [draggable='true'] {
+    cursor: grab;
+  }
+  [draggable='true']:active {
+    cursor: grabbing;
+  }
+}
+
+*,
+*:focus,
+*:focus-visible {
+  outline: none;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 400;
+}
+
+@utility glow {
+  background: radial-gradient(120% 70% at 50% -10%, var(--glow) 0%, transparent 60%);
+}
+@utility glow-lime {
+  --glow: rgb(209 254 23 / 0.22);
+  animation: glow-breathe 3.2s ease-in-out infinite;
+}
+@utility glow-gray {
+  --glow: rgb(255 255 255 / 0.07);
+  animation: glow-breathe 4.8s ease-in-out infinite;
+}
+@utility glow-red {
+  --glow: rgb(255 90 95 / 0.16);
+}
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: translateY(-4%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0) scale(1.06);
+  }
+}
+@utility grace-fade {
+  animation: grace-fade 10s linear forwards;
+}
+@keyframes grace-fade {
+  from {
+    opacity: var(--grace-start, 1);
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow-lime,
+  .glow-gray {
+    animation: none;
+  }
+  .grace-fade {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+* {
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}

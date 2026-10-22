@@ -1,0 +1,31 @@
+name: ci
+run-name: >-
+  CI ${{ github.event_name == 'pull_request' && format('#{0} {1}', github.event.number, github.event.pull_request.title)
+  || github.ref_name }}
+
+on:
+  push:
+    branches: [releases]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm deps
+      - run: pnpm format:check
+      - run: pnpm knip
+      - run: pnpm test
+      - run: pnpm build

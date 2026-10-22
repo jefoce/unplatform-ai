@@ -1,0 +1,103 @@
+'use client'
+
+import { useCallback } from 'react'
+import { Film, Image as ImageIcon, Link2, Maximize2, Play } from 'lucide-react'
+import type { MouseEvent } from 'react'
+
+import type { FolderFile } from '@/core/types'
+import { cn } from '@/lib/cn'
+
+import { SELECTED_TILE_CLASSES } from './tile-classes'
+
+interface FolderFileTileProps {
+  file: FolderFile
+  src: string
+  isBroken: boolean
+  isSelected: boolean
+  onPickFile: (rel: string) => void
+  onExpand: (file: FolderFile) => void
+  onBroken: (src: string) => void
+}
+
+/** File tile in the read-only folder grid. */
+export function FolderFileTile(props: FolderFileTileProps) {
+  const { file, src, isBroken, isSelected, onPickFile, onExpand, onBroken } = props
+  const isAudio = file.kind === 'audio'
+  const handleSelect = useCallback(() => onPickFile(file.rel), [file.rel, onPickFile])
+  const handleImageError = useCallback(() => onBroken(src), [onBroken, src])
+  const handleExpandClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation()
+      onExpand(file)
+    },
+    [file, onExpand],
+  )
+
+  return (
+    <div
+      title={file.name}
+      className={cn(
+        'group relative aspect-square overflow-hidden rounded-lg border border-line bg-surface text-left transition-opacity hover:opacity-90',
+        isSelected && SELECTED_TILE_CLASSES,
+      )}
+    >
+      <button
+        type="button"
+        onClick={handleSelect}
+        aria-label={`Select ${file.name}`}
+        className="absolute inset-0 z-0 size-full cursor-pointer"
+      />
+
+      {isAudio && (
+        <span className="flex size-full flex-col justify-between bg-white/5 p-2">
+          <span className="truncate text-sm font-medium">{file.name}</span>
+          <span className="text-xs text-fg-2 capitalize">{file.kind}</span>
+        </span>
+      )}
+
+      {!isAudio && isBroken && (
+        <span className="flex size-full items-center justify-center bg-white/5 text-fg-2">
+          {file.kind === 'video' ? (
+            <Film size={24} aria-hidden />
+          ) : (
+            <ImageIcon size={24} aria-hidden />
+          )}
+        </span>
+      )}
+
+      {!isAudio && !isBroken && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized thumbs */}
+          <img
+            src={src}
+            loading="lazy"
+            alt=""
+            onError={handleImageError}
+            className="size-full bg-black/40 object-cover"
+          />
+          {file.kind === 'video' && (
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+              <Play className="size-7 fill-current" aria-hidden />
+            </span>
+          )}
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-black/50 px-2 py-1 text-xs">
+            {file.name}
+          </span>
+        </>
+      )}
+
+      <span className="pointer-events-none absolute top-1.5 left-1.5 z-20 flex size-5 items-center justify-center rounded-sm bg-black/60 text-fg">
+        <Link2 className="size-3" aria-hidden />
+      </span>
+
+      <button
+        type="button"
+        onClick={handleExpandClick}
+        aria-label={`Preview ${file.name}`}
+        className="absolute top-1/2 left-1/2 z-20 flex size-10 -translate-1/2 items-center justify-center rounded-full bg-black/60 text-fg opacity-0 backdrop-blur-sm transition group-hover:opacity-100 hover:bg-black/80 focus-visible:opacity-100"
+      >
+        <Maximize2 size={16} aria-hidden />
+      </button>
+    </div>
+  )
+}

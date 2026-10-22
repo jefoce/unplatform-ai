@@ -1,0 +1,36 @@
+version: 2
+
+multi-ecosystem-groups:
+  monthly-deps:
+    schedule:
+      interval: monthly
+    target-branch: releases
+    open-pull-requests-limit: 1
+    labels: ['dependencies']
+    commit-message:
+      prefix: 'deps'
+
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    multi-ecosystem-group: monthly-deps
+    patterns: ['*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: cargo
+    directory: '/src-tauri'
+    multi-ecosystem-group: monthly-deps
+    patterns: ['*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    multi-ecosystem-group: monthly-deps
+    patterns: ['*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']

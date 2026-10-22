@@ -1,0 +1,5 @@
+allowBuilds:
+  ffmpeg-static: true
+  sharp: true
+  unrs-resolver: false
+nodeLinker: hoisted

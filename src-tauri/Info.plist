@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Agent bundle: the Node sidecar re-registers under this bundle id when Next sets its process title. The shell restores Regular at runtime. -->
+	<key>LSUIElement</key>
+	<true/>
+</dict>
+</plist>
