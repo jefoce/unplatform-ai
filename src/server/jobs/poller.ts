@@ -1,8 +1,7 @@
 import 'server-only'
 
-import { isNil } from 'lodash-es'
-
 import { POLL_INTERVAL_MS, POLL_PARALLEL } from '@/core/constants'
+import { isNonEmptyString } from '@/core/guards'
 import { ACTIVE_STATUSES } from '@/core/types'
 
 import { globalState } from '../global-state'
@@ -10,15 +9,13 @@ import { sweepCompatFiles } from '../media/compat'
 import { assertFfmpeg } from '../media/ffmpeg'
 import { sweepThumbs } from '../media/thumbs'
 import { cleanupStale, ensureDirs } from '../paths'
-import { sweepRemote } from '../remote/remote-inputs'
 import { getGeneration, listActiveGenerations, saveGeneration } from '../repos/generations'
 import { secretsReady } from '../secrets'
+import { sweepRemote } from '../services/remote-inputs'
+import { withLock } from '../sync/lock'
 import { isDownloadQueued, stopDownloads } from './download-queue'
-import { withLock } from './lock'
 import { processRecord } from './poll-record'
 import { interruptText, needsInterruptFail, reconcile } from './reconcile'
-
-export { needsInterruptFail } from './reconcile'
 
 const SWEEP_INTERVAL_MS = 24 * 60 * 60_000
 
@@ -31,22 +28,28 @@ interface PollerState {
   booted: boolean
   stopped: boolean
 }
-const state = globalState<PollerState>('poller', () => ({
-  timer: null,
-  sweepTimer: null,
-  sweepFirst: null,
-  running: false,
-  started: false,
-  booted: false,
-  stopped: false,
-}))
+
+const state = globalState<PollerState>('poller', () => {
+  return {
+    timer: null,
+    sweepTimer: null,
+    sweepFirst: null,
+    running: false,
+    started: false,
+    booted: false,
+    stopped: false,
+  }
+})
 
 /** Starts the singleton poller. Safe to call many times. */
 export function startPoller(): void {
-  if (state.started) return
+  if (state.started) {
+    return
+  }
 
   state.started = true
   state.stopped = false
+
   void boot().catch((error) => {
     state.started = false
     console.error('[unplatform-ai] poller boot failed', error)
@@ -64,11 +67,17 @@ export function stopPoller(): void {
   state.started = false
   state.booted = false
 
-  if (state.timer) clearInterval(state.timer)
+  if (state.timer) {
+    clearInterval(state.timer)
+  }
 
-  if (state.sweepTimer) clearInterval(state.sweepTimer)
+  if (state.sweepTimer) {
+    clearInterval(state.sweepTimer)
+  }
 
-  if (state.sweepFirst) clearTimeout(state.sweepFirst)
+  if (state.sweepFirst) {
+    clearTimeout(state.sweepFirst)
+  }
 
   state.timer = null
   state.sweepTimer = null
@@ -82,16 +91,28 @@ async function boot(): Promise<void> {
   assertFfmpeg()
   await reconcile()
 
-  if (state.stopped) return
+  if (state.stopped) {
+    return
+  }
 
-  state.timer = setInterval(() => void tick(), POLL_INTERVAL_MS)
+  state.timer = setInterval(() => {
+    return void tick()
+  }, POLL_INTERVAL_MS)
+
   state.timer.unref()
   state.booted = true
   void tick()
 
-  state.sweepFirst = setTimeout(() => void sweepUnusedRemote(), 60_000)
+  state.sweepFirst = setTimeout(() => {
+    return void sweepUnusedRemote()
+  }, 60_000)
+
   state.sweepFirst.unref()
-  state.sweepTimer = setInterval(() => void sweepUnusedRemote(), SWEEP_INTERVAL_MS)
+
+  state.sweepTimer = setInterval(() => {
+    return void sweepUnusedRemote()
+  }, SWEEP_INTERVAL_MS)
+
   state.sweepTimer.unref()
 }
 
@@ -113,7 +134,9 @@ async function sweepUnusedRemote(): Promise<void> {
 }
 
 async function tick(): Promise<void> {
-  if (state.running) return
+  if (state.running) {
+    return
+  }
 
   state.running = true
 
@@ -125,11 +148,13 @@ async function tick(): Promise<void> {
       const chunk = records.slice(i, i + POLL_PARALLEL)
 
       await Promise.all(
-        chunk.map((record) =>
-          withLock(record.id, () => processById(record.id)).catch((error) =>
-            console.error(`[unplatform-ai] poll failed for ${record.id}`, error),
-          ),
-        ),
+        chunk.map((record) => {
+          return withLock(record.id, () => {
+            return processById(record.id)
+          }).catch((error) => {
+            console.error(`[unplatform-ai] poll failed for ${record.id}`, error)
+          })
+        }),
       )
     }
   } catch (error) {
@@ -143,11 +168,15 @@ async function tick(): Promise<void> {
 async function processById(id: string): Promise<void> {
   const record = await getGeneration(id)
 
-  if (!record || !ACTIVE_STATUSES.includes(record.status)) return
+  if (!record || !ACTIVE_STATUSES.includes(record.status)) {
+    return
+  }
 
-  if (isDownloadQueued(id)) return
+  if (isDownloadQueued(id)) {
+    return
+  }
 
-  if (isNil(record.job) || record.job.id === '') {
+  if (!isNonEmptyString(record.job?.id)) {
     if (needsInterruptFail(record)) {
       await saveGeneration({
         ...record,

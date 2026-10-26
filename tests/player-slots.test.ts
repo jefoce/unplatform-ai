@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { acquire, getSnapshot, isActive, release, subscribe } from '@/features/player/player-slots'
 
 beforeEach(() => {
-  for (const id of getSnapshot()) release(id)
+  for (const id of getSnapshot()) {
+    release(id)
+  }
 })
 
 describe('player slots', () => {

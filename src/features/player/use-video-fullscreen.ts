@@ -7,6 +7,10 @@ interface UseVideoFullscreen {
   toggleFullscreen: () => void
 }
 
+interface WebkitVideoElement extends HTMLVideoElement {
+  webkitEnterFullscreen?: () => void
+}
+
 /** Fullscreen state and toggle for a player root, with the webkit video fallback. */
 export function useVideoFullscreen(
   rootRef: RefObject<HTMLDivElement | null>,
@@ -15,18 +19,23 @@ export function useVideoFullscreen(
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
-    const onChange = () => setIsFullscreen(document.fullscreenElement === rootRef.current)
+    const onChange = () => {
+      setIsFullscreen(document.fullscreenElement === rootRef.current)
+    }
 
     document.addEventListener('fullscreenchange', onChange)
 
-    return () => document.removeEventListener('fullscreenchange', onChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+    }
   }, [rootRef])
 
   const toggleFullscreen = () => {
     const node = rootRef.current
+
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- webkitEnterFullscreen missing from lib.dom
-    const video = videoRef.current as
-      (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null
+    const video = videoRef.current as WebkitVideoElement | null
+
     const run = async () => {
       try {
         if (document.fullscreenElement) {

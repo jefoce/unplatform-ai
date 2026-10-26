@@ -1,0 +1,21 @@
+{
+  "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "source": "file",
+  "kind": "image",
+  "mime": "image/png",
+  "ext": ".png",
+  "originalName": "reference.png",
+  "sizeBytes": 204800,
+  "width": 1280,
+  "height": 720,
+  "createdAt": "2026-10-20T00:08:00.000Z",
+  "remote": {
+    "key": "uploads/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png",
+    "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "serverSha256": null,
+    "size": 204800,
+    "mtimeMs": 1760918880000,
+    "uploadedAt": "2026-10-20T00:08:01.000Z",
+    "lastUsedAt": "2026-10-20T00:08:02.000Z"
+  }
+}

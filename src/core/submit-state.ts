@@ -1,20 +1,35 @@
 import { isNil } from 'lodash-es'
 
 import { GRACE_STALE_MS } from './constants'
+import { isNonEmptyString, isOneOf } from './guards'
+import { primaryBinding } from './presets/bindings'
+import type { ModelPreset } from './presets/types'
 import {
-  buildOpenRouterBody,
-  type BuildOpenRouterBodyParams,
-  type OpenRouterVideoBody,
-} from './openrouter-body'
-import type { ModelPreset } from './presets'
+  type GenerationInput,
+  type GenerationRecord,
+  type InputSnapshot,
+  JOB_STATUSES,
+  type JobStatus,
+} from './schemas/generation-record'
+import type { UploadsById } from './schemas/upload-item'
 import { type ResolvedTransport, resolveTransport } from './transport'
-import type { GenerationInput, GenerationRecord, JobStatus, UploadItem } from './types'
+import type { Dict } from './utility-types'
+
+function parseNotBefore(notBefore: string | undefined): number {
+  if (!isNonEmptyString(notBefore)) {
+    return Number.NaN
+  }
+
+  return Date.parse(notBefore)
+}
 
 /** Remaining grace delay in ms. A missing, invalid or past notBefore is 0. */
 export function graceDelayMs(notBefore: string | undefined, now = Date.now()): number {
-  const at = isNil(notBefore) || notBefore === '' ? Number.NaN : Date.parse(notBefore)
+  const at = parseNotBefore(notBefore)
 
-  if (!Number.isFinite(at)) return 0
+  if (!Number.isFinite(at)) {
+    return 0
+  }
 
   return Math.max(0, at - now)
 }
@@ -24,10 +39,11 @@ export function isStaleGrace(
   record: Pick<GenerationRecord, 'status' | 'submit'>,
   now = Date.now(),
 ): boolean {
-  if (record.status !== 'submitting' || record.submit?.stage !== 'grace') return false
+  if (record.status !== 'submitting' || record.submit?.stage !== 'grace') {
+    return false
+  }
 
-  const notBefore = record.submit.notBefore
-  const at = isNil(notBefore) || notBefore === '' ? Number.NaN : Date.parse(notBefore)
+  const at = parseNotBefore(record.submit.notBefore)
 
   return Number.isFinite(at) && now - at > GRACE_STALE_MS
 }
@@ -38,7 +54,7 @@ export function canCancelInGrace(
 ): boolean {
   return (
     record.status === 'submitting' &&
-    (isNil(record.job?.id) || record.job?.id === '') &&
+    !isNonEmptyString(record.job?.id) &&
     record.submit?.stage === 'grace'
   )
 }
@@ -47,61 +63,67 @@ export function canCancelInGrace(
 export function inputIds(input: GenerationInput): string[] {
   const ids = [input.frames.start, input.frames.end, ...input.references]
 
-  return [...new Set(ids.filter((id): id is string => !isNil(id)))]
+  return [
+    ...new Set(
+      ids.filter((id): id is string => {
+        return !isNil(id)
+      }),
+    ),
+  ]
 }
 
 interface TransportsForParams {
-  uploads: Record<string, UploadItem>
+  uploads: UploadsById
   preset: ModelPreset
   remoteConfigured: boolean
 }
 
-export function transportsFor(params: TransportsForParams): Record<string, ResolvedTransport> {
+export function transportsFor(params: TransportsForParams): Dict<ResolvedTransport> {
   const { uploads, preset, remoteConfigured: isRemoteConfigured } = params
 
   return Object.fromEntries(
-    Object.values(uploads).map((upload) => [
-      upload.id,
-      resolveTransport({ preset, kind: upload.kind, remoteConfigured: isRemoteConfigured }),
-    ]),
+    Object.values(uploads).map((upload) => {
+      return [
+        upload.id,
+        resolveTransport({
+          binding: primaryBinding(preset),
+          kind: upload.kind,
+          remoteConfigured: isRemoteConfigured,
+        }),
+      ]
+    }),
   )
 }
 
 export function withTransports(
-  snapshot: GenerationRecord['inputsSnapshot'],
-  transports: Record<string, ResolvedTransport>,
-): GenerationRecord['inputsSnapshot'] {
+  snapshot: InputSnapshot,
+  transports: Dict<ResolvedTransport>,
+): InputSnapshot {
   return Object.fromEntries(
     Object.entries(snapshot).map(([id, item]) => {
       const transport = transports[id]
 
-      if (isNil(transport)) return [id, item] as const
+      if (isNil(transport)) {
+        return [id, item] as const
+      }
 
       return [id, { ...item, transport }] as const
     }),
   )
 }
 
-export function base64Only(
-  transports: Record<string, ResolvedTransport>,
-): Record<string, ResolvedTransport> {
-  return Object.fromEntries(Object.keys(transports).map((id) => [id, 'base64'] as const))
+export function base64Only(transports: Dict<ResolvedTransport>): Dict<ResolvedTransport> {
+  return Object.fromEntries(
+    Object.keys(transports).map((id) => {
+      return [id, 'base64'] as const
+    }),
+  )
 }
-
-export function bodyFor(params: BuildOpenRouterBodyParams): OpenRouterVideoBody {
-  return buildOpenRouterBody(params)
-}
-
-const JOB_STATUSES: JobStatus[] = [
-  'submitting',
-  'pending',
-  'in_progress',
-  'completed',
-  'failed',
-  'cancelled',
-  'expired',
-]
 
 export function asJobStatus(value: string): JobStatus | null {
-  return JOB_STATUSES.includes(value as JobStatus) ? (value as JobStatus) : null
+  if (isOneOf(JOB_STATUSES, value)) {
+    return value
+  }
+
+  return null
 }

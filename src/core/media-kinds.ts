@@ -1,22 +1,28 @@
 import { isNil } from 'lodash-es'
 
-import type { MediaKind } from './types'
-
-export const MEDIA_KINDS = ['image', 'video', 'audio'] as const satisfies readonly MediaKind[]
+import { isNonEmptyString } from './guards'
+import { MEDIA_KINDS, type MediaKind } from './media-types'
+import type { Dict } from './utility-types'
 
 export const KIND_TITLE: Record<MediaKind, string> = {
   image: 'Image',
   video: 'Video',
   audio: 'Audio',
 }
+
 export const KIND_PLURAL: Record<MediaKind, string> = {
   image: 'images',
   video: 'videos',
   audio: 'audio',
 }
 
-export const kindFromTitle = (title: string): MediaKind | null =>
-  MEDIA_KINDS.find((kind) => KIND_TITLE[kind] === title) ?? null
+export const kindFromTitle = (title: string): MediaKind | null => {
+  return (
+    MEDIA_KINDS.find((kind) => {
+      return KIND_TITLE[kind] === title
+    }) ?? null
+  )
+}
 
 export type KindExtensions = Partial<Record<MediaKind, readonly string[]>>
 
@@ -26,7 +32,7 @@ const EXTENSIONS: Record<MediaKind, readonly string[]> = {
   audio: ['mp3', 'wav', 'm4a', 'aac', 'ogg'],
 }
 
-const MIME_TYPES: Record<string, string> = {
+const MIME_TYPES: Dict<string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',
@@ -41,18 +47,28 @@ const MIME_TYPES: Record<string, string> = {
   ogg: 'audio/ogg',
 }
 
-const normalizeExt = (ext: string): string => ext.trim().toLowerCase().replace(/^\./, '')
+const normalizeExt = (ext: string): string => {
+  return ext.trim().toLowerCase().replace(/^\./, '')
+}
 
 export function kindFromExt(ext: string): MediaKind | null {
   const normalized = normalizeExt(ext)
 
-  return MEDIA_KINDS.find((kind) => EXTENSIONS[kind].includes(normalized)) ?? null
+  return (
+    MEDIA_KINDS.find((kind) => {
+      return EXTENSIONS[kind].includes(normalized)
+    }) ?? null
+  )
 }
 
 export function kindFromName(name: string): MediaKind | null {
   const dot = name.lastIndexOf('.')
 
-  return dot < 0 ? null : kindFromExt(name.slice(dot + 1))
+  if (dot < 0) {
+    return null
+  }
+
+  return kindFromExt(name.slice(dot + 1))
 }
 
 const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/])/
@@ -66,18 +82,27 @@ interface PastedPathParams {
 /** Absolute media path pasted as text, filtered to the requested kinds and formats. */
 export function pastedPath(params: PastedPathParams): string | null {
   const { text, kinds, extensions } = params
+
   const path = text
     .trim()
     .replaceAll(/^["']+|["']+$/g, '')
     .trim()
 
-  if (!ABSOLUTE_PATH.test(path)) return null
+  if (!ABSOLUTE_PATH.test(path)) {
+    return null
+  }
 
   const kind = kindFromName(path)
 
-  if (isNil(kind) || !kinds.includes(kind)) return null
+  if (isNil(kind) || !kinds.includes(kind)) {
+    return null
+  }
 
-  return extensionAllowed({ kind, ext: extWithDot(path), extensions }) ? path : null
+  if (extensionAllowed({ kind, ext: extWithDot(path), extensions })) {
+    return path
+  }
+
+  return null
 }
 
 interface ExtensionAllowedParams {
@@ -95,11 +120,19 @@ interface FileInfo {
 export function kindFromFile(file: FileInfo): MediaKind | null {
   const byName = kindFromName(file.name)
 
-  if (!isNil(byName)) return byName
+  if (!isNil(byName)) {
+    return byName
+  }
 
-  const ext = Object.entries(MIME_TYPES).find(([, mime]) => mime === file.type)?.[0]
+  const ext = Object.entries(MIME_TYPES).find(([, mime]) => {
+    return mime === file.type
+  })?.[0]
 
-  return isNil(ext) || ext === '' ? null : kindFromExt(ext)
+  if (!isNonEmptyString(ext)) {
+    return null
+  }
+
+  return kindFromExt(ext)
 }
 
 /** True when the kind has no filter or the extension is listed. */
@@ -117,14 +150,20 @@ interface AcceptFilesParams<T> {
   extensions?: KindExtensions
 }
 
-export function acceptFiles<T extends FileInfo>(
-  params: AcceptFilesParams<T>,
-): { accepted: T[]; skipped: number } {
+interface AcceptedFiles<T> {
+  accepted: T[]
+  skipped: number
+}
+
+export function acceptFiles<T extends FileInfo>(params: AcceptFilesParams<T>): AcceptedFiles<T> {
   const { files, kinds, extensions } = params
+
   const accepted = files.filter((file) => {
     const kind = kindFromFile(file)
 
-    if (isNil(kind) || !kinds.includes(kind)) return false
+    if (isNil(kind) || !kinds.includes(kind)) {
+      return false
+    }
 
     return extensionAllowed({ kind, ext: extensionOf(file), extensions })
   })
@@ -138,7 +177,9 @@ export function mimeFromExt(ext: string): string | null {
 
 export function acceptForKinds(kinds: readonly MediaKind[], extensions?: KindExtensions): string {
   return extensionsForKinds(kinds, extensions)
-    .map((ext) => `.${ext}`)
+    .map((ext) => {
+      return `.${ext}`
+    })
     .join(',')
 }
 
@@ -149,7 +190,9 @@ export function extensionsForKinds(
 ): string[] {
   return kinds.flatMap((kind) => {
     const custom = extensions?.[kind]
-    const list = !isNil(custom) && custom.length > 0 ? custom : EXTENSIONS[kind]
+    const isList = !isNil(custom) && custom.length > 0
+
+    const list = isList ? custom : EXTENSIONS[kind]
 
     return list.map(normalizeExt)
   })
@@ -159,13 +202,23 @@ export function extensionsForKinds(
 function extensionOf(file: FileInfo): string {
   const dot = file.name.lastIndexOf('.')
 
-  if (dot >= 0) return file.name.slice(dot + 1)
+  if (dot >= 0) {
+    return file.name.slice(dot + 1)
+  }
 
-  return Object.entries(MIME_TYPES).find(([, mime]) => mime === file.type)?.[0] ?? ''
+  return (
+    Object.entries(MIME_TYPES).find(([, mime]) => {
+      return mime === file.type
+    })?.[0] ?? ''
+  )
 }
 
 export function extWithDot(name: string): string {
   const dot = name.lastIndexOf('.')
 
-  return dot < 0 ? '' : name.slice(dot).toLowerCase()
+  if (dot < 0) {
+    return ''
+  }
+
+  return name.slice(dot).toLowerCase()
 }

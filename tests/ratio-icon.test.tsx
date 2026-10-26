@@ -2,28 +2,34 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AspectRatio } from '@/core/presets'
-import type { GenerationRecord } from '@/core/types'
-import { AspectRatioPopover } from '@/features/generator/AspectRatioPopover'
-import { useGeneratorStore } from '@/features/generator/store'
-import { DetailsPanel } from '@/features/history/DetailsPanel'
+import type { AspectRatio } from '@/core/presets/types'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { AspectRatioPopover } from '@/features/generator/options/AspectRatioPopover'
+import { useGeneratorStore } from '@/features/generator/store/store'
+import { DetailsPanel } from '@/features/history/details/DetailsPanel'
 import { RatioIcon } from '@/ui/RatioIcon'
 
-vi.mock('@/lib/fetcher', () => ({
-  apiPost: vi.fn(),
-  apiPatch: vi.fn(),
-  apiDelete: vi.fn(),
-  fetcher: vi.fn(),
-  ApiError: class ApiError extends Error {
-    status = 0
-  },
-}))
+vi.mock('@/lib/fetcher', () => {
+  return {
+    apiPost: vi.fn(),
+    apiPatch: vi.fn(),
+    apiDelete: vi.fn(),
+    fetcher: vi.fn(),
+    ApiError: class ApiError extends Error {
+      status = 0
+    },
+  }
+})
 
-vi.mock('@/lib/platform', () => ({
-  platform: { confirm: vi.fn(), saveVideo: vi.fn(), saveVideos: vi.fn() },
-}))
+vi.mock('@/lib/platform', () => {
+  return {
+    platform: { confirm: vi.fn(), saveVideo: vi.fn(), saveVideos: vi.fn() },
+  }
+})
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => {
+  return { toast: { success: vi.fn(), error: vi.fn() } }
+})
 
 class Observer {
   observe() {}
@@ -36,6 +42,7 @@ function record(aspectRatio: GenerationRecord['input']['aspectRatio']): Generati
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     status: 'completed',
+    provider: 'openrouter',
     input: {
       presetId: 'seedance-2.0',
       tab: 'references',
@@ -68,6 +75,7 @@ function record(aspectRatio: GenerationRecord['input']['aspectRatio']): Generati
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', Observer)
   vi.stubGlobal('IntersectionObserver', Observer)
+
   useGeneratorStore.setState({
     presetId: 'wan-3.0',
     tab: 'frames',
@@ -99,12 +107,15 @@ function boxFor(ratio: AspectRatio) {
 describe('RatioIcon', () => {
   it.each(['16:9', '9:16'] satisfies AspectRatio[])('draws %s as an outlined box', (ratio) => {
     const { square, box } = boxFor(ratio)
-    const [width, height] = ratio.split(':').map(Number)
+    const width = Number(ratio.split(':')[0])
+    const height = Number(ratio.split(':')[1])
 
     expect(box.className).toContain('border')
+
     expect(Number.parseFloat(box.style.width) / Number.parseFloat(box.style.height)).toBeCloseTo(
       width / height,
     )
+
     expect(square.style.width).toBe('14px')
     expect(square.style.height).toBe('14px')
     expect(square.className).toContain('items-center')
@@ -134,10 +145,12 @@ describe('RatioIcon', () => {
 function expectRatioBox(root: HTMLElement, ratio: AspectRatio) {
   const square = root.firstElementChild as HTMLElement
   const box = square.firstElementChild as HTMLElement
-  const [width, height] = ratio.split(':').map(Number)
+  const width = Number(ratio.split(':')[0])
+  const height = Number(ratio.split(':')[1])
 
   expect(square.getAttribute('aria-hidden')).toBe('true')
   expect(box.className).toContain('border')
+
   expect(Number.parseFloat(box.style.width) / Number.parseFloat(box.style.height)).toBeCloseTo(
     width / height,
   )
@@ -157,6 +170,7 @@ describe('field and history callers', () => {
       tab: 'frames',
       frames: { start: 'start-frame', end: null },
     })
+
     render(<AspectRatioPopover />)
 
     const svg = screen.getByRole('button', { name: 'Auto' }).querySelector('svg')

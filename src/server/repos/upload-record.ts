@@ -2,21 +2,22 @@ import 'server-only'
 
 import path from 'node:path'
 
-import type { UploadItem } from '@/core/types'
+import { type UploadItem, UploadItemSchema } from '@/core/schemas/upload-item'
 
 import { readJson, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
-import { withLock } from '../jobs/lock'
 import { UPLOADS_DIR } from '../paths'
+import { withLock } from '../sync/lock'
 import { jsonDirStore } from './json-dir-store'
 
 const store = jsonDirStore<UploadItem>({
   key: 'uploadIndex',
   dir: UPLOADS_DIR,
   fileOf: jsonPath,
+  schema: UploadItemSchema,
 })
 
-export function jsonPath(id: string): string {
+function jsonPath(id: string): string {
   return path.join(UPLOADS_DIR, `${id}.json`)
 }
 
@@ -25,13 +26,15 @@ export async function listUploadRecords(): Promise<UploadItem[]> {
 }
 
 export async function getUploadRecord(id: string): Promise<UploadItem | null> {
-  if (!isUuid(id)) return null
+  if (!isUuid(id)) {
+    return null
+  }
 
   return store.get(id)
 }
 
 export async function loadUploadRecord(id: string): Promise<UploadItem | null> {
-  return readJson<UploadItem>(jsonPath(id))
+  return readJson(jsonPath(id), UploadItemSchema)
 }
 
 /** Writes the upload record atomically and returns it unchanged. */
@@ -56,11 +59,17 @@ export async function updateUpload(
   id: string,
   patch: (item: UploadItem) => UploadItem,
 ): Promise<UploadItem | null> {
-  if (!isUuid(id)) return null
+  if (!isUuid(id)) {
+    return null
+  }
 
   return withLock(`upload:${id}`, async () => {
     const current = await loadUploadRecord(id)
 
-    return current ? saveUploadItem(patch(current)) : null
+    if (current) {
+      return saveUploadItem(patch(current))
+    }
+
+    return null
   })
 }

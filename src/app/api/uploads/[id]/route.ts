@@ -1,19 +1,21 @@
 import { inputIds } from '@/core/submit-state'
-import { assertLocalRequest, errorResponse } from '@/server/http'
+import { UploadError } from '@/server/errors'
+import { errorResponse, type IdRouteContext } from '@/server/http'
 import { listActiveGenerations } from '@/server/repos/generations'
-import { removeUpload, UploadError } from '@/server/repos/uploads'
+import { assertLocalRequest } from '@/server/request-guard'
+import { removeUpload } from '@/server/services/uploads'
 
-interface Params {
-  params: Promise<{ id: string }>
-}
-
-export async function DELETE(request: Request, { params }: Params) {
+export async function DELETE(request: Request, { params }: IdRouteContext) {
   try {
     assertLocalRequest(request)
     const { id } = await params
     const active = await listActiveGenerations()
 
-    if (active.some((record) => inputIds(record.input).includes(id))) {
+    if (
+      active.some((record) => {
+        return inputIds(record.input).includes(id)
+      })
+    ) {
       throw new UploadError(409, 'Used by a running generation')
     }
 

@@ -18,15 +18,16 @@ interface LazyVideoPosterProps {
 
 /** Poster or placeholder shown until this player owns a slot. */
 export function LazyVideoPoster(props: LazyVideoPosterProps) {
-  const { poster, alt, posterFit, showPlay: shouldShowPlay, onPlay: handlePlay } = props
+  const { poster, alt, posterFit, showPlay: shouldShowPlay } = props
 
   return (
     <>
-      {isEmpty(poster) ? (
+      {isEmpty(poster) && (
         <div className="flex size-full items-center justify-center bg-subtle">
           <Video className="size-8 text-fg-2" aria-hidden />
         </div>
-      ) : (
+      )}
+      {!isEmpty(poster) && (
         // eslint-disable-next-line @next/next/no-img-element -- posters are pre-sized thumbs
         <img
           src={poster}
@@ -35,11 +36,12 @@ export function LazyVideoPoster(props: LazyVideoPosterProps) {
           alt={alt ?? ''}
           className={cn(
             'size-full bg-black',
-            posterFit === 'cover' ? 'object-cover' : 'object-contain',
+            posterFit === 'cover' && 'object-cover',
+            !(posterFit === 'cover') && 'object-contain',
           )}
         />
       )}
-      {shouldShowPlay && <LazyVideoPlayButton label="Play video" onPlay={handlePlay} />}
+      {shouldShowPlay && <LazyVideoPlayButton label="Play video" onPlay={props.onPlay} />}
     </>
   )
 }

@@ -1,0 +1,42 @@
+{
+  "id": "44444444-4444-4444-8444-444444444444",
+  "createdAt": "2026-10-20T00:02:00.000Z",
+  "updatedAt": "2026-10-20T00:02:10.000Z",
+  "status": "in_progress",
+  "input": {
+    "presetId": "wan-3.0-prime",
+    "tab": "references",
+    "prompt": "A city at night",
+    "audio": true,
+    "duration": 8,
+    "aspectRatio": "21:9",
+    "resolution": "2K",
+    "frames": { "start": null, "end": null },
+    "references": [],
+    "seed": null
+  },
+  "preset": {
+    "id": "wan-3.0-prime",
+    "title": "Wan 3.0 Prime",
+    "slug": "alibaba/wan-3.0-prime"
+  },
+  "inputsSnapshot": {},
+  "job": {
+    "id": "job-running-1",
+    "generationId": "gen-running-1",
+    "submittedAt": "2026-10-20T00:02:02.000Z",
+    "startedAt": "2026-10-20T00:02:05.000Z",
+    "expiresAt": 1893456000000
+  },
+  "seedUsed": 1234,
+  "favorite": true,
+  "cost": {
+    "currency": "USD",
+    "pricePerSec": 0.35,
+    "priceSource": "live",
+    "estimatedUsd": 2.8,
+    "actualUsd": null,
+    "isByok": false,
+    "billed": null
+  }
+}

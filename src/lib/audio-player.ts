@@ -1,6 +1,7 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import { isNil } from 'lodash-es'
 
 type Listener = () => void
 
@@ -14,23 +15,36 @@ const listeners = new Set<Listener>()
 function notify(): void {
   isPlayingNow = Boolean(audio && !audio.paused)
 
-  for (const listener of listeners) listener()
+  for (const listener of listeners) {
+    listener()
+  }
 }
 
 function syncTime(): void {
   time = audio?.currentTime ?? 0
-  length = audio && Number.isFinite(audio.duration) ? audio.duration : 0
+  length = 0
+
+  if (!isNil(audio) && Number.isFinite(audio.duration)) {
+    length = audio.duration
+  }
+
   notify()
 }
 
 function element(): HTMLAudioElement | null {
-  if (typeof window === 'undefined') return null
+  if (typeof window === 'undefined') {
+    return null
+  }
 
-  if (audio) return audio
+  if (audio) {
+    return audio
+  }
 
   const next = new Audio()
 
-  for (const event of ['play', 'pause', 'ended'] as const) next.addEventListener(event, notify)
+  for (const event of ['play', 'pause', 'ended'] as const) {
+    next.addEventListener(event, notify)
+  }
 
   next.addEventListener('timeupdate', syncTime)
   next.addEventListener('loadedmetadata', syncTime)
@@ -43,7 +57,9 @@ function element(): HTMLAudioElement | null {
 export function playAudio(src: string): void {
   const player = element()
 
-  if (!player) return
+  if (!player) {
+    return
+  }
 
   if (current !== src) {
     player.pause()
@@ -56,7 +72,9 @@ export function playAudio(src: string): void {
     time = 0
   }
 
-  void player.play().catch(() => notify())
+  void player.play().catch(() => {
+    notify()
+  })
 }
 
 /** Duration of the loaded source in seconds, 0 when unknown. */
@@ -72,9 +90,13 @@ export function pauseAudio(): void {
 export function seekAudio(seconds: number): void {
   const player = element()
 
-  if (!player || current === '') return
+  if (!player || current === '') {
+    return
+  }
 
-  const max = Number.isFinite(player.duration) ? player.duration : length
+  const isMax = Number.isFinite(player.duration)
+
+  const max = isMax ? player.duration : length
 
   player.currentTime = Math.min(Math.max(seconds, 0), max)
   syncTime()
@@ -102,8 +124,12 @@ function subscribe(listener: Listener): () => void {
 export function useAudioPlaying(src: string): boolean {
   return useSyncExternalStore(
     subscribe,
-    () => isPlaying(src),
-    () => false,
+    () => {
+      return isPlaying(src)
+    },
+    () => {
+      return false
+    },
   )
 }
 
@@ -111,7 +137,15 @@ export function useAudioPlaying(src: string): boolean {
 export function useAudioTime(src: string): number | null {
   return useSyncExternalStore(
     subscribe,
-    () => (current === src && src !== '' ? time : null),
-    () => null,
+    () => {
+      if (current === src && src !== '') {
+        return time
+      }
+
+      return null
+    },
+    () => {
+      return null
+    },
   )
 }

@@ -2,29 +2,36 @@ import 'server-only'
 
 import readline from 'node:readline'
 
-import { isBoolean, isNil, isString, isUndefined } from 'lodash-es'
+import { isString } from 'lodash-es'
+import { z } from 'zod'
 
-import { isRecord } from '@/core/guards'
+import { isNonEmptyString, isRecord } from '@/core/guards'
 import { SECRET_NAMES, type SecretName } from '@/core/secret-names'
 
-import type { SecretBackend } from './index'
+import type { SecretBackend } from './types'
 
 export const BRIDGE_PREFIX = '@@upai-secrets '
 const DEFAULT_TIMEOUT_MS = 60_000
 
+interface BridgeOutput {
+  write(chunk: string): unknown
+}
+
 export interface BridgeOptions {
   input?: NodeJS.ReadableStream
-  output?: { write(chunk: string): unknown }
+  output?: BridgeOutput
   timeoutMs?: number
 }
 
-interface Reply {
-  id: number
-  ok: boolean
-  value?: string | null
-  error?: string
-  code?: string
-}
+const BridgeReplySchema = z.object({
+  id: z.number(),
+  ok: z.boolean(),
+  value: z.string().nullish(),
+  error: z.string().optional(),
+  code: z.string().optional(),
+})
+
+type Reply = z.infer<typeof BridgeReplySchema>
 
 /** Raised when the parent app reports no usable OS keychain. */
 export class KeychainUnavailableError extends Error {
@@ -61,11 +68,15 @@ export function bridgeBackend(options: BridgeOptions = {}): SecretBackend {
   lines.on('line', (line) => {
     const reply = parseReply(line)
 
-    if (!reply) return
+    if (!reply) {
+      return
+    }
 
     const entry = pending.get(reply.id)
 
-    if (!entry) return
+    if (!entry) {
+      return
+    }
 
     pending.delete(reply.id)
     clearTimeout(entry.timer)
@@ -77,6 +88,7 @@ export function bridgeBackend(options: BridgeOptions = {}): SecretBackend {
 
     return new Promise<Reply>((resolve, reject) => {
       const id = next++
+
       const timer = setTimeout(() => {
         pending.delete(id)
         reject(new Error('Keychain did not answer. Check for a macOS keychain prompt.'))
@@ -89,8 +101,12 @@ export function bridgeBackend(options: BridgeOptions = {}): SecretBackend {
 
   return {
     kind: 'keychain',
-    getAll: async () => parseAll(unwrap(await call({ op: 'getAll', name: '' })).value),
-    get: async (name) => unwrap(await call({ op: 'get', name })).value ?? null,
+    getAll: async () => {
+      return parseAll(unwrap(await call({ op: 'getAll', name: '' })).value)
+    },
+    get: async (name) => {
+      return unwrap(await call({ op: 'get', name })).value ?? null
+    },
     set: async (name, value) => {
       unwrap(await call({ op: 'set', name, value }))
     },
@@ -101,41 +117,27 @@ export function bridgeBackend(options: BridgeOptions = {}): SecretBackend {
 }
 
 function parseReply(line: string): Reply | null {
-  const parsed = parseReplyObject(line)
-
-  if (!parsed) return null
-
-  const reply = parsed as Partial<Reply>
-
-  return hasReplyShape(reply) ? (reply as Reply) : null
-}
-
-function parseReplyObject(line: string): Record<string, unknown> | null {
-  if (!line.startsWith('{')) return null
+  let raw: unknown
 
   try {
-    const parsed: unknown = JSON.parse(line)
-
-    return isRecord(parsed) ? parsed : null
+    raw = JSON.parse(line)
   } catch {
     return null
   }
-}
 
-function hasReplyShape(reply: Partial<Reply>): boolean {
-  if (typeof reply.id !== 'number' || !isBoolean(reply.ok)) return false
+  const parsed = BridgeReplySchema.safeParse(raw)
 
-  if (!isNil(reply.value) && !isString(reply.value)) return false
+  if (!parsed.success) {
+    return null
+  }
 
-  if (!isUndefined(reply.error) && !isString(reply.error)) return false
-
-  if (!isUndefined(reply.code) && !isString(reply.code)) return false
-
-  return true
+  return parsed.data
 }
 
 function parseAll(raw: string | null | undefined): Partial<Record<SecretName, string>> {
-  if (isNil(raw) || raw === '') return {}
+  if (!isNonEmptyString(raw)) {
+    return {}
+  }
 
   let parsed: unknown
 
@@ -145,23 +147,31 @@ function parseAll(raw: string | null | undefined): Partial<Record<SecretName, st
     throw new Error('Keychain returned a bad value')
   }
 
-  if (!isRecord(parsed)) throw new Error('Keychain returned a bad value')
+  if (!isRecord(parsed)) {
+    throw new Error('Keychain returned a bad value')
+  }
 
   const values: Partial<Record<SecretName, string>> = {}
 
   for (const name of SECRET_NAMES) {
     const value = parsed[name]
 
-    if (isString(value) && value !== '') values[name] = value
+    if (isString(value) && value !== '') {
+      values[name] = value
+    }
   }
 
   return values
 }
 
 function unwrap(reply: Reply): Reply {
-  if (reply.ok) return reply
+  if (reply.ok) {
+    return reply
+  }
 
-  if (reply.code === 'unavailable') throw new KeychainUnavailableError(reply.error)
+  if (reply.code === 'unavailable') {
+    throw new KeychainUnavailableError(reply.error)
+  }
 
   throw new Error(reply.error ?? 'Keychain request failed')
 }

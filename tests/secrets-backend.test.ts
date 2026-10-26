@@ -6,9 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SECRET_NAMES } from '@/core/secret-names'
 
-const keychainBackendMock = vi.hoisted(() => vi.fn(async () => null))
+const keychainBackendMock = vi.hoisted(() => {
+  return vi.fn(async () => {
+    return null
+  })
+})
 
-vi.mock('@/server/secrets/keychain', () => ({ keychainBackend: keychainBackendMock }))
+vi.mock('@/server/secrets/keychain', () => {
+  return { keychainBackend: keychainBackendMock }
+})
 
 const originalPlatform = process.platform
 
@@ -35,7 +41,9 @@ beforeEach(async () => {
   vi.stubEnv('NODE_ENV', 'test')
   vi.stubEnv('UPAI_SECRETS_BACKEND', '')
 
-  for (const name of SECRET_NAMES) vi.stubEnv(name, '')
+  for (const name of SECRET_NAMES) {
+    vi.stubEnv(name, '')
+  }
 
   keychainBackendMock.mockReset()
 })
@@ -59,6 +67,7 @@ describe('secrets backend selection', () => {
 
       expect(secrets.secretStatus().backend).toBeNull()
       expect(secrets.secretStatus().loadError).toContain('Keys could not be saved')
+
       await expect(fs.stat(path.join(root, 'secrets.json'))).rejects.toMatchObject({
         code: 'ENOENT',
       })
@@ -75,6 +84,7 @@ describe('secrets backend selection', () => {
       JSON.stringify({ OPENROUTER_API_KEY: 'sk-or-test' }),
       { mode: 0o600 },
     )
+
     const secrets = await loadSecrets()
 
     expect(secrets.getSecret('OPENROUTER_API_KEY')).toBeNull()
@@ -112,6 +122,7 @@ describe('secrets backend selection', () => {
 
     expect(secrets.secretStatus().loadError).toContain('Keys could not be saved')
     expect(warn).toHaveBeenCalled()
+
     await expect(fs.stat(path.join(root, 'secrets.json'))).rejects.toMatchObject({
       code: 'ENOENT',
     })

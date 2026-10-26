@@ -2,15 +2,22 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AspectRatioPopover } from '@/features/generator/AspectRatioPopover'
-import { DurationPopover } from '@/features/generator/DurationPopover'
-import { ResolutionPopover } from '@/features/generator/ResolutionPopover'
-import { useGeneratorStore } from '@/features/generator/store'
+import { AspectRatioPopover } from '@/features/generator/options/AspectRatioPopover'
+import { DurationPopover } from '@/features/generator/options/DurationPopover'
+import { ResolutionPopover } from '@/features/generator/options/ResolutionPopover'
+import { useGeneratorStore } from '@/features/generator/store/store'
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
-vi.mock('@/features/generator/use-pricing', () => ({
-  usePricing: () => ({ pricing: null }),
-}))
+vi.mock('sonner', () => {
+  return { toast: { success: vi.fn(), error: vi.fn() } }
+})
+
+vi.mock('@/lib/api/models', () => {
+  return {
+    useModelEntry: () => {
+      return null
+    },
+  }
+})
 
 class Observer {
   observe() {}
@@ -20,6 +27,7 @@ class Observer {
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', Observer)
+
   useGeneratorStore.setState({
     presetId: 'wan-3.0',
     tab: 'frames',
@@ -49,7 +57,9 @@ function open(label: string): HTMLElement {
 }
 
 function expectClosed(): Promise<void> {
-  return waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  return waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
 }
 
 describe('single-choice pickers close on pick', () => {
@@ -73,15 +83,20 @@ describe('single-choice pickers close on pick', () => {
       bottom: 20,
       x: 0,
       y: 0,
-      toJSON: () => ({}),
+      toJSON: () => {
+        return {}
+      },
     })
+
     render(<DurationPopover />)
     const dialog = open('5s')
     const thumb = within(dialog).getByRole('slider')
 
     Object.assign(thumb, {
       setPointerCapture: vi.fn(),
-      hasPointerCapture: () => true,
+      hasPointerCapture: () => {
+        return true
+      },
       releasePointerCapture: vi.fn(),
     })
 

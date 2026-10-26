@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { beforeAll, describe, expect, it } from 'vitest'
 
-import type { GenerationRecord } from '@/core/types'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
 
 const root = await mkdtemp(path.join(os.tmpdir(), 'upai-batch-'))
 
@@ -26,6 +26,7 @@ function record(
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     status,
+    provider: 'openrouter',
     input: {
       presetId: 'seedance-2.0',
       tab: 'references',
@@ -61,8 +62,8 @@ async function write(record: GenerationRecord): Promise<void> {
   await writeFile(path.join(downloads, `${record.id}.mp4`), 'video')
 }
 
-const batchRequest = (body: unknown): Request =>
-  new Request('http://127.0.0.1:3000/api/generations/batch', {
+const batchRequest = (body: unknown): Request => {
+  return new Request('http://127.0.0.1:3000/api/generations/batch', {
     method: 'POST',
     headers: {
       host: '127.0.0.1:3000',
@@ -71,6 +72,7 @@ const batchRequest = (body: unknown): Request =>
     },
     body: JSON.stringify(body),
   })
+}
 
 beforeAll(async () => {
   await mkdir(downloads, { recursive: true })
@@ -87,6 +89,7 @@ describe('POST /api/generations/batch', () => {
     const response = await POST(
       batchRequest({ action: 'favorite', ids: [first.id, second.id], favorite: true }),
     )
+
     const body = (await response.json()) as { done: string[]; skipped: unknown[] }
 
     expect(response.status).toBe(200)
@@ -105,6 +108,7 @@ describe('POST /api/generations/batch', () => {
     await write(active)
 
     const response = await POST(batchRequest({ action: 'delete', ids: [done.id, active.id] }))
+
     const body = (await response.json()) as {
       done: string[]
       skipped: { id: string; reason: string }[]
@@ -137,7 +141,10 @@ describe('POST /api/generations/batch', () => {
   })
 
   it('rejects more than 200 ids', async () => {
-    const ids = Array.from({ length: 201 }, () => randomUUID())
+    const ids = Array.from({ length: 201 }, () => {
+      return randomUUID()
+    })
+
     const response = await POST(batchRequest({ action: 'delete', ids }))
 
     expect(response.status).toBe(400)

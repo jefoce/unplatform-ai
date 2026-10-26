@@ -18,7 +18,6 @@ interface SwitchProps {
 export function Switch(props: SwitchProps) {
   const {
     checked: isChecked,
-    onCheckedChange: handleCheckedChange,
     label,
     id,
     disabled: isDisabled,
@@ -31,7 +30,7 @@ export function Switch(props: SwitchProps) {
       <SwitchPrimitive.Root
         id={id}
         checked={isChecked}
-        onCheckedChange={handleCheckedChange}
+        onCheckedChange={props.onCheckedChange}
         disabled={isDisabled}
         aria-label={ariaLabel}
         className="relative h-4 w-7 shrink-0 rounded-full bg-white/15 transition disabled:opacity-40 data-[state=checked]:bg-lime"

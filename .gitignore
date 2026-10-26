@@ -27,6 +27,8 @@
 *.pem
 project.txt
 review_v*.md
+diff.txt
+.ruff_cache/
 
 # debug
 npm-debug.log*
@@ -44,7 +46,7 @@ yarn-error.log*
 # tauri
 src-tauri/binaries/
 src-tauri/resources/
-src-tauri/target/
+/src-tauri/target/
 
 # vercel
 .vercel

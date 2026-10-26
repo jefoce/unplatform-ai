@@ -1,0 +1,11 @@
+{
+  "data": {
+    "endpoints": [
+      {
+        "pricing": {
+          "discount": 0.15
+        }
+      }
+    ]
+  }
+}

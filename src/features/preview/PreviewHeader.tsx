@@ -4,7 +4,7 @@ import { isNil } from 'lodash-es'
 import { Link2 } from 'lucide-react'
 
 import { KIND_TITLE } from '@/core/media-kinds'
-import type { UploadItem } from '@/core/types'
+import type { UploadItem } from '@/core/schemas/upload-item'
 
 import type { PreviewActions } from './preview-store'
 import { PreviewMeta } from './PreviewMeta'
@@ -17,7 +17,12 @@ interface PreviewHeaderProps {
 /** Name, source badge and size/length metadata for the current item. */
 export function PreviewHeader(props: PreviewHeaderProps) {
   const { item, actions } = props
-  const label = item ? (actions?.label?.(item) ?? KIND_TITLE[item.kind]) : 'File missing'
+  let label = 'File missing'
+
+  if (!isNil(item)) {
+    label = actions?.label?.(item) ?? KIND_TITLE[item.kind]
+  }
+
   const isLink = item?.source === 'link'
 
   return (

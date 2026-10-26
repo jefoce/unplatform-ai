@@ -1,5 +1,7 @@
 name: pr-version
-run-name: 'Version check #${{ github.event.number }} ${{ github.event.pull_request.title }}'
+run-name: >-
+  Version check #${{ github.event.number }} ${{ github.event.pull_request.title }}
+
 on:
   pull_request:
     branches: [releases]
@@ -9,11 +11,22 @@ permissions:
 jobs:
   version:
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Reject Dependabot PRs
+        shell: bash
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          if [[ "$PR_AUTHOR" == 'dependabot[bot]' ]]; then
+            echo "::error::Dependabot PRs are not merged into releases. Apply the update on the next version branch."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v7.1.0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - shell: bash

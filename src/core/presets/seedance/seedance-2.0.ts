@@ -1,5 +1,6 @@
+import { VIDEO_PROVIDER_IDS } from '../../providers/types'
 import { videoTokenPricing } from '../helpers'
-import type { ModelPreset, Resolution } from '../types'
+import type { ModelPreset } from '../types'
 import { SEEDANCE_FAMILY, SEEDANCE_UNKNOWN_LIMITS, seedanceImageLimits } from './family'
 
 const SIZES = {
@@ -38,18 +39,14 @@ const SIZES = {
   },
 } as const
 
-const RESOLUTION_TIER: Partial<Record<Resolution, string>> = { '1080p': '_1080p', '4K': '_4k' }
-
 const PRICING = videoTokenPricing({
-  key: ({ resolution, audio: hasAudio, hasVideoInput: hasVideo }) => {
-    const tier = RESOLUTION_TIER[resolution] ?? ''
-
-    if (hasVideo) return `video_tokens${tier}_with_video_input`
-
-    if (tier !== '') return `video_tokens${tier}`
-
-    return hasAudio ? 'video_tokens' : 'video_tokens_without_audio'
-  },
+  skuRules: [
+    { when: { hasVideoInput: true }, key: 'video_tokens{tier}_with_video_input' },
+    { when: { hasTier: true }, key: 'video_tokens{tier}' },
+    { when: { audio: true }, key: 'video_tokens' },
+    { when: {}, key: 'video_tokens_without_audio' },
+  ],
+  tiers: { '1080p': '_1080p', '4K': '_4k' },
   fallback: {
     video_tokens: 0.000007,
     video_tokens_without_audio: 0.000007,
@@ -72,7 +69,6 @@ export const SEEDANCE_20: ModelPreset = {
   ...SEEDANCE_FAMILY,
   id: 'seedance-2.0',
   title: 'Seedance 2.0',
-  slug: 'bytedance/seedance-2.0',
   // Any integer 4-15. Source: https://docs.byteplus.com/en/docs/byteplus_las/video_gen_enhanced
   // OpenRouter supported_durations lists every integer in the range. Options are quick picks.
   duration: { min: 4, max: 15, default: 5, options: [4, 5, 8, 10, 15] },
@@ -99,5 +95,12 @@ export const SEEDANCE_20: ModelPreset = {
   maxInputPlusOutputSec: null,
   refLabel: '{Kind} {n}',
   outputSizes: SIZES,
-  pricing: PRICING,
+  bindings: [
+    {
+      provider: VIDEO_PROVIDER_IDS[0],
+      modelId: 'bytedance/seedance-2.0',
+      pricing: PRICING,
+      transport: { image: 'base64', video: 'url', audio: 'auto' },
+    },
+  ],
 }

@@ -1,29 +1,35 @@
 import fs from 'node:fs/promises'
 
-import { assertLocalRequest, errorResponse, jsonError } from '@/server/http'
+import { errorResponse, type IdRouteContext, jsonError } from '@/server/http'
 import { downloadPaths } from '@/server/paths'
 import { getGeneration } from '@/server/repos/generations'
+import { assertLocalRequest } from '@/server/request-guard'
 import { getSystem } from '@/server/system'
 
-interface Params {
-  params: Promise<{ id: string }>
-}
-
-export async function POST(request: Request, { params }: Params) {
+export async function POST(request: Request, { params }: IdRouteContext) {
   try {
     assertLocalRequest(request)
     const { id } = await params
     const record = await getGeneration(id)
 
-    if (!record) return jsonError({ status: 404, error: 'Video not found' })
+    if (!record) {
+      return jsonError({ status: 404, error: 'Video not found' })
+    }
 
     const video = downloadPaths(record.id).video
+
     const hasVideo = await fs.stat(video).then(
-      (stats) => stats.isFile(),
-      () => false,
+      (stats) => {
+        return stats.isFile()
+      },
+      () => {
+        return false
+      },
     )
 
-    if (!hasVideo) return jsonError({ status: 404, error: 'Video not found' })
+    if (!hasVideo) {
+      return jsonError({ status: 404, error: 'Video not found' })
+    }
 
     await getSystem().reveal(video)
 

@@ -1,12 +1,13 @@
 import { isNil } from 'lodash-es'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { Dict } from '@/core/utility-types'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 
 const URL_LOCAL = 'http://127.0.0.1:3000/api/test'
 
 function makeRequest(
-  headers: Record<string, string>,
+  headers: Dict<string>,
   init: { method?: string; body?: string } = {},
 ): Request {
   return new Request(URL_LOCAL, {
@@ -30,16 +31,33 @@ function statusOf(fn: () => void): number | null {
 
 describe('assertLocalRequest', () => {
   it('accepts a local GET', () => {
-    expect(statusOf(() => assertLocalRequest(makeRequest({})))).toBeNull()
+    expect(
+      statusOf(() => {
+        assertLocalRequest(makeRequest({}))
+      }),
+    ).toBeNull()
   })
 
   it('accepts localhost and IPv6 hosts', () => {
-    expect(statusOf(() => assertLocalRequest(makeRequest({ host: 'localhost:3000' })))).toBeNull()
-    expect(statusOf(() => assertLocalRequest(makeRequest({ host: '[::1]:3000' })))).toBeNull()
+    expect(
+      statusOf(() => {
+        assertLocalRequest(makeRequest({ host: 'localhost:3000' }))
+      }),
+    ).toBeNull()
+
+    expect(
+      statusOf(() => {
+        assertLocalRequest(makeRequest({ host: '[::1]:3000' }))
+      }),
+    ).toBeNull()
   })
 
   it('rejects a foreign host with 403', () => {
-    expect(statusOf(() => assertLocalRequest(makeRequest({ host: 'evil.example' })))).toBe(403)
+    expect(
+      statusOf(() => {
+        assertLocalRequest(makeRequest({ host: 'evil.example' }))
+      }),
+    ).toBe(403)
   })
 
   it('rejects a cross-site POST with 403', () => {
@@ -48,7 +66,11 @@ describe('assertLocalRequest', () => {
       { method: 'POST', body: '{}' },
     )
 
-    expect(statusOf(() => assertLocalRequest(request))).toBe(403)
+    expect(
+      statusOf(() => {
+        assertLocalRequest(request)
+      }),
+    ).toBe(403)
   })
 
   it('accepts a same-origin POST', () => {
@@ -57,7 +79,11 @@ describe('assertLocalRequest', () => {
       { method: 'POST', body: '{}' },
     )
 
-    expect(statusOf(() => assertLocalRequest(request))).toBeNull()
+    expect(
+      statusOf(() => {
+        assertLocalRequest(request)
+      }),
+    ).toBeNull()
   })
 
   it('rejects a foreign origin with 403', () => {
@@ -66,7 +92,11 @@ describe('assertLocalRequest', () => {
       { method: 'POST', body: '{}' },
     )
 
-    expect(statusOf(() => assertLocalRequest(request))).toBe(403)
+    expect(
+      statusOf(() => {
+        assertLocalRequest(request)
+      }),
+    ).toBe(403)
   })
 })
 
@@ -87,31 +117,49 @@ describe('assertLocalRequest session', () => {
   it('rejects a request without the cookie when desktop mode is on', async () => {
     const guard = await loadGuarded()
 
-    expect(statusOf(() => guard.assertLocalRequest(makeRequest({})))).toBe(401)
+    expect(
+      statusOf(() => {
+        guard.assertLocalRequest(makeRequest({}))
+      }),
+    ).toBe(401)
   })
 
   it('accepts the right cookie', async () => {
     const guard = await loadGuarded()
     const request = makeRequest({ cookie: `upai_session=${APP_TOKEN}` })
 
-    expect(statusOf(() => guard.assertLocalRequest(request))).toBeNull()
+    expect(
+      statusOf(() => {
+        guard.assertLocalRequest(request)
+      }),
+    ).toBeNull()
   })
 
   it('skips only the session check with session: false', async () => {
     const guard = await loadGuarded()
 
-    expect(statusOf(() => guard.assertLocalRequest(makeRequest({}), { session: false }))).toBeNull()
     expect(
-      statusOf(() =>
-        guard.assertLocalRequest(makeRequest({ host: 'evil.example' }), { session: false }),
-      ),
+      statusOf(() => {
+        guard.assertLocalRequest(makeRequest({}), { session: false })
+      }),
+    ).toBeNull()
+
+    expect(
+      statusOf(() => {
+        guard.assertLocalRequest(makeRequest({ host: 'evil.example' }), { session: false })
+      }),
     ).toBe(403)
+
     const crossSite = makeRequest(
       { 'sec-fetch-site': 'cross-site', 'content-type': 'application/json' },
       { method: 'POST', body: '{}' },
     )
 
-    expect(statusOf(() => guard.assertLocalRequest(crossSite, { session: false }))).toBe(403)
+    expect(
+      statusOf(() => {
+        guard.assertLocalRequest(crossSite, { session: false })
+      }),
+    ).toBe(403)
   })
 })
 

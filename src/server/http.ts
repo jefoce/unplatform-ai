@@ -3,13 +3,35 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 import type { ZodError } from 'zod'
 
-import { MEDIA_KINDS } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/types'
+import { isNonEmptyString } from '@/core/guards'
+import { MEDIA_KINDS, type MediaKind } from '@/core/media-types'
 
-import { OpenRouterError } from './openrouter/client'
-import { HttpError, ValidationError } from './request-guard'
+import { HttpError, ValidationError } from './errors'
+import { ProviderError } from './providers/provider-error'
 
-export { assertLocalRequest, HttpError, readJsonBody } from './request-guard'
+interface IdParams {
+  id: string
+}
+
+export interface IdRouteContext {
+  params: Promise<IdParams>
+}
+
+interface PathParams {
+  ref: string[]
+}
+
+export interface PathRouteContext {
+  params: Promise<PathParams>
+}
+
+interface KeyParams {
+  key: string[]
+}
+
+export interface KeyRouteContext {
+  params: Promise<KeyParams>
+}
 
 interface JsonErrorParams {
   status: number
@@ -21,23 +43,29 @@ interface JsonErrorParams {
 export function jsonError(params: JsonErrorParams): Response {
   const { status, error, details } = params
 
-  if (!isNil(details) && details.length > 0) return Response.json({ error, details }, { status })
+  if (!isNil(details) && details.length > 0) {
+    return Response.json({ error, details }, { status })
+  }
 
   return Response.json({ error }, { status })
 }
 
 /** Maps known server errors to responses. Unknown errors are logged, never exposed. */
 export function errorResponse(error: unknown): Response {
-  if (error instanceof HttpError) return jsonError({ status: error.status, error: error.message })
+  if (error instanceof HttpError) {
+    return jsonError({ status: error.status, error: error.message })
+  }
 
-  if (error instanceof ValidationError)
+  if (error instanceof ValidationError) {
     return jsonError({ status: 400, error: error.message, details: error.errors })
+  }
 
-  if (error instanceof OpenRouterError)
-    return jsonError({
-      status: error.status === 0 || Number.isNaN(error.status) ? 502 : error.status,
-      error: error.message,
-    })
+  if (error instanceof ProviderError) {
+    const isStatusInvalid = error.status === 0 || Number.isNaN(error.status)
+    const status = isStatusInvalid ? 502 : error.status
+
+    return jsonError({ status, error: error.message })
+  }
 
   console.error('[unplatform-ai] unhandled route error', error)
 
@@ -48,8 +76,9 @@ export function errorResponse(error: unknown): Response {
 export function zodError(error: ZodError): Response {
   const details = error.issues.map((issue) => {
     const field = issue.path.join('.')
+    const fieldName = field === '' ? 'body' : field
 
-    return `${field === '' ? 'body' : field}: ${issue.message}`
+    return `${fieldName}: ${issue.message}`
   })
 
   return jsonError({ status: 400, error: 'Invalid request', details })
@@ -57,9 +86,17 @@ export function zodError(error: ZodError): Response {
 
 /** Keeps known media kinds from a comma-separated query value. */
 export function parseKinds(value: string | null): MediaKind[] {
-  if (isNil(value) || value === '') return []
+  if (!isNonEmptyString(value)) {
+    return []
+  }
 
-  const wanted = new Set(value.split(',').map((part) => part.trim()))
+  const wanted = new Set(
+    value.split(',').map((part) => {
+      return part.trim()
+    }),
+  )
 
-  return MEDIA_KINDS.filter((kind) => wanted.has(kind))
+  return MEDIA_KINDS.filter((kind) => {
+    return wanted.has(kind)
+  })
 }

@@ -9,55 +9,28 @@ import sonarjs from 'eslint-plugin-sonarjs'
 import unicorn from 'eslint-plugin-unicorn'
 import tseslint from 'typescript-eslint'
 
-const PRESET_IDS = /^(wan-3\.0|wan-3\.0-prime|seedance-2\.0|seedance-2\.5)$/
+import callbackProps from './eslint-rules/callback-props.mjs'
+import inlineHookCallbacks from './eslint-rules/inline-hook-callbacks.mjs'
+import paddingAroundFunctions from './eslint-rules/padding-around-functions.mjs'
+import {
+  INLINE_FUNCTION_SELECTORS,
+  MODULE_SELECTORS,
+  OBJECT_FUNCTION_SELECTOR,
+  PROPS_SELECTOR,
+  SECRET_SELECTORS,
+  SERVER_SELECTORS,
+  SHARED_SELECTORS,
+  TYPE_SELECTORS,
+  UNION_SELECTORS,
+  restrict,
+} from './eslint-rules/selectors.mjs'
 
-// Shared so the secrets, route and component blocks keep these checks.
-const SHARED_SELECTORS = [
-  {
-    selector: "BinaryExpression[operator=/^[!=]==?$/] > Literal[raw='null']",
-    message: 'Use isNil() / !isNil() from lodash-es.',
+const localPlugin = {
+  rules: {
+    'callback-props': callbackProps,
+    'inline-hook-callbacks': inlineHookCallbacks,
+    'padding-around-functions': paddingAroundFunctions,
   },
-  {
-    selector: "BinaryExpression[operator=/^[!=]==?$/] > Identifier[name='undefined']",
-    message: 'Use isNil() / !isNil() from lodash-es.',
-  },
-  {
-    selector:
-      "BinaryExpression[operator=/^[!=]==?$/][left.type='UnaryExpression'][left.operator='typeof'] > Literal[value=/^(string|boolean|function)$/]",
-    message: 'Use isString / isBoolean / isFunction from lodash-es.',
-  },
-  {
-    selector:
-      'ConditionalExpression > :matches(ArrowFunctionExpression, FunctionExpression, ObjectExpression, ArrayExpression, ConditionalExpression, AwaitExpression, AssignmentExpression, SequenceExpression, CallExpression[arguments.length>1])',
-    message: 'Keep ternaries to simple values. Extract a named handler, variable or early return.',
-  },
-]
-
-const PROPS_SELECTOR = {
-  selector:
-    'FunctionDeclaration > ObjectPattern, VariableDeclarator > ArrowFunctionExpression > ObjectPattern',
-  message: 'Take props or params, then destructure on the first line of the body.',
-}
-
-const SECRET_SELECTORS = [
-  {
-    selector:
-      "MemberExpression[object.object.name='process'][object.property.name='env'][property.name=/^(OPENROUTER_(?!MOCK$)|R2_)/]",
-    message: 'Read secret values through src/server/secrets, not process.env.',
-  },
-  {
-    selector: `Literal[value=${PRESET_IDS}]`,
-    message: 'Preset ids live in src/core/presets.',
-  },
-  {
-    selector: 'Literal[value=/^(alibaba|bytedance)\\//]',
-    message: 'Preset slugs live in src/core/presets.',
-  },
-]
-
-const OBJECT_FUNCTION_SELECTOR = {
-  selector: 'ObjectExpression > Property > :matches(ArrowFunctionExpression, FunctionExpression)',
-  message: 'Name the function (handle<Action>) and pass it by reference.',
 }
 
 export default defineConfig([
@@ -104,11 +77,8 @@ export default defineConfig([
       'simple-import-sort/exports': 'error',
       'import/first': 'error',
       'import/newline-after-import': 'error',
-      'import/no-duplicates': 'error',
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        { fixStyle: 'separate-type-imports' },
-      ],
+      'import/no-duplicates': ['error', { 'prefer-inline': true }],
+      '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
       'no-restricted-imports': [
         'error',
         {
@@ -147,12 +117,12 @@ export default defineConfig([
       '@typescript-eslint/prefer-nullish-coalescing': 'error',
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+      '@typescript-eslint/no-confusing-void-expression': 'error',
       '@typescript-eslint/max-params': ['error', { max: 2 }],
       '@typescript-eslint/no-deprecated': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
-      // Warning for one release: 406 sites at introduction.
       '@typescript-eslint/strict-boolean-expressions': [
-        'warn',
+        'error',
         { allowString: false, allowNumber: false, allowNullableObject: true },
       ],
       '@typescript-eslint/naming-convention': [
@@ -192,6 +162,7 @@ export default defineConfig([
       'object-shorthand': 'error',
       'prefer-template': 'error',
       'no-param-reassign': 'error',
+      'no-promise-executor-return': 'error',
 
       // Size and nesting
       'max-depth': ['error', 3],
@@ -199,7 +170,6 @@ export default defineConfig([
       complexity: ['error', 10],
       'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
       'max-lines': ['error', { max: 250, skipBlankLines: true, skipComments: true }],
-      curly: ['error', 'multi-line', 'consistent'],
 
       // React
       'react/function-component-definition': [
@@ -214,32 +184,14 @@ export default defineConfig([
       'react/jsx-boolean-value': 'error',
       'react/jsx-curly-brace-presence': ['error', { props: 'never', children: 'never' }],
       'react/no-array-index-key': 'warn',
-      'react/jsx-no-bind': [
-        'error',
-        {
-          allowArrowFunctions: false,
-          allowFunctions: false,
-          allowBind: false,
-          ignoreRefs: true,
-          ignoreDOMComponents: false,
-        },
-      ],
+      // Inline JSX functions are banned per layer by INLINE_FUNCTION_SELECTORS.
+      'react/jsx-no-bind': 'off',
       'react/no-multi-comp': ['error', { ignoreStateless: false }],
       'react/jsx-max-depth': ['error', { max: 6 }],
       'react/hook-use-state': 'error',
       'react-hooks/exhaustive-deps': 'error',
-      'react/jsx-handler-names': [
-        'error',
-        {
-          eventHandlerPrefix: 'handle',
-          eventHandlerPropPrefix: 'on',
-          checkLocalVariables: true,
-          checkInlineFunction: false,
-        },
-      ],
 
-      // Project rules from AGENTS.md
-      'no-restricted-syntax': ['error', ...SHARED_SELECTORS, PROPS_SELECTOR],
+      // Project rules from AGENTS.md live in the per-layer blocks below.
 
       // Unicorn, selected rules only
       'unicorn/consistent-function-scoping': 'error',
@@ -297,12 +249,110 @@ export default defineConfig([
     },
   },
 
-  // Secrets and preset literals (kept from today, plus the props rule above)
+  // Project rules compose per layer. Later blocks override earlier ones for the same files.
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/server/secrets/**', 'src/core/presets/**'],
     rules: {
-      'no-restricted-syntax': ['error', ...SHARED_SELECTORS, PROPS_SELECTOR, ...SECRET_SELECTORS],
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        PROPS_SELECTOR,
+        SECRET_SELECTORS,
+        TYPE_SELECTORS,
+      ),
+    },
+  },
+  {
+    // Shared unions live in core and the platform bridge, next to their data.
+    files: ['src/core/**/*.{ts,tsx}', 'src/lib/platform/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        PROPS_SELECTOR,
+        SECRET_SELECTORS,
+        TYPE_SELECTORS,
+        UNION_SELECTORS,
+      ),
+    },
+  },
+  {
+    // Preset literal checks would flag the data files themselves.
+    files: ['src/core/presets/**'],
+    rules: {
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        PROPS_SELECTOR,
+        TYPE_SELECTORS,
+        UNION_SELECTORS,
+      ),
+    },
+  },
+  {
+    files: ['src/server/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        PROPS_SELECTOR,
+        SECRET_SELECTORS,
+        SERVER_SELECTORS,
+        TYPE_SELECTORS,
+      ),
+    },
+  },
+  {
+    // Secrets code reads process.env directly.
+    files: ['src/server/secrets/**'],
+    rules: {
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        PROPS_SELECTOR,
+        SERVER_SELECTORS,
+        TYPE_SELECTORS,
+      ),
+    },
+  },
+  {
+    // The keychain lazily loads its native module, the one allowed dynamic import.
+    files: ['src/server/secrets/keychain.ts'],
+    rules: {
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        PROPS_SELECTOR,
+        TYPE_SELECTORS,
+      ),
+    },
+  },
+  {
+    // Next route handlers take { params }, so drop only the props selector.
+    // SECRET_SELECTORS stays: the old block dropped it by accident.
+    files: ['src/app/api/**/route.ts'],
+    rules: {
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        SECRET_SELECTORS,
+        TYPE_SELECTORS,
+      ),
+    },
+  },
+  {
+    // No functions as object properties inside components.
+    files: ['src/features/**/*.tsx', 'src/ui/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': restrict(
+        SHARED_SELECTORS,
+        MODULE_SELECTORS,
+        PROPS_SELECTOR,
+        SECRET_SELECTORS,
+        OBJECT_FUNCTION_SELECTOR,
+        INLINE_FUNCTION_SELECTORS,
+        TYPE_SELECTORS,
+      ),
     },
   },
 
@@ -314,24 +364,6 @@ export default defineConfig([
   {
     files: ['src/features/**', 'src/ui/**', 'src/lib/**', 'src/core/**'],
     rules: { 'no-console': 'error' },
-  },
-  {
-    // Next route handlers take { params }, so drop only the props selector.
-    files: ['src/app/api/**/route.ts'],
-    rules: { 'no-restricted-syntax': ['error', ...SHARED_SELECTORS] },
-  },
-  {
-    // No functions as object properties inside components.
-    files: ['src/features/**/*.tsx', 'src/ui/**/*.tsx'],
-    rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...SHARED_SELECTORS,
-        PROPS_SELECTOR,
-        ...SECRET_SELECTORS,
-        OBJECT_FUNCTION_SELECTOR,
-      ],
-    },
   },
   {
     // Exported functions declare their return type outside components.
@@ -356,38 +388,55 @@ export default defineConfig([
   // Blank-line grouping. After prettier, which turns some of these off.
   {
     files: ['src/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
+    plugins: { local: localPlugin },
     rules: {
+      'local/padding-around-functions': 'error',
+      'arrow-body-style': ['error', 'always'],
+      curly: ['error', 'all'],
       '@stylistic/padding-line-between-statements': [
         'error',
         { blankLine: 'always', prev: 'directive', next: '*' },
-        {
-          blankLine: 'always',
-          prev: 'import',
-          next: ['const', 'let', 'function', 'class', 'export', 'expression', 'type', 'interface'],
-        },
+        { blankLine: 'always', prev: 'import', next: '*' },
+        { blankLine: 'any', prev: 'import', next: 'import' },
         { blankLine: 'always', prev: ['const', 'let'], next: '*' },
-        { blankLine: 'any', prev: ['const', 'let'], next: ['const', 'let'] },
+        {
+          blankLine: 'any',
+          prev: ['singleline-const', 'singleline-let'],
+          next: ['singleline-const', 'singleline-let'],
+        },
+        { blankLine: 'any', prev: 'singleline-export', next: 'singleline-export' },
         {
           blankLine: 'always',
           prev: '*',
-          next: ['if', 'for', 'while', 'do', 'switch', 'try', 'throw'],
-        },
-        {
-          blankLine: 'any',
-          prev: ['if', 'for', 'while', 'do', 'switch', 'try'],
-          next: ['if', 'for', 'while', 'do', 'switch', 'try'],
-        },
-        {
-          blankLine: 'any',
-          prev: ['if', 'for', 'while', 'do', 'switch', 'try'],
-          next: 'throw',
+          next: ['if', 'for', 'while', 'do', 'switch', 'try', 'throw', 'return'],
         },
         {
           blankLine: 'always',
           prev: '*',
-          next: ['function', 'class', 'export', 'type', 'interface'],
+          next: [
+            'function',
+            'class',
+            'type',
+            'interface',
+            'multiline-const',
+            'multiline-let',
+            'multiline-expression',
+            'multiline-export',
+          ],
         },
-        { blankLine: 'any', prev: 'export', next: 'export' },
+        {
+          blankLine: 'always',
+          prev: [
+            'block-like',
+            'multiline-const',
+            'multiline-let',
+            'multiline-expression',
+            'multiline-export',
+            'type',
+            'interface',
+          ],
+          next: '*',
+        },
       ],
       '@stylistic/padded-blocks': ['error', 'never'],
       '@stylistic/lines-between-class-members': [
@@ -404,6 +453,16 @@ export default defineConfig([
           allowArrayStart: true,
         },
       ],
+    },
+  },
+
+  {
+    // Callback props stay on props, or use a handle<Action> created in the component.
+    // A function used only by one hook call is written inline in that call.
+    files: ['src/**/*.tsx', 'src/**/use-*.ts'],
+    rules: {
+      'local/callback-props': 'error',
+      'local/inline-hook-callbacks': 'error',
     },
   },
 

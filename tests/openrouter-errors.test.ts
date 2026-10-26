@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { submitError } from '@/server/jobs/run-submit'
-import { errorFromResponse, OpenRouterError } from '@/server/openrouter/client'
+import { errorFromResponse } from '@/server/providers/openrouter/http'
+import { ProviderError } from '@/server/providers/provider-error'
 
-vi.mock('server-only', () => ({}))
+vi.mock('server-only', () => {
+  return {}
+})
 
-const response = (body: unknown, status = 400): Response =>
-  new Response(JSON.stringify(body), {
+const response = (body: unknown, status = 400): Response => {
+  return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   })
+}
 
 describe('errorFromResponse', () => {
   it('combines the message with provider and raw detail', async () => {
@@ -89,6 +93,7 @@ describe('errorFromResponse', () => {
     expect(error.message).toBe(
       'The request failed because the input image may contain real person.',
     )
+
     expect(error.code).toBe('InputImageSensitiveContentDetected.PrivacyInformation')
     expect(error.status).toBe(400)
   })
@@ -106,7 +111,14 @@ describe('submitError', () => {
   it('does not repeat the HTTP status for a status code', () => {
     expect(
       submitError(
-        new OpenRouterError({ message: 'HTTP 400: Bad request', status: 400, code: '400' }),
+        new ProviderError({
+          providerId: 'openrouter',
+          kind: 'input',
+          message: 'Bad request',
+          storedMessage: 'Bad request',
+          status: 400,
+          code: '400',
+        }),
       ),
     ).toBe('Bad request')
   })
@@ -114,8 +126,11 @@ describe('submitError', () => {
   it('prefixes a real provider code once', () => {
     expect(
       submitError(
-        new OpenRouterError({
-          message: '400: The image was rejected for sensitive content.',
+        new ProviderError({
+          providerId: 'openrouter',
+          kind: 'content',
+          message: 'The image was rejected for sensitive content.',
+          storedMessage: 'The image was rejected for sensitive content.',
           status: 400,
           code: 'InputImageSensitiveContentDetected.PrivacyInformation',
         }),

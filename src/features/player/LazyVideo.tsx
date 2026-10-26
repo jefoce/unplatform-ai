@@ -1,12 +1,6 @@
 'use client'
 
-import {
-  type ComponentProps,
-  type CSSProperties,
-  type MouseEvent,
-  useCallback,
-  useRef,
-} from 'react'
+import { type ComponentProps, type CSSProperties, type MouseEvent, useRef } from 'react'
 import { isEmpty } from 'lodash-es'
 
 import { cn } from '@/lib/cn'
@@ -37,9 +31,19 @@ export interface LazyVideoProps {
 const NO_HANDLERS: ComponentProps<'div'> = {}
 
 function fitClass(videoFit: 'cover' | 'contain', isFullscreen: boolean): string {
-  if (isFullscreen || videoFit !== 'cover') return 'object-contain'
+  if (isFullscreen || videoFit !== 'cover') {
+    return 'object-contain'
+  }
 
   return 'object-cover'
+}
+
+function tabIndexFor(isInteractive: boolean): number {
+  if (isInteractive) {
+    return 0
+  }
+
+  return -1
 }
 
 /**
@@ -59,12 +63,14 @@ export function LazyVideo(props: LazyVideoProps) {
     hoverPlay: isHoverPlay = false,
     interactive: isInteractive = true,
   } = props
+
   const { acquire, release, isActive } = usePlayerSlot()
   const isSlotActive = isActive(id)
   const rootRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const video = useVideoState({ videoRef, rootRef, active: isSlotActive, src })
   const inputHandlers = usePlayerInput({ isActive: isSlotActive, video })
+
   const hoverHandlers = useHoverPlay({
     id,
     src,
@@ -76,19 +82,16 @@ export function LazyVideo(props: LazyVideoProps) {
 
   useSlotLifecycle({ id, rootRef, videoRef, isSlotActive, isInteractive, release })
 
-  const handlePlay = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation()
-      acquire(id)
-    },
-    [acquire, id],
-  )
+  const handlePlay = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    acquire(id)
+  }
 
   const fit = fitClass(videoFit, video.fullscreen)
   const shouldShowControls = isInteractive && !isHoverPlay
   const rootHandlers = shouldShowControls ? inputHandlers : NO_HANDLERS
   const rootStyle: CSSProperties = { aspectRatio: aspect }
-  const tabIndex = isInteractive ? 0 : -1
+  const tabIndex = tabIndexFor(isInteractive)
 
   return (
     <div
@@ -103,7 +106,7 @@ export function LazyVideo(props: LazyVideoProps) {
         className,
       )}
     >
-      {isSlotActive ? (
+      {isSlotActive && (
         <LazyVideoPlayer
           videoRef={videoRef}
           video={video}
@@ -113,7 +116,8 @@ export function LazyVideo(props: LazyVideoProps) {
           fit={fit}
           showControls={shouldShowControls}
         />
-      ) : (
+      )}
+      {!isSlotActive && (
         <LazyVideoPoster
           poster={poster}
           alt={alt}

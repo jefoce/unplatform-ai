@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { hashFile } from '@/server/remote/hash'
+import { hashFile } from '@/server/storage/hash'
 
 const DIR = path.join(process.cwd(), '.cache', 'remote-hash-test')
 const FILE = path.join(DIR, 'fixture.bin')

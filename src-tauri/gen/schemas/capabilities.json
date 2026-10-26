@@ -1,17 +1,1 @@
-{
-  "main": {
-    "identifier": "main",
-    "description": "Permissions for the Unplatform AI webview",
-    "remote": { "urls": ["http://127.0.0.1:*/*"] },
-    "local": true,
-    "windows": ["main"],
-    "permissions": [
-      "core:default",
-      "dialog:allow-open",
-      "dialog:allow-save",
-      "dialog:allow-ask",
-      "notification:default",
-      { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://openrouter.ai/*" }] }
-    ]
-  }
-}
+{"main":{"identifier":"main","description":"Permissions for the Unplatform AI webview","remote":{"urls":["http://127.0.0.1:*/*"]},"local":true,"windows":["main"],"permissions":["core:default","allow-update-info","allow-update-check","allow-update-install","allow-update-set-auto","allow-update-open-release","dialog:allow-open","dialog:allow-save","dialog:allow-ask","notification:default",{"identifier":"opener:allow-open-url","allow":[{"url":"https://openrouter.ai/*"},{"url":"https://dash.cloudflare.com/*"},{"url":"https://github.com/jefoce/unplatform-ai*"}]}]}}

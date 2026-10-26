@@ -3,30 +3,45 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { isNil } from 'lodash-es'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { FolderTab } from '@/features/media-picker/FolderTab'
+import { FolderTab } from '@/features/media-picker/folders/FolderTab'
 import { closePreview, usePreviewStore } from '@/features/preview/preview-store'
 
-const mocks = vi.hoisted(() => ({
-  fetchFolderFiles: vi.fn(),
-  linkFolderFile: vi.fn(),
-}))
+const mocks = vi.hoisted(() => {
+  return {
+    fetchFolderFiles: vi.fn(),
+    linkFolderFile: vi.fn(),
+  }
+})
 
-vi.mock('@/features/media-picker/api', () => ({
-  fetchFolderFiles: mocks.fetchFolderFiles,
-  linkFolderFile: mocks.linkFolderFile,
-  thumbUrl: () => '/thumb',
-}))
+vi.mock('@/lib/api/folders', () => {
+  return {
+    fetchFolderFiles: mocks.fetchFolderFiles,
+    linkFolderFile: mocks.linkFolderFile,
+  }
+})
 
-vi.mock('swr', () => ({
-  default: () => ({
-    data: {
-      path: '',
-      dirs: [],
-      files: [{ name: 'clip.mp4', rel: 'clip.mp4', kind: 'video', sizeBytes: 1, mtimeMs: 1 }],
+vi.mock('@/lib/api/media-urls', () => {
+  return {
+    thumbUrl: () => {
+      return '/thumb'
     },
-    isLoading: false,
-  }),
-}))
+  }
+})
+
+vi.mock('swr', () => {
+  return {
+    default: () => {
+      return {
+        data: {
+          path: '',
+          dirs: [],
+          files: [{ name: 'clip.mp4', rel: 'clip.mp4', kind: 'video', sizeBytes: 1, mtimeMs: 1 }],
+        },
+        isLoading: false,
+      }
+    },
+  }
+})
 
 afterEach(() => {
   cleanup()
@@ -87,6 +102,7 @@ describe('FolderTab selection', () => {
       onPickFile: vi.fn<(rel: string) => void>(),
       selectedRels: ['clip.mp4'],
     })
+
     const tile = screen.getByRole('button', { name: 'Select clip.mp4' })
 
     fireEvent.click(tile)
@@ -107,7 +123,9 @@ describe('FolderTab selection', () => {
     const request = usePreviewStore.getState().request
     const item = request?.items[0]
 
-    if (isNil(request) || isNil(item)) throw new Error('preview request missing')
+    if (isNil(request) || isNil(item)) {
+      throw new Error('preview request missing')
+    }
 
     expect(item.id).toBe('folder:folder-1:clip.mp4')
     expect(item.previewRef).toBe('folders/folder-1/clip.mp4')
@@ -123,9 +141,13 @@ describe('FolderTab selection', () => {
     const request = usePreviewStore.getState().request
     const item = request?.items[0]
 
-    if (isNil(request) || isNil(item)) throw new Error('preview request missing')
+    if (isNil(request) || isNil(item)) {
+      throw new Error('preview request missing')
+    }
 
-    act(() => request.actions?.select?.(item))
+    act(() => {
+      return request.actions?.select?.(item)
+    })
 
     expect(mocks.linkFolderFile).not.toHaveBeenCalled()
     expect(onPickFile).not.toHaveBeenCalled()

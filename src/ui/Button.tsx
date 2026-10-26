@@ -45,6 +45,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     ...rest
   } = props
 
+  const spinnerTone = variant === 'primary' ? 'lime' : 'muted'
+
   return (
     <button
       ref={ref}
@@ -60,7 +62,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         className,
       )}
     >
-      {isLoading && <Spinner size={16} tone={variant === 'primary' ? 'lime' : 'muted'} />}
+      {isLoading && <Spinner size={16} tone={spinnerTone} />}
       {children}
     </button>
   )

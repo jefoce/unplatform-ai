@@ -1,0 +1,27 @@
+name: checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm deps
+      - run: pnpm format:check
+      - run: pnpm knip
+      - run: pnpm test
+      - run: pnpm build
+      - name: Audit production dependencies
+        continue-on-error: true
+        run: pnpm audit --prod --audit-level high

@@ -33,6 +33,7 @@ describe('runFfmpeg', () => {
     await expect(runFfmpeg({ args: [], timeoutMs: 100 })).rejects.toThrow(
       'ffmpeg timed out after 100 ms',
     )
+
     expect(Date.now() - started).toBeLessThan(5_000)
   })
 })

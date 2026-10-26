@@ -2,6 +2,7 @@
 import { cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { Dict } from '@/core/utility-types'
 import { usePointerBlur } from '@/lib/use-pointer-blur'
 
 beforeEach(() => {
@@ -18,10 +19,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function mountControl(attributes: Record<string, string> = {}): HTMLElement {
+function mountControl(attributes: Dict<string> = {}): HTMLElement {
   const button = document.createElement('button')
 
-  for (const [name, value] of Object.entries(attributes)) button.setAttribute(name, value)
+  for (const [name, value] of Object.entries(attributes)) {
+    button.setAttribute(name, value)
+  }
 
   document.body.append(button)
 
@@ -34,7 +37,10 @@ function click(element: HTMLElement, detail = 1): void {
 
 describe('usePointerBlur', () => {
   it('drops focus after a mouse click', () => {
-    renderHook(() => usePointerBlur())
+    renderHook(() => {
+      usePointerBlur()
+    })
+
     const button = mountControl()
 
     button.focus()
@@ -45,7 +51,10 @@ describe('usePointerBlur', () => {
   })
 
   it('keeps focus on menu triggers', () => {
-    renderHook(() => usePointerBlur())
+    renderHook(() => {
+      usePointerBlur()
+    })
+
     const button = mountControl({ 'aria-haspopup': 'menu' })
 
     button.focus()
@@ -56,7 +65,10 @@ describe('usePointerBlur', () => {
   })
 
   it('keeps focus for keyboard activation', () => {
-    renderHook(() => usePointerBlur())
+    renderHook(() => {
+      usePointerBlur()
+    })
+
     const button = mountControl()
 
     button.focus()
@@ -67,7 +79,10 @@ describe('usePointerBlur', () => {
   })
 
   it('keeps focus inside an open menu', () => {
-    renderHook(() => usePointerBlur())
+    renderHook(() => {
+      usePointerBlur()
+    })
+
     const menu = document.createElement('div')
 
     menu.setAttribute('role', 'menu')

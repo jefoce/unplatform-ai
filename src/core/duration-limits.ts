@@ -1,17 +1,19 @@
 import { isNil } from 'lodash-es'
 
-import { minDuration, type ModelPreset } from './presets'
-import type { GenerationInput, UploadItem } from './types'
+import { minDuration } from './presets'
+import type { ModelPreset } from './presets/types'
+import type { GenerationInput } from './schemas/generation-record'
+import type { UploadsById } from './schemas/upload-item'
 
 interface ReferenceDurationLimitParams {
   references: readonly string[]
-  uploads: Record<string, UploadItem>
+  uploads: UploadsById
   preset: ModelPreset
 }
 
 interface ReferenceVideoSecondsParams {
   references: readonly string[]
-  uploads: Record<string, UploadItem>
+  uploads: UploadsById
 }
 
 /** Total seconds of kept video references. */
@@ -21,7 +23,11 @@ export function referenceVideoSeconds(params: ReferenceVideoSecondsParams): numb
   return references.reduce((sum, id) => {
     const upload = uploads[id]
 
-    return upload?.kind === 'video' ? sum + (upload.durationSec ?? 0) : sum
+    if (upload?.kind === 'video') {
+      return sum + (upload.durationSec ?? 0)
+    }
+
+    return sum
   }, 0)
 }
 
@@ -29,11 +35,15 @@ export function referenceVideoSeconds(params: ReferenceVideoSecondsParams): numb
 export function durationLimitFor(params: ReferenceDurationLimitParams): number {
   const { references, uploads, preset } = params
 
-  if (isNil(preset.maxInputPlusOutputSec)) return preset.duration.max
+  if (isNil(preset.maxInputPlusOutputSec)) {
+    return preset.duration.max
+  }
 
   const total = referenceVideoSeconds({ references, uploads })
 
-  if (total === 0 || Number.isNaN(total)) return preset.duration.max
+  if (total === 0 || Number.isNaN(total)) {
+    return preset.duration.max
+  }
 
   const room = Math.floor(preset.maxInputPlusOutputSec - total)
 
@@ -42,7 +52,7 @@ export function durationLimitFor(params: ReferenceDurationLimitParams): number {
 
 interface MaxDurationForParams {
   input: GenerationInput
-  uploads: Record<string, UploadItem>
+  uploads: UploadsById
   preset: ModelPreset
 }
 
@@ -50,11 +60,15 @@ interface MaxDurationForParams {
 export function maxDurationFor(params: MaxDurationForParams): number {
   const { input, uploads, preset } = params
 
-  if (isNil(preset.maxInputPlusOutputSec)) return preset.duration.max
+  if (isNil(preset.maxInputPlusOutputSec)) {
+    return preset.duration.max
+  }
 
   let references: string[] = []
 
-  if (input.tab === 'references') references = input.references
+  if (input.tab === 'references') {
+    references = input.references
+  }
 
   return durationLimitFor({ references, uploads, preset })
 }

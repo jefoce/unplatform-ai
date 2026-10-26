@@ -12,13 +12,23 @@ const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
 /** "October 20, 2026, 01:44" */
 export function formatDate(iso: string): string {
   return DATE_FORMAT.formatToParts(new Date(iso))
-    .map((part) => (part.type === 'literal' && part.value.trim() === 'at' ? ', ' : part.value))
+    .map((part) => {
+      if (part.type === 'literal' && part.value.trim() === 'at') {
+        return ', '
+      }
+
+      return part.value
+    })
     .join('')
 }
 
 /** Integer seconds stay short, e.g. "5s" or "5.5s". */
 export function formatSecondsShort(seconds: number): string {
-  return Number.isInteger(seconds) ? `${seconds}s` : `${Number(seconds.toFixed(1))}s`
+  if (Number.isInteger(seconds)) {
+    return `${seconds}s`
+  }
+
+  return `${Number(seconds.toFixed(1))}s`
 }
 
 /** Up to two decimals, trailing zeros dropped, e.g. "15.02s" or "15s". */
@@ -28,7 +38,9 @@ export function formatSecondsExact(value: number): string {
 
 /** m:ss for >= 60s, otherwise `6.8s` unless `shouldAlwaysClock` is set. */
 export function formatMediaDuration(seconds: number, shouldAlwaysClock = false): string {
-  if (!shouldAlwaysClock && seconds < 60) return formatSecondsShort(seconds)
+  if (!shouldAlwaysClock && seconds < 60) {
+    return formatSecondsShort(seconds)
+  }
 
   const minutes = Math.floor(seconds / 60)
   const rest = Math.round(seconds % 60)
@@ -55,14 +67,41 @@ export function formatBytes(bytes: number): string {
     unit += 1
   }
 
-  const rounded = unit === 0 ? Math.round(value) : Math.round(value * 10) / 10
+  let rounded: number
+
+  if (unit === 0) {
+    rounded = Math.round(value)
+  } else {
+    rounded = Math.round(value * 10) / 10
+  }
 
   return `${rounded} ${BYTE_UNITS[unit]}`
 }
 
+/** Short relative age, e.g. "just now", "5 min ago", "2 h ago", "3 d ago". */
+export function formatAgo(iso: string, now: number): string {
+  const seconds = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
+
+  if (seconds < 60) {
+    return 'just now'
+  }
+
+  if (seconds < 3600) {
+    return `${Math.floor(seconds / 60)} min ago`
+  }
+
+  if (seconds < 86400) {
+    return `${Math.floor(seconds / 3600)} h ago`
+  }
+
+  return `${Math.floor(seconds / 86400)} d ago`
+}
+
 /** Cuts text to `max` characters including a trailing "...". */
 export function truncate(text: string, max: number): string {
-  if (text.length <= max) return text
+  if (text.length <= max) {
+    return text
+  }
 
   return `${text.slice(0, Math.max(0, max - 3))}...`
 }

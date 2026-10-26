@@ -1,5 +1,3 @@
-export type ErrorFamily = 'wan' | 'seedance'
-
 type ErrorKind =
   | 'content'
   | 'copyright'
@@ -32,3 +30,5 @@ export interface Rule {
 }
 
 export type HttpRule = Omit<Rule, 'match'>
+
+export type HttpRuleTable = Readonly<Partial<Record<number, HttpRule>>>

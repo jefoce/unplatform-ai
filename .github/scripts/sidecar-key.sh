@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prints <name>-<target>-<first16> where the hash covers every file under
-# scripts/<name> (sorted path + sha256), the target triple, the runner image and the profile.
+# Prints <name>-<target>-<first16> from the sorted scripts/<name> files, the target,
+# the runner image and the profile. The runner image is in the key because toolchains differ.
 set -euo pipefail
 
 name=${1:?name}
@@ -27,7 +27,7 @@ sha256_stream() {
 hash=$(
   {
     while IFS= read -r file; do
-      printf '%s\n' "${file#scripts/$name/}"
+      printf '%s\n' "${file#scripts/"$name"/}"
       sha256_file "$file"
     done < <(find "scripts/$name" -type f | LC_ALL=C sort)
     printf '%s\n' "$target" "$runner" "$profile"

@@ -186,9 +186,7 @@ fn switch_port(app: &AppHandle<Wry>, launch: &mut Launch, allowed_port: &AtomicU
     if let Some(runtime) = app.state::<State>().runtime.lock().unwrap().as_mut() {
         runtime.port = port;
     }
-    let mut desktop = settings::load();
-    desktop.port = port;
-    if let Err(error) = settings::save(&desktop) {
+    if let Err(error) = settings::update(|desktop| desktop.port = port) {
         append_log(format!("[unplatform-ai] could not save port {port}: {error}").as_bytes());
     }
     append_log(format!("[unplatform-ai] port {port} selected after EADDRINUSE").as_bytes());

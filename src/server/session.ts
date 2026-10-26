@@ -4,6 +4,8 @@ import { timingSafeEqual } from 'node:crypto'
 
 import { isNil } from 'lodash-es'
 
+import { isNonEmptyString } from '@/core/guards'
+
 const configuredToken = process.env.APP_TOKEN?.trim() ?? ''
 const TOKEN = configuredToken === '' ? null : configuredToken
 
@@ -15,7 +17,9 @@ export function sessionRequired(): boolean {
 }
 
 export function tokenMatches(value: string | null | undefined): boolean {
-  if (isNil(TOKEN) || TOKEN === '' || isNil(value) || value === '') return false
+  if (!isNonEmptyString(TOKEN) || !isNonEmptyString(value)) {
+    return false
+  }
 
   const a = Buffer.from(value)
   const b = Buffer.from(TOKEN)
@@ -25,12 +29,17 @@ export function tokenMatches(value: string | null | undefined): boolean {
 
 /** Reads the session cookie. Missing or wrong values fail closed. */
 export function hasSession(request: Request): boolean {
-  if (isNil(TOKEN) || TOKEN === '') return true
+  if (!isNonEmptyString(TOKEN)) {
+    return true
+  }
 
   const cookie = request.headers.get('cookie') ?? ''
+
   const value = cookie
     .split(/;\s*/)
-    .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
+    .find((part) => {
+      return part.startsWith(`${SESSION_COOKIE}=`)
+    })
     ?.slice(SESSION_COOKIE.length + 1)
 
   return tokenMatches(value)

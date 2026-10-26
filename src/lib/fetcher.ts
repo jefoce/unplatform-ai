@@ -1,4 +1,6 @@
-import { isNil, isUndefined } from 'lodash-es'
+import { isUndefined } from 'lodash-es'
+
+import { isNonEmptyString } from '@/core/guards'
 
 interface ApiErrorParams {
   status: number
@@ -27,7 +29,9 @@ interface ErrorBody {
 }
 
 async function throwApiError(response: Response): Promise<never> {
-  const body = (await response.json().catch(() => null)) as ErrorBody | null
+  const body = (await response.json().catch(() => {
+    return null
+  })) as ErrorBody | null
 
   throw new ApiError({
     status: response.status,
@@ -37,20 +41,29 @@ async function throwApiError(response: Response): Promise<never> {
 }
 
 async function readJson<T>(response: Response): Promise<T> {
-  if (response.status === 204) return undefined as T
+  if (response.status === 204) {
+    return undefined as T
+  }
 
   const text = await response.text()
 
-  if (text === '') return undefined as T
+  if (text === '') {
+    return undefined as T
+  }
 
-  return JSON.parse(text) as T
+  // Own API, typed by the shared core shape, not validated.
+  const parsed: unknown = JSON.parse(text)
+
+  return parsed as T
 }
 
 /** SWR fetcher: GET with same-origin credentials. */
 export async function fetcher<T>(url: string): Promise<T> {
   const response = await fetch(url, { method: 'GET', credentials: 'same-origin' })
 
-  if (!response.ok) return throwApiError(response)
+  if (!response.ok) {
+    return throwApiError(response)
+  }
 
   return readJson<T>(response)
 }
@@ -61,33 +74,44 @@ export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T>
   const body = init?.body
   const isForm = body instanceof FormData
 
-  if (!isNil(body) && body !== '' && !isForm && !headers.has('Content-Type'))
+  if (isNonEmptyString(body) && !isForm && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
+  }
 
   const response = await fetch(url, { credentials: 'same-origin', ...init, headers })
 
-  if (!response.ok) return throwApiError(response)
+  if (!response.ok) {
+    return throwApiError(response)
+  }
 
   return readJson<T>(response)
+}
+
+function bodyValue(body: unknown): string | undefined {
+  if (isUndefined(body)) {
+    return undefined
+  }
+
+  return JSON.stringify(body)
 }
 
 export function apiPost<T>(url: string, body?: unknown): Promise<T> {
   return apiRequest<T>(url, {
     method: 'POST',
-    body: isUndefined(body) ? undefined : JSON.stringify(body),
+    body: bodyValue(body),
   })
 }
 
 export function apiPatch<T>(url: string, body?: unknown): Promise<T> {
   return apiRequest<T>(url, {
     method: 'PATCH',
-    body: isUndefined(body) ? undefined : JSON.stringify(body),
+    body: bodyValue(body),
   })
 }
 
 export function apiDelete<T>(url: string, body?: unknown): Promise<T> {
   return apiRequest<T>(url, {
     method: 'DELETE',
-    body: isUndefined(body) ? undefined : JSON.stringify(body),
+    body: bodyValue(body),
   })
 }

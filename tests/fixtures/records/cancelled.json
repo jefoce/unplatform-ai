@@ -1,0 +1,37 @@
+{
+  "id": "88888888-8888-4888-8888-888888888888",
+  "createdAt": "2026-10-20T00:06:00.000Z",
+  "updatedAt": "2026-10-20T00:06:20.000Z",
+  "status": "cancelled",
+  "input": {
+    "presetId": "seedance-2.0",
+    "tab": "frames",
+    "prompt": "A slow pan over mountains",
+    "audio": true,
+    "duration": 4,
+    "aspectRatio": "9:16",
+    "resolution": "768p",
+    "frames": { "start": null, "end": null },
+    "references": [],
+    "seed": 3
+  },
+  "preset": { "id": "seedance-2.0", "title": "Seedance 2.0", "slug": "bytedance/seedance-2.0" },
+  "inputsSnapshot": {},
+  "job": {
+    "id": "job-cancelled-1",
+    "generationId": "gen-cancelled-1",
+    "submittedAt": "2026-10-20T00:06:01.000Z",
+    "startedAt": "2026-10-20T00:06:02.000Z"
+  },
+  "seedUsed": 3,
+  "favorite": false,
+  "cost": {
+    "currency": "USD",
+    "pricePerSec": 0.15,
+    "priceSource": "mock",
+    "estimatedUsd": 0.6,
+    "actualUsd": null,
+    "isByok": true,
+    "billed": false
+  }
+}

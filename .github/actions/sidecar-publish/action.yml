@@ -1,0 +1,76 @@
+name: sidecar-publish
+description: Write the sidecar manifest, push it to GHCR, then pack and upload the artifact.
+
+inputs:
+  name:
+    description: Sidecar name, ffmpeg or node
+    required: true
+  target:
+    description: Target triple
+    required: true
+  version:
+    description: Release version written to the manifest
+    required: true
+  profile:
+    description: Sidecar profile, full for ffmpeg
+    required: false
+    default: ''
+  key:
+    description: GHCR key of the sidecar
+    required: true
+  force:
+    description: Overwrite an existing GHCR tag
+    required: false
+    default: 'false'
+  token:
+    description: GHCR token
+    required: true
+  files:
+    description: Space separated files in <name>-out to push
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Publish sidecar to GHCR
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        TARGET: ${{ inputs.target }}
+        VERSION: ${{ inputs.version }}
+        PROFILE: ${{ inputs.profile }}
+        KEY: ${{ inputs.key }}
+        FORCE: ${{ inputs.force }}
+        FILES: ${{ inputs.files }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        : "${TOKEN:?token required}"
+        out="$NAME-out"
+        if [[ -f "$out/manifest.json" ]]; then
+          echo "sidecar already restored from GHCR"
+          exit 0
+        fi
+        bin=$(bash .github/scripts/sidecar-binary.sh "$NAME" "$TARGET")
+        if [[ "$FILES" == *buildconf.txt* && ! -f "$out/buildconf.txt" ]]; then
+          echo "::error::buildconf.txt missing"
+          exit 1
+        fi
+        if [[ "$TARGET" != *windows* ]]; then
+          chmod +x "$out/$bin"
+        fi
+        node .github/scripts/sidecar-manifest.mjs write "$out/$bin" "$out/manifest.json" "$NAME" "$TARGET" "$VERSION" "$PROFILE"
+        read -r -a push_files <<< "$FILES"
+        bash .github/scripts/ghcr-push.sh "ghcr.io/jefoce/unplatform-ai-sidecars:$KEY" "$out" "${push_files[@]}"
+    # tar keeps the executable bit that upload-artifact drops.
+    - name: Pack sidecar
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        TARGET: ${{ inputs.target }}
+      run: tar -czf "$NAME-$TARGET.tar.gz" -C "$NAME-out" .
+    - name: Upload sidecar
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: ${{ inputs.name }}-${{ inputs.target }}
+        path: ${{ inputs.name }}-${{ inputs.target }}.tar.gz
+        if-no-files-found: error

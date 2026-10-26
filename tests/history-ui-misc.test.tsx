@@ -2,36 +2,50 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AudioChip } from '@/features/generator/AudioChip'
-import { PromptWarnings } from '@/features/generator/PromptWarnings'
-import { SeedChip } from '@/features/generator/SeedChip'
-import { HistoryGrid } from '@/features/history/HistoryGrid'
-import { HistoryRow } from '@/features/history/HistoryRow'
-import { useSelectionStore } from '@/features/history/selection-store'
-import { StatusOverlay } from '@/features/history/StatusOverlay'
+import { AudioChip } from '@/features/generator/options/AudioChip'
+import { SeedChip } from '@/features/generator/options/SeedChip'
+import { PromptWarnings } from '@/features/generator/prompt/PromptWarnings'
+import { HistoryGrid } from '@/features/history/list/HistoryGrid'
+import { HistoryRow } from '@/features/history/list/HistoryRow'
+import { useSelectionStore } from '@/features/history/selection/selection-store'
+import { StatusOverlay } from '@/features/history/status/StatusOverlay'
 
 import { handleNoop, ids, Observer, record, setOrder, setSelection, tile } from './helpers/history'
 import { required } from './helpers/required'
 
-const apiPost = vi.hoisted(() => vi.fn())
-const apiDelete = vi.hoisted(() => vi.fn())
-const confirm = vi.hoisted(() => vi.fn())
+const apiPost = vi.hoisted(() => {
+  return vi.fn()
+})
 
-vi.mock('@/lib/fetcher', () => ({
-  apiPost,
-  apiDelete,
-  apiPatch: vi.fn(),
-  fetcher: vi.fn(),
-  ApiError: class ApiError extends Error {
-    status = 0
-  },
-}))
+const apiDelete = vi.hoisted(() => {
+  return vi.fn()
+})
 
-vi.mock('@/lib/platform', () => ({
-  platform: { confirm, saveVideo: vi.fn(), saveVideos: vi.fn() },
-}))
+const confirm = vi.hoisted(() => {
+  return vi.fn()
+})
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/lib/fetcher', () => {
+  return {
+    apiPost,
+    apiDelete,
+    apiPatch: vi.fn(),
+    fetcher: vi.fn(),
+    ApiError: class ApiError extends Error {
+      status = 0
+    },
+  }
+})
+
+vi.mock('@/lib/platform', () => {
+  return {
+    platform: { confirm, saveVideo: vi.fn(), saveVideos: vi.fn() },
+  }
+})
+
+vi.mock('sonner', () => {
+  return { toast: { success: vi.fn(), error: vi.fn() } }
+})
 
 beforeEach(() => {
   vi.stubGlobal('IntersectionObserver', Observer)
@@ -59,6 +73,7 @@ describe('portal clicks', () => {
       button: 0,
       ctrlKey: false,
     })
+
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy prompt' }))
 
     expect(handleOpenMock).not.toHaveBeenCalled()
@@ -74,13 +89,17 @@ describe('portal clicks', () => {
       button: 0,
       ctrlKey: false,
     })
+
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
 
     const dialog = await screen.findByRole('dialog')
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
-    await waitFor(() => expect(apiDelete).toHaveBeenCalledWith('/api/generations/b'))
+    await waitFor(() => {
+      expect(apiDelete).toHaveBeenCalledWith('/api/generations/b')
+    })
+
     expect(ids()).toEqual(['a'])
   })
 
@@ -126,18 +145,21 @@ describe('prompt chips', () => {
       expect(chip.className).toContain('font-medium')
     }
 
-    expect(chips[0].className).toContain('ml-auto')
+    expect(required(chips[0], 'warning chip').className).toContain('ml-auto')
   })
 })
 
 describe('cancel fade', () => {
   it('fades the Cancel button over the remaining grace, then drops it', async () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-01-01T00:00:00.000Z'))
+
     const graced = record('grace', {
       status: 'submitting',
       submit: { stage: 'grace', notBefore: '2026-01-01T00:00:04.000Z' },
     })
+
     const handleCancel = vi.fn()
+
     const { container, rerender } = render(
       <StatusOverlay record={graced} onCancel={handleCancel} />,
     )
@@ -161,6 +183,7 @@ describe('cancel fade', () => {
         onCancel={handleCancel}
       />,
     )
+
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
     nowSpy.mockRestore()
   })
@@ -177,7 +200,7 @@ describe('liked list row', () => {
     expect(hearts).toHaveLength(1)
     expect(within(media).queryByText('1')).toBeNull()
 
-    const heart = hearts[0]
+    const heart = required(hearts[0], 'heart')
 
     expect(heart.className).not.toContain('opacity-0')
 

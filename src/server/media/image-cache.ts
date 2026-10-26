@@ -6,20 +6,22 @@ import path from 'node:path'
 
 import { z } from 'zod'
 
-import { FLATTEN_BACKGROUND, FLATTEN_LIGHT } from '@/core/constants'
+import {
+  FLATTEN_COLORS,
+  type FlattenColor,
+  IMAGE_FORMATS,
+  type ImageFormat,
+} from '@/core/media-types'
 
 import { readJson, writeJsonAtomic } from '../fs/json-file'
 import { UPLOADS_DIR } from '../paths'
-
-/** Flatten color used for transparent images sent to models without alpha. */
-export type FlattenColor = typeof FLATTEN_BACKGROUND | typeof FLATTEN_LIGHT
 
 export interface EncodedImage {
   url: string
   bytes: number
   width: number
   height: number
-  format: 'jpeg' | 'png'
+  format: ImageFormat
   flattened?: FlattenColor
 }
 
@@ -27,24 +29,25 @@ const CacheSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   bytes: z.number().int().positive(),
-  format: z.enum(['jpeg', 'png']),
-  flattened: z.enum([FLATTEN_BACKGROUND, FLATTEN_LIGHT]).optional(),
+  format: z.enum(IMAGE_FORMATS),
+  flattened: z.enum(FLATTEN_COLORS).optional(),
 })
 
 export type CacheRecord = z.infer<typeof CacheSchema>
 
-const cacheStem = (id: string, step: number): string =>
-  path.join(UPLOADS_DIR, `${id}.encoded-${step}`)
+const cacheStem = (id: string, step: number): string => {
+  return path.join(UPLOADS_DIR, `${id}.encoded-${step}`)
+}
 
-const opaqueFile = (id: string): string => path.join(UPLOADS_DIR, `${id}.opaque.json`)
+const opaqueFile = (id: string): string => {
+  return path.join(UPLOADS_DIR, `${id}.opaque.json`)
+}
 
 const OpaqueSchema = z.boolean()
 
 /** Per upload, so every ladder step and the submit share one stats() result. */
 export async function readOpaque(id: string): Promise<boolean | null> {
-  const parsed = OpaqueSchema.safeParse(await readJson<unknown>(opaqueFile(id)))
-
-  return parsed.success ? parsed.data : null
+  return readJson(opaqueFile(id), OpaqueSchema)
 }
 
 export async function writeOpaque(id: string, isOpaque: boolean): Promise<void> {
@@ -54,13 +57,15 @@ export async function writeOpaque(id: string, isOpaque: boolean): Promise<void> 
 interface CacheFileParams {
   id: string
   step: number
-  format: CacheRecord['format']
+  format: ImageFormat
 }
 
 const cacheFile = (params: CacheFileParams): string => {
   const { id, step, format } = params
 
-  return `${cacheStem(id, step)}.${format === 'jpeg' ? 'jpg' : 'png'}`
+  const ext = format === 'jpeg' ? 'jpg' : 'png'
+
+  return `${cacheStem(id, step)}.${ext}`
 }
 
 export function toEncoded(record: CacheRecord, data: Buffer): EncodedImage {
@@ -77,17 +82,23 @@ export function toEncoded(record: CacheRecord, data: Buffer): EncodedImage {
 }
 
 export async function readCache(id: string, step: number): Promise<EncodedImage | null> {
-  const raw = await readJson<unknown>(`${cacheStem(id, step)}.json`)
-  const parsed = CacheSchema.safeParse(raw)
+  const record = await readJson(`${cacheStem(id, step)}.json`, CacheSchema)
 
-  if (!parsed.success) return null
+  if (!record) {
+    return null
+  }
 
-  const file = cacheFile({ id, step, format: parsed.data.format })
-  const data = await fs.readFile(file).catch(() => null)
+  const file = cacheFile({ id, step, format: record.format })
 
-  if (!data) return null
+  const data = await fs.readFile(file).catch(() => {
+    return null
+  })
 
-  return toEncoded(parsed.data, data)
+  if (!data) {
+    return null
+  }
+
+  return toEncoded(record, data)
 }
 
 interface WriteCacheParams {
@@ -113,11 +124,18 @@ export async function writeCache(params: WriteCacheParams): Promise<void> {
 export async function removeEncoded(id: string): Promise<void> {
   const prefix = `${id}.encoded-`
   const opaque = `${id}.opaque.json`
-  const names = await fs.readdir(UPLOADS_DIR).catch(() => [])
+
+  const names = await fs.readdir(UPLOADS_DIR).catch(() => {
+    return []
+  })
 
   await Promise.all(
     names
-      .filter((name) => name.startsWith(prefix) || name === opaque)
-      .map((name) => fs.unlink(path.join(UPLOADS_DIR, name)).catch(() => {})),
+      .filter((name) => {
+        return name.startsWith(prefix) || name === opaque
+      })
+      .map((name) => {
+        return fs.unlink(path.join(UPLOADS_DIR, name)).catch(() => {})
+      }),
   )
 }

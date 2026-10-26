@@ -1,10 +1,11 @@
 'use client'
 
-import { forwardRef, useCallback, useState } from 'react'
-import { isNil } from 'lodash-es'
+import { forwardRef } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 
+import { isNonEmptyString } from '@/core/guards'
 import { cn } from '@/lib/cn'
+import { useBoolean } from '@/lib/use-boolean'
 
 import { Input, type InputProps } from './Input'
 
@@ -12,15 +13,19 @@ import { Input, type InputProps } from './Input'
 export const PasswordInput = forwardRef<HTMLInputElement, InputProps>(
   function PasswordInput(props, ref) {
     const { className, disabled: isDisabled, value, ...rest } = props
-    const [isRevealed, setIsRevealed] = useState(false)
-    const isValueEmpty = isNil(value) || value === ''
-    const handleToggleRevealed = useCallback(() => setIsRevealed((isCurrent) => !isCurrent), [])
+    const reveal = useBoolean()
+    const isValueEmpty = !isNonEmptyString(value)
+
+    const canReveal = reveal.value && !isValueEmpty
+    const inputType = canReveal ? 'text' : 'password'
+    const RevealIcon = reveal.value ? EyeOff : Eye
+    const revealLabel = reveal.value ? 'Hide value' : 'Show value'
 
     return (
       <div className="relative flex-1">
         <Input
           ref={ref}
-          type={isRevealed && !isValueEmpty ? 'text' : 'password'}
+          type={inputType}
           autoComplete="off"
           spellCheck={false}
           disabled={isDisabled}
@@ -31,12 +36,12 @@ export const PasswordInput = forwardRef<HTMLInputElement, InputProps>(
         {isDisabled !== true && (
           <button
             type="button"
-            onClick={handleToggleRevealed}
+            onClick={reveal.toggle}
             disabled={isValueEmpty}
-            aria-label={isRevealed ? 'Hide value' : 'Show value'}
+            aria-label={revealLabel}
             className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-fg-2 hover:text-fg disabled:opacity-30"
           >
-            {isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+            <RevealIcon size={13} />
           </button>
         )}
       </div>

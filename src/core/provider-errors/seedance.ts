@@ -72,7 +72,9 @@ export const SEEDANCE_RULES: readonly Rule[] = [
   },
   {
     match: /InvalidParameter|MissingParameter/,
-    title: (raw) => settingTitle('Seedance', raw),
+    title: (raw: string): string => {
+      return settingTitle('Seedance', raw)
+    },
     hint: 'The app should have caught this. Send the details to the developer.',
     kind: 'input',
   },

@@ -7,16 +7,18 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 
 import { FFMPEG_TIMEOUTS } from '@/core/constants'
-import type { MediaKind } from '@/core/types'
+import type { MediaKind } from '@/core/media-types'
 
-import { globalState } from '../global-state'
-import { withLock } from '../jobs/lock'
 import { COMPAT_DIR } from '../paths'
+import { createLimiter } from '../sync/limiter'
+import { withLock } from '../sync/lock'
 import { probeMedia, runFfmpeg } from './ffmpeg'
+
+type CompatContentType = 'video/mp4' | 'audio/mp4'
 
 export interface CompatMedia {
   path: string
-  contentType: 'video/mp4' | 'audio/mp4'
+  contentType: CompatContentType
 }
 
 type PlayableKind = Exclude<MediaKind, 'image'>
@@ -35,11 +37,7 @@ export class CompatError extends Error {
   }
 }
 
-interface Gate {
-  active: number
-  waiting: Array<() => void>
-}
-const gate = globalState<Gate>('compatQueue', () => ({ active: 0, waiting: [] }))
+const limiter = createLimiter('compatQueue', MAX_CONVERSIONS)
 
 /** Webview-safe H.264/AAC copy of a source, built once and reused until it goes stale. */
 interface GetCompatMediaParams {
@@ -50,15 +48,20 @@ interface GetCompatMediaParams {
 
 export async function getCompatMedia(params: GetCompatMediaParams): Promise<CompatMedia> {
   const { absPath, kind, ref } = params
-  const source = await fs.stat(absPath).catch(() => null)
 
-  if (isNil(source) || !source.isFile()) throw new Error(`Compat source missing: ${ref}`)
+  const source = await fs.stat(absPath).catch(() => {
+    return null
+  })
+
+  if (isNil(source) || !source.isFile()) {
+    throw new Error(`Compat source missing: ${ref}`)
+  }
 
   const ext = kind === 'video' ? 'mp4' : 'm4a'
   const key = createHash('sha1').update(ref).digest('hex')
   const filePath = path.join(COMPAT_DIR, `${key}.${ext}`)
   const failedPath = `${filePath}.failed`
-  const contentType: CompatMedia['contentType'] = kind === 'video' ? 'video/mp4' : 'audio/mp4'
+  const contentType: CompatContentType = kind === 'video' ? 'video/mp4' : 'audio/mp4'
 
   if (await isFresh(filePath, source.mtimeMs)) {
     await touch(filePath)
@@ -68,6 +71,7 @@ export async function getCompatMedia(params: GetCompatMediaParams): Promise<Comp
 
   await assertNotFailed(failedPath, source.mtimeMs)
   await fs.mkdir(COMPAT_DIR, { recursive: true })
+
   await withLock(`compat:${key}`, async () => {
     if (await isFresh(filePath, source.mtimeMs)) {
       await touch(filePath)
@@ -76,15 +80,14 @@ export async function getCompatMedia(params: GetCompatMediaParams): Promise<Comp
     }
 
     await assertNotFailed(failedPath, source.mtimeMs)
-    const release = await acquire()
 
-    try {
-      if (await isFresh(filePath, source.mtimeMs)) return
+    await limiter.run(async () => {
+      if (await isFresh(filePath, source.mtimeMs)) {
+        return
+      }
 
       await convertOrMarkFailed({ source: absPath, kind, filePath, failedPath, ext })
-    } finally {
-      release()
-    }
+    })
   })
 
   return { path: filePath, contentType }
@@ -93,16 +96,27 @@ export async function getCompatMedia(params: GetCompatMediaParams): Promise<Comp
 /** Deletes files not read for 30 days, plus their failure markers. */
 export async function sweepCompatFiles(): Promise<number> {
   const cutoff = Date.now() - UNUSED_TTL_MS
-  const entries = await fs.readdir(COMPAT_DIR, { withFileTypes: true }).catch(() => [])
+
+  const entries = await fs.readdir(COMPAT_DIR, { withFileTypes: true }).catch(() => {
+    return []
+  })
+
   let removed = 0
 
   for (const entry of entries) {
-    if (!entry.isFile()) continue
+    if (!entry.isFile()) {
+      continue
+    }
 
     const file = path.join(COMPAT_DIR, entry.name)
-    const stats = await fs.stat(file).catch(() => null)
 
-    if (!stats || stats.mtimeMs >= cutoff) continue
+    const stats = await fs.stat(file).catch(() => {
+      return null
+    })
+
+    if (!stats || stats.mtimeMs >= cutoff) {
+      continue
+    }
 
     await fs.unlink(file).catch(() => {})
     removed += 1
@@ -135,19 +149,29 @@ async function convertOrMarkFailed(params: ConvertOrMarkFailedParams): Promise<v
 
 /** Skips conversion for 10 minutes while a matching failure marker exists. */
 async function assertNotFailed(failedPath: string, sourceMtimeMs: number): Promise<void> {
-  const failed = await fs.stat(failedPath).catch(() => null)
+  const failed = await fs.stat(failedPath).catch(() => {
+    return null
+  })
 
-  if (isNil(failed) || !failed.isFile()) return
+  if (isNil(failed) || !failed.isFile()) {
+    return
+  }
 
-  if (Date.now() - failed.mtimeMs >= FAIL_TTL_MS) return
+  if (Date.now() - failed.mtimeMs >= FAIL_TTL_MS) {
+    return
+  }
 
-  if (failed.mtimeMs < sourceMtimeMs) return
+  if (failed.mtimeMs < sourceMtimeMs) {
+    return
+  }
 
   throw new CompatError()
 }
 
 async function isFresh(filePath: string, sourceMtimeMs: number): Promise<boolean> {
-  const stats = await fs.stat(filePath).catch(() => null)
+  const stats = await fs.stat(filePath).catch(() => {
+    return null
+  })
 
   return !isNil(stats) && stats.isFile() && stats.mtimeMs >= sourceMtimeMs
 }
@@ -155,27 +179,6 @@ async function isFresh(filePath: string, sourceMtimeMs: number): Promise<boolean
 /** Records the last serve so the 30 day sweep keeps hot files. */
 function touch(filePath: string): Promise<void> {
   return fs.utimes(filePath, new Date(), new Date()).catch(() => {})
-}
-
-/** Runs at most MAX_CONVERSIONS at once. Waiting slots are handed over. */
-async function acquire(): Promise<() => void> {
-  if (gate.active >= MAX_CONVERSIONS) {
-    await new Promise<void>((resolve) => gate.waiting.push(resolve))
-  } else {
-    gate.active += 1
-  }
-
-  let hasReleased = false
-
-  return () => {
-    if (hasReleased) return
-
-    hasReleased = true
-    const next = gate.waiting.shift()
-
-    if (next) next()
-    else gate.active -= 1
-  }
 }
 
 interface ConvertParams {
@@ -216,12 +219,15 @@ function convertArgs(params: ConvertArgsParams): string[] {
 
 async function convert(params: ConvertParams): Promise<void> {
   const { source, kind, filePath, ext } = params
+
   const temp = path.join(
     COMPAT_DIR,
     `${path.basename(filePath, `.${ext}`)}.${randomUUID()}.tmp.${ext}`,
   )
+
   const args = convertArgs({ kind, source, temp })
   const probe = await probeMedia(source)
+
   const timeoutMs = Math.min(
     FFMPEG_TIMEOUTS.compatBase + FFMPEG_TIMEOUTS.compatPerSec * (probe.durationSec ?? 0),
     FFMPEG_TIMEOUTS.compatMax,

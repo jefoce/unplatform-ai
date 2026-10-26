@@ -1,40 +1,23 @@
-export type MediaKind = 'image' | 'video' | 'audio'
+import { FLATTEN_BACKGROUND, FLATTEN_LIGHT } from './constants'
+import type { PixelSize } from './geometry'
 
-type UploadSource = 'file' | 'link'
+export const MEDIA_KINDS = ['image', 'video', 'audio'] as const
 
-export type LinkMode = 'symlink' | 'hardlink' | 'copy'
+export type MediaKind = (typeof MEDIA_KINDS)[number]
 
-export interface UploadItem {
-  id: string
-  source: UploadSource
-  kind: MediaKind
-  mime: string
-  ext: string
-  originalName: string
-  target?: string
-  linkMode?: LinkMode
-  sizeBytes: number
-  width?: number
-  height?: number
-  durationSec?: number
-  createdAt: string
-  missing?: boolean
-  remote?: {
-    key: string
-    sha256: string
-    serverSha256: string | null
-    size: number
-    mtimeMs: number
-    uploadedAt: string
-    lastUsedAt: string
-  }
-}
+export const IMAGE_FORMATS = ['jpeg', 'png'] as const
 
-export interface FolderItem {
-  id: string
-  name: string
-  path: string
-  addedAt: string
+export type ImageFormat = (typeof IMAGE_FORMATS)[number]
+
+export const FLATTEN_COLORS = [FLATTEN_BACKGROUND, FLATTEN_LIGHT] as const
+
+export type FlattenColor = (typeof FLATTEN_COLORS)[number]
+
+/** Count per media kind. */
+export interface MediaKindCounts {
+  image: number
+  video: number
+  audio: number
 }
 
 export interface FolderDir {
@@ -57,11 +40,16 @@ export interface FolderListing {
   files: FolderFile[]
 }
 
+export interface BrowseDir {
+  name: string
+  path: string
+}
+
 /** Directory browser result for the add-folder dialog. */
 export interface BrowseResult {
   path: string
   parent: string | null
-  dirs: { name: string; path: string }[]
+  dirs: BrowseDir[]
 }
 
 /** Planned encoding for the attached images. One step for the whole request. */
@@ -72,11 +60,9 @@ export interface ReferencePlan {
   images: ReferencePlanImage[]
 }
 
-interface ReferencePlanImage {
+export interface ReferencePlanImage extends PixelSize {
   id: string
-  width: number
-  height: number
   bytes: number
-  format: 'jpeg' | 'png'
-  flattened?: '#ffffff' | '#1c1e20'
+  format: ImageFormat
+  flattened?: FlattenColor
 }

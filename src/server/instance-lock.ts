@@ -3,21 +3,31 @@ import 'server-only'
 import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 
+import { z } from 'zod'
+
 import { LOCK_FILE, STORAGE_ROOT } from './paths'
 import { sessionRequired } from './session'
 
-export interface LockInfo {
-  pid: number
-  port: number
-  desktop: boolean
-  startedAt: string
-}
+const LockInfoSchema = z.object({
+  pid: z.number(),
+  port: z.number(),
+  desktop: z.boolean(),
+  startedAt: z.string(),
+})
+
+const HealthReplySchema = z.object({
+  app: z.string().optional(),
+  pid: z.number().optional(),
+})
+
+export type LockInfo = z.infer<typeof LockInfoSchema>
 
 const HEALTH_TIMEOUT_MS = 1500
 
 /** Takes server.lock or exits. A dead owner's lock is taken over. */
 export async function acquireInstanceLock(): Promise<void> {
   await fs.mkdir(STORAGE_ROOT, { recursive: true, mode: 0o700 })
+
   const mine: LockInfo = {
     pid: process.pid,
     port: Number(process.env.PORT ?? 3000),
@@ -35,7 +45,9 @@ export async function acquireInstanceLock(): Promise<void> {
 
       return
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error
+      }
     }
 
     const owner = await readLock()
@@ -56,9 +68,12 @@ export async function acquireInstanceLock(): Promise<void> {
 /** Removes the lock only when this process owns it. */
 export function releaseInstanceLock(): void {
   try {
-    const owner = JSON.parse(fsSync.readFileSync(LOCK_FILE, 'utf8')) as Partial<LockInfo>
+    const raw: unknown = JSON.parse(fsSync.readFileSync(LOCK_FILE, 'utf8'))
+    const owner = LockInfoSchema.safeParse(raw)
 
-    if (owner.pid === process.pid) fsSync.unlinkSync(LOCK_FILE)
+    if (owner.success && owner.data.pid === process.pid) {
+      fsSync.unlinkSync(LOCK_FILE)
+    }
   } catch {
     // Missing or unreadable: nothing of ours to remove.
   }
@@ -74,15 +89,29 @@ async function isAlive(owner: LockInfo): Promise<boolean> {
 
   const res = await fetch(`http://127.0.0.1:${owner.port}/api/health`, {
     signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-  }).catch(() => null)
-  const body = (await res?.json().catch(() => null)) as { app?: string; pid?: number } | null
+  }).catch(() => {
+    return null
+  })
 
-  return body?.app === 'unplatform-ai' && body.pid === owner.pid
+  const raw: unknown = await res?.json().catch(() => {
+    return null
+  })
+
+  const body = HealthReplySchema.safeParse(raw)
+
+  return body.success && body.data.app === 'unplatform-ai' && body.data.pid === owner.pid
 }
 
 async function readLock(): Promise<LockInfo | null> {
   try {
-    return JSON.parse(await fs.readFile(LOCK_FILE, 'utf8')) as LockInfo
+    const raw: unknown = JSON.parse(await fs.readFile(LOCK_FILE, 'utf8'))
+    const parsed = LockInfoSchema.safeParse(raw)
+
+    if (!parsed.success) {
+      return null
+    }
+
+    return parsed.data
   } catch {
     return null
   }

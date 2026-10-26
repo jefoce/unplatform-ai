@@ -3,8 +3,9 @@ import { z } from 'zod'
 
 import { HISTORY_BATCH_MAX } from '@/core/constants'
 import type { BatchSkip } from '@/core/types'
-import { assertLocalRequest, errorResponse, jsonError, readJsonBody, zodError } from '@/server/http'
+import { errorResponse, jsonError, zodError } from '@/server/http'
 import { deleteGeneration, setFavorite } from '@/server/jobs/generation-actions'
+import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 
 const BodySchema = z.object({
   action: z.enum(['favorite', 'delete']),
@@ -20,7 +21,9 @@ export async function POST(request: Request) {
     assertLocalRequest(request)
     const body = BodySchema.safeParse(await readJsonBody(request))
 
-    if (!body.success) return zodError(body.error)
+    if (!body.success) {
+      return zodError(body.error)
+    }
 
     const { action, ids, favorite: isFavorite } = body.data
 
@@ -34,8 +37,11 @@ export async function POST(request: Request) {
     for (const id of ids) {
       const reason = await runAction({ action, id, isFavorite: isFavorite === true })
 
-      if (isNil(reason)) done.push(id)
-      else skipped.push({ id, reason })
+      if (isNil(reason)) {
+        done.push(id)
+      } else {
+        skipped.push({ id, reason })
+      }
     }
 
     return Response.json({ done, skipped })
@@ -53,7 +59,9 @@ interface RunActionParams {
 async function runAction(params: RunActionParams): Promise<SkipReason | null> {
   const { action, id, isFavorite } = params
 
-  if (action === 'favorite') return favoriteOne(id, isFavorite)
+  if (action === 'favorite') {
+    return favoriteOne(id, isFavorite)
+  }
 
   return deleteOne(id)
 }
@@ -61,15 +69,23 @@ async function runAction(params: RunActionParams): Promise<SkipReason | null> {
 async function favoriteOne(id: string, isFavorite: boolean): Promise<SkipReason | null> {
   const saved = await setFavorite(id, isFavorite)
 
-  return saved ? null : 'not_found'
+  if (saved) {
+    return null
+  }
+
+  return 'not_found'
 }
 
 async function deleteOne(id: string): Promise<SkipReason | null> {
   const result = await deleteGeneration(id)
 
-  if (result === 'deleted') return null
+  if (result === 'deleted') {
+    return null
+  }
 
-  if (result === 'not_found') return 'not_found'
+  if (result === 'not_found') {
+    return 'not_found'
+  }
 
   return 'active'
 }

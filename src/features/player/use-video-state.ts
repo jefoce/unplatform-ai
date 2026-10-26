@@ -45,10 +45,14 @@ export function useVideoState(params: UseVideoStateParams): VideoApi {
   useEffect(() => {
     const video = videoRef.current
 
-    if (!isActive || !video) return
+    if (!isActive || !video) {
+      return
+    }
 
     // Restores src after StrictMode's simulated unmount.
-    if (video.getAttribute('src') !== src) video.src = src
+    if (video.getAttribute('src') !== src) {
+      video.src = src
+    }
 
     return () => {
       video.pause()
@@ -70,22 +74,33 @@ export function useVideoState(params: UseVideoStateParams): VideoApi {
   const togglePlay = () => {
     const video = videoRef.current
 
-    if (!video) return
+    if (!video) {
+      return
+    }
 
-    if (video.paused) void video.play().catch(() => setIsPaused(true))
-    else video.pause()
+    if (video.paused) {
+      void video.play().catch(() => {
+        setIsPaused(true)
+      })
+    } else {
+      video.pause()
+    }
   }
 
   const toggleMute = () => {
     const video = videoRef.current
 
-    if (video) video.muted = !video.muted
+    if (video) {
+      video.muted = !video.muted
+    }
   }
 
   const seek = (seconds: number) => {
     const video = videoRef.current
 
-    if (!video || !Number.isFinite(seconds)) return
+    if (!video || !Number.isFinite(seconds)) {
+      return
+    }
 
     video.currentTime = seconds
     setTime(seconds)
@@ -94,7 +109,9 @@ export function useVideoState(params: UseVideoStateParams): VideoApi {
   const seekBy = (delta: number) => {
     const video = videoRef.current
 
-    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
+      return
+    }
 
     video.currentTime = Math.min(video.duration, Math.max(0, video.currentTime + delta))
     setTime(video.currentTime)

@@ -1,5 +1,6 @@
-import { assertLocalRequest, errorResponse } from '@/server/http'
-import { getCredits } from '@/server/openrouter/credits'
+import { errorResponse } from '@/server/http'
+import { assertLocalRequest } from '@/server/request-guard'
+import { getCredits } from '@/server/services/credits'
 
 export async function GET(request: Request) {
   try {

@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { GenerateButton } from '@/features/generator/GenerateButton'
+import { GenerateButton } from '@/features/generator/generate/GenerateButton'
 
 afterEach(cleanup)
 
@@ -30,7 +30,7 @@ describe('GenerateButton', () => {
     expect(screen.queryByText('$1.50')).toBeNull()
   })
 
-  it('shows the spinner while disabled during an estimate request', () => {
+  it('shows no spinner while disabled during an estimate request', () => {
     render(
       <GenerateButton
         onGenerate={handleNoop}
@@ -47,9 +47,28 @@ describe('GenerateButton', () => {
     const button = screen.getByRole('button')
 
     expect((button as HTMLButtonElement).disabled).toBe(true)
+    expect(button.getAttribute('aria-busy')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByText('$1.50')).toBeNull()
+  })
+
+  it('spins while generating', () => {
+    render(
+      <GenerateButton
+        onGenerate={handleNoop}
+        isGenerating
+        isPriceLoading={false}
+        disabled={false}
+        price={1.5}
+        listPrice={2}
+        discount={0.25}
+      />,
+    )
+
+    const button = screen.getByRole('button')
+
     expect(button.getAttribute('aria-busy')).toBe('true')
     expect(screen.getByRole('status')).toBeTruthy()
-    expect(screen.queryByText('$1.50')).toBeNull()
   })
 
   it('shows the price when idle', () => {

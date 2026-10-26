@@ -2,33 +2,47 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DetailsPanel } from '@/features/history/DetailsPanel'
-import { HistoryGrid } from '@/features/history/HistoryGrid'
-import { useSelectionStore } from '@/features/history/selection-store'
-import { SelectionBar } from '@/features/history/SelectionBar'
+import { DetailsPanel } from '@/features/history/details/DetailsPanel'
+import { HistoryGrid } from '@/features/history/list/HistoryGrid'
+import { useSelectionStore } from '@/features/history/selection/selection-store'
+import { SelectionBar } from '@/features/history/selection/SelectionBar'
 
 import { handleNoop, ids, Observer, record, setOrder, setSelection, tile } from './helpers/history'
 import { required } from './helpers/required'
 
-const apiPost = vi.hoisted(() => vi.fn())
-const apiDelete = vi.hoisted(() => vi.fn())
-const confirm = vi.hoisted(() => vi.fn())
+const apiPost = vi.hoisted(() => {
+  return vi.fn()
+})
 
-vi.mock('@/lib/fetcher', () => ({
-  apiPost,
-  apiDelete,
-  apiPatch: vi.fn(),
-  fetcher: vi.fn(),
-  ApiError: class ApiError extends Error {
-    status = 0
-  },
-}))
+const apiDelete = vi.hoisted(() => {
+  return vi.fn()
+})
 
-vi.mock('@/lib/platform', () => ({
-  platform: { confirm, saveVideo: vi.fn(), saveVideos: vi.fn() },
-}))
+const confirm = vi.hoisted(() => {
+  return vi.fn()
+})
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/lib/fetcher', () => {
+  return {
+    apiPost,
+    apiDelete,
+    apiPatch: vi.fn(),
+    fetcher: vi.fn(),
+    ApiError: class ApiError extends Error {
+      status = 0
+    },
+  }
+})
+
+vi.mock('@/lib/platform', () => {
+  return {
+    platform: { confirm, saveVideo: vi.fn(), saveVideos: vi.fn() },
+  }
+})
+
+vi.mock('sonner', () => {
+  return { toast: { success: vi.fn(), error: vi.fn() } }
+})
 
 const RAW_ERROR = 'Provider said no.'
 const MIXED_TITLE = 'Only finished videos can be downloaded or liked.'
@@ -72,7 +86,10 @@ describe('selectable cards', () => {
     setOrder(['a'])
     const { container } = render(<HistoryGrid records={records} onOpen={handleNoop} />)
 
-    act(() => fireEvent.click(screen.getByRole('checkbox')))
+    act(() => {
+      return fireEvent.click(screen.getByRole('checkbox'))
+    })
+
     expect(ids()).toEqual(['a'])
 
     fireEvent.click(tile(container, 'b'))
@@ -85,14 +102,15 @@ describe('selectable cards', () => {
     setOrder(['a', 'c'])
     const { container } = render(<HistoryGrid records={records} onOpen={handleNoop} />)
 
-    act(() =>
-      fireEvent.click(
+    act(() => {
+      return fireEvent.click(
         required(
           container.querySelector<HTMLElement>('#history-item-a [role="checkbox"]'),
           'a box',
         ),
-      ),
-    )
+      )
+    })
+
     fireEvent.click(
       required(container.querySelector<HTMLElement>('#history-item-c [role="checkbox"]'), 'c box'),
       { shiftKey: true },
@@ -108,6 +126,7 @@ const REAL_PERSON_VIDEO = 'InputVideoSensitiveContentDetected.PrivacyInformation
 describe('failed pill corner', () => {
   it('uses the same checkbox corner as completed cards and keeps the pill apart', () => {
     setOrder(['f'])
+
     const { container } = render(
       <HistoryGrid
         records={[record('f', { status: 'failed', error: RAW_ERROR })]}
@@ -211,11 +230,11 @@ describe('mixed selection bar', () => {
 
     fireEvent.click(remove)
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(apiPost).toHaveBeenCalledWith('/api/generations/batch', {
         action: 'delete',
         ids: ['a', 'b'],
-      }),
-    )
+      })
+    })
   })
 })

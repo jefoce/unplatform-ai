@@ -21,7 +21,6 @@ interface ModalProps {
 export function Modal(props: ModalProps) {
   const {
     open: isOpen,
-    onOpenChange: handleOpenChange,
     children,
     className,
     backdropClassName,
@@ -30,7 +29,7 @@ export function Modal(props: ModalProps) {
   } = props
 
   return (
-    <DialogPrimitive.Root open={isOpen} onOpenChange={handleOpenChange}>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={props.onOpenChange}>
       <DialogPrimitive.Portal>
         {shouldHideOverlay !== true && (
           <DialogPrimitive.Overlay

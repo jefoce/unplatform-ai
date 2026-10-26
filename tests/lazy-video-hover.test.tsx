@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LazyVideo } from '@/features/player/LazyVideo'
 
-const play = vi.fn(() => Promise.resolve())
+const play = vi.fn(() => {
+  return Promise.resolve()
+})
+
 const pause = vi.fn()
 const load = vi.fn()
 

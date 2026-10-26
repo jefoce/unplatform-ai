@@ -1,11 +1,8 @@
-import { assertLocalRequest, errorResponse } from '@/server/http'
+import { errorResponse, type IdRouteContext } from '@/server/http'
 import { removeFolder } from '@/server/repos/folders'
+import { assertLocalRequest } from '@/server/request-guard'
 
-interface Params {
-  params: Promise<{ id: string }>
-}
-
-export async function DELETE(request: Request, { params }: Params) {
+export async function DELETE(request: Request, { params }: IdRouteContext) {
   try {
     assertLocalRequest(request)
     const { id } = await params

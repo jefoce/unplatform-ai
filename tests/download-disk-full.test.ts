@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/types'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { queueDownload as QueueDownload } from '@/server/jobs/download-queue'
 import type { getGeneration as GetGeneration } from '@/server/repos/generations'
 
@@ -12,11 +12,27 @@ const root = path.join(os.tmpdir(), `upai-disk-full-${process.pid}-${Date.now()}
 
 process.env.STORAGE_ROOT = root
 
-const fetchVideoContent = vi.hoisted(() => vi.fn())
+const fetchVideoContent = vi.hoisted(() => {
+  return vi.fn()
+})
 
-vi.mock('@/server/openrouter/client', () => ({ fetchVideoContent }))
+vi.mock('@/server/providers/registry', () => {
+  return {
+    getVideoProvider: () => {
+      return { fetchContent: fetchVideoContent }
+    },
+  }
+})
 
-const JOB = { id: 'job-1', status: 'completed', expires_at: 4_102_444_800 }
+const JOB = {
+  status: 'completed' as const,
+  generationId: null,
+  expiresAt: 4_102_444_800_000,
+  urls: null,
+  usage: null,
+  error: null,
+}
+
 const ID = '22222222-2222-4222-8222-222222222222'
 
 let queueDownload: typeof QueueDownload
@@ -24,7 +40,9 @@ let getGeneration: typeof GetGeneration
 
 beforeAll(async () => {
   await fs.mkdir(root, { recursive: true })
+
   ;({ queueDownload } = await import('@/server/jobs/download-queue'))
+
   ;({ getGeneration } = await import('@/server/repos/generations'))
 })
 
@@ -37,6 +55,7 @@ describe('download on a full disk', () => {
     fetchVideoContent.mockResolvedValue(diskFullResponse())
 
     await queueDownload(makeRecord(), JOB)
+
     const saved = await waitFor(async () => {
       const record = await getGeneration(ID)
 
@@ -55,7 +74,11 @@ describe('download on a full disk', () => {
 
     await queueDownload(saved, JOB)
     spy.mockRestore()
-    await waitFor(async () => (fetchVideoContent.mock.calls.length === 2 ? true : null))
+
+    await waitFor(async () => {
+      return fetchVideoContent.mock.calls.length === 2 ? true : null
+    })
+
     expect(fetchVideoContent).toHaveBeenCalledTimes(2)
   })
 })
@@ -77,9 +100,13 @@ async function waitFor<T>(read: () => Promise<T | null>, timeoutMs = 2000): Prom
   while (Date.now() < deadline) {
     const value = await read()
 
-    if (value) return value
+    if (value) {
+      return value
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20)
+    })
   }
 
   throw new Error('Timed out waiting for the saved record')
@@ -93,6 +120,7 @@ function makeRecord(): GenerationRecord {
     createdAt: now,
     updatedAt: now,
     status: 'in_progress',
+    provider: 'openrouter',
     input: {
       presetId: 'wan-3.0',
       tab: 'frames',

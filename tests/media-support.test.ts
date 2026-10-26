@@ -5,13 +5,21 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mediaUrl } from '@/features/media-picker/api'
+import type { Dict } from '@/core/utility-types'
+import { mediaUrl } from '@/lib/api/media-urls'
 import { __resetCanPlayCache, canPlay } from '@/lib/media-support'
 
-function stubDocument(supported: Record<string, string>): void {
+function stubDocument(supported: Dict<string>): void {
   vi.stubGlobal('document', {
-    createElement: () => ({ canPlayType: (mime: string) => supported[mime] ?? '' }),
+    createElement: () => {
+      return {
+        canPlayType: (mime: string) => {
+          return supported[mime] ?? ''
+        },
+      }
+    },
   })
+
   __resetCanPlayCache()
 }
 
@@ -28,9 +36,13 @@ describe('canPlay', () => {
   })
 
   it('caches support per MIME type', () => {
-    const createElement = vi.fn(() => ({
-      canPlayType: (mime: string) => (mime === 'video/mp4' ? 'probably' : ''),
-    }))
+    const createElement = vi.fn(() => {
+      return {
+        canPlayType: (mime: string) => {
+          return mime === 'video/mp4' ? 'probably' : ''
+        },
+      }
+    })
 
     vi.stubGlobal('document', { createElement })
     __resetCanPlayCache()

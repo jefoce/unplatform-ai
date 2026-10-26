@@ -1,6 +1,6 @@
 {
   "name": "unplatform-ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
@@ -80,7 +80,7 @@
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",
-    "typescript": "^5",
+    "typescript": "^5.9",
     "typescript-eslint": "^8.72.0",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.5"

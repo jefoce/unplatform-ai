@@ -1,8 +1,8 @@
 'use client'
 
 import { cloneElement, type ReactElement, type ReactNode, useId } from 'react'
-import { isNil } from 'lodash-es'
 
+import { isNonEmptyString } from '@/core/guards'
 import { cn } from '@/lib/cn'
 
 interface ControlProps {
@@ -27,17 +27,26 @@ export function Field(props: FieldProps) {
   const { label, hint, error, description, trailing, id, className, children } = props
   const generated = useId()
   const controlId = id ?? children.props.id ?? generated
-  const hintId = Boolean(hint) ? `${controlId}-hint` : undefined
-  const hasError = !isNil(error) && error !== ''
+  const isHintId = Boolean(hint)
+
+  const hintId = isHintId ? `${controlId}-hint` : undefined
+  const hasError = isNonEmptyString(error)
   const errorId = hasError ? `${controlId}-error` : undefined
+
   const describedByText = [children.props['aria-describedby'], hintId, errorId]
-    .filter((value): value is string => !isNil(value) && value !== '')
+    .filter((value): value is string => {
+      return isNonEmptyString(value)
+    })
     .join(' ')
+
   const describedBy = describedByText === '' ? undefined : describedByText
+
+  const isAriaInvalid = hasError ? true : children.props['aria-invalid']
+
   const control = cloneElement(children, {
     id: controlId,
     'aria-describedby': describedBy,
-    'aria-invalid': hasError ? true : children.props['aria-invalid'],
+    'aria-invalid': isAriaInvalid,
   })
 
   return (

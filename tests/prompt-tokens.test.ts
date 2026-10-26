@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { MediaKind } from '@/core/media-types'
 import { getPreset } from '@/core/presets'
 import {
   canonicalizePrompt,
@@ -14,15 +15,23 @@ import {
   slotLabel,
   slotToken,
 } from '@/core/prompt-tokens'
-import type { MediaKind } from '@/core/types'
+import type { Dict } from '@/core/utility-types'
 
-const counts = (image = 0, video = 0, audio = 0): Record<MediaKind, number> => ({
-  image,
-  video,
-  audio,
-})
-const text = (value: string): PromptPart => ({ type: 'text', text: value })
-const slot = (kind: MediaKind, n: number): PromptPart => ({ type: 'slot', slot: { kind, n } })
+const counts = (image = 0, video = 0, audio = 0): Record<MediaKind, number> => {
+  return {
+    image,
+    video,
+    audio,
+  }
+}
+
+const text = (value: string): PromptPart => {
+  return { type: 'text', text: value }
+}
+
+const slot = (kind: MediaKind, n: number): PromptPart => {
+  return { type: 'slot', slot: { kind, n } }
+}
 
 describe('slot labels', () => {
   it('formats labels and stored tokens', () => {
@@ -45,6 +54,7 @@ describe('parsePromptParts', () => {
       slot('video', 1),
       text('.'),
     ])
+
     expect(serializeParts(parts)).toBe(prompt)
   })
 
@@ -96,6 +106,7 @@ describe('missingSlots', () => {
       { kind: 'image', n: 5 },
       { kind: 'video', n: 2 },
     ])
+
     expect(missingSlots(prompt, counts(2, 2))).toEqual([{ kind: 'image', n: 5 }])
   })
 })
@@ -133,13 +144,17 @@ describe('canonicalizePrompt', () => {
 })
 
 describe('referenceSlots', () => {
-  const kinds: Record<string, MediaKind> = { i1: 'image', i2: 'image', v1: 'video', a1: 'audio' }
-  const kindOf = (id: string): MediaKind | undefined => kinds[id]
+  const kinds: Dict<MediaKind> = { i1: 'image', i2: 'image', v1: 'video', a1: 'audio' }
+
+  const kindOf = (id: string): MediaKind | undefined => {
+    return kinds[id]
+  }
 
   it('numbers slots per kind in reference order', () => {
     const result = referenceSlots(['i1', 'v1', 'i2', 'a1'], kindOf)
 
     expect(result.counts).toEqual({ image: 2, video: 1, audio: 1 })
+
     expect([...result.slots]).toEqual([
       ['i1', { kind: 'image', n: 1 }],
       ['v1', { kind: 'video', n: 1 }],

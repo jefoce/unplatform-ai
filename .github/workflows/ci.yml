@@ -5,27 +5,33 @@ run-name: >-
 
 on:
   push:
-    branches: [releases]
+    branches: [releases, '[0-9]*.[0-9]*.[0-9]*']
   pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/checks.yml
+
+  workflows:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: pnpm/action-setup@v6.1.0
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
-      - run: pnpm deps
-      - run: pnpm format:check
-      - run: pnpm knip
-      - run: pnpm test
-      - run: pnpm build
+          persist-credentials: false
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 .github/workflows/*.yml
+      - name: shellcheck
+        run: shellcheck .github/scripts/*.sh
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+      - name: zizmor
+        run: pipx run --python python3.12 zizmor==1.31.1 --min-severity medium --min-confidence high .github

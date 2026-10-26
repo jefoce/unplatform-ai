@@ -1,5 +1,175 @@
 # Decisions
 
+## 2026-10-26 - Workflow logic lives in scripts and composite actions
+
+Decision: `.github/scripts` holds the bash and Node logic, each script taking arguments instead of `${{ }}`. `.github/actions` holds the three repeated step groups: setup-pnpm, sidecar-restore and sidecar-publish. Workflow files keep the job graph and pass inputs.
+
+Why: the logic is testable (`tests/ci-scripts.test.ts`), linted by shellcheck and actionlint, and exists once. The GHCR pull, push, sources tag and setup steps had four or five copies each.
+
+Rejected: a reusable workflow per sidecar. The matrix plus the build differences (ffmpeg, Node Unix, Node Windows) made a shared workflow harder to read than a composite action plus the job step.
+
+## 2026-10-25 - Every arrow function has a block body
+
+Decision: `arrow-body-style` is `['error', 'always']` in `src` and `tests`. Every arrow uses braces and an explicit `return`, including one-line `map`, `filter` and `catch` callbacks.
+
+Why: one shape everywhere. A block body reads top to bottom, and the writer never picks between an expression and a block. Prettier owns the layout.
+
+Rejected: expression bodies for one-line callbacks, and a length or comment exception.
+
+## 2026-10-25 - A function used by one hook is written inline
+
+Decision: `local/inline-hook-callbacks` flags a `const` function used once by one hook. Moving a function that captures nothing to module level, and keeping the name when it is used twice, are conventions. Hook results stay objects (`deletion.run`), not tuples.
+
+Why: one name per action. A separate action, a `run` alias and a handler make the reader connect three names. `const deletion = useAsyncAction(async () => { ... })` keeps the action at the call site and drops the indirection.
+
+Rejected: a named constant next to every hook call, and tuple results from hooks.
+
+## 2026-10-25 - `try` and `catch` stay native
+
+Decision: no `Result<T>` type and no `attempt` helper. Errors are caught with `try` and `catch`, ignored with `.catch(() => null)` when the value is not needed, and branched on with the typed error classes (`ProviderError`, `HttpError`, `ApiError`).
+
+Why: `T | Error` cannot separate a success from an error value, and a duck-typed `isError` reads ordinary objects as errors. `attempt` returns non-`Error` throws as success, forces `any` in its signature and hides which call failed.
+
+Revisit: only when a flow chains several fallible steps that each need their own message. Then use a discriminated union built from named interfaces, `{ ok: true, value } | { ok: false, error }`, not `T | Error`.
+
+Rejected: `Result<T>`, `isError`, `attempt` and a wrapper that converts every throw into a value.
+
+## 2026-10-25 - Linux turns blur off
+
+Decision: `layout.tsx` sets `data-os='linux'` before first paint from the user agent. `globals.css` removes `backdrop-filter` from every `backdrop-blur` element under that attribute, raises the glass token to a solid color, and offers a `linux:` background for translucent surfaces. A surface that needs blur to read gets that background.
+
+Why: WebKitGTK parses `backdrop-filter`, so an `@supports not` fallback never fires, then renders the blur wrong or not at all depending on GPU, compositing mode and version. Popovers at 75% opacity over content ghost, and low-alpha chips disappear. Detecting the platform once beats a feature query that lies.
+
+Rejected: an `@supports not (backdrop-filter: blur(1px))` fallback, a user-agent hack per component, and a runtime class toggle.
+
+## 2026-10-25 - Ternaries carry one simple choice
+
+Decision: a ternary is allowed only as `const name = test ? a : b`. The test is one simple check, branches are plain values. Components are never rendered through a ternary, use `&&`, an early return or a component variable (`const Icon = isOn ? A : B`). `TERNARY_SELECTORS` enforces the rule in `src`, tests stay exempt.
+
+Why: a JSX or call branch hides a second code path inside an expression, and the selector keeps each choice named.
+
+Rejected: nested ternaries, ternary JSX and ternary branches that compute.
+
+## 2026-10-25 - Callback props keep their name
+
+Decision: a callback prop passed down stays `props.onAction` at the use site. A function created in the component and passed to an `on*` prop is named `handle<Action>`. An existing function (setter, store action, `props.onX`, an import) is passed directly. A callback is destructured only when every use sits inside a hook callback, where `props.onX()` would make `props` the dependency. A store selection is named after the action (`clearSelection`) and passed directly.
+
+Why: renamed aliases add a second name for one function, and the destructuring exception stays limited to the dependency-array case.
+
+Rejected: `const handleClose = props.onClose`, destructuring renames and handler names on store actions.
+
+## 2026-10-25 - `jsx-no-bind` off
+
+Decision: `react/jsx-no-bind` is off. `INLINE_FUNCTION_SELECTORS` bans arrow and function values in JSX attributes, and a plain `const handleX = () => ...` is the default.
+
+Why: `jsx-no-bind` also reported a named handler declared in the component, which forced `useCallback` on every handler. The selector covers the inline case without forcing memoization.
+
+Rejected: `jsx-no-bind` with `allowArrowFunctions`, and `useCallback` as the only way to pass a handler.
+
+## 2026-10-25 - `Branded` ids deferred
+
+Decision: id types stay plain strings for now. Adopt a `Branded` type with the next data-model change.
+
+Why: upload, generation and folder ids are uuid strings, so branding would catch mix-ups, but it touches every id in schemas, repos, `lib/api`, stores and tests. That is a big diff with no bug on record.
+
+Rejected: branding now, and a partial brand on one id family.
+
+## 2026-10-25 - Composition root in `server/boot.ts`
+
+Decision: `bootServer()` acquires the instance lock, starts secrets without blocking, wires the submit queue and job events, starts the poller and parent watch, then checks ffmpeg. `instrumentation.ts` only guards the runtime and calls it.
+
+Why: one ordered startup path, and no side effects at module load in jobs.
+
+Rejected: side-effect imports and dynamic imports scattered through server modules.
+
+## 2026-10-25 - Services layer
+
+Decision: `src/server/services` orchestrates adapters, repos, media and sync for routes and jobs. It holds `credits`, `model-catalog`, `remote-inputs`, `upload-probe`, `uploads` and `connection-test`.
+
+Why: routes stay thin, jobs keep one dependency direction, and provider and storage adapters never import services.
+
+Rejected: route handlers reaching into provider or storage internals.
+
+## 2026-10-25 - Provider bindings
+
+Decision: a preset holds `bindings` in priority order. Each binding has `provider`, `modelId`, `pricing` and `transport`. The first binding whose provider is configured wins. The record stores the chosen provider and model id at submit time.
+
+Why: route-specific data leaves the model definition, and several providers can serve one catalog.
+
+Rejected: one OpenRouter id and pricing table on the preset.
+
+## 2026-10-25 - Availability-only runtime catalog
+
+Decision: `/api/models` uses live provider data only for availability and pricing. Presets stay the source of durations, resolutions, references and limits.
+
+Why: feature code reads presets synchronously, so live capability narrowing would push async state through the store. Drift is caught offline by `tests/catalog-live.test.ts`.
+
+Rejected: runtime capability narrowing from provider model lists.
+
+## 2026-10-25 - No cross-provider fallback after a failure
+
+Decision: a failed submit or poll never retries on another binding. A new generation is the only way to switch providers.
+
+Why: a failed submit can still be billed, so a silent retry on another provider can bill twice.
+
+Rejected: automatic fallback across provider bindings.
+
+## 2026-10-25 - Flat types with named parts
+
+Decision: every object type is one level. Nested shapes become named interfaces, owner-prefixed when the part belongs to one owner (`RecordJob`, `RecordOutput`), and shared names when the shape repeats (`PixelSize`, `FrameSlots`). No inline `z.object` inside another schema.
+
+Why: named parts are readable, reusable and testable. `no-restricted-syntax` enforces the rule in `src`, tests stay exempt.
+
+Rejected: inline object literals for parameter bags, return types and nested schema fields.
+
+## 2026-10-25 - Stored data schemas without version fields
+
+Decision: files on disk parse through `src/core/schemas` with `safeParse`. Stored JSON changes are additive, new fields are optional or have a zod default. No version fields today. A file without a version is version 1, the first breaking change adds `schemaVersion: 2` and a migration next to the schema. An invalid file is skipped and logged, never thrown.
+
+Why: every change on the horizon is additive, and a version added later costs nothing. Older files keep parsing and users move forward.
+
+Rejected: `JSON.parse(text) as T` and silent casts. A version field before the first breaking change.
+
+## 2026-10-25 - Updates run in Rust
+
+Decision: the Tauri shell checks for, downloads and installs updates with `tauri-plugin-updater`. The webview calls five commands: `update_info`, `update_check`, `update_install`, `update_set_auto` and `update_open_release`.
+
+Why: the webview never gets the updater permission or the signing key. The shell stops the Node server before it replaces the app, so no job writes into a bundle that is being swapped. Every download is checked against the public key embedded in `tauri.conf.json`, and the `latest` endpoint skips drafts and prereleases until they are published.
+
+Rejected: an in-page updater (needs the webview permission and a server stop from the wrong side), and manual downloads for every release.
+
+## 2026-10-25 - R2 storage cap of 8 GB with eviction
+
+Decision: `REMOTE_MAX_GB` is 8. A put that would pass the cap first removes the oldest keys whose `lastUsedAt` is past the 2 hour link TTL, then fails with `RemoteCapError` when nothing evictable frees enough room.
+
+Why: Cloudflare has no hard spend cap and needs a card. Tracking the app's own objects keeps usage under the free 10 GB.
+
+Rejected: listing the bucket to measure usage, and a lock per put. Two parallel uploads may both pass, and the 2 GB headroom covers that.
+
+## 2026-10-25 - User guides in `docs/user`, linked from Settings
+
+Decision: setup guides for OpenRouter and Cloudflare R2 live in `docs/user`, one file per service. Settings links the exact guide page and the README links the same files.
+
+Why: the README stays short, the guides carry screenshots, and the app sends the reader to the page they need.
+
+Rejected: one long setup section in the README, and help text in the app that duplicates the guides.
+
+## 2026-10-25 - Shared unions from const arrays, no `enum`
+
+Decision: a string union that is validated, iterated, stored or sent over HTTP or IPC comes from one `as const` array. The type is `(typeof LIST)[number]` and schemas use `z.enum(LIST)`.
+
+Why: one list feeds the type, zod and loops, and nothing is emitted at runtime.
+
+Rejected: a TS `enum`, which adds runtime code and uses nominal strings, and a second list for zod.
+
+## 2026-10-25 - Runtime copy stamped by build id
+
+Decision: the shell stages the bundled server into a per-version runtime dir once. A `.upai-build` stamp holds the bundled build id, and a runtime copy whose stamp differs is replaced.
+
+Why: a same-version rebuild served a stale frontend before the stamp.
+
+Rejected: copying the server on every launch, and trusting the version folder alone.
+
 ## 2026-10-23 - Server-owned price estimate
 
 Decision: estimate is a price-only server route. `buildPriceInputSchema` has presetId, tab, audio, duration, aspectRatio, resolution, frames, references. Client sends no prompt or seed. SWR key uses those fields, disables focus and stale revalidation, keeps previous data. Spinner covers only the debounce and first key fetch. Create keeps full validation. Actual `usage.cost` wins.
@@ -101,90 +271,6 @@ Decision: after the window is built, turn off WebKit's `PreferPageRenderingUpdat
 Why: WKWebView caps page rendering near 60 fps on ProMotion displays. The private API lifts the cap, so scrolling and video playback use the full display refresh rate.
 
 Rejected: leaving the cap at 60 fps. Not App Store safe because it uses private API. Direct distribution only. Each selector is checked with `respondsToSelector:` and the call is wrapped in `catch_unwind`, so a future macOS without the API stays at 60 fps.
-
-## 2026-10-20 - Scaffold merged in place
-
-The project root already held PLAN.md and docs/, so create-next-app ran in a temp directory and its files were merged into the root. No second git repository was created.
-
-## 2026-10-20 - Reference path
-
-Visual references live in docs/references/. PLAN.md says docs/reference/, but the supplied folder name wins.
-
-## 2026-10-20 - TMPDIR workaround
-
-The default TMPDIR points to a missing directory. pnpm commands run with TMPDIR=/private/tmp.
-
-## 2026-10-20 - Mock mode default
-
-.env.local sets OPENROUTER_MOCK=1 so development jobs do not call the API or incur cost.
-
-## 2026-10-20 - OpenRouter request shapes
-
-Docs confirmed frame_images with image_url and frame_type, input_references as a type union, optional prompt with frames, GET jobs without progress or timestamps, relative polling_url, and pricing SKU keys of the form duration_seconds_<resolution>.
-
-## 2026-10-20 - Mock timeline
-
-Mock jobs stay pending for 3 seconds, then in_progress for 6 seconds, and the mock video is generated locally.
-
-## 2026-10-20 - wan-3.0 reference kinds
-
-Docs describe input_references for wan-3.0 as images only, but the app still allows video and audio references per user decision and surfaces provider errors.
-
-## 2026-10-20 - History text mode filter
-
-The text-only mode tab is a client-side post-filter over loaded records. Prompt search is applied server-side with the other filters.
-
-## 2026-10-20 - Add as reference
-
-Add-as-reference downloads the mp4 in the browser and uploads a copy through the existing uploads route, so no new API route was added.
-
-## 2026-10-20 - Seed Randomize
-
-The Randomize button picks a fixed random number while the Random switch stays off. Toggle the switch for server-random seeds.
-
-## 2026-10-20 - Request size guard
-
-The total request size check runs before the generation record is written.
-
-## 2026-10-20 - Mock content fallback
-
-After a restart, mock content uses record.input as the fallback source for dimensions and duration.
-
-## 2026-10-20 - Browse errors
-
-Directory browse failures throw typed BrowseError values with status 400 for invalid input and 404 for missing paths.
-
-- Credits hint says "management key" instead of the env var name so no OPENROUTER string ships in the client bundle.
-
-## 2026-10-20 - Review follow-ups
-
-- Tab normalization runs `inputForSubmit` on submit and server side, and history thumbs render only the record's tab.
-- Boot reconcile no longer expires by age. A job expires only on OpenRouter expired, 404, or a passed `expires_at`.
-- Local API guard requires matching Host, Origin, Sec-Fetch-Site and a JSON content type, or answers 403/415.
-- Model picker options come from `MODEL_PRESETS`, and prices use live SKU rates with a saved fallback.
-- Price shows in the Resolution popover, the model picker and the Generate button. Discounted prices show the struck list price and the percent off.
-- Adding a video reference clamps duration to the preset combined input plus output limit, with a toast.
-- Known literal labels in stored or pasted prompts become mention chips.
-- Picker thumb URLs carry a file stamp version so replaced uploads refetch their thumb.
-- Upload delete removes the file and every generation link that references it.
-- Global CSS removes focus outlines. Keyboard state relies on hover/focus styling instead.
-
-## 2026-10-20 - History zoom proportions
-
-History zoom uses the supplied sizes as proportions of the row width, measured at a 1518px reference row. List media is 16:9, details fills the remaining width, and rows keep the same height as the media. Grid keeps a fixed column count per step and scales tile width without rewrapping.
-
-| Slider | List video | List details | Grid tile |
-| --- | --- | --- | --- |
-| 1 | 604px (604x340) | 902px | 172px x 8 |
-| 2 | 710px (710x399) | 796px | 200px x 7 |
-| 3 | 830px (830x467) | 840px | 252px x 6 |
-| 4 | 980px (980x551) | 524px | 286px x 5 |
-| 5 | 1132px (1132x637) | 374px | 362px x 4 |
-| 6 | 1270x714px | 240w x 714h | 486px x 3 |
-
-Slider 3 totals 830 + 840 = 1670px, more than the 1518px reference. Media keeps the 830px share and details takes the remainder so the row never overflows.
-
-The details panel stops shrinking at 240px wide and 280px tall. Below that the media box caps at the remaining row width and stays 16:9, so narrow windows keep the same layout without horizontal overflow. Media aligns to the top when it is shorter than the details panel.
 
 ## 2026-10-21 - Tauri shell with a Node sidecar
 
@@ -306,6 +392,77 @@ Why: the raw text stays available for Details and Copy, and table fixes apply to
 
 Rejected: rewriting stored errors at write time.
 
+## 2026-10-20 - Mock mode default
+
+.env.local sets OPENROUTER_MOCK=1 so development jobs do not call the API or incur cost.
+
+## 2026-10-20 - OpenRouter request shapes
+
+Docs confirmed frame_images with image_url and frame_type, input_references as a type union, optional prompt with frames, GET jobs without progress or timestamps, relative polling_url, and pricing SKU keys of the form duration_seconds_<resolution>.
+
+## 2026-10-20 - Mock timeline
+
+Mock jobs stay pending for 3 seconds, then in_progress for 6 seconds, and the mock video is generated locally.
+
+## 2026-10-20 - wan-3.0 reference kinds
+
+Docs describe input_references for wan-3.0 as images only, but the app still allows video and audio references per user decision and surfaces provider errors.
+
+## 2026-10-20 - History text mode filter
+
+The text-only mode tab is a client-side post-filter over loaded records. Prompt search is applied server-side with the other filters.
+
+## 2026-10-20 - Add as reference
+
+Add-as-reference downloads the mp4 in the browser and uploads a copy through the existing uploads route, so no new API route was added.
+
+## 2026-10-20 - Seed Randomize
+
+The Randomize button picks a fixed random number while the Random switch stays off. Toggle the switch for server-random seeds.
+
+## 2026-10-20 - Request size guard
+
+The total request size check runs before the generation record is written.
+
+## 2026-10-20 - Mock content fallback
+
+After a restart, mock content uses record.input as the fallback source for dimensions and duration.
+
+## 2026-10-20 - Browse errors
+
+Directory browse failures throw typed BrowseError values with status 400 for invalid input and 404 for missing paths.
+
+## 2026-10-20 - Review follow-ups
+
+- Tab normalization runs `inputForSubmit` on submit and server side, and history thumbs render only the record's tab.
+- Boot reconcile no longer expires by age. A job expires only on OpenRouter expired, 404, or a passed `expires_at`.
+- Local API guard requires matching Host, Origin, Sec-Fetch-Site and a JSON content type, or answers 403/415.
+- Model picker options come from `MODEL_PRESETS`, and prices use live SKU rates with a saved fallback.
+- Price shows in the Resolution popover, the model picker and the Generate button. Discounted prices show the struck list price and the percent off.
+- Adding a video reference clamps duration to the preset combined input plus output limit, with a toast.
+- Known literal labels in stored or pasted prompts become mention chips.
+- Picker thumb URLs carry a file stamp version so replaced uploads refetch their thumb.
+- Upload delete removes the file and every generation link that references it.
+- Global CSS removes focus outlines. Keyboard state relies on hover/focus styling instead.
+- Credits hint says "management key" instead of the env var name so no OPENROUTER string ships in the client bundle.
+
+## 2026-10-20 - History zoom proportions
+
+History zoom uses the supplied sizes as proportions of the row width, measured at a 1518px reference row. List media is 16:9, details fills the remaining width, and rows keep the same height as the media. Grid keeps a fixed column count per step and scales tile width without rewrapping.
+
+| Slider | List video | List details | Grid tile |
+| --- | --- | --- | --- |
+| 1 | 604px (604x340) | 902px | 172px x 8 |
+| 2 | 710px (710x399) | 796px | 200px x 7 |
+| 3 | 830px (830x467) | 840px | 252px x 6 |
+| 4 | 980px (980x551) | 524px | 286px x 5 |
+| 5 | 1132px (1132x637) | 374px | 362px x 4 |
+| 6 | 1270x714px | 240w x 714h | 486px x 3 |
+
+Slider 3 totals 830 + 840 = 1670px, more than the 1518px reference. Media keeps the 830px share and details takes the remainder so the row never overflows.
+
+The details panel stops shrinking at 240px wide and 280px tall. Below that the media box caps at the remaining row width and stays 16:9, so narrow windows keep the same layout without horizontal overflow. Media aligns to the top when it is shorter than the details panel.
+
 ## Deferred on purpose
 
 | Item | Why not now | Bring it back when |
@@ -317,4 +474,3 @@ Rejected: rewriting stored errors at write time.
 | `react-hook-form` | one small form | a second real form appears |
 | Virtual scroll (`@tanstack/react-virtual`) | content-visibility covers expected history sizes | history passes about 1,500 items or memory grows after deep scrolling. Spec: list with `measureElement`, grid virtualized by rows from width and zoom, load next page within 5 rows of the end, `scrollToIndex` for jump-to-item, players stop when scrolled out |
 | Developer ID signing and notarization (macOS), code signing (Windows) | costs money. Until then the required macOS xattr step stays in the install docs | you publish beyond friends, or keychain prompts after updates get annoying |
-| Auto-update (`tauri-plugin-updater`) | needs a signing key and a hosted `latest.json` | more than a few users |

@@ -3,10 +3,10 @@ import 'server-only'
 import type { Entry } from '@napi-rs/keyring'
 import { isNil, isString } from 'lodash-es'
 
-import { isRecord } from '@/core/guards'
+import { isNonEmptyString, isRecord } from '@/core/guards'
 import { SECRET_NAMES, type SecretName } from '@/core/secret-names'
 
-import type { SecretBackend } from './index'
+import type { SecretBackend } from './types'
 
 const SERVICE = 'unplatform-ai'
 
@@ -14,8 +14,6 @@ const SERVICE = 'unplatform-ai'
 const ACCOUNT = 'secrets'
 
 type Values = Partial<Record<SecretName, string>>
-
-type KeyringEntry = Entry
 
 type EntryCtor = typeof Entry
 
@@ -32,8 +30,12 @@ export async function keychainBackend(): Promise<SecretBackend | null> {
 
   return {
     kind: 'keychain' as const,
-    getAll: async () => readAll(Entry),
-    get: async (name: SecretName) => readAll(Entry)[name] ?? null,
+    getAll: async () => {
+      return readAll(Entry)
+    },
+    get: async (name: SecretName) => {
+      return readAll(Entry)[name] ?? null
+    },
     set: async (name: SecretName, value: string) => {
       const values = readAll(Entry)
 
@@ -43,7 +45,9 @@ export async function keychainBackend(): Promise<SecretBackend | null> {
     remove: async (name: SecretName) => {
       const values = readAll(Entry)
 
-      if (isNil(values[name])) return
+      if (isNil(values[name])) {
+        return
+      }
 
       delete values[name]
       writeAll(Entry, values)
@@ -54,18 +58,24 @@ export async function keychainBackend(): Promise<SecretBackend | null> {
 function readAll(Entry: EntryCtor): Values {
   const raw = new Entry(SERVICE, ACCOUNT).getPassword()
 
-  if (isNil(raw)) return migrate(Entry)
+  if (isNil(raw)) {
+    return migrate(Entry)
+  }
 
   const parsed: unknown = JSON.parse(raw)
 
-  if (!isRecord(parsed)) throw new Error('Bad secrets item')
+  if (!isRecord(parsed)) {
+    throw new Error('Bad secrets item')
+  }
 
   const values: Values = {}
 
   for (const name of SECRET_NAMES) {
     const value = parsed[name]
 
-    if (isString(value) && value !== '') values[name] = value
+    if (isString(value) && value !== '') {
+      values[name] = value
+    }
   }
 
   return values
@@ -78,19 +88,23 @@ function writeAll(Entry: EntryCtor, values: Values): void {
 /** Folds old per-key items into the shared item, then deletes them. */
 function migrate(Entry: EntryCtor): Values {
   const values: Values = {}
-  const old: KeyringEntry[] = []
+  const old: Entry[] = []
 
   for (const name of SECRET_NAMES) {
     const previous = new Entry(SERVICE, name)
     const value = previous.getPassword()
 
-    if (isNil(value) || value === '') continue
+    if (!isNonEmptyString(value)) {
+      continue
+    }
 
     values[name] = value
     old.push(previous)
   }
 
-  if (old.length === 0) return values
+  if (old.length === 0) {
+    return values
+  }
 
   writeAll(Entry, values)
 

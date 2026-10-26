@@ -1,4 +1,5 @@
-import { assertLocalRequest, errorResponse } from '@/server/http'
+import { errorResponse } from '@/server/http'
+import { assertLocalRequest } from '@/server/request-guard'
 import { reloadSecrets, secretStatus } from '@/server/secrets'
 
 /** Retries a failed keychain load and returns fresh status. */

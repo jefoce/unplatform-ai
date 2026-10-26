@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { normalizeForPreset } from '@/core/normalize-input'
 import { getPreset, minDuration } from '@/core/presets'
 import { billableSeconds } from '@/core/pricing'
-import type { GenerationInput, UploadItem } from '@/core/types'
+import type { GenerationInput } from '@/core/schemas/generation-record'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import { validateInput } from '@/core/validation'
 
 const wan = getPreset('wan-3.0')
@@ -11,30 +12,34 @@ const prime = getPreset('wan-3.0-prime')
 const seedance = getPreset('seedance-2.0')
 const seedance25 = getPreset('seedance-2.5')
 
-const draft = (presetId: string, duration: number, references: string[] = []): GenerationInput => ({
-  presetId,
-  tab: 'references',
-  prompt: 'A cat',
-  audio: true,
-  duration,
-  aspectRatio: '16:9',
-  resolution: '1080p',
-  frames: { start: null, end: null },
-  references,
-  seed: null,
-})
+const draft = (presetId: string, duration: number, references: string[] = []): GenerationInput => {
+  return {
+    presetId,
+    tab: 'references',
+    prompt: 'A cat',
+    audio: true,
+    duration,
+    aspectRatio: '16:9',
+    resolution: '1080p',
+    frames: { start: null, end: null },
+    references,
+    seed: null,
+  }
+}
 
-const videoReference = (id: string): UploadItem => ({
-  id,
-  source: 'file',
-  kind: 'video',
-  mime: 'video/mp4',
-  ext: 'mp4',
-  originalName: `${id}.mp4`,
-  sizeBytes: 1024,
-  durationSec: 7,
-  createdAt: '2026-10-20T00:00:00.000Z',
-})
+const videoReference = (id: string): UploadItem => {
+  return {
+    id,
+    source: 'file',
+    kind: 'video',
+    mime: 'video/mp4',
+    ext: 'mp4',
+    originalName: `${id}.mp4`,
+    sizeBytes: 1024,
+    durationSec: 7,
+    createdAt: '2026-10-20T00:00:00.000Z',
+  }
+}
 
 describe('billableSeconds', () => {
   it('bills Wan at the 5 second floor', () => {
@@ -87,6 +92,7 @@ describe('duration normalization', () => {
 
   it('allows any integer up to the exact reference limit', () => {
     const uploads = { v1: videoReference('v1') }
+
     const allowed = normalizeForPreset({
       input: draft('wan-3.0', 23, ['v1']),
       preset: wan,
@@ -95,11 +101,12 @@ describe('duration normalization', () => {
 
     expect(allowed.input.duration).toBe(23)
     expect(allowed.notes).toEqual([])
+
     const valid = validateInput({
       input: draft('wan-3.0', 23, ['v1']),
       uploads,
       preset: wan,
-      ctx: { remoteConfigured: true },
+      ctx: { modelStatus: 'unverified', modelReason: null, remoteConfigured: true },
     })
 
     expect(valid.ok).toBe(true)
@@ -117,7 +124,7 @@ describe('duration normalization', () => {
       input: draft('wan-3.0', 24, ['v1']),
       uploads,
       preset: wan,
-      ctx: { remoteConfigured: true },
+      ctx: { modelStatus: 'unverified', modelReason: null, remoteConfigured: true },
     })
 
     expect(rejected.ok).toBe(false)

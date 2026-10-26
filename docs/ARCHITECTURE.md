@@ -18,26 +18,42 @@ Two run modes, one server:
 | Browser | `pnpm dev` / `pnpm start` | none | none |
 | Desktop | Tauri spawns the Node sidecar | `APP_TOKEN` cookie | Tauri exits the sidecar via `PARENT_PID` watch |
 
+Updates run in the Rust shell. It reads `latest.json` from the GitHub release over HTTPS, checks the downloaded installer against the embedded public key, and installs only a version newer than the running one.
+
 ## 2. Code map
 
 | Path | Contents |
 |---|---|
 | `src/core` | Pure logic, no IO. Shared by client and server. |
 | `src/core/presets` | One file per model under its family folder. `family.ts` holds what the family shares. |
+| `src/core/providers` | Provider descriptors for video and storage: ids, secret fields, links, HTTP rules. |
+| `src/core/schemas` | Zod schemas for stored JSON: records, uploads, folders. |
 | `src/core/provider-errors` | Error types, family tables, app rules and HTTP codes behind one `friendlyError`. |
 | `src/core/types.ts` | Shared API shapes: records, uploads, folders, pricing, secrets, capabilities. |
-| `src/server` | IO: route helpers, jobs, repos, secrets, media, remote storage. |
+| `src/core/catalog.ts` | Catalog entry, model status and catalog shapes shared by the client and the server. |
+| `src/core/utility-types.ts` | Shared utility types `Dict` and `HasId`. |
+| `src/server` | IO: boot, route helpers, jobs, services, repos, providers, storage, secrets, media, config. |
+| `src/server/boot.ts` | Composition root. Lock, secrets, queue wiring, poller, parent watch, ffmpeg. |
+| `src/server/config` | `isMockMode`, the app-wide dev switch shared by the provider and storage registries. |
 | `src/server/jobs` | `submit-queue`, `run-submit`, `submit-media`, `submit-record`, `poller`, `download-queue`, `reconcile`. |
+| `src/server/services` | Orchestration for routes and jobs: `credits`, `model-catalog`, `remote-inputs`, `remote-cap`, `upload-probe`, `uploads`, `connection-test`, `create-generation`, `estimate-generation`. |
+| `src/server/providers` | `VideoProvider` interface, registry, OpenRouter adapter, mock adapter, `ProviderError` kinds. |
+| `src/server/storage` | `ObjectStore` interface, registry, generic S3 store, R2 config, mock store, hashing. |
 | `src/server/repos` | `generations`, `uploads`, `folders`, `json-dir-store`. |
-| `src/server/media` | `image-data-url`, `to-data-url`, `thumbs`, `compat`, `ffmpeg`. |
-| `src/server/remote` | R2 and mock stores, content-addressed inputs, hashing. |
-| `src/features` | UI grouped by feature: generator, history, media picker, preview, settings, player. |
-| `src/features/history` | One component per file, `selection-store` and `view-store`, `record-view` helpers, `record-actions`. |
+| `src/server/sync` | `withLock`, the per-key serialization primitive, `createLimiter` for per-key caps, and `ttl-cache`, the `globalState` TTL cache. |
+| `src/server/media` | `image-data-url`, `image-encode`, `to-data-url`, `thumbs`, `compat`, `ffmpeg`. |
+| `src/features` | UI grouped by feature: generator, history, media picker, preview, settings, player, studio, updates. |
+| `src/features/generator` | `panel`, `store`, `references`, `frames`, `prompt`, `options`, `model`, `credits`, `generate`. |
+| `src/features/history` | `list`, `details`, `status`, `filters`, `selection`, `actions`. |
+| `src/features/media-picker` | `picker`, `uploads`, `folders`, `tiles`. |
 | `src/ui` | Primitives (button, modal, popover, tabs, slider, tooltip). |
 | `src/ui/form` | `Field`, `Input`, `NumberInput`, `PasswordInput`, `SearchInput`, `Switch`. |
 | `src/lib` | Client helpers, `platform/` (browser and desktop), drop router, media support. |
+| `src/lib/notify.ts` | `toastError` and `copyText`, the only toast helpers outside `src/features`. |
+| `src/lib/use-*.ts` | Shared hooks: `useBoolean`, `useAsyncAction`, `useDebouncedValue`, `useNow`, `useMediaQuery`, `usePointerBlur`. |
+| `src/lib/api` | Client functions for every route. The only place an API URL is written. |
 | `src/app` | Next routes and the page shell. |
-| `src-tauri` | Desktop shell, sidecar supervisor, window and settings. |
+| `src-tauri` | Desktop shell, sidecar supervisor, window, settings and `updater.rs`. |
 | `scripts` | `prepare-desktop.mjs`, `smoke-server.mjs`, `notices.mjs`. |
 | `tests` | Vitest suites. |
 
@@ -96,12 +112,12 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 | File | Meaning | Writer |
 |---|---|---|
 | `server.lock` | PID, port, mode, start time | instance lock |
-| `desktop.json` | Desktop port, window bounds, one-time close hint flag | Tauri shell |
+| `desktop.json` | Desktop port, window bounds, close hint, `auto_check_updates` and `last_update_check`, written under one lock | Tauri shell |
 | `secrets.json` | 0600 fallback when no OS keychain exists | file secret backend |
 | `logs/server.log` | Sidecar log | Node server and Rust supervisor |
 | `runtime/<version>/` | Writable copy of the bundled Next server | Tauri shell on first launch |
 
-Desktop runs the sidecar from `runtime/<version>`, so Next cache writes never touch the signed bundle. The copy is staged and atomically renamed once per app version. Older versions are removed after a successful boot.
+Desktop runs the sidecar from `runtime/<version>`, so Next cache writes never touch the signed bundle. The copy holds a `.upai-build` stamp naming the bundled build. A missing or different stamp restages the copy, and the stamp is written last. Older versions are removed after a successful boot.
 
 ## 4. Generation lifecycle
 
@@ -162,7 +178,13 @@ If a provider rejects base64 input, submit retries once with all media as URLs. 
 | Seedance 2.0 | 4-15 s | 480p, 720p, 1080p, 4K | 9 / 3 / 3 | video |
 | Seedance 2.5 | 4-30 s | 480p, 720p | 30 / 10 / 10 | video |
 
-Pricing keeps list and effective rates. `getPricing` fetches `/api/v1/videos/models` for SKUs and `/api/v1/models/{author}/{slug}/endpoints` for the live `pricing.discount` in parallel, then applies `effective = list * (1 - discount)`. At the time of writing Wan 3.0 reports 0.15 while Prime and Seedance report 0. A failed endpoints call keeps live list rates at discount 0. Mock and fallback modes always use list prices. The Quality popover shows the struck list rate and the effective rate, plus a `% off` hint when a discount exists. No HTML scraping.
+Each model holds `bindings` in priority order. A binding is `provider`, `modelId`, `pricing` and `transport` per media kind. The first binding whose provider is configured wins. A record stores the chosen provider and model id at submit time, so polling and download keep using that provider after settings change.
+
+Pricing is serializable data. `skuRules` is an ordered list. Each rule has `when` conditions (`hasVideoInput`, `audio`, `hasTier`) and a `key` where `{resolution}` and `{tier}` are replaced. The first matching rule wins. `tiers` maps a resolution to its SKU suffix, for example `1080p` to `_1080p`. `fallback` holds a list rate for every key the rules can produce.
+
+`/api/models` returns one catalog entry per preset. `available` means the provider lists the model. `unverified` means the model list cannot be read. `missing` means the list lacks the model. `no_provider` means no binding has a configured key. The catalog controls picker availability and price only. It never narrows preset capabilities at runtime.
+
+Live pricing keeps list and effective rates. `getPricing` fetches `/api/v1/videos/models` for SKUs and `/api/v1/models/{author}/{slug}/endpoints` for the live `pricing.discount` in parallel, then applies `effective = list * (1 - discount)`. At the time of writing Wan 3.0 reports 0.15 while Prime and Seedance report 0. A failed endpoints call keeps live list rates at discount 0. Mock and fallback modes always use list prices. The Quality popover shows the struck list rate and the effective rate, plus a `% off` hint when a discount exists. No HTML scraping.
 
 `minDuration` raises the selectable floor to `minBillableSec` when it is higher. The shortest selectable duration is 5 s on Wan and 4 s on Seedance. Wan presets bill at least 5 s, so a 2 s request costs 5 × the effective rate. `usage.cost` is the truth, and stored `pricePerSec` stays the raw rate.
 
@@ -183,9 +205,13 @@ Adding a model:
 | Submit queue | 2 active | Upload and send jobs |
 | Poller | 3 parallel | OpenRouter status reads |
 | Download queue | 2 active | Video downloads and previews |
-| ffmpeg compat | 2 active | Webview-safe copies |
+| `thumbQueue` | 4 active | Thumbnail renders |
+| `imageEncodeQueue` | 2 active | Image re-encode at upload |
+| `compatQueue` | 2 active | Webview-safe copies |
 
-`globalState` keeps one singleton per process even when Next loads a module twice. `server.lock` prevents two servers from sharing one data folder. A live owner makes the new process exit with code 75, a stale lock is replaced.
+The media caps use `createLimiter` (`src/server/sync/limiter.ts`). `globalState` keeps one singleton per process even when Next loads a module twice. `server.lock` prevents two servers from sharing one data folder. A live owner makes the new process exit with code 75, a stale lock is replaced.
+
+Update checks run 15 s after launch, then every 12 h while auto-check is on (`UPDATE_CHECK_DELAY_MS`, `UPDATE_CHECK_INTERVAL_MS`). The toast and Settings share one install action, which keeps the downloaded bytes for a retry after cancel.
 
 ## 9. Secrets and session
 
@@ -202,9 +228,10 @@ Browser mode has no session token. Desktop sets `APP_TOKEN`, opens `/api/session
 | Choose files or folder | file input fallback | native dialog plugin |
 | Drag and drop paths | web drop event | Tauri drag-drop events |
 | Notifications | Web Notification API | notification plugin |
-| Open links | `window.open` | opener plugin, openrouter.ai scoped |
+| Open links | `window.open` | opener plugin, scoped to `openrouter.ai`, `dash.cloudflare.com`, `github.com/jefoce/unplatform-ai*` |
 | Save video | download anchor | native save dialog |
 | Confirm discard | `window.confirm` | native confirm |
+| Updates | none | `update_info`, `update_check`, `update_install`, `update_set_auto`, `update_open_release` |
 
 Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Platform` interface.
 
@@ -221,6 +248,9 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `SHUTDOWN_SEND_WAIT_MS` | 60000 | Shutdown wait for an in-flight send |
 | `POLL_INTERVAL_MS` | 8000 | Job polling interval |
 | `HISTORY_POLL_MS` | 4000 | History refresh interval |
+| `CREDITS_POLL_MS` | 60000 | Credit balance refresh interval |
+| `UPDATE_CHECK_DELAY_MS` | 15000 | Delay before the first automatic update check |
+| `UPDATE_CHECK_INTERVAL_MS` | 43200000 | Automatic update check interval |
 | `MAX_JOB_AGE_MIN` | 360 | Age after which active jobs expire |
 | `MAX_DOWNLOAD_RETRIES` | 5 | Download attempts before failing |
 | `FETCH_TIMEOUTS.submit` | 300000 | Submit request timeout |
@@ -229,6 +259,8 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `FETCH_TIMEOUTS.meta` | 15000 | Metadata and test timeout |
 | `REMOTE_LINK_TTL_SEC` | 7200 | Presigned R2 link lifetime |
 | `REMOTE_UNUSED_DAYS` | 30 | R2 retention after last use |
+| `REMOTE_FREE_GB` | 10 | Cloudflare free R2 storage |
+| `REMOTE_MAX_GB` | 8 | Tracked R2 storage cap, evicts older keys before a put |
 | `UPLOAD_CLEANUP_MS` | 3600000 | Age before stale temp files are deleted |
 | `THUMB_WIDTH` | 320 | Thumbnail width |
 | `PREVIEW_WIDTH` | 640 | Preview frame width |
@@ -261,4 +293,4 @@ Routes throw `HttpError` with a status and a short message. `errorResponse` turn
 
 Job errors are stored on the record as `error`, never thrown to the UI after the request ended. Secrets and presigned URLs are never logged.
 
-`core/provider-errors.ts` turns the stored text into a plain title and hint at render time. Family tables for Wan and Seedance run first, then app errors, then OpenRouter HTTP codes. First match wins, specific codes before parent codes, and a family table never matches the other family. Raw text stays on the record, the failed card and status overlay show the plain text, and Details exposes the raw text with Copy. Records written before a table change pick up the new text without migration.
+`core/provider-errors/` turns the stored text into a plain title and hint at render time. Family tables for Wan and Seedance run first, then app errors, then OpenRouter HTTP codes. First match wins, specific codes before parent codes, and a family table never matches the other family. Raw text stays on the record, the failed card and status overlay show the plain text, and Details exposes the raw text with Copy. Records written before a table change pick up the new text without migration.

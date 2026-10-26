@@ -7,6 +7,7 @@ import { Readable } from 'node:stream'
 
 import { isNil } from 'lodash-es'
 
+import { isNonEmptyString } from '@/core/guards'
 import { mimeFromExt } from '@/core/media-kinds'
 
 interface Range {
@@ -29,7 +30,9 @@ export async function streamFile(params: StreamFileParams): Promise<Response> {
   const { absPath, request, opts = {} } = params
   const stats = await statFile(absPath)
 
-  if (!stats) return notFound()
+  if (!stats) {
+    return notFound()
+  }
 
   const size = stats.size
   const etag = `W/"${size}-${Math.floor(stats.mtimeMs)}"`
@@ -52,9 +55,13 @@ export async function streamFile(params: StreamFileParams): Promise<Response> {
 }
 
 async function statFile(absPath: string): Promise<Stats | null> {
-  const stats = await fs.stat(absPath).catch(() => null)
+  const stats = await fs.stat(absPath).catch(() => {
+    return null
+  })
 
-  if (isNil(stats) || !stats.isFile()) return null
+  if (isNil(stats) || !stats.isFile()) {
+    return null
+  }
 
   return stats
 }
@@ -68,16 +75,17 @@ interface BuildHeadersParams {
 
 function buildHeaders(params: BuildHeadersParams): Headers {
   const { absPath, stats, opts, etag } = params
+
   const headers = new Headers({
     'Accept-Ranges': 'bytes',
     'Content-Type': mimeFromExt(path.extname(absPath)) ?? 'application/octet-stream',
   })
 
-  if (!isNil(opts.cacheControl) && opts.cacheControl !== '') {
+  if (isNonEmptyString(opts.cacheControl)) {
     headers.set('Cache-Control', opts.cacheControl)
   }
 
-  if (!isNil(opts.downloadName) && opts.downloadName !== '') {
+  if (isNonEmptyString(opts.downloadName)) {
     headers.set('Content-Disposition', `attachment; filename="${sanitizeName(opts.downloadName)}"`)
   }
 
@@ -99,20 +107,26 @@ interface RangeResponseParams {
 function rangeResponse(params: RangeResponseParams): Response {
   const { absPath, request, headers, rangeHeader, range, size } = params
 
-  if (!isNil(rangeHeader) && rangeHeader !== '' && isNil(range)) {
+  if (isNonEmptyString(rangeHeader) && isNil(range)) {
     headers.set('Content-Range', `bytes */${size}`)
     headers.set('Content-Length', '0')
 
     return new Response(null, { status: 416, headers })
   }
 
-  headers.set('Content-Length', String(range ? range.end - range.start + 1 : size))
+  const length = range ? range.end - range.start + 1 : size
 
-  if (range) headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
+  headers.set('Content-Length', String(length))
+
+  if (range) {
+    headers.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`)
+  }
 
   const status = range ? 206 : 200
 
-  if (request.method === 'HEAD') return new Response(null, { status, headers })
+  if (request.method === 'HEAD') {
+    return new Response(null, { status, headers })
+  }
 
   const stream = createReadStream(absPath, range ?? undefined)
 
@@ -122,21 +136,33 @@ function rangeResponse(params: RangeResponseParams): Response {
 function parseRange(header: string, size: number): Range | null {
   const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
 
-  if (!match || size === 0) return null
+  if (!match || size === 0) {
+    return null
+  }
 
   const [, rawStart, rawEnd] = match
 
-  if (rawStart === '') return parseSuffix(rawEnd, size)
+  if (isNil(rawStart) || isNil(rawEnd)) {
+    return null
+  }
+
+  if (rawStart === '') {
+    return parseSuffix(rawEnd, size)
+  }
 
   return parseBounds({ rawStart, rawEnd, size })
 }
 
 function parseSuffix(rawEnd: string, size: number): Range | null {
-  if (rawEnd === '') return null
+  if (rawEnd === '') {
+    return null
+  }
 
   const suffix = Number(rawEnd)
 
-  if (!Number.isSafeInteger(suffix) || suffix <= 0) return null
+  if (!Number.isSafeInteger(suffix) || suffix <= 0) {
+    return null
+  }
 
   return { start: Math.max(0, size - suffix), end: size - 1 }
 }
@@ -150,24 +176,38 @@ interface ParseBoundsParams {
 function parseBounds(params: ParseBoundsParams): Range | null {
   const { rawStart, rawEnd, size } = params
   const start = Number(rawStart)
-  const end = rawEnd === '' ? size - 1 : Number(rawEnd)
+  let end = Number(rawEnd)
 
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) return null
+  if (rawEnd === '') {
+    end = size - 1
+  }
 
-  if (start >= size || start > end) return null
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) {
+    return null
+  }
+
+  if (start >= size || start > end) {
+    return null
+  }
 
   return { start, end: Math.min(end, size - 1) }
 }
 
 /** Weak comparison against a comma-separated If-None-Match list. */
 function isNotModified(header: string | null, etag: string): boolean {
-  if (isNil(header) || header === '') return false
+  if (!isNonEmptyString(header)) {
+    return false
+  }
 
-  if (header.trim() === '*') return true
+  if (header.trim() === '*') {
+    return true
+  }
 
   const opaque = etag.replace(/^W\//, '')
 
-  return header.split(',').some((tag) => tag.trim().replace(/^W\//, '') === opaque)
+  return header.split(',').some((tag) => {
+    return tag.trim().replace(/^W\//, '') === opaque
+  })
 }
 
 function sanitizeName(name: string): string {

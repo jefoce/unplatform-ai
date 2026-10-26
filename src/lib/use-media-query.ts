@@ -10,9 +10,15 @@ export function useMediaQuery(query: string): boolean {
 
       list.addEventListener('change', notify)
 
-      return () => list.removeEventListener('change', notify)
+      return () => {
+        list.removeEventListener('change', notify)
+      }
     },
-    () => window.matchMedia(query).matches,
-    () => true,
+    () => {
+      return window.matchMedia(query).matches
+    },
+    () => {
+      return true
+    },
   )
 }

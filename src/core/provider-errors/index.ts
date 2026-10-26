@@ -1,39 +1,53 @@
 import { isFunction, isNil } from 'lodash-es'
 
+import type { PresetFamily } from '../presets/types'
 import { APP_RULES } from './app'
-import { HTTP_RULES } from './http'
 import { SEEDANCE_RULES } from './seedance'
-import type { ErrorFamily, FriendlyError, HttpRule, Rule } from './types'
+import type { FriendlyError, HttpRule, HttpRuleTable, Rule } from './types'
 import { WAN_RULES } from './wan'
 
-export type { FriendlyError } from './types'
-
 function matches(rule: Rule, raw: string): boolean {
-  if (isFunction(rule.match)) return rule.match(raw)
+  if (isFunction(rule.match)) {
+    return rule.match(raw)
+  }
 
-  if (rule.match instanceof RegExp) return rule.match.test(raw)
+  if (rule.match instanceof RegExp) {
+    return rule.match.test(raw)
+  }
 
   return raw.includes(rule.match)
 }
 
 function resolve(rule: Rule | HttpRule, raw: string): FriendlyError {
-  const title = isFunction(rule.title) ? rule.title(raw) : rule.title
+  let title: string
+
+  if (isFunction(rule.title)) {
+    title = rule.title(raw)
+  } else {
+    title = rule.title
+  }
+
   let hint: string | undefined
 
-  if (!isNil(rule.hint)) hint = isFunction(rule.hint) ? rule.hint(raw) : rule.hint
+  if (isFunction(rule.hint)) {
+    hint = rule.hint(raw)
+  } else {
+    hint = rule.hint
+  }
 
   return { title, hint, kind: rule.kind, retry: rule.retry ?? false, raw }
 }
 
-const FAMILY_RULES: Record<ErrorFamily, readonly Rule[]> = {
+const FAMILY_RULES: Record<PresetFamily, readonly Rule[]> = {
   seedance: SEEDANCE_RULES,
   wan: WAN_RULES,
 }
 
 interface FriendlyErrorParams {
   raw: string
-  family: ErrorFamily | null
+  family: PresetFamily | null
   httpCode?: number
+  httpRules: HttpRuleTable | null
 }
 
 /**
@@ -41,20 +55,32 @@ interface FriendlyErrorParams {
  * Family rules run first, then app rules, then HTTP codes. First match wins.
  */
 export function friendlyError(params: FriendlyErrorParams): FriendlyError {
-  const { raw, family, httpCode } = params
+  const { raw, family, httpCode, httpRules } = params
   let familyRules: readonly Rule[] = []
 
-  if (!isNil(family)) familyRules = FAMILY_RULES[family]
+  if (!isNil(family)) {
+    familyRules = FAMILY_RULES[family]
+  }
 
   const rule =
-    familyRules.find((candidate) => matches(candidate, raw)) ??
-    APP_RULES.find((candidate) => matches(candidate, raw))
+    familyRules.find((candidate) => {
+      return matches(candidate, raw)
+    }) ??
+    APP_RULES.find((candidate) => {
+      return matches(candidate, raw)
+    })
 
-  if (rule) return resolve(rule, raw)
+  if (rule) {
+    return resolve(rule, raw)
+  }
 
-  const http = isNil(httpCode) ? undefined : HTTP_RULES[httpCode]
+  const isHttp = isNil(httpCode) || isNil(httpRules)
 
-  if (http) return resolve(http, raw)
+  const http = isHttp ? undefined : httpRules[httpCode]
+
+  if (http) {
+    return resolve(http, raw)
+  }
 
   return { title: 'Generation failed', hint: raw, kind: 'unknown', retry: false, raw }
 }

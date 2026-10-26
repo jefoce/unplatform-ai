@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { GenerationListResult } from '@/core/types'
-import { patchPage } from '@/features/history/history-pages'
+import { patchPage } from '@/features/history/list/history-pages'
 
 import { record } from './helpers/history'
 

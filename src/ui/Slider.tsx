@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { isNil } from 'lodash-es'
 import { Slider as SliderPrimitive } from 'radix-ui'
 
 import { cn } from '@/lib/cn'
@@ -18,11 +18,15 @@ interface SliderProps {
 
 /** Single-value ranged slider with neutral track. */
 export function Slider(props: SliderProps) {
-  const { value, onValueChange, min, max, step = 1, className, ariaLabel, name } = props
-  const handleValueChange = useCallback(
-    ([nextValue]: number[]) => onValueChange(nextValue),
-    [onValueChange],
-  )
+  const { value, min, max, step = 1, className, ariaLabel, name } = props
+
+  const handleValueChange = ([nextValue]: number[]) => {
+    if (isNil(nextValue)) {
+      return
+    }
+
+    props.onValueChange(nextValue)
+  }
 
   return (
     <SliderPrimitive.Root

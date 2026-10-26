@@ -1,5 +1,5 @@
 mod boot;
-mod logs;
+pub(crate) mod logs;
 mod shutdown;
 mod supervisor;
 
@@ -16,6 +16,8 @@ use tauri_plugin_shell::process::CommandChild;
 
 pub use boot::boot;
 pub use shutdown::{emergency_cleanup, shutdown_then_exit};
+pub(crate) use shutdown::stop_server;
+pub(crate) use shutdown::{confirm_quit, pending_work};
 
 pub(crate) const HEALTH_TIMEOUT: Duration = Duration::from_millis(500);
 pub(crate) const READY_TIMEOUT: Duration = Duration::from_secs(30);

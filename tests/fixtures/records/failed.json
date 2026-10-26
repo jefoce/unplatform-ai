@@ -1,0 +1,37 @@
+{
+  "id": "77777777-7777-4777-8777-777777777777",
+  "createdAt": "2026-10-20T00:05:00.000Z",
+  "updatedAt": "2026-10-20T00:05:30.000Z",
+  "status": "failed",
+  "provider": "openrouter",
+  "input": {
+    "presetId": "wan-3.0",
+    "tab": "references",
+    "prompt": "A desert mirage",
+    "audio": false,
+    "duration": 5,
+    "aspectRatio": "1:1",
+    "resolution": "480p",
+    "frames": { "start": null, "end": null },
+    "references": [],
+    "seed": null
+  },
+  "preset": { "id": "wan-3.0", "title": "Wan 3.0", "slug": "alibaba/wan-3.0" },
+  "inputsSnapshot": {},
+  "job": {
+    "id": "job-failed-1",
+    "submittedAt": "2026-10-20T00:05:01.000Z"
+  },
+  "seedUsed": 5,
+  "favorite": false,
+  "cost": {
+    "currency": "USD",
+    "pricePerSec": 0.2,
+    "priceSource": "fallback",
+    "estimatedUsd": 1,
+    "actualUsd": null,
+    "isByok": null,
+    "billed": null
+  },
+  "error": "The provider rejected the prompt."
+}

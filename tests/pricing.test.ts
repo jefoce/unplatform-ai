@@ -1,31 +1,32 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ModelPreset, PresetPricing, Resolution } from '@/core/presets'
 import { getPreset } from '@/core/presets'
-import type { PriceContext } from '@/core/pricing'
-import { estimatePrice, formatRate, pricePerSec } from '@/core/pricing'
+import { primaryBinding } from '@/core/presets/bindings'
+import type { ModelPreset, PricingRule, Resolution } from '@/core/presets/types'
+import { estimatePrice, formatRate, type PriceContext, pricePerSec } from '@/core/pricing'
 
 const wan = getPreset('wan-3.0')
 const prime = getPreset('wan-3.0-prime')
 const seedance = getPreset('seedance-2.0')
 const seedance25 = getPreset('seedance-2.5')
 
-const ctx = (resolution: Resolution, overrides: Partial<PriceContext> = {}): PriceContext => ({
-  resolution,
-  aspect: '16:9',
-  audio: true,
-  hasVideoInput: false,
-  ...overrides,
-})
+const ctx = (resolution: Resolution, overrides: Partial<PriceContext> = {}): PriceContext => {
+  return {
+    resolution,
+    aspect: '16:9',
+    audio: true,
+    hasVideoInput: false,
+    ...overrides,
+  }
+}
 
-const withPricing = (
-  pricing: PresetPricing,
-  overrides: Partial<ModelPreset> = {},
-): ModelPreset => ({
-  ...wan,
-  ...overrides,
-  pricing,
-})
+const withPricing = (pricing: PricingRule, overrides: Partial<ModelPreset> = {}): ModelPreset => {
+  return {
+    ...wan,
+    ...overrides,
+    bindings: [{ ...primaryBinding(wan), pricing }],
+  }
+}
 
 describe('pricePerSec Wan', () => {
   it('reads Wan USD keys', () => {
@@ -41,11 +42,13 @@ describe('pricePerSec Wan', () => {
   })
 
   it('divides cents by 100', () => {
-    const pricing: PresetPricing = {
+    const pricing: PricingRule = {
       kind: 'perSecond',
       unit: 'cents',
-      key: () => 'per_sec',
+      skuRules: [{ when: {}, key: 'per_sec' }],
+      tiers: {},
       fallback: { per_sec: 30 },
+      minBillableSec: 0,
       referenceVideoFactor: 0,
     }
 
@@ -55,13 +58,19 @@ describe('pricePerSec Wan', () => {
   })
 
   it('passes audio only when the preset supports it', () => {
-    const pricing: PresetPricing = {
+    const pricing: PricingRule = {
       kind: 'perSecond',
       unit: 'usd',
-      key: ({ audio: isAudio }) => (isAudio ? 'with_audio' : 'without_audio'),
+      skuRules: [
+        { when: { audio: true }, key: 'with_audio' },
+        { when: {}, key: 'without_audio' },
+      ],
+      tiers: {},
       fallback: { with_audio: 0.3, without_audio: 0.2 },
+      minBillableSec: 0,
       referenceVideoFactor: 0,
     }
+
     const preset = withPricing(pricing)
 
     expect(pricePerSec({ preset, ctx: ctx('1080p') })).toBe(0.3)
@@ -79,11 +88,14 @@ describe('pricePerSec Wan', () => {
 
   it('returns null for missing or non-finite keys', () => {
     expect(pricePerSec({ preset: wan, ctx: ctx('768p') })).toBeNull()
-    const pricing: PresetPricing = {
+
+    const pricing: PricingRule = {
       kind: 'perSecond',
       unit: 'usd',
-      key: () => 'x',
+      skuRules: [{ when: {}, key: 'x' }],
+      tiers: {},
       fallback: { x: Number.NaN },
+      minBillableSec: 0,
       referenceVideoFactor: 0,
     }
 
@@ -103,6 +115,7 @@ describe('pricePerSec Seedance', () => {
     expect(
       pricePerSec({ preset: seedance, ctx: ctx('720p', { hasVideoInput: true }) }),
     ).toBeCloseTo(0.09288, 6)
+
     expect(
       pricePerSec({ preset: seedance, ctx: ctx('1080p', { hasVideoInput: true }) }),
     ).toBeCloseTo(0.22842, 6)
@@ -125,6 +138,7 @@ describe('pricePerSec Seedance', () => {
   it('computes Seedance 2.5 token rates', () => {
     expect(pricePerSec({ preset: seedance25, ctx: ctx('720p') })).toBeCloseTo(0.23112, 6)
     expect(pricePerSec({ preset: seedance25, ctx: ctx('480p') })).toBeCloseTo(0.1028, 6)
+
     expect(
       pricePerSec({ preset: seedance25, ctx: ctx('720p', { hasVideoInput: true }) }),
     ).toBeCloseTo(0.13824, 6)
@@ -133,13 +147,16 @@ describe('pricePerSec Seedance', () => {
 
 describe('estimatePrice', () => {
   it('bills output only when the reference video factor is zero', () => {
-    const pricing: PresetPricing = {
+    const pricing: PricingRule = {
       kind: 'perSecond',
       unit: 'usd',
-      key: () => 'per_sec',
+      skuRules: [{ when: {}, key: 'per_sec' }],
+      tiers: {},
       fallback: { per_sec: 0.2 },
+      minBillableSec: 0,
       referenceVideoFactor: 0,
     }
+
     const result = estimatePrice({
       preset: withPricing(pricing),
       ctx: ctx('1080p'),

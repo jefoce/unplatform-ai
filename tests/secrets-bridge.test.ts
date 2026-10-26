@@ -3,6 +3,7 @@ import { PassThrough } from 'node:stream'
 import { isNil } from 'lodash-es'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { Dict } from '@/core/utility-types'
 import {
   __resetSecretsForTests,
   __setSecretsBackendForTests,
@@ -22,6 +23,7 @@ interface SentLine {
 function setup(timeoutMs = 1_000) {
   const input = new PassThrough()
   const sent: string[] = []
+
   const backend = bridgeBackend({
     input,
     output: {
@@ -40,14 +42,16 @@ function setup(timeoutMs = 1_000) {
 function request(sent: string[]): SentLine {
   const line = sent.at(-1)
 
-  if (isNil(line) || line === '') throw new Error('no request written')
+  if (isNil(line) || line === '') {
+    throw new Error('no request written')
+  }
 
   expect(line.startsWith(BRIDGE_PREFIX)).toBe(true)
 
   return JSON.parse(line.slice(BRIDGE_PREFIX.length))
 }
 
-function reply(input: PassThrough, payload: Record<string, unknown>) {
+function reply(input: PassThrough, payload: Dict<unknown>) {
   input.write(`${JSON.stringify(payload)}\n`)
 }
 
@@ -89,6 +93,7 @@ describe('secrets bridge', () => {
     const line = request(sent)
 
     expect(line).toMatchObject({ op: 'getAll', name: '' })
+
     reply(input, {
       id: line.id,
       ok: true,
@@ -115,6 +120,7 @@ describe('secrets bridge failures', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const input = new PassThrough()
     const sent: string[] = []
+
     const backend = bridgeBackend({
       input,
       output: {
@@ -137,6 +143,7 @@ describe('secrets bridge failures', () => {
 
     expect(secretStatus().loadError).toBe('Keychain access was denied or timed out')
     expect(secretStatus().keys.OPENROUTER_API_KEY.set).toBe(false)
+
     await expect(setSecrets({ OPENROUTER_API_KEY: 'abc12345' })).rejects.toMatchObject({
       status: 409,
       message: 'Keychain not loaded',
@@ -166,6 +173,23 @@ describe('secrets bridge failures', () => {
     )
   })
 
+  it('ignores a malformed reply', async () => {
+    const { input, sent, backend } = setup()
+
+    const pending = backend.get('OPENROUTER_API_KEY')
+    const line = request(sent)
+
+    reply(input, { id: line.id, ok: 'yes', value: 'bad' })
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20)
+    })
+
+    reply(input, { id: line.id, ok: true, value: 'right' })
+
+    await expect(pending).resolves.toBe('right')
+  })
+
   it('ignores replies with an unknown id', async () => {
     const { input, sent, backend } = setup()
 
@@ -173,7 +197,11 @@ describe('secrets bridge failures', () => {
     const line = request(sent)
 
     reply(input, { id: line.id + 1, ok: true, value: 'wrong' })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20)
+    })
+
     reply(input, { id: line.id, ok: true, value: 'right' })
 
     await expect(pending).resolves.toBe('right')

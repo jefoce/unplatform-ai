@@ -1,47 +1,31 @@
 import 'server-only'
 
-import { isNil } from 'lodash-es'
+import { isNonEmptyString } from '@/core/guards'
 
+import { HttpError, RequestBodyError } from './errors'
 import { hasSession } from './session'
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]'])
 
-export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'HttpError'
-  }
-}
-
-export class RequestBodyError extends HttpError {
-  constructor() {
-    super(400, 'Invalid JSON body')
-  }
-}
-
-export class ValidationError extends Error {
-  readonly status = 400
-  readonly errors: string[]
-
-  constructor(errors: string[]) {
-    super(errors[0] ?? 'Invalid input')
-    this.name = 'ValidationError'
-    this.errors = errors
-  }
+interface LocalRequestOptions {
+  session?: boolean
 }
 
 /** Rejects non-local hosts, cross-site writes, foreign origins and missing desktop sessions. */
-export function assertLocalRequest(request: Request, opts: { session?: boolean } = {}): void {
+export function assertLocalRequest(request: Request, opts: LocalRequestOptions = {}): void {
   const host = request.headers.get('host') ?? ''
 
-  if (!LOCAL_HOSTS.has(host.replace(/:\d+$/, ''))) throw new HttpError(403, 'Forbidden host')
+  if (!LOCAL_HOSTS.has(host.replace(/:\d+$/, ''))) {
+    throw new HttpError(403, 'Forbidden host')
+  }
 
-  if (isWrite(request)) assertSameOrigin(request)
+  if (isWrite(request)) {
+    assertSameOrigin(request)
+  }
 
-  if (opts.session !== false && !hasSession(request)) throw new HttpError(401, 'No session')
+  if (opts.session !== false && !hasSession(request)) {
+    throw new HttpError(401, 'No session')
+  }
 }
 
 function isWrite(request: Request): boolean {
@@ -52,11 +36,11 @@ function assertSameOrigin(request: Request): void {
   const site = request.headers.get('sec-fetch-site')
   const origin = request.headers.get('origin')
 
-  if (!isNil(site) && site !== '' && site !== 'same-origin' && site !== 'none') {
+  if (isNonEmptyString(site) && site !== 'same-origin' && site !== 'none') {
     throw new HttpError(403, 'Cross-site request')
   }
 
-  if (!isNil(origin) && origin !== '' && !LOCAL_HOSTS.has(new URL(origin).hostname)) {
+  if (isNonEmptyString(origin) && !LOCAL_HOSTS.has(new URL(origin).hostname)) {
     throw new HttpError(403, 'Bad origin')
   }
 }

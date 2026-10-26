@@ -1,6 +1,7 @@
 'use client'
 
 import { type RefObject, useEffect } from 'react'
+import { isNil } from 'lodash-es'
 
 interface UseSlotLifecycleParams {
   id: string
@@ -18,25 +19,37 @@ export function useSlotLifecycle(params: UseSlotLifecycleParams): void {
   useEffect(() => {
     const node = rootRef.current
 
-    if (!node) return
+    if (!node) {
+      return
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (!entry.isIntersecting) release(id)
+        if (!isNil(entry) && !entry.isIntersecting) {
+          release(id)
+        }
       },
       { rootMargin: '200px 0px' },
     )
 
     observer.observe(node)
 
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+    }
   }, [id, release, rootRef])
 
-  useEffect(() => () => release(id), [id, release])
+  useEffect(() => {
+    return () => {
+      release(id)
+    }
+  }, [id, release])
 
   // Selection mode turns the player off for unselected list rows.
   useEffect(() => {
-    if (isInteractive || !isSlotActive) return
+    if (isInteractive || !isSlotActive) {
+      return
+    }
 
     videoRef.current?.pause()
     release(id)

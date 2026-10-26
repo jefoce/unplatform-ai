@@ -21,7 +21,9 @@ export function usePlayerInput(params: UsePlayerInputParams): PlayerInputHandler
   const { isActive, video } = params
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!isOwnEvent(event) || event.target !== event.currentTarget) return
+    if (!isOwnEvent(event) || event.target !== event.currentTarget) {
+      return
+    }
 
     if (event.code === 'Space') {
       event.preventDefault()
@@ -37,16 +39,25 @@ export function usePlayerInput(params: UsePlayerInputParams): PlayerInputHandler
       return
     }
 
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return
+    }
 
     event.preventDefault()
-    video.seekBy(event.key === 'ArrowLeft' ? -5 : 5)
+
+    const delta = event.key === 'ArrowLeft' ? -5 : 5
+
+    video.seekBy(delta)
   }
 
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (!isOwnEvent(event) || event.shiftKey || !isActive) return
+    if (!isOwnEvent(event) || event.shiftKey || !isActive) {
+      return
+    }
 
-    if ((event.target as HTMLElement).closest('button, a, input')) return
+    if ((event.target as HTMLElement).closest('button, a, input')) {
+      return
+    }
 
     event.stopPropagation()
     video.togglePlay()

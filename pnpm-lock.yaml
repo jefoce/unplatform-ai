@@ -321,7 +321,7 @@ importers:
         specifier: ^4
         version: 4.3.3
       typescript:
-        specifier: ^5
+        specifier: ^5.9
         version: 5.9.3
       typescript-eslint:
         specifier: ^8.72.0

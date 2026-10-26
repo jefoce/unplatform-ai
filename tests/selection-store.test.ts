@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { useSelectionStore } from '@/features/history/selection-store'
+import { useSelectionStore } from '@/features/history/selection/selection-store'
 
-const state = () => useSelectionStore.getState()
+const state = () => {
+  return useSelectionStore.getState()
+}
+
 const ORDER = ['a', 'b', 'c', 'd', 'e']
 
 beforeEach(() => {

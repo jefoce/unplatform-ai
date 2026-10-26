@@ -2,8 +2,8 @@
 
 import { AlertTriangle } from 'lucide-react'
 
-import { mediaUrl, thumbUrl } from '@/features/media-picker/api'
 import { LazyVideo } from '@/features/player/LazyVideo'
+import { mediaUrl, thumbUrl } from '@/lib/api/media-urls'
 
 import type { PreviewItem } from './preview-store'
 import { PreviewAudio } from './PreviewAudio'
@@ -27,7 +27,8 @@ export function PreviewBody(props: PreviewBodyProps) {
   }
 
   const ref = item.previewRef ?? `uploads/${item.id}`
-  const src = mediaUrl(ref, item.kind === 'image' ? undefined : item.mime)
+  const mime = item.kind === 'image' ? undefined : item.mime
+  const src = mediaUrl(ref, mime)
 
   if (item.kind === 'video') {
     return (
@@ -41,7 +42,9 @@ export function PreviewBody(props: PreviewBodyProps) {
     )
   }
 
-  if (item.kind === 'audio') return <PreviewAudio item={item} src={src} />
+  if (item.kind === 'audio') {
+    return <PreviewAudio item={item} src={src} />
+  }
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- full original, not a thumb

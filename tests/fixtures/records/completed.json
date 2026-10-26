@@ -1,0 +1,63 @@
+{
+  "id": "55555555-5555-4555-8555-555555555555",
+  "createdAt": "2026-10-20T00:03:00.000Z",
+  "updatedAt": "2026-10-20T00:04:00.000Z",
+  "status": "completed",
+  "provider": "openrouter",
+  "input": {
+    "presetId": "seedance-2.5",
+    "tab": "references",
+    "prompt": "A whale breaching",
+    "audio": true,
+    "duration": 6,
+    "aspectRatio": "16:9",
+    "resolution": "1080p",
+    "frames": { "start": null, "end": null },
+    "references": ["66666666-6666-4666-8666-666666666666"],
+    "seed": null
+  },
+  "preset": { "id": "seedance-2.5", "title": "Seedance 2.5", "slug": "bytedance/seedance-2.5" },
+  "inputsSnapshot": {
+    "66666666-6666-4666-8666-666666666666": {
+      "kind": "video",
+      "originalName": "clip.mp4",
+      "source": "link",
+      "target": "/Users/example/Movies/clip.mp4",
+      "width": 1920,
+      "height": 1080,
+      "transport": "base64",
+      "sentWidth": 1280,
+      "sentHeight": 720,
+      "sentBytes": 204800,
+      "format": "jpeg",
+      "flattened": "#ffffff"
+    }
+  },
+  "job": {
+    "id": "job-done-1",
+    "generationId": "gen-done-1",
+    "submittedAt": "2026-10-20T00:03:01.000Z",
+    "startedAt": "2026-10-20T00:03:02.000Z",
+    "completedAt": "2026-10-20T00:03:50.000Z"
+  },
+  "download": { "startedAt": "2026-10-20T00:03:51.000Z" },
+  "seedUsed": 99,
+  "favorite": true,
+  "cost": {
+    "currency": "USD",
+    "pricePerSec": 0.25,
+    "priceSource": "live",
+    "estimatedUsd": 1.5,
+    "actualUsd": 1.42,
+    "isByok": false,
+    "billed": true
+  },
+  "output": {
+    "video": "55555555-5555-4555-8555-555555555555.mp4",
+    "preview": "55555555-5555-4555-8555-555555555555.preview.png",
+    "width": 1920,
+    "height": 1080,
+    "durationSec": 6,
+    "bytes": 5242880
+  }
+}

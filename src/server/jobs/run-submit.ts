@@ -3,51 +3,52 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { MAX_REQUEST_MB } from '@/core/constants'
+import { isNonEmptyString } from '@/core/guards'
 import { getPreset } from '@/core/presets'
-import {
-  asJobStatus,
-  graceDelayMs,
-  inputIds,
-  transportsFor,
-  withTransports,
-} from '@/core/submit-state'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { UploadsById } from '@/core/schemas/upload-item'
+import { graceDelayMs, inputIds, transportsFor, withTransports } from '@/core/submit-state'
 import type { ResolvedTransport } from '@/core/transport'
-import type { GenerationRecord, UploadItem } from '@/core/types'
+import type { Dict } from '@/core/utility-types'
 
-import { OpenRouterError, stripStatusPrefix } from '../openrouter/client'
-import { getRemoteStore } from '../remote/remote-store'
+import { ProviderError } from '../providers/provider-error'
+import type { SubmittedJob } from '../providers/types'
 import { getGeneration, saveGeneration } from '../repos/generations'
-import { getUpload } from '../repos/uploads'
 import { secretsReady } from '../secrets'
-import { withLock } from './lock'
+import { loadUploads } from '../services/uploads'
+import { getObjectStore } from '../storage/registry'
+import { withLock } from '../sync/lock'
+import { emitJobSent } from './job-events'
 import { buildMedia, recordSent, send, uploadUrls } from './submit-media'
-import { setSubmitRunner, setSubmitStage } from './submit-queue'
+import { setSubmitStage, type SubmitOutcome } from './submit-queue'
 import { throwIfStopped, updateSubmit } from './submit-record'
 
 const LIMIT_BYTES = MAX_REQUEST_MB * 1024 * 1024
 
 interface Prepared {
   record: GenerationRecord
-  uploads: Record<string, UploadItem>
-  transports: Record<string, ResolvedTransport>
+  uploads: UploadsById
+  transports: Dict<ResolvedTransport>
 }
 
 /** Uploads url inputs, then submits once. Failures are stored. */
-export async function runSubmit(id: string, signal?: AbortSignal): Promise<void> {
+export async function runSubmit(id: string, signal?: AbortSignal): Promise<SubmitOutcome> {
   await secretsReady()
   const record = await getGeneration(id)
 
-  if (record?.status !== 'submitting') return
+  if (record?.status !== 'submitting') {
+    return 'done'
+  }
 
   if (record.submit?.stage === 'grace' && graceDelayMs(record.submit.notBefore) > 0) {
-    await import('./submit-queue').then(({ startSubmit }) => startSubmit(id))
-
-    return
+    return 'requeue'
   }
 
   const prepared = await beginUpload(id)
 
-  if (!prepared) return
+  if (!prepared) {
+    return 'done'
+  }
 
   setSubmitStage(id, 'uploading')
 
@@ -58,23 +59,27 @@ export async function runSubmit(id: string, signal?: AbortSignal): Promise<void>
   } finally {
     setSubmitStage(id, null)
   }
-}
 
-setSubmitRunner(runSubmit)
+  return 'done'
+}
 
 async function beginUpload(id: string): Promise<Prepared | null> {
   return withLock(id, async () => {
     const record = await getGeneration(id)
 
-    if (record?.status !== 'submitting' || record.submit?.stage !== 'grace') return null
+    if (record?.status !== 'submitting' || record.submit?.stage !== 'grace') {
+      return null
+    }
 
     const uploads = await loadUploads(record.input)
     const preset = getPreset(record.input.presetId)
+
     const transports = transportsFor({
       uploads,
       preset,
-      remoteConfigured: !isNil(getRemoteStore()),
+      remoteConfigured: !isNil(getObjectStore()),
     })
+
     const saved = await saveGeneration({
       ...record,
       inputsSnapshot: withTransports(record.inputsSnapshot, transports),
@@ -90,13 +95,21 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
 
   throwIfStopped(signal)
 
-  if (inputIds(record.input).some((id) => isNil(uploads[id]))) {
+  if (
+    inputIds(record.input).some((id) => {
+      return isNil(uploads[id])
+    })
+  ) {
     throw new Error('Input file was removed before submit')
   }
 
-  const gone = Object.values(uploads).find((upload) => upload.missing === true)
+  const gone = Object.values(uploads).find((upload) => {
+    return upload.missing === true
+  })
 
-  if (gone) throw new Error(`File missing: ${gone.originalName}`)
+  if (gone) {
+    throw new Error(`File missing: ${gone.originalName}`)
+  }
 
   const preset = getPreset(record.input.presetId)
 
@@ -119,7 +132,9 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
 
   try {
     marked = await updateSubmit(record.id, (current) => {
-      if (current.submit?.stage !== 'uploading') return null
+      if (current.submit?.stage !== 'uploading') {
+        return null
+      }
 
       return { ...current, submit: { ...current.submit, stage: 'sending' } }
     })
@@ -138,20 +153,21 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
   const response = await send({ record, preset, uploads, transports, built })
   const saved = await complete(record.id, response)
 
-  if (saved) void import('./poller').then(({ startPoller }) => startPoller())
+  if (saved) {
+    emitJobSent(record.id)
+  }
 }
 
-async function complete(
-  id: string,
-  response: { id: string; status: string },
-): Promise<GenerationRecord | null> {
+async function complete(id: string, response: SubmittedJob): Promise<GenerationRecord | null> {
   return updateSubmit(id, (record) => {
-    if (record.status !== 'submitting') return null
+    if (record.status !== 'submitting') {
+      return null
+    }
 
     return {
       ...record,
-      status: asJobStatus(response.status) ?? 'pending',
-      job: { id: response.id, submittedAt: new Date().toISOString() },
+      status: response.status,
+      job: { id: response.jobId, submittedAt: new Date().toISOString() },
       submit: undefined,
     }
   })
@@ -159,33 +175,35 @@ async function complete(
 
 async function fail(id: string, error: unknown): Promise<void> {
   await updateSubmit(id, (record) => {
-    if (record.status !== 'submitting' || (!isNil(record.job) && record.job.id !== '')) return null
+    if (record.status !== 'submitting' || isNonEmptyString(record.job?.id)) {
+      return null
+    }
 
     return { ...record, status: 'failed', error: submitError(error), submit: undefined }
   })
 }
 
-/** Loads only uploads referenced by the normalized input. */
-export async function loadUploads(
-  input: GenerationRecord['input'],
-): Promise<Record<string, UploadItem>> {
-  const items = await Promise.all(inputIds(input).map((id) => getUpload(id)))
-
-  return Object.fromEntries(
-    items.filter((item): item is UploadItem => !isNil(item)).map((item) => [item.id, item]),
-  )
-}
-
 /** Formats a stored failure without repeating the HTTP status. */
 export function submitError(error: unknown): string {
-  if (!(error instanceof OpenRouterError)) {
-    return error instanceof Error ? error.message : 'Submit failed'
+  if (error instanceof ProviderError) {
+    return formatError(error)
   }
 
-  const stripped = stripStatusPrefix(error.message, error.status)
-  const message = stripped === '' ? `HTTP ${error.status}` : stripped
-  const code = error.code
-  const isCodeUseful = !isNil(code) && code !== '' && code !== String(error.status)
+  if (error instanceof Error) {
+    return error.message
+  }
 
-  return isCodeUseful ? `${code}: ${message}` : message
+  return 'Submit failed'
+}
+
+function formatError(error: ProviderError): string {
+  const { code } = error
+  const message = error.message === '' ? `HTTP ${error.status}` : error.message
+  const isCodeUseful = isNonEmptyString(code) && code !== String(error.status)
+
+  if (isCodeUseful) {
+    return `${code}: ${message}`
+  }
+
+  return message
 }

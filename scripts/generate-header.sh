@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Builds docs/header-light.svg and docs/header-dark.svg with the app icon embedded.
 # Run from the repo root: bash make-header.sh app-icon.png
 set -euo pipefail
 
@@ -22,3 +23,6 @@ write() {
 SVG
 }
 
+write "$out/header-light.svg" '#1f2328'
+write "$out/header-dark.svg" '#f0f6fc'
+echo "wrote $out/header-light.svg $out/header-dark.svg"

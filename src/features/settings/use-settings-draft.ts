@@ -4,17 +4,28 @@ import { useState } from 'react'
 import { isEmpty, isNull, isUndefined } from 'lodash-es'
 import { toast } from 'sonner'
 
-import { secretError } from '@/core/secret-names'
-import { refreshCredits } from '@/features/generator/use-credits'
-import { errorMessage } from '@/lib/errors'
+import { STORAGE_PROVIDERS, VIDEO_PROVIDERS } from '@/core/providers/registry'
+import type { StorageProviderId } from '@/core/providers/types'
+import { secretError, type SecretName } from '@/core/secret-names'
+import type { SecretStatus } from '@/core/types'
+import { refreshCredits } from '@/lib/api/credits'
+import { refreshModels } from '@/lib/api/models'
+import { refreshRemoteStatus } from '@/lib/api/remote'
+import { saveSecrets } from '@/lib/api/settings'
+import { toastError } from '@/lib/notify'
 import { platform } from '@/lib/platform'
-import { refreshRemoteStatus } from '@/lib/remote-status'
+import { useAsyncAction } from '@/lib/use-async-action'
 
-import type { SecretChange } from './secret-fields'
+import type { SettingsSection } from './settings-store'
 import { useSecretActions } from './use-secret-actions'
-import { R2_NAMES, saveSecrets, type SecretName, type SecretStatus } from './use-secrets'
+import type { TestMessage } from './use-secrets'
 
 type Edits = Partial<Record<SecretName, string | null>>
+
+export interface SecretChange {
+  value?: string
+  remove?: boolean
+}
 
 interface UseSettingsDraftParams {
   status: SecretStatus | undefined
@@ -32,9 +43,8 @@ interface DraftFlagsParams {
 interface DraftFlags {
   isDirty: boolean
   canSave: boolean
-  isR2Valid: boolean
-  isOpenrouterReady: boolean
-  isR2Ready: boolean
+  sectionReady: Record<SettingsSection, boolean>
+  storageValid: Record<StorageProviderId, boolean>
 }
 
 interface ApplyChangeParams {
@@ -43,62 +53,143 @@ interface ApplyChangeParams {
   change: SecretChange
 }
 
+export interface SettingsDraft {
+  edits: Edits
+  results: Record<SettingsSection, TestMessage | null>
+  testing: SettingsSection | null
+  saving: boolean
+  retrying: boolean
+  canSave: boolean
+  ready: Record<SettingsSection, boolean>
+  valid: Record<StorageProviderId, boolean>
+  onFieldChange: (name: SecretName, change: SecretChange) => void
+  onClose: (shouldOpen: boolean) => Promise<void>
+  onTest: (target: SettingsSection) => Promise<void>
+  onRetry: () => Promise<void>
+  onSave: () => Promise<void>
+}
+
+interface CountSetSecretsParams {
+  requiredSecrets: readonly SecretName[]
+  edits: Edits
+  status: SecretStatus | undefined
+}
+
 function applyChange(params: ApplyChangeParams): Edits {
   const { current, name, change } = params
   const next = { ...current }
 
-  if (change.remove === true) next[name] = null
-  else if (isEmpty(change.value)) delete next[name]
-  else next[name] = change.value
+  if (change.remove === true) {
+    next[name] = null
+  } else if (isEmpty(change.value)) {
+    delete next[name]
+  } else {
+    next[name] = change.value
+  }
 
   return next
+}
+
+function countSetSecrets(params: CountSetSecretsParams): number {
+  const { requiredSecrets, edits, status } = params
+
+  return requiredSecrets.filter((name) => {
+    const edit = edits[name]
+
+    if (isNull(edit)) {
+      return false
+    }
+
+    if (isUndefined(edit)) {
+      return status?.keys[name].set === true
+    }
+
+    return true
+  }).length
 }
 
 function getDraftFlags(params: DraftFlagsParams): DraftFlags {
   const { edits, status, isMock, isSaving } = params
   const changed = Object.keys(edits) as SecretName[]
   const isDirty = !isEmpty(changed)
-  const isAllValid = changed.every(
-    (name) => isNull(edits[name]) || isNull(secretError(name, edits[name] ?? '')),
-  )
-  const r2Set = R2_NAMES.filter((name) => {
-    const edit = edits[name]
 
-    if (isNull(edit)) return false
+  const isAllValid = changed.every((name) => {
+    return isNull(edits[name]) || isNull(secretError(name, edits[name] ?? ''))
+  })
 
-    return isUndefined(edit) ? status?.keys[name].set === true : true
-  }).length
-  const isR2Valid = r2Set === 0 || r2Set === R2_NAMES.length
-  const canSave = isEmpty(status?.loadError) && isDirty && isAllValid && isR2Valid && !isSaving
-  const isOpenrouterReady = isMock === true || Boolean(status?.keys.OPENROUTER_API_KEY.set)
-  const isR2Ready = isMock === true || R2_NAMES.every((name) => status?.keys[name].set === true)
+  const sectionReady = Object.fromEntries(
+    [...VIDEO_PROVIDERS, ...STORAGE_PROVIDERS].map((descriptor) => {
+      return [
+        descriptor.id,
+        isMock === true ||
+          descriptor.requiredSecrets.every((name) => {
+            return status?.keys[name].set === true
+          }),
+      ]
+    }),
+  ) as Record<SettingsSection, boolean>
 
-  return { isDirty, canSave, isR2Valid, isOpenrouterReady, isR2Ready }
+  const storageValid = Object.fromEntries(
+    STORAGE_PROVIDERS.map((descriptor) => {
+      const setCount = countSetSecrets({
+        requiredSecrets: descriptor.requiredSecrets,
+        edits,
+        status,
+      })
+
+      return [descriptor.id, setCount === 0 || setCount === descriptor.requiredSecrets.length]
+    }),
+  ) as Record<StorageProviderId, boolean>
+
+  const isStorageValid = Object.values(storageValid).every(Boolean)
+  const canSave = isEmpty(status?.loadError) && isDirty && isAllValid && isStorageValid && !isSaving
+
+  return { isDirty, canSave, sectionReady, storageValid }
 }
 
 /** Draft edits, test results and save/close actions for the settings modal. */
-export function useSettingsDraft(params: UseSettingsDraftParams) {
+export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft {
   const { status, mock: isMock, closeSettings } = params
   const [edits, setEdits] = useState<Edits>({})
-  const [isSaving, setIsSaving] = useState(false)
-  const { isDirty, canSave, isR2Valid, isOpenrouterReady, isR2Ready } = getDraftFlags({
-    edits,
-    status,
-    isMock,
-    isSaving,
-  })
+  const isDirty = !isEmpty(edits)
+
   const { results, testing, isRetrying, onTest, onRetry, resetResults } = useSecretActions({
     isDirty,
   })
 
+  const saving = useAsyncAction(async () => {
+    try {
+      await saveSecrets(edits)
+      await Promise.all([refreshCredits(), refreshRemoteStatus(), refreshModels()])
+      setEdits({})
+      resetResults()
+      toast.success('Settings saved')
+    } catch (error) {
+      toastError(error, 'Save failed')
+    }
+  })
+
+  const { canSave, sectionReady, storageValid } = getDraftFlags({
+    edits,
+    status,
+    isMock,
+    isSaving: saving.isRunning,
+  })
+
   const onFieldChange = (name: SecretName, change: SecretChange) => {
-    setEdits((current) => applyChange({ current, name, change }))
+    setEdits((current) => {
+      return applyChange({ current, name, change })
+    })
   }
 
   const onClose = async (shouldOpen: boolean) => {
-    if (shouldOpen) return
+    if (shouldOpen) {
+      return
+    }
 
-    if (isDirty && !(await platform.confirm('Discard changes?'))) return
+    if (isDirty && !(await platform.confirm('Discard changes?'))) {
+      return
+    }
 
     closeSettings()
     setEdits({})
@@ -106,33 +197,22 @@ export function useSettingsDraft(params: UseSettingsDraftParams) {
   }
 
   const onSave = async () => {
-    if (!canSave) return
-
-    setIsSaving(true)
-
-    try {
-      await saveSecrets(edits)
-      await Promise.all([refreshCredits(), refreshRemoteStatus()])
-      setEdits({})
-      resetResults()
-      toast.success('Settings saved')
-    } catch (error) {
-      toast.error(errorMessage(error, 'Save failed'))
-    } finally {
-      setIsSaving(false)
+    if (!canSave) {
+      return
     }
+
+    await saving.run()
   }
 
   return {
     edits,
     results,
     testing,
-    saving: isSaving,
+    saving: saving.isRunning,
     retrying: isRetrying,
     canSave,
-    r2Valid: isR2Valid,
-    openrouterReady: isOpenrouterReady,
-    r2Ready: isR2Ready,
+    ready: sectionReady,
+    valid: storageValid,
     onFieldChange,
     onClose,
     onTest,
@@ -140,5 +220,3 @@ export function useSettingsDraft(params: UseSettingsDraftParams) {
     onSave,
   }
 }
-
-export type SettingsDraft = ReturnType<typeof useSettingsDraft>

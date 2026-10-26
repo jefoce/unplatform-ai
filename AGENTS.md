@@ -15,9 +15,13 @@ pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pn
 ## Git
 
 - Work on the branch named after the next version, without `v` (`0.1.1`). Create it locally if it does not exist. Never commit to `releases`.
-- The first commit on a new branch bumps the version in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `Cargo.lock`, and opens `## X.Y.Z - unreleased` in `CHANGELOG.md`.
-- The pull request and its squash commit are titled `X.Y.Z`, where `X.Y.Z` matches `package.json`. The release workflow creates `vX.Y.Z` when the squash merge reaches `releases`.
-- Commit messages: `X.Y.Z: <what>`. One commit per item. Bulk tool runs (`lint --fix`, `prettier --write`, codemods) get their own commit.
+- The first commit on a new branch bumps the version in `package.json`, `src-tauri/Cargo.toml` and `Cargo.lock`, and opens `## X.Y.Z - unreleased` in `CHANGELOG.md`. Replace `unreleased` with the date in the last commit before the PR.
+- Commit message: `TYPE: X.Y.Z Message`, where X.Y.Z is the version of the current branch. Optional description after a blank line. No task ids or review ids.
+- Message completes "If applied, this commit will ...", imperative mood, no trailing period.
+- Types: CRITICAL (critical fix), FIX (bug fix), HACKFIX (workaround until a proper fix), FEAT (user-facing feature added or removed), CODE (internal feature invisible to users), PERF (performance), SECURITY (security improvement), DOCS (documentation), STYLE (formatting only), REFACTOR (no behavior change), TEST (tests), CHORE (tiny fixes, config, deps), TEXT (user-facing text only).
+- Examples: `FEAT: 0.2.0 Show unavailable models as disabled`, `REFACTOR: 0.2.0 Move lock to server/sync`, `STYLE: 0.2.0 Add braces and blank lines`.
+- One commit per item. Bulk tool runs get their own commit, usually STYLE.
+- The pull request and its squash commit stay titled `X.Y.Z` (the release workflow depends on it).
 - Before 1.0: patch for fixes only, minor for features, behavior changes or file format changes. Propose the bump in the report.
 - Never push, force push, tag, create releases, open pull requests or change remotes unless the user asks for that exact action in the current message.
 - Before saying done: `git status` is clean except untracked review files, and the report lists the branch and commit hashes.
@@ -47,9 +51,13 @@ pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pn
 
 - No `any`. Use `unknown` plus a zod schema or a type guard.
 - Data from outside (OpenRouter responses, request bodies, JSON files on disk, localStorage) is parsed with zod. Types come from `z.infer`, never hand-written next to a schema.
+- Stored JSON changes are additive: new fields are optional or have a zod default. No version fields. The first breaking change adds `schemaVersion: 2` (files without it are version 1) and a migration next to the schema.
 - One type per API shape, in `src/core`, imported by both the route and the client. No copies of a response type in a component.
+- Flat object types. One level per object type. Every nested shape gets a name. Owner-prefixed when the part belongs to one owner (`RecordJob`, `RecordOutput`), shared when the shape repeats (`PixelSize`, `FrameSlots`, `MediaKindCounts`). Width and height pairs use `PixelSize`. No inline `z.object` inside another schema. Tests are exempt.
 - `satisfies` for literal config objects (presets, tables). `as const` for fixed lists.
-- No nested ternaries. Branch on simple values only (identifier, literal, member access, template string, JSX, `null`, single-argument call). A function, object, array, `await`, assignment or nested ternary in a branch becomes a named handler, variable or early return.
+- Never `enum`. A string union that is validated, iterated, stored, or sent over HTTP or IPC comes from one `as const` array: `export const MEDIA_KINDS = ['image', 'video', 'audio'] as const`, then `export type MediaKind = (typeof MEDIA_KINDS)[number]`, and `z.enum(MEDIA_KINDS)` in schemas. A union used in one file only stays inline (`type VignetteScope = 'card' | 'media'`). A DOM or JSON string becomes a union value only through a guard built on the array, never `as`.
+- No type escape hatches. Name the part (`RecordJob`, `PresetIcon`) instead of indexed access (`X['key']`). Name a `ReturnType` once (`type IntervalId = ReturnType<typeof setInterval>`). No pure type aliases that only rename another type. `(typeof LIST)[number]` and one named deriving alias stay allowed.
+- Ternary only as `const name = test ? a : b`. The test is one simple check, branches are plain values. Never render JSX through a ternary: use `&&`, an early return, or a component variable (`const Icon = isOn ? A : B`).
 - Boolean variables and params start with `is`, `has`, `can`, `should` or `did`. Types are PascalCase. Module constants are UPPER_CASE or camelCase.
 - Zod schema constants keep PascalCase names (`QuerySchema`), even though other module constants are camelCase or UPPER_CASE.
 - Required props and fields stay required. Do not make a value optional and then guard against undefined downstream.
@@ -76,7 +84,7 @@ Traps, do not use these:
 
 Still fine: `?.`, `??`, and `Boolean(x)` on the left of `&&` in JSX.
 
-`isPlainObject` does not narrow the type. Where narrowing is needed (`isRecord` in `server/openrouter/client.ts`), keep one typed guard in `src/core/guards.ts` and import it. No local copies.
+`isPlainObject` does not narrow the type. Where narrowing is needed, use one typed guard in `src/core/guards.ts` (`isRecord`) and import it. No local copies.
 
 ### Parameters
 
@@ -100,6 +108,49 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
 - Hooks with 3 or more inputs take `params` too (`useVideoState(params)`).
 - Exceptions: callbacks with a fixed signature (event handlers, `map`/`filter`/`reduce`, zustand `set`, `Array.sort`), route handlers (`request`, `{ params }` from Next), and tiny private helpers where the call reads like math (`clamp(value, min, max)`).
 
+## Modules
+
+- No re-exports. Import from the module that defines the symbol.
+- `src/lib/api` is the only place an API URL is written. Components and hooks call those functions.
+- `src/server/jobs` never reads an HTTP status code or a provider name. It branches on `ProviderError.kind`.
+- Feature direction, where an arrow means "may import":
+
+| From                    | May import                              |
+| ----------------------- | --------------------------------------- |
+| `src/app`               | `features/studio`, server route helpers |
+| `features/studio`       | every feature                           |
+| `features/history`      | `generator`, `preview`, `player`        |
+| `features/generator`    | `media-picker`, `preview`, `settings`   |
+| `features/media-picker` | `preview`, `player`                     |
+| `features/preview`      | `player`                                |
+| `features/settings`     | nothing in `features`                   |
+| `features/player`       | nothing in `features`                   |
+| `features/updates`      | nothing in `features`                   |
+| `features`, `ui`        | `lib`, `core`, `ui`                     |
+| `lib`                   | `core`                                  |
+| `core`                  | packages only                           |
+
+## Shared helpers
+
+Search here before writing a helper. One of these covers the case. Extract a new one only at the second real use.
+
+- `useBoolean` (`src/lib/use-boolean.ts`): boolean state with `value`, `set`, `on`, `off`, `toggle`.
+- `useAsyncAction` (`src/lib/use-async-action.ts`): one async action at a time, exposes `isRunning`.
+- `useDebouncedValue` (`src/lib/use-debounced-value.ts`): debounced copy of a value.
+- `toastError`, `copyText` (`src/lib/notify.ts`).
+- `messageOf` (`src/core/errors.ts`): message of a caught value.
+- `isNonEmptyString` (`src/core/guards.ts`): non-empty string guard.
+- `isOneOf` (`src/core/guards.ts`): guard for a value in a `const` list.
+- `withQuery` (`src/lib/api/query.ts`): URL with query params, nil and empty values skipped.
+- `joinWords` (`src/core/text.ts`): "a, b, and c" or "a, b, or c".
+- `formatAgo` (`src/lib/format.ts`): short relative age from an ISO string and a clock.
+- `useNow` (`src/lib/use-now.ts`): shared 1 s clock, paused while the page is hidden.
+- `isOwnEvent` (`src/lib/events.ts`): true when an event started inside the element, not in a portal.
+- `createTtlCache` (`src/server/sync/ttl-cache.ts`): `globalState` TTL cache.
+- `createLimiter` (`src/server/sync/limiter.ts`): at most `max` tasks at once per key.
+- `settings::update` (`src-tauri/src/settings.rs`): the only writer for `desktop.json`, under one lock.
+- `Dict`, `HasId` (`src/core/utility-types.ts`), `UploadsById` (`src/core/media-types.ts`).
+
 ## React
 
 - Function components and hooks only.
@@ -108,20 +159,35 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
 - Props type is `interface <Component>Props`. Export it only when another file uses it.
 - zustand: always subscribe with a selector, `useStore((state) => state.x)`. Never `useStore()` for the whole store.
 - Server data goes through SWR with keys from `src/lib/swr-keys.ts`. No `fetch` inside `useEffect` for data SWR can own.
-- Browser storage only through `src/lib/local-store.ts` (try/catch plus zod). Never `localStorage` directly.
-- Toasts (`sonner`) only in `src/features`. `src/core` and `src/server` never show UI.
+- Browser storage only through `src/lib/local-store.ts` (try/catch plus zod). Never `localStorage` directly. zustand `persist` is the one allowed exception, and only with a zod `merge` that keeps the current state on parse failure.
+- Toasts (`sonner`) only in `src/features` and `src/lib/notify.ts`. `src/core` and `src/server` never show UI.
 - Icon-only buttons have `aria-label`. Decorative lucide icons have `aria-hidden`.
 - Card and row click handlers start with `isOwnEvent(event)`. Portal content (menus, popovers, dialogs) bubbles through React.
+- `local/inline-hook-callbacks` flags a `const` function used once by one hook. Moving a function that captures nothing to module level, and keeping the name when it is used twice, are conventions.
+
+```tsx
+const deletion = useAsyncAction(async () => {
+  await deleteGeneration(record.id)
+  toast.success('Deleted')
+  props.onDeleted?.()
+})
+```
+
+- Hook results stay objects (`deletion.run`, `deletion.isRunning`), not tuples.
 
 ### Event handlers
 
-- A function defined in a component and passed to a prop or element event is named `handle<Action>`: `handleDownload`, `handleSelect`, `handleOpenChange`. Use the action, not the DOM event: `handleDelete`, not `handleClick`.
 - Props that take a callback are named `on<Action>`: `onOpen`, `onCancel`, `onDeleted`.
-- Pass through as `onDelete={handleDelete}`. A prop that receives a parent's callback unchanged can pass `onOpen={onOpen}`.
-- Never inline a function in JSX. Every `onX` gets a named `handle<Action>`. A row that needs the item receives it as a prop and defines `handleSelect` inside. Do not write curried `handleSelect(id)` factories.
+- A callback prop passed down stays `props.onAction` at the use site: `onClick={props.onClose}`. Never destructure it just to pass it along, never rename it.
+- A function created in the component (arrow, `function`, `useCallback`, `useEffectEvent`, `debounce`, `throttle`) and passed to an `on*` prop is named `handle<Action>`: `handleDownload`, `handleSelect`, `handleOpenChange`. Use the action, not the DOM event: `handleDelete`, not `handleClick`.
+- An existing function (setter, store action, `video.togglePlay`, `props.onX`, an import) is passed directly. No alias constant.
+- A member callback (`deletion.run`, `confirmDialog.on`) is passed directly (`onClick={deletion.run}`), with no wrapper constant.
+- Destructure a callback only when every use sits inside a hook callback (`useCallback`, `useMemo`, `useEffect`, `useLayoutEffect`, `useInsertionEffect`, `useEffectEvent`, `useImperativeHandle`), where `props.onX()` would make the whole `props` object a dependency: `const { onSelect } = props`.
+- Name a store selection after the action: `const clearSelection = useSelectionStore((state) => state.clear)`, then `onClick={clearSelection}`.
+- Never inline a function in JSX. Every created `onX` gets a named `handle<Action>`. A row that needs the item receives it as a prop and defines `handleSelect` inside. Do not write curried `handleSelect(id)` factories.
 - No arrow or function values as object properties inside components. Name the function and pass it by reference. Arrows passed as call arguments (`useEffect`, `.map`) stay.
-- Store actions passed to an event get a handler name at the selector: `const handleClear = useSelectionStore((state) => state.clear)`.
-- `react/jsx-handler-names` enforces the `handle` and `on` prefixes and leaves inline arrows alone.
+- `react/jsx-handler-names` is off. `local/callback-props` checks that a callback prop passed in JSX from `props` is named `on<Action>`.
+- A store selection named `handle*` fails `local/callback-props`.
 
 ### useCallback and useMemo
 
@@ -130,7 +196,7 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
   2. The function is in a dependency array (`useEffect`, `useMemo`, another `useCallback`).
   3. A custom hook returns the function. Consumers may put it in their deps.
   4. The function goes to a third-party hook or component that documents a stable identity requirement.
-- Everywhere else, a plain `const handleX = () => ...`. `react-hooks/exhaustive-deps` catches missing deps in cases 2 and 3.
+- Plain `const handleX = () => ...` is the default. `jsx-no-bind` is off, the inline-function selector bans only inline JSX functions. `react-hooks/exhaustive-deps` catches missing deps in cases 2 and 3.
 - Same rule for `useMemo`: objects or arrays passed to a `memo()` child or a dependency array, and calculations measured as slow. Not for cheap values.
 
 ### Conditional rendering
@@ -154,8 +220,6 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
 }
 ```
 
-- A ternary only when both branches render something: `{completed ? <LazyVideo /> : <StatusOverlay />}`.
-
 ## UI building blocks
 
 - Before writing a new component, hook or helper, search `src/ui`, `src/ui/form`, `src/lib` and the feature folder. Reuse it, or extend it with a variant.
@@ -177,6 +241,7 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
 - Do not restate defaults (`flex-row`, `static`, `font-normal` on plain text).
 - Named groups (`group/card`, `group/player`) when a `group` sits inside another `group`.
 - Hidden overlays are not rendered, or are `pointer-events-none`. Nothing invisible may catch hover or clicks.
+- On Linux, `backdrop-blur` is disabled globally. A translucent surface that needs blur to read gets a `linux:` background.
 
 ## Server
 
@@ -185,13 +250,25 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
 - Long work never runs inside a route handler. Queue it in `src/server/jobs`.
 - Record writes go through the per-record lock (`withLock`). Never read-modify-write a record without it.
 - Provider error text is stored raw. Translation to plain words happens at render time (`core/provider-errors.ts`).
+- Concurrency caps use `createLimiter` from `server/sync/limiter.ts`.
+- `createTtlCache` loaders receive the previous value. `clear()` drops results of loads already running.
 
 ## Style
 
 - Terse. Short sentences. No hype, no filler, no em dashes in prose or comments.
 - Comments explain why, not what. JSDoc for block docs, inline notes only inside a function.
 - Early returns over nested branches. Lookup tables over if/else chains that only return.
-- Blank lines group code: declarations together, one blank line before and after every block, before `return`, and before functions, types and exports. No blank line at the start or end of a block.
+- Every `if`, `else` and loop body has braces, single-line bodies included.
+- Every arrow function has a block body.
+- A block-bodied arrow returns only values. A void call is a statement: `setOpen(true)`, not `return setOpen(true)`. `no-confusing-void-expression` and `no-promise-executor-return` enforce it.
+- Blank line before `return`, `if`, `throw` and loops.
+- Blank line after every block: after the closing `}` of `if`, loop, `switch` and `try`.
+- Blank line around every multi-line statement.
+- Blank line before and after every function constant, single-line ones included (`const handleX = () => ...`, `useCallback(...)`, `memo(...)`, `forwardRef(...)`).
+- Blank line before functions, types and exports.
+- Value constants may group with no blank line between them.
+- Do not convert between arrow constants and `function` declarations.
+- No blank line at the start or end of a block.
 - Formatting is Prettier's. Never hand-format or work around it. Import order is ESLint's (`simple-import-sort`).
 - Smallest diff that solves the problem. No drive-by refactors outside the files you touch.
 - Fix every rule violation in the files you touch in one pass, not only the line you changed.
@@ -201,28 +278,32 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
 
 ## Where to look
 
-| Topic                                                                                                 | Document                                     |
-| ----------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Setup, scripts, mock modes, desktop build, ffmpeg and Node builds, adding a model, debugging, release | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)   |
-| Runtime, data model, lifecycle, concurrency, bounds, edge cases                                       | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Threat model and controls                                                                             | [docs/SECURITY.md](docs/SECURITY.md)         |
-| Why a design exists                                                                                   | [docs/DECISIONS.md](docs/DECISIONS.md)       |
-| User-facing behavior                                                                                  | [README.md](README.md)                       |
+| Topic                                                                                                 | Document                                                                                                     |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Setup, scripts, mock modes, desktop build, ffmpeg and Node builds, adding a model, debugging, release | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)                                                                   |
+| Runtime, data model, lifecycle, concurrency, bounds, edge cases                                       | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                                                 |
+| Threat model and controls                                                                             | [docs/SECURITY.md](docs/SECURITY.md)                                                                         |
+| Why a design exists                                                                                   | [docs/DECISIONS.md](docs/DECISIONS.md)                                                                       |
+| User-facing behavior                                                                                  | [README.md](README.md)                                                                                       |
+| Setup steps for users                                                                                 | [docs/user/OPENROUTER.md](docs/user/OPENROUTER.md), [docs/user/CLOUDFLARE-R2.md](docs/user/CLOUDFLARE-R2.md) |
 
 ## Quick map
 
 - Routes: `src/app/api`
 - Jobs: `src/server/jobs` (`submit-queue`, `run-submit`, `submit-media`, `submit-record`, `poller`, `download-queue`, `generation-actions`)
 - Repos: `src/server/repos`
-- Media: `src/server/media` (`ffmpeg`, `to-data-url`, `thumbs`, `compat`)
+- Media: `src/server/media` (`ffmpeg`, `image-data-url`, `image-encode`, `to-data-url`, `preview`, `thumbs`, `compat`), `src/server/services` (`remote-cap`)
 - Presets: `src/core/presets` (one file per model, `index.ts` holds the list)
 - History: `src/features/history` (`record-view` helpers, `record-actions`, `selection-store`, `view-store`)
 - Validation: `src/core/validation.ts`
-- Provider errors: `src/core/provider-errors.ts`
+- Provider errors: `src/core/provider-errors/`
+- Sync: `src/server/sync` (`lock`, `limiter`, `ttl-cache`)
 - Secrets: `src/server/secrets`
 - Platform bridge: `src/lib/platform`
 - Shared UI: `src/ui`, `src/ui/form`
 - Desktop shell: `src-tauri/src`
+- Updates: `src-tauri/src/updater.rs`, `src/features/updates`
 - ffmpeg build: `scripts/ffmpeg`
 - Node build: `scripts/node`
-- Workflow helpers: `.github/scripts`
+- Workflow helpers: `.github/scripts` (`checksums`, `ffmpeg-sources-tag`, `ghcr-pull`, `ghcr-push`, `release-draft`, `release-version`, `rename-installers`, `sidecar-binary`, `sidecar-key`, `sources-manifest`, `stage-sidecar`, `target-runners`, `updater-manifest`, `upload-release-assets`)
+- Composite actions: `.github/actions` (`setup-pnpm`, `sidecar-restore`, `sidecar-publish`)

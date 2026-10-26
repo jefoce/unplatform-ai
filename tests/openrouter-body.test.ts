@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildOpenRouterBody, type ResolvedMedia } from '@/core/openrouter-body'
 import { getPreset } from '@/core/presets'
-import type { GenerationInput } from '@/core/types'
+import type { GenerationInput } from '@/core/schemas/generation-record'
+import type { Dict } from '@/core/utility-types'
+import { buildRequestBody } from '@/server/providers/openrouter/body'
+import type { ResolvedMedia } from '@/server/providers/types'
 
 const preset = getPreset('wan-3.0')
 
-const media: Record<string, ResolvedMedia> = {
+const media: Dict<ResolvedMedia> = {
   start: { id: 'start', kind: 'image', url: 'data:image/png;base64,START' },
   end: { id: 'end', kind: 'image', url: 'data:image/png;base64,END' },
   img: { id: 'img', kind: 'image', url: 'data:image/png;base64,IMG' },
@@ -30,9 +32,9 @@ function input(overrides: Partial<GenerationInput> = {}): GenerationInput {
   }
 }
 
-describe('buildOpenRouterBody text', () => {
+describe('buildRequestBody text', () => {
   it('builds a text-only body', () => {
-    const body = buildOpenRouterBody({ input: input({ seed: 42 }), preset, media })
+    const body = buildRequestBody({ input: input({ seed: 42 }), preset, media })
 
     expect(body).toEqual({
       model: 'alibaba/wan-3.0',
@@ -46,15 +48,15 @@ describe('buildOpenRouterBody text', () => {
   })
 
   it('omits seed when input.seed is null', () => {
-    const body = buildOpenRouterBody({ input: input({ seed: null }), preset, media })
+    const body = buildRequestBody({ input: input({ seed: null }), preset, media })
 
     expect(body.seed).toBeUndefined()
   })
 })
 
-describe('buildOpenRouterBody frames', () => {
+describe('buildRequestBody frames', () => {
   it('sends only a first frame when there is no end frame', () => {
-    const body = buildOpenRouterBody({
+    const body = buildRequestBody({
       input: input({
         tab: 'frames',
         prompt: '',
@@ -72,28 +74,31 @@ describe('buildOpenRouterBody frames', () => {
         frame_type: 'first_frame',
       },
     ])
+
     expect(body.input_references).toBeUndefined()
     expect(body.aspect_ratio).toBeUndefined()
   })
 
   it('sends first then last frame', () => {
-    const body = buildOpenRouterBody({
+    const body = buildRequestBody({
       input: input({ tab: 'frames', prompt: '', frames: { start: 'start', end: 'end' } }),
       preset,
       media,
     })
 
-    expect(body.frame_images?.map((frame) => frame.frame_type)).toEqual([
-      'first_frame',
-      'last_frame',
-    ])
-    expect(body.frame_images?.[1].image_url.url).toBe('data:image/png;base64,END')
+    expect(
+      body.frame_images?.map((frame) => {
+        return frame.frame_type
+      }),
+    ).toEqual(['first_frame', 'last_frame'])
+
+    expect(body.frame_images?.[1]?.image_url.url).toBe('data:image/png;base64,END')
   })
 })
 
-describe('buildOpenRouterBody references and slots', () => {
+describe('buildRequestBody references and slots', () => {
   it('keeps reference order and the kind-specific media key', () => {
-    const body = buildOpenRouterBody({
+    const body = buildRequestBody({
       input: input({ references: ['vid', 'img', 'aud'] }),
       preset,
       media,
@@ -104,11 +109,12 @@ describe('buildOpenRouterBody references and slots', () => {
       { type: 'image_url', image_url: { url: 'data:image/png;base64,IMG' } },
       { type: 'audio_url', audio_url: { url: 'data:audio/mpeg;base64,AUD' } },
     ])
+
     expect(body.frame_images).toBeUndefined()
   })
 
   it('renders prompt slots for the API', () => {
-    const body = buildOpenRouterBody({
+    const body = buildRequestBody({
       input: input({ prompt: '@Image 1 walks', references: ['img'] }),
       preset,
       media,
@@ -119,7 +125,8 @@ describe('buildOpenRouterBody references and slots', () => {
 
   it('renders Seedance 2.5 slots with the at prefix', () => {
     const seedance = getPreset('seedance-2.5')
-    const body = buildOpenRouterBody({
+
+    const body = buildRequestBody({
       input: input({
         presetId: seedance.id,
         resolution: '720p',
@@ -134,9 +141,9 @@ describe('buildOpenRouterBody references and slots', () => {
   })
 })
 
-describe('buildOpenRouterBody limits', () => {
+describe('buildRequestBody limits', () => {
   it('never sends frames and references together', () => {
-    const body = buildOpenRouterBody({
+    const body = buildRequestBody({
       input: input({
         tab: 'frames',
         prompt: '',
@@ -153,7 +160,8 @@ describe('buildOpenRouterBody limits', () => {
 
   it('omits generate_audio when the preset does not support it', () => {
     const silent = { ...preset, audio: { supported: false, default: false } }
-    const body = buildOpenRouterBody({
+
+    const body = buildRequestBody({
       input: input({ audio: true }),
       preset: silent,
       media,
@@ -164,25 +172,31 @@ describe('buildOpenRouterBody limits', () => {
 
   it('omits seed when the preset has no seed control', () => {
     const noSeed = { ...preset, seed: false }
-    const body = buildOpenRouterBody({ input: input({ seed: 42 }), preset: noSeed, media })
+    const body = buildRequestBody({ input: input({ seed: 42 }), preset: noSeed, media })
 
     expect(body.seed).toBeUndefined()
   })
 
   it('omits the last frame when the preset lacks it', () => {
     const noEnd = { ...preset, frames: { start: true, end: false } }
-    const body = buildOpenRouterBody({
+
+    const body = buildRequestBody({
       input: input({ tab: 'frames', prompt: '', frames: { start: 'start', end: 'end' } }),
       preset: noEnd,
       media,
     })
 
-    expect(body.frame_images?.map((frame) => frame.frame_type)).toEqual(['first_frame'])
+    expect(
+      body.frame_images?.map((frame) => {
+        return frame.frame_type
+      }),
+    ).toEqual(['first_frame'])
   })
 
   it('omits the first frame when the preset lacks it', () => {
     const noStart = { ...preset, frames: { start: false, end: false } }
-    const body = buildOpenRouterBody({
+
+    const body = buildRequestBody({
       input: input({ tab: 'frames', prompt: '', frames: { start: 'start', end: null } }),
       preset: noStart,
       media,
@@ -192,9 +206,9 @@ describe('buildOpenRouterBody limits', () => {
   })
 })
 
-describe('buildOpenRouterBody prime', () => {
+describe('buildRequestBody prime', () => {
   it('builds a text-only Prime body', () => {
-    const body = buildOpenRouterBody({
+    const body = buildRequestBody({
       input: input({ presetId: 'wan-3.0-prime' }),
       preset: getPreset('wan-3.0-prime'),
       media,
@@ -204,5 +218,23 @@ describe('buildOpenRouterBody prime', () => {
     expect(body.prompt).toBe('A cat')
     expect(body.input_references).toBeUndefined()
     expect(body.frame_images).toBeUndefined()
+  })
+})
+
+describe('buildRequestBody missing media', () => {
+  it('throws when a frame id is absent from media', () => {
+    expect(() => {
+      return buildRequestBody({
+        input: input({ tab: 'frames', prompt: '', frames: { start: 'absent', end: null } }),
+        preset,
+        media,
+      })
+    }).toThrow('Missing media for input absent')
+  })
+
+  it('throws when a reference id is absent from media', () => {
+    expect(() => {
+      return buildRequestBody({ input: input({ references: ['absent'] }), preset, media })
+    }).toThrow('Missing media for input absent')
   })
 })

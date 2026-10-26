@@ -3,34 +3,48 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { isNil } from 'lodash-es'
 
+type IntervalId = ReturnType<typeof setInterval>
+
 const TICK_MS = 1000
 
 const listeners = new Set<() => void>()
 let now = Date.now()
-let timer: ReturnType<typeof setInterval> | undefined
+let timer: IntervalId | undefined
 
 function emit(): void {
   now = Date.now()
 
-  for (const listener of listeners) listener()
+  for (const listener of listeners) {
+    listener()
+  }
 }
 
 function handleVisibility(): void {
-  if (!document.hidden) emit()
+  if (!document.hidden) {
+    emit()
+  }
 }
 
 function start(): void {
-  if (!isNil(timer)) return
+  if (!isNil(timer)) {
+    return
+  }
 
   now = Date.now()
+
   timer = setInterval(() => {
-    if (!document.hidden) emit()
+    if (!document.hidden) {
+      emit()
+    }
   }, TICK_MS)
+
   document.addEventListener('visibilitychange', handleVisibility)
 }
 
 function stop(): void {
-  if (isNil(timer)) return
+  if (isNil(timer)) {
+    return
+  }
 
   clearInterval(timer)
   timer = undefined
@@ -38,15 +52,20 @@ function stop(): void {
 }
 
 function subscribe(listener: () => void): () => void {
-  if (listeners.size === 0) start()
-  else handleVisibility()
+  if (listeners.size === 0) {
+    start()
+  } else {
+    handleVisibility()
+  }
 
   listeners.add(listener)
 
   return () => {
     listeners.delete(listener)
 
-    if (listeners.size === 0) stop()
+    if (listeners.size === 0) {
+      stop()
+    }
   }
 }
 
@@ -61,7 +80,9 @@ function getSnapshot(): number {
 export function useNow(isActive: boolean): number {
   const subscribeActive = useCallback(
     (listener: () => void) => {
-      if (!isActive) return () => {}
+      if (!isActive) {
+        return () => {}
+      }
 
       return subscribe(listener)
     },

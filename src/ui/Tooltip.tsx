@@ -17,7 +17,9 @@ interface TooltipProps {
 export function Tooltip(props: TooltipProps) {
   const { content, children, side = 'top', disabled: isDisabled, className } = props
 
-  if (!Boolean(content) || isDisabled === true) return <>{children}</>
+  if (!Boolean(content) || isDisabled === true) {
+    return <>{children}</>
+  }
 
   return (
     <TooltipPrimitive.Provider delayDuration={200}>

@@ -5,19 +5,29 @@ import path from 'node:path'
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/types'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
+
+import { required } from './helpers/required'
 
 const root = await mkdtemp(path.join(os.tmpdir(), 'upai-export-batch-'))
 
 process.env.STORAGE_ROOT = root
 delete process.env.APP_TOKEN
 
-const session = vi.hoisted(() => ({ required: true }))
+const session = vi.hoisted(() => {
+  return { required: true }
+})
 
-vi.mock('@/server/session', () => ({
-  sessionRequired: () => session.required,
-  hasSession: () => true,
-}))
+vi.mock('@/server/session', () => {
+  return {
+    sessionRequired: () => {
+      return session.required
+    },
+    hasSession: () => {
+      return true
+    },
+  }
+})
 
 const { POST } = await import('@/app/api/generations/export-batch/route')
 
@@ -30,6 +40,7 @@ function record(id: string, prompt = 'A cat'): GenerationRecord {
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     status: 'completed',
+    provider: 'openrouter',
     input: {
       presetId: 'seedance-2.0',
       tab: 'references',
@@ -64,8 +75,8 @@ async function write(item: GenerationRecord): Promise<void> {
   await writeFile(path.join(downloads, `${item.id}.mp4`), videoBytes)
 }
 
-const exportRequest = (body: unknown): Request =>
-  new Request('http://127.0.0.1:3000/api/generations/export-batch', {
+const exportRequest = (body: unknown): Request => {
+  return new Request('http://127.0.0.1:3000/api/generations/export-batch', {
     method: 'POST',
     headers: {
       host: '127.0.0.1:3000',
@@ -74,6 +85,7 @@ const exportRequest = (body: unknown): Request =>
     },
     body: JSON.stringify(body),
   })
+}
 
 const item = record(randomUUID(), 'A cat!')
 
@@ -94,8 +106,11 @@ describe('POST /api/generations/export-batch', () => {
 
     expect(response.status).toBe(200)
     expect(body.saved).toHaveLength(1)
-    expect(path.basename(body.saved[0])).toBe(`a-cat-${item.id.slice(0, 6)}.mp4`)
-    expect(await readFile(body.saved[0])).toEqual(videoBytes)
+
+    const saved = required(body.saved[0], 'saved file')
+
+    expect(path.basename(saved)).toBe(`a-cat-${item.id.slice(0, 6)}.mp4`)
+    expect(await readFile(saved)).toEqual(videoBytes)
     expect(body.skipped).toEqual([])
   })
 
@@ -108,9 +123,11 @@ describe('POST /api/generations/export-batch', () => {
     const response = await POST(exportRequest({ ids: [item.id], dir }))
     const body = (await response.json()) as { saved: string[] }
 
-    expect(path.basename(body.saved[0])).toBe(`a-cat-${item.id.slice(0, 6)} (2).mp4`)
+    const saved = required(body.saved[0], 'saved file')
+
+    expect(path.basename(saved)).toBe(`a-cat-${item.id.slice(0, 6)} (2).mp4`)
     expect(await readFile(first, 'utf8')).toBe('keep')
-    expect((await stat(body.saved[0])).isFile()).toBe(true)
+    expect((await stat(saved)).isFile()).toBe(true)
   })
 
   it('rejects a symlinked target dir', async () => {

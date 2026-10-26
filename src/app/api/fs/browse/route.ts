@@ -1,10 +1,12 @@
 import { browseDirectories } from '@/server/fs/browse'
-import { assertLocalRequest, errorResponse } from '@/server/http'
+import { errorResponse } from '@/server/http'
+import { assertLocalRequest } from '@/server/request-guard'
 
 export async function GET(request: Request) {
   try {
     assertLocalRequest(request)
     const query = new URL(request.url).searchParams
+
     const result = await browseDirectories({
       path: query.get('path')?.trim(),
       hidden: query.get('hidden') === '1',

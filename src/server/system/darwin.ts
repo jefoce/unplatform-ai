@@ -5,22 +5,28 @@ import fs from 'node:fs/promises'
 import { promisify } from 'node:util'
 
 import { acceptForKinds } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/types'
+import type { MediaKind } from '@/core/media-types'
 
-import type { SystemAdapter } from './index'
+import type { SystemAdapter } from './types'
 
 const run = promisify(execFile)
 const DIALOG_TIMEOUT = 10 * 60_000
 
 export const darwin: SystemAdapter = {
-  canChooseFiles: async () => true,
+  canChooseFiles: async () => {
+    return true
+  },
 
   async chooseFiles({ kinds, multiple: isMultiple, prompt }) {
     const types = extensions(kinds)
-      .map((ext) => `"${ext}"`)
+      .map((ext) => {
+        return `"${ext}"`
+      })
       .join(', ')
+
     const typeClause = types === '' ? '' : ` of type {${types}}`
     const multipleClause = isMultiple ? ' with multiple selections allowed' : ''
+
     const script = [
       'tell application "System Events"',
       'activate',
@@ -42,7 +48,9 @@ export const darwin: SystemAdapter = {
 
     const { stdout } = await dialog(
       'osascript',
-      script.flatMap((line) => ['-e', line]),
+      script.flatMap((line) => {
+        return ['-e', line]
+      }),
     )
 
     return lines(stdout)
@@ -56,20 +64,31 @@ export const darwin: SystemAdapter = {
       'end tell',
       'return POSIX path of picked',
     ]
+
     const { stdout } = await dialog(
       'osascript',
-      script.flatMap((line) => ['-e', line]),
+      script.flatMap((line) => {
+        return ['-e', line]
+      }),
     )
 
     const picked = stdout.trim()
 
-    return picked === '' ? null : picked
+    if (picked === '') {
+      return null
+    }
+
+    return picked
   },
 
   async reveal(path) {
     const hasFile = await fs.stat(path).then(
-      (stats) => stats.isFile(),
-      () => false,
+      (stats) => {
+        return stats.isFile()
+      },
+      () => {
+        return false
+      },
     )
 
     if (hasFile) {
@@ -86,13 +105,17 @@ function extensions(kinds: readonly MediaKind[]): string[] {
   return acceptForKinds(kinds)
     .split(',')
     .filter(Boolean)
-    .map((ext) => ext.slice(1))
+    .map((ext) => {
+      return ext.slice(1)
+    })
 }
 
 function lines(stdout: string): string[] {
   return stdout
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => {
+      return line.trim()
+    })
     .filter(Boolean)
 }
 
@@ -105,14 +128,21 @@ async function dialog(file: string, args: string[]) {
   try {
     return await run(file, args, { timeout: DIALOG_TIMEOUT, killSignal: 'SIGKILL' })
   } catch (error) {
-    if (isCancel(error)) return { stdout: '', stderr: '' }
+    if (isCancel(error)) {
+      return { stdout: '', stderr: '' }
+    }
 
     throw error
   }
 }
 
+interface CommandError {
+  code?: number | string
+  stderr?: string
+}
+
 function isCancel(error: unknown): boolean {
-  const err = error as { code?: number | string; stderr?: string }
+  const err = error as CommandError
 
   return Number(err.code) === 1 && /User canceled|-128/.test(err.stderr ?? '')
 }

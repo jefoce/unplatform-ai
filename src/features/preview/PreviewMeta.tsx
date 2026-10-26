@@ -3,7 +3,7 @@
 import { isNil } from 'lodash-es'
 
 import { KIND_TITLE } from '@/core/media-kinds'
-import type { UploadItem } from '@/core/types'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import { formatBytes, formatSecondsShort } from '@/lib/format'
 
 interface PreviewMetaProps {

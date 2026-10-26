@@ -19,17 +19,33 @@ export function useVideoEvents(params: UseVideoEventsParams): void {
   useEffect(() => {
     const video = videoRef.current
 
-    if (!isActive || !video) return
+    if (!isActive || !video) {
+      return
+    }
 
     onTime(0)
     onDuration(0)
     onPaused(video.paused)
     onMuted(video.muted)
 
-    const syncTime = () => onTime(video.currentTime)
-    const syncDuration = () => onDuration(Number.isFinite(video.duration) ? video.duration : 0)
-    const syncPaused = () => onPaused(video.paused)
-    const syncMuted = () => onMuted(video.muted)
+    const syncTime = () => {
+      onTime(video.currentTime)
+    }
+
+    const syncDuration = () => {
+      const isDurationValid = Number.isFinite(video.duration)
+      const duration = isDurationValid ? video.duration : 0
+
+      onDuration(duration)
+    }
+
+    const syncPaused = () => {
+      onPaused(video.paused)
+    }
+
+    const syncMuted = () => {
+      onMuted(video.muted)
+    }
 
     video.addEventListener('timeupdate', syncTime)
     video.addEventListener('loadedmetadata', syncDuration)

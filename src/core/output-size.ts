@@ -1,6 +1,7 @@
 import { isNil } from 'lodash-es'
 
-import type { AspectRatio, ModelPreset, Resolution } from './presets'
+import type { PixelSize } from './geometry'
+import type { AspectRatio, ModelPreset, Resolution } from './presets/types'
 
 export const SHORT_SIDE = {
   '480p': 480,
@@ -11,7 +12,9 @@ export const SHORT_SIDE = {
   '4K': 2160,
 } as const
 
-const even = (value: number): number => Math.round(value / 2) * 2
+const even = (value: number): number => {
+  return Math.round(value / 2) * 2
+}
 
 interface AspectAllowedParams {
   preset: ModelPreset
@@ -23,7 +26,9 @@ interface AspectAllowedParams {
 export function aspectAllowed(params: AspectAllowedParams): boolean {
   const { preset, resolution, aspect } = params
 
-  if (!preset.outputSizes) return preset.aspectRatios.includes(aspect)
+  if (!preset.outputSizes) {
+    return preset.aspectRatios.includes(aspect)
+  }
 
   return Boolean(preset.outputSizes[resolution]?.[aspect])
 }
@@ -34,23 +39,49 @@ interface OutputSizeParams {
   aspect: AspectRatio
 }
 
+/** Size from the preset's `WIDTHxHEIGHT` string, null when a part is missing. */
+function parseExact(exact: string): PixelSize | null {
+  const [width, height] = exact.split('x').map(Number)
+
+  if (isNil(width) || isNil(height)) {
+    return null
+  }
+
+  return { width, height }
+}
+
+/** Both sides of an aspect string as positive finite numbers, null when malformed. */
+function parseAspect(aspect: AspectRatio): [number, number] | null {
+  const [a, b] = aspect.split(':').map(Number)
+
+  if (isNil(a) || isNil(b) || !Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) {
+    return null
+  }
+
+  return [a, b]
+}
+
 /** Exact preset size when listed, else an even-dimension estimate from the short side. */
-export function outputSize(params: OutputSizeParams): { width: number; height: number } | null {
+export function outputSize(params: OutputSizeParams): PixelSize | null {
   const { preset, resolution, aspect } = params
   const exact = preset.outputSizes?.[resolution]?.[aspect]
 
   if (!isNil(exact)) {
-    const [width, height] = exact.split('x').map(Number)
+    return parseExact(exact)
+  }
 
-    return { width, height }
+  const sides = parseAspect(aspect)
+
+  if (isNil(sides)) {
+    return null
   }
 
   const short = SHORT_SIDE[resolution]
-  const [a, b] = aspect.split(':').map(Number)
+  const [a, b] = sides
 
-  if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return null
-
-  if (a >= b) return { width: even((short * a) / b), height: short }
+  if (a >= b) {
+    return { width: even((short * a) / b), height: short }
+  }
 
   return { width: short, height: even((short * b) / a) }
 }

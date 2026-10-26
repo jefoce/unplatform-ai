@@ -61,7 +61,7 @@ module.exports = {
     },
     {
       name: 'feature-cycles',
-      severity: 'warn',
+      severity: 'error',
       comment: 'Two features importing each other. Move the shared part to core, lib or ui.',
       from: { path: '^src/features/([^/]+)/' },
       to: {
@@ -70,12 +70,96 @@ module.exports = {
         circular: true,
       },
     },
+    {
+      name: 'player-is-leaf',
+      severity: 'error',
+      from: { path: '^src/features/player/' },
+      to: { path: '^src/features/(?!player/)' },
+    },
+    {
+      name: 'settings-is-leaf',
+      severity: 'error',
+      from: { path: '^src/features/settings/' },
+      to: { path: '^src/features/(?!settings/)' },
+    },
+    {
+      name: 'updates-is-leaf',
+      severity: 'error',
+      from: { path: '^src/features/updates/' },
+      to: { path: '^src/features/(?!updates/)' },
+    },
+    {
+      name: 'preview-uses-player-only',
+      severity: 'error',
+      from: { path: '^src/features/preview/' },
+      to: { path: '^src/features/(?!(preview|player)/)' },
+    },
+    {
+      name: 'picker-uses-preview-and-player',
+      severity: 'error',
+      from: { path: '^src/features/media-picker/' },
+      to: { path: '^src/features/(?!(media-picker|preview|player)/)' },
+    },
+    {
+      name: 'generator-direction',
+      severity: 'error',
+      from: { path: '^src/features/generator/' },
+      to: { path: '^src/features/(history|studio)/' },
+    },
+    {
+      name: 'history-direction',
+      severity: 'error',
+      from: { path: '^src/features/history/' },
+      to: { path: '^src/features/(studio|settings|media-picker)/' },
+    },
+    {
+      name: 'only-app-composes-studio',
+      severity: 'error',
+      from: { pathNot: '^src/(features/studio|app)/' },
+      to: { path: '^src/features/studio/' },
+    },
+    {
+      name: 'repos-are-persistence',
+      severity: 'error',
+      from: { path: '^src/server/repos/' },
+      to: { path: '^src/server/(jobs|services|providers|storage|media|secrets)/' },
+    },
+    {
+      name: 'media-is-a-library',
+      severity: 'error',
+      from: { path: '^src/server/media/' },
+      to: { path: '^src/server/(jobs|services|providers|storage|repos)/' },
+    },
+    {
+      name: 'adapters-stay-adapters',
+      severity: 'error',
+      from: { path: '^src/server/(providers|storage)/' },
+      to: { path: '^src/server/(jobs|services|repos)/' },
+    },
+    {
+      name: 'routes-skip-adapter-internals',
+      severity: 'error',
+      from: { path: '^src/app/' },
+      to: { path: '^src/server/(providers|storage)/[^/]+/' },
+    },
+    {
+      name: 'storage-skips-providers',
+      severity: 'error',
+      from: { path: '^src/server/storage/' },
+      to: { path: '^src/server/providers/' },
+    },
+    {
+      name: 'sync-is-a-primitive',
+      severity: 'error',
+      from: { path: '^src/server/(sync|fs)/' },
+      to: { path: '^src/server/(?!(sync|fs)/)(?!(paths|global-state|errors)\\.ts$)' },
+    },
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
     exclude: { path: '^(\\.next|src-tauri|docs|tests/fixtures)/' },
-    // Runtime graph only: cycles and layers depend on emitted imports, not on types.
-    tsPreCompilationDeps: false,
+    // Include type-only imports. no-circular still skips them so type cycles stay legal.
+    tsPreCompilationDeps: true,
     tsConfig: { fileName: 'tsconfig.json' },
     enhancedResolveOptions: {
       exportsFields: ['exports'],

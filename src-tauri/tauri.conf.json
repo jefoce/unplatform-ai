@@ -16,9 +16,20 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg5Q0YzRERCNEJBODUyMDMKUldRRFVxaEwyejNQaVV2TG5GVXU1dlFjSllSYXFNcXo4YTJ3Z0xiQlJJU3pnekxta2VYL3NSdksK",
+      "endpoints": [
+        "https://github.com/jefoce/unplatform-ai/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
-    "targets": ["dmg", "nsis", "appimage", "deb", "rpm"],
+    "targets": ["app", "dmg", "nsis", "appimage", "deb", "rpm"],
     "createUpdaterArtifacts": false,
     "icon": [
       "icons/32x32.png",

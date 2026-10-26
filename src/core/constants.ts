@@ -20,6 +20,8 @@ export const HISTORY_SCROLL_DELAY_MS = 300
 export const HISTORY_BATCH_MAX = 200
 export const DOWNLOAD_STAGGER_MS = 300
 export const CREDITS_POLL_MS = 60000
+export const UPDATE_CHECK_DELAY_MS = 15000
+export const UPDATE_CHECK_INTERVAL_MS = 43200000
 
 export const LOW_RES_MIN_PX = 300
 
@@ -99,6 +101,12 @@ export const SHUTDOWN_EXIT_DELAY_MS = 100
 export const REMOTE_LINK_TTL_SEC = 7200
 export const REMOTE_UNUSED_DAYS = 30
 export const REMOTE_MOCK_MBPS = 20
+
+/** Cloudflare free R2 storage in GB-month. */
+export const REMOTE_FREE_GB = 10
+
+/** Tracked refs/ cap, leaving 2 GB of headroom inside the free tier. */
+export const REMOTE_MAX_GB = 8
 
 export const GRID_TILE_ASPECT = '1 / 1'
 export const ZOOM_MIN = 0

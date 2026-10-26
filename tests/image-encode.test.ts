@@ -7,15 +7,17 @@ import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { WAN_30 } from '@/core/presets/wan/wan-3.0'
-import type { UploadItem } from '@/core/types'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import type { encodeImages as EncodeImages } from '@/server/media/image-data-url'
 
-const gauge = vi.hoisted(() => ({
-  active: 0,
-  peak: 0,
-  encodes: new Map<string, number>(),
-  stats: new Map<string, number>(),
-}))
+const gauge = vi.hoisted(() => {
+  return {
+    active: 0,
+    peak: 0,
+    encodes: new Map<string, number>(),
+    stats: new Map<string, number>(),
+  }
+})
 
 async function measured<T>(run: () => Promise<T>, map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) ?? 0) + 1)
@@ -24,7 +26,9 @@ async function measured<T>(run: () => Promise<T>, map: Map<string, number>, key:
 
   try {
     // Real encodes are fast, this keeps overlap observable.
-    await new Promise((resolve) => setTimeout(resolve, 15))
+    await new Promise((resolve) => {
+      setTimeout(resolve, 15)
+    })
 
     return await run()
   } finally {
@@ -38,36 +42,44 @@ vi.mock('sharp', async (importOriginal) => {
 
   type AnySharp = ReturnType<typeof real>
 
-  const isSharp = (value: unknown): value is AnySharp =>
-    !isNil(value) && typeof (value as { toBuffer?: unknown }).toBuffer === 'function'
+  const isSharp = (value: unknown): value is AnySharp => {
+    return !isNil(value) && typeof (value as { toBuffer?: unknown }).toBuffer === 'function'
+  }
 
-  const wrap = (instance: AnySharp, source: string, width?: number): AnySharp =>
-    new Proxy(instance, {
+  const wrap = (instance: AnySharp, source: string, width?: number): AnySharp => {
+    return new Proxy(instance, {
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver)
 
-        if (typeof value !== 'function') return value
+        if (typeof value !== 'function') {
+          return value
+        }
 
         if (prop === 'toBuffer') {
-          return (...args: unknown[]) =>
-            measured(
-              () => (value as (...rest: unknown[]) => Promise<Buffer>).apply(target, args),
+          return (...args: unknown[]) => {
+            return measured(
+              () => {
+                return (value as (...rest: unknown[]) => Promise<Buffer>).apply(target, args)
+              },
               gauge.encodes,
               `${source}:${width ?? 0}`,
             )
+          }
         }
 
         if (prop === 'stats') {
-          return (...args: unknown[]) =>
-            measured(
-              () =>
-                (value as (...rest: unknown[]) => Promise<unknown>).apply(
+          return (...args: unknown[]) => {
+            return measured(
+              () => {
+                return (value as (...rest: unknown[]) => Promise<unknown>).apply(
                   target,
                   args,
-                ) as Promise<never>,
+                ) as Promise<never>
+              },
               gauge.stats,
               source,
             )
+          }
         }
 
         return (...args: unknown[]) => {
@@ -84,12 +96,11 @@ vi.mock('sharp', async (importOriginal) => {
         }
       },
     })
+  }
 
-  const wrapped = ((...args: Parameters<typeof real>) =>
-    wrap(
-      (real as (...rest: unknown[]) => AnySharp)(...args),
-      String(args[0]),
-    )) as unknown as typeof real
+  const wrapped = ((...args: Parameters<typeof real>) => {
+    return wrap((real as (...rest: unknown[]) => AnySharp)(...args), String(args[0]))
+  }) as unknown as typeof real
 
   Object.assign(wrapped, real)
 
@@ -109,15 +120,20 @@ let uploadsDir: string
 
 beforeAll(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
+
   ;({ encodeImages } = await import('@/server/media/image-data-url'))
+
   ;({ UPLOADS_DIR: uploadsDir } = await import('@/server/paths'))
 })
 
 afterAll(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
 
-  if (isNil(PREVIOUS_ROOT)) delete process.env.STORAGE_ROOT
-  else process.env.STORAGE_ROOT = PREVIOUS_ROOT
+  if (isNil(PREVIOUS_ROOT)) {
+    delete process.env.STORAGE_ROOT
+  } else {
+    process.env.STORAGE_ROOT = PREVIOUS_ROOT
+  }
 })
 
 async function fixture(data: Buffer): Promise<UploadItem> {
@@ -149,7 +165,9 @@ async function image(width: number, height: number): Promise<Buffer> {
 describe('image encode bounds', () => {
   it('runs one encode per image and step, at most two at a time', async () => {
     const uploads = await Promise.all(
-      Array.from({ length: 10 }, async () => fixture(await image(400, 300))),
+      Array.from({ length: 10 }, async () => {
+        return fixture(await image(400, 300))
+      }),
     )
 
     gauge.active = 0
@@ -167,11 +185,16 @@ describe('image encode bounds', () => {
     expect(gauge.encodes.size).toBe(10)
 
     for (const upload of uploads) {
-      const encodes = [...gauge.encodes].filter(([key]) => key.includes(upload.id))
+      const encodes = [...gauge.encodes].filter(([key]) => {
+        return key.includes(upload.id)
+      })
 
       expect(encodes).toHaveLength(1)
       expect(encodes[0]?.[1]).toBe(1)
-      const stats = [...gauge.stats].filter(([key]) => key.includes(upload.id))
+
+      const stats = [...gauge.stats].filter(([key]) => {
+        return key.includes(upload.id)
+      })
 
       expect(stats).toHaveLength(1)
     }

@@ -4,40 +4,48 @@ import path from 'node:path'
 
 import { z } from 'zod'
 
-import { assertLocalRequest, errorResponse, jsonError, readJsonBody, zodError } from '@/server/http'
+import { errorResponse, type IdRouteContext, jsonError, zodError } from '@/server/http'
 import { extractBoundaryFrame } from '@/server/media/ffmpeg'
 import { downloadPaths, DOWNLOADS_DIR } from '@/server/paths'
 import { getGeneration } from '@/server/repos/generations'
-import { saveFileUpload } from '@/server/repos/uploads'
+import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
+import { createFileUpload } from '@/server/services/uploads'
 
 const BodySchema = z.object({ at: z.enum(['first', 'last']) })
 
-interface Params {
-  params: Promise<{ id: string }>
-}
-
-export async function POST(request: Request, { params }: Params) {
+export async function POST(request: Request, { params }: IdRouteContext) {
   try {
     assertLocalRequest(request)
     const { id } = await params
     const body = BodySchema.safeParse(await readJsonBody(request))
 
-    if (!body.success) return zodError(body.error)
+    if (!body.success) {
+      return zodError(body.error)
+    }
 
     const record = await getGeneration(id)
 
-    if (!record) return jsonError({ status: 404, error: 'Generation not found' })
+    if (!record) {
+      return jsonError({ status: 404, error: 'Generation not found' })
+    }
 
     const videoPath = downloadPaths(record.id).video
+
     const isReady =
       record.status === 'completed' &&
       Boolean(record.output?.video) &&
       (await fs.stat(videoPath).then(
-        (stats) => stats.isFile(),
-        () => false,
+        (stats) => {
+          return stats.isFile()
+        },
+        () => {
+          return false
+        },
       ))
 
-    if (!isReady) return jsonError({ status: 409, error: 'Video is not ready' })
+    if (!isReady) {
+      return jsonError({ status: 409, error: 'Video is not ready' })
+    }
 
     const temp = path.join(DOWNLOADS_DIR, `${record.id}.frame-${randomUUID()}.tmp.png`)
 
@@ -51,7 +59,8 @@ export async function POST(request: Request, { params }: Params) {
       }
 
       const bytes = new Uint8Array(await fs.readFile(temp))
-      const item = await saveFileUpload({
+
+      const item = await createFileUpload({
         bytes,
         originalName: `${record.id}-${body.data.at}-frame.png`,
       })

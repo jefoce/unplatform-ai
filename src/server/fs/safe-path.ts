@@ -2,7 +2,7 @@ import 'server-only'
 
 import path from 'node:path'
 
-import { HttpError } from '../request-guard'
+import { HttpError } from '../errors'
 
 export class SafePathError extends HttpError {
   constructor() {

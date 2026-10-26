@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
+import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { STATUS_HELP, statusHelpKey, statusHelpText } from '@/core/status-help'
-import type { GenerationRecord } from '@/core/types'
 
 type StatusInput = Pick<GenerationRecord, 'status' | 'submit' | 'download'>
 
-const state = (overrides: Partial<StatusInput> = {}): StatusInput => ({
-  status: 'submitting',
-  ...overrides,
-})
+const state = (overrides: Partial<StatusInput> = {}): StatusInput => {
+  return {
+    status: 'submitting',
+    ...overrides,
+  }
+}
 
 describe('status help', () => {
   it('covers every status with a label and help text', () => {
@@ -22,9 +24,11 @@ describe('status help', () => {
     expect(statusHelpKey(state({ submit: { stage: 'grace' } }))).toBe('processing')
     expect(statusHelpKey(state({ submit: { stage: 'uploading' } }))).toBe('uploading')
     expect(statusHelpKey(state({ submit: { stage: 'sending' } }))).toBe('sending')
+
     expect(statusHelpKey(state({ status: 'in_progress', download: { startedAt: 'now' } }))).toBe(
       'downloading',
     )
+
     expect(statusHelpKey(state({ status: 'pending' }))).toBe('in_queue')
     expect(statusHelpKey(state({ status: 'in_progress' }))).toBe('generating')
     expect(statusHelpKey(state({ status: 'completed' }))).toBe('completed')

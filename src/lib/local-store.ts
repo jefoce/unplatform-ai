@@ -12,7 +12,9 @@ interface LocalRead<T> {
  * Parse and schema failures return `{ ok: true, value: null }`.
  */
 export function readLocal<T>(key: string, schema: ZodType<T>): LocalRead<T> {
-  if (typeof window === 'undefined') return { ok: false, value: null }
+  if (typeof window === 'undefined') {
+    return { ok: false, value: null }
+  }
 
   let raw: string | null
 
@@ -22,13 +24,17 @@ export function readLocal<T>(key: string, schema: ZodType<T>): LocalRead<T> {
     return { ok: false, value: null }
   }
 
-  if (isNil(raw)) return { ok: true, value: null }
+  if (isNil(raw)) {
+    return { ok: true, value: null }
+  }
 
   try {
     const parsed: unknown = JSON.parse(raw)
     const result = schema.safeParse(parsed)
 
-    return { ok: true, value: result.success ? result.data : null }
+    const value = result.success ? result.data : null
+
+    return { ok: true, value }
   } catch {
     return { ok: true, value: null }
   }
@@ -36,7 +42,9 @@ export function readLocal<T>(key: string, schema: ZodType<T>): LocalRead<T> {
 
 /** Writes a JSON value. Quota and private-mode failures are ignored. */
 export function writeLocal(key: string, value: unknown): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === 'undefined') {
+    return
+  }
 
   try {
     window.localStorage.setItem(key, JSON.stringify(value))

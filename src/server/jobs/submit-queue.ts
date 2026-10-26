@@ -3,6 +3,7 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { SUBMIT_YIELD_MS } from '@/core/constants'
+import { isNonEmptyString } from '@/core/guards'
 import { graceDelayMs } from '@/core/submit-state'
 
 import { globalState } from '../global-state'
@@ -12,7 +13,13 @@ const MAX_CONCURRENT = 2
 
 export type SubmitStage = 'uploading' | 'sending'
 
-export type SubmitRunner = (id: string, signal: AbortSignal) => Promise<void>
+export type SubmitOutcome = 'done' | 'requeue'
+
+type SubmitRunner = (id: string, signal: AbortSignal) => Promise<SubmitOutcome>
+
+export interface SubmitQueueConfig {
+  run: SubmitRunner
+}
 
 interface SubmitState {
   pending: Set<string>
@@ -23,19 +30,24 @@ interface SubmitState {
   runner: SubmitRunner | null
   closed: boolean
 }
-const state = globalState<SubmitState>('submitQueue', () => ({
-  pending: new Set(),
-  active: new Set(),
-  timers: new Map(),
-  stages: new Map(),
-  controllers: new Map(),
-  runner: null,
-  closed: false,
-}))
 
-/** run-submit registers itself, so this module never imports it back. */
-export function setSubmitRunner(runner: SubmitRunner): void {
-  state.runner = runner
+const state = globalState<SubmitState>('submitQueue', () => {
+  return {
+    pending: new Set(),
+    active: new Set(),
+    timers: new Map(),
+    stages: new Map(),
+    controllers: new Map(),
+    runner: null,
+    closed: false,
+  }
+})
+
+/** Wired in boot.ts, so this module never imports run-submit back. */
+export function configureSubmitQueue(params: SubmitQueueConfig): void {
+  const { run } = params
+
+  state.runner = run
 }
 
 /** True while this process owns the submit: timer, queued or running. */
@@ -43,24 +55,26 @@ export function isSubmitOwned(id: string): boolean {
   return state.timers.has(id) || state.pending.has(id) || state.active.has(id)
 }
 
-/** Running submits. Shutdown waits for these, queued ones resume next boot. */
-export function activeSubmitCount(): number {
-  return state.active.size
-}
-
-/** Runs that already handed the request to OpenRouter but await its reply. */
+/** Runs that already handed the request to the provider but await its reply. */
 export function sendingCount(): number {
   let count = 0
 
-  for (const stage of state.stages.values()) if (stage === 'sending') count += 1
+  for (const stage of state.stages.values()) {
+    if (stage === 'sending') {
+      count += 1
+    }
+  }
 
   return count
 }
 
 /** run-submit marks each phase so shutdown can tell uploads from sends. */
 export function setSubmitStage(id: string, stage: SubmitStage | null): void {
-  if (isNil(stage)) state.stages.delete(id)
-  else state.stages.set(id, stage)
+  if (isNil(stage)) {
+    state.stages.delete(id)
+  } else {
+    state.stages.set(id, stage)
+  }
 }
 
 /** True after shutdown stopped the queue. No new submit may start. */
@@ -70,11 +84,15 @@ export function isSubmitStopped(): boolean {
 
 /** Schedules an upload and submit after the grace window. */
 export async function startSubmit(id: string): Promise<void> {
-  if (state.closed || isSubmitOwned(id)) return
+  if (state.closed || isSubmitOwned(id)) {
+    return
+  }
 
   const record = await getGeneration(id)
 
-  if (record?.status !== 'submitting' || record.submit?.stage !== 'grace') return
+  if (record?.status !== 'submitting' || record.submit?.stage !== 'grace') {
+    return
+  }
 
   schedule(id, graceDelayMs(record.submit.notBefore))
 }
@@ -82,8 +100,9 @@ export async function startSubmit(id: string): Promise<void> {
 /** Reschedules the remaining grace windows after a process restart. */
 export async function resumeGraceSubmits(): Promise<void> {
   for (const record of await listGenerations()) {
-    if (record.status === 'submitting' && record.submit?.stage === 'grace')
+    if (record.status === 'submitting' && record.submit?.stage === 'grace') {
       await startSubmit(record.id)
+    }
   }
 }
 
@@ -103,13 +122,17 @@ export function cancelScheduledSubmit(id: string): void {
 export function stopSubmits(): void {
   state.closed = true
 
-  for (const timer of state.timers.values()) clearTimeout(timer)
+  for (const timer of state.timers.values()) {
+    clearTimeout(timer)
+  }
 
   state.timers.clear()
   state.pending.clear()
 
   for (const [id, controller] of state.controllers) {
-    if (state.stages.get(id) !== 'sending') controller.abort()
+    if (state.stages.get(id) !== 'sending') {
+      controller.abort()
+    }
   }
 }
 
@@ -118,14 +141,18 @@ export async function waitForSendingDone(timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
 
   while (sendingCount() > 0 && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, SUBMIT_YIELD_MS))
+    await new Promise((resolve) => {
+      setTimeout(resolve, SUBMIT_YIELD_MS)
+    })
   }
 
   return sendingCount() === 0
 }
 
 function schedule(id: string, delayMs: number): void {
-  if (state.closed || isSubmitOwned(id)) return
+  if (state.closed || isSubmitOwned(id)) {
+    return
+  }
 
   const timer = setTimeout(() => {
     state.timers.delete(id)
@@ -140,7 +167,9 @@ function drain(): void {
   while (!state.closed && state.active.size < MAX_CONCURRENT && state.pending.size > 0) {
     const id = state.pending.values().next().value
 
-    if (isNil(id) || id === '') return
+    if (!isNonEmptyString(id)) {
+      return
+    }
 
     state.pending.delete(id)
     state.active.add(id)
@@ -158,11 +187,20 @@ function drain(): void {
     }
 
     void runner(id, controller.signal)
-      .catch((error) => console.error(`[unplatform-ai] submit failed for ${id}`, error))
-      .finally(() => {
+      .catch((error): SubmitOutcome => {
+        console.error(`[unplatform-ai] submit failed for ${id}`, error)
+
+        return 'done'
+      })
+      .then((outcome) => {
         state.active.delete(id)
         state.stages.delete(id)
         state.controllers.delete(id)
+
+        if (outcome === 'requeue') {
+          void startSubmit(id)
+        }
+
         drain()
       })
   }

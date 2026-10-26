@@ -1,6 +1,6 @@
 'use client'
 
-import { type KeyboardEvent, type MouseEvent, useCallback } from 'react'
+import { type KeyboardEvent, type MouseEvent } from 'react'
 
 import { seekAudio } from '@/lib/audio-player'
 import { cn } from '@/lib/cn'
@@ -16,34 +16,34 @@ interface PreviewAudioWaveProps {
 
 /** Waveform bars that seek on click and keyboard, with play state coloring. */
 export function PreviewAudioWave(props: PreviewAudioWaveProps) {
-  const { bars, played, at, total, onToggle: handleToggle } = props
+  const { bars, played, at, total } = props
 
-  const handleSeek = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
-      if (total === 0) return
+  const handleSeek = (event: MouseEvent<HTMLDivElement>) => {
+    if (total === 0) {
+      return
+    }
 
-      const rect = event.currentTarget.getBoundingClientRect()
+    const rect = event.currentTarget.getBoundingClientRect()
 
-      seekAudio(((event.clientX - rect.left) / rect.width) * total)
-    },
-    [total],
-  )
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        event.preventDefault()
-        seekAudio(at + (event.key === 'ArrowLeft' ? -5 : 5))
+    seekAudio(((event.clientX - rect.left) / rect.width) * total)
+  }
 
-        return
-      }
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault()
 
-      if (event.key === ' ') {
-        event.preventDefault()
-        handleToggle()
-      }
-    },
-    [at, handleToggle],
-  )
+      const delta = event.key === 'ArrowLeft' ? -5 : 5
+
+      seekAudio(at + delta)
+
+      return
+    }
+
+    if (event.key === ' ') {
+      event.preventDefault()
+      props.onToggle()
+    }
+  }
 
   return (
     <div
@@ -58,17 +58,20 @@ export function PreviewAudioWave(props: PreviewAudioWaveProps) {
       onKeyDown={handleKeyDown}
       className="flex h-20 w-full cursor-pointer items-center gap-px rounded-sm"
     >
-      {bars.map((height, index) => (
-        <span
-          /* eslint-disable-next-line react/no-array-index-key -- static list */
-          key={index}
-          style={{ height: `${height}%` }}
-          className={cn(
-            'min-w-px flex-1 rounded-full',
-            index / bars.length < played ? 'bg-lime' : 'bg-fg-2/50',
-          )}
-        />
-      ))}
+      {bars.map((height, index) => {
+        return (
+          <span
+            /* eslint-disable-next-line react/no-array-index-key -- static list */
+            key={index}
+            style={{ height: `${height}%` }}
+            className={cn(
+              'min-w-px flex-1 rounded-full',
+              index / bars.length < played && 'bg-lime',
+              !(index / bars.length < played) && 'bg-fg-2/50',
+            )}
+          />
+        )
+      })}
     </div>
   )
 }

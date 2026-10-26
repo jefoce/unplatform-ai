@@ -4,8 +4,9 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
-import { assertLocalRequest, errorResponse, jsonError, readJsonBody, zodError } from '@/server/http'
+import { errorResponse, type IdRouteContext, jsonError, zodError } from '@/server/http'
 import { getGeneration } from '@/server/repos/generations'
+import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { sessionRequired } from '@/server/session'
 
 import { copyExclusive, videoSource } from '../../export-files'
@@ -15,19 +16,19 @@ const BodySchema = z.object({
   overwrite: z.boolean().optional(),
 })
 
-interface Params {
-  params: Promise<{ id: string }>
-}
-
 /** Copies a finished video to a user-chosen absolute path. */
-export async function POST(request: Request, { params }: Params): Promise<Response> {
+export async function POST(request: Request, { params }: IdRouteContext): Promise<Response> {
   try {
-    if (!sessionRequired()) return jsonError({ status: 404, error: 'Not found' })
+    if (!sessionRequired()) {
+      return jsonError({ status: 404, error: 'Not found' })
+    }
 
     assertLocalRequest(request)
     const body = BodySchema.safeParse(await readJsonBody(request))
 
-    if (!body.success) return zodError(body.error)
+    if (!body.success) {
+      return zodError(body.error)
+    }
 
     const { id } = await params
 
@@ -50,23 +51,33 @@ interface ExportVideoParams {
 async function exportVideo(params: ExportVideoParams): Promise<Response> {
   const { id, target, isOverwrite } = params
 
-  if (!path.isAbsolute(target)) return jsonError({ status: 400, error: 'Path must be absolute' })
+  if (!path.isAbsolute(target)) {
+    return jsonError({ status: 400, error: 'Path must be absolute' })
+  }
 
-  if (path.extname(target).toLowerCase() !== '.mp4')
+  if (path.extname(target).toLowerCase() !== '.mp4') {
     return jsonError({ status: 400, error: 'Only .mp4 files' })
+  }
 
   const record = await getGeneration(id)
 
-  if (!record) return jsonError({ status: 404, error: 'Video not found' })
+  if (!record) {
+    return jsonError({ status: 404, error: 'Video not found' })
+  }
 
   const source = await videoSource(record.id)
 
-  if (isNil(source)) return jsonError({ status: 404, error: 'Video not found' })
+  if (isNil(source)) {
+    return jsonError({ status: 404, error: 'Video not found' })
+  }
 
-  const existing = await fs.lstat(target).catch(() => null)
+  const existing = await fs.lstat(target).catch(() => {
+    return null
+  })
 
-  if (existing && !existing.isFile())
+  if (existing && !existing.isFile()) {
     return jsonError({ status: 400, error: 'Target must be a regular file' })
+  }
 
   return await copyVideo({ source, target, isOverwrite })
 }
@@ -88,7 +99,9 @@ async function copyVideo(params: CopyVideoParams): Promise<Response> {
 
   const didCopy = await copyExclusive(source, target)
 
-  if (!didCopy) return jsonError({ status: 409, error: 'File already exists' })
+  if (!didCopy) {
+    return jsonError({ status: 409, error: 'File already exists' })
+  }
 
   return Response.json({ path: target }, { status: 201 })
 }

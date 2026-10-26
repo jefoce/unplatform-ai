@@ -18,9 +18,11 @@ describe('normalizeForPreset duration', () => {
     const preset = withPreset({ duration: { min: 4, max: 8, default: 6, options: [4, 6, 8] } })
 
     expect(normalizeForPreset({ input: input({ duration: 5.5 }), preset }).input.duration).toBe(6)
+
     expect(normalizeForPreset({ input: input({ duration: 5.5 }), preset }).notes).toEqual([
       'Duration set to 6s',
     ])
+
     expect(normalizeForPreset({ input: input({ duration: 5 }), preset }).input.duration).toBe(5)
     expect(normalizeForPreset({ input: input({ duration: 8 }), preset }).notes).toEqual([])
   })
@@ -41,6 +43,7 @@ describe('normalizeForPreset duration', () => {
 
   it('ignores video references when the combined rule is off', () => {
     const seedance = getPreset('seedance-2.0')
+
     const result = normalizeForPreset({
       input: input({ duration: 30, references: ['v'] }),
       preset: seedance,
@@ -76,6 +79,7 @@ describe('normalizeForPreset format', () => {
     expect(
       normalizeForPreset({ input: input({ aspectRatio: 'auto' }), preset: wan }).input.aspectRatio,
     ).toBe('auto')
+
     const noAuto = withPreset({ autoAspectWithFrames: false })
 
     expect(
@@ -100,6 +104,7 @@ describe('normalizeForPreset format', () => {
 describe('normalizeForPreset frames', () => {
   it('clears the end frame when unsupported', () => {
     const noEnd = withPreset({ frames: { start: true, end: false } })
+
     const result = normalizeForPreset({
       input: input({ frames: { start: 'start', end: 'end' } }),
       preset: noEnd,

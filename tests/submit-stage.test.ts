@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/types'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
 
-const control = vi.hoisted(() => ({ current: null as GenerationRecord | null }))
+const control = vi.hoisted(() => {
+  return { current: null as GenerationRecord | null }
+})
 
 const sendGate = vi.hoisted(() => {
   const sending = Promise.withResolvers<void>()
@@ -16,31 +18,69 @@ const sendGate = vi.hoisted(() => {
   }
 })
 
-const submitVideo = vi.hoisted(() => vi.fn(async () => ({ id: 'job-1', status: 'pending' })))
+const submitVideo = vi.hoisted(() => {
+  return vi.fn(async () => {
+    return { jobId: 'job-1', status: 'pending' }
+  })
+})
 
-vi.mock('@/server/secrets', () => ({ secretsReady: async () => {} }))
-vi.mock('@/server/repos/uploads', () => ({ getUpload: async () => null }))
-vi.mock('@/server/remote/remote-store', () => ({ getRemoteStore: () => null }))
-vi.mock('@/server/jobs/poller', () => ({ startPoller: () => {} }))
-vi.mock('@/server/jobs/submit-retry', () => ({ shouldRetryAsBase64: () => false }))
-vi.mock('@/server/openrouter/client', () => ({
-  OpenRouterError: class OpenRouterError extends Error {},
-  stripStatusPrefix: (message: string) => message,
-  submitVideo,
-}))
-vi.mock('@/server/repos/generations', () => ({
-  getGeneration: async () => control.current,
-  saveGeneration: async (record: GenerationRecord) => {
-    if (record.submit?.stage === 'sending') {
-      sendGate.enter()
-      await sendGate.gate
-    }
+vi.mock('@/server/secrets', () => {
+  return { secretsReady: async () => {} }
+})
 
-    control.current = { ...record, updatedAt: new Date().toISOString() }
+vi.mock('@/server/repos/uploads', () => {
+  return {
+    getUpload: async () => {
+      return null
+    },
+  }
+})
 
-    return control.current
-  },
-}))
+vi.mock('@/server/storage/registry', () => {
+  return {
+    getObjectStore: () => {
+      return null
+    },
+  }
+})
+
+vi.mock('@/server/jobs/poller', () => {
+  return { startPoller: () => {} }
+})
+
+vi.mock('@/server/jobs/submit-retry', () => {
+  return {
+    shouldRetryAsBase64: () => {
+      return false
+    },
+  }
+})
+
+vi.mock('@/server/providers/registry', () => {
+  return {
+    getVideoProvider: () => {
+      return { submit: submitVideo }
+    },
+  }
+})
+
+vi.mock('@/server/repos/generations', () => {
+  return {
+    getGeneration: async () => {
+      return control.current
+    },
+    saveGeneration: async (record: GenerationRecord) => {
+      if (record.submit?.stage === 'sending') {
+        sendGate.enter()
+        await sendGate.gate
+      }
+
+      control.current = { ...record, updatedAt: new Date().toISOString() }
+
+      return control.current
+    },
+  }
+})
 
 const { runSubmit } = await import('@/server/jobs/run-submit')
 const { sendingCount, waitForSendingDone } = await import('@/server/jobs/submit-queue')
@@ -76,6 +116,7 @@ function makeRecord(): GenerationRecord {
     createdAt: now,
     updatedAt: now,
     status: 'submitting',
+    provider: 'openrouter',
     input: {
       presetId: 'wan-3.0',
       tab: 'frames',

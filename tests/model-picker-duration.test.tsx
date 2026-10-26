@@ -2,17 +2,25 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CatalogEntry } from '@/core/catalog'
 import { formatRate } from '@/core/pricing'
 import type { PricingInfo } from '@/core/types'
-import { ModelPicker } from '@/features/generator/ModelPicker'
-import { usePricing } from '@/features/generator/use-pricing'
+import { ModelPicker } from '@/features/generator/model/ModelPicker'
+import { useGeneratorStore } from '@/features/generator/store/store'
+import { useModelEntry } from '@/lib/api/models'
 import { Price } from '@/ui/Price'
 
-vi.mock('@/features/generator/use-pricing', () => ({
-  usePricing: vi.fn(() => ({ pricing: undefined })),
-}))
+import { required } from './helpers/required'
 
-const mockUsePricing = vi.mocked(usePricing)
+vi.mock('@/lib/api/models', () => {
+  return {
+    useModelEntry: vi.fn(() => {
+      return null
+    }),
+  }
+})
+
+const mockUseModelEntry = vi.mocked(useModelEntry)
 
 const PRICING: PricingInfo = {
   skus: {
@@ -30,6 +38,21 @@ const PRICING: PricingInfo = {
   fetchedAt: '',
 }
 
+function entry(pricing: PricingInfo): CatalogEntry {
+  return {
+    modelId: 'alibaba/wan-3.0',
+    presetId: 'wan-3.0',
+    provider: 'openrouter',
+    status: 'available',
+    reason: null,
+    pricing,
+  }
+}
+
+function unavailable(status: 'missing' | 'no_provider', reason: string): CatalogEntry {
+  return { ...entry(PRICING), status, reason }
+}
+
 class Observer {
   observe() {}
   unobserve() {}
@@ -37,13 +60,17 @@ class Observer {
 }
 
 beforeEach(() => {
-  mockUsePricing.mockReturnValue({ pricing: undefined })
+  mockUseModelEntry.mockReturnValue(null)
+  useGeneratorStore.setState({ presetId: 'wan-3.0' })
   vi.stubGlobal('ResizeObserver', Observer)
-  vi.stubGlobal('matchMedia', () => ({
-    matches: false,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-  }))
+
+  vi.stubGlobal('matchMedia', () => {
+    return {
+      matches: false,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }
+  })
 })
 
 afterEach(() => {
@@ -63,20 +90,19 @@ describe('ModelPicker duration badge', () => {
       ['Wan 3.0 Prime', '5-30s'],
       ['Seedance 2.0', '4-15s'],
       ['Seedance 2.5', '4-30s'],
-    ]
+    ] as const
 
     for (const [title, badge] of cases) {
-      const row = within(dialog).getByText(title).closest('button')
+      const row = required(within(dialog).getByText(title).closest('button'), title)
 
-      expect(row, title).not.toBeNull()
-      expect(within(row as HTMLElement).getByText(badge), title).toBeTruthy()
+      expect(within(row).getByText(badge), title).toBeTruthy()
     }
   })
 })
 
 describe('ModelPicker rows', () => {
   it('shows the struck list rate, the discounted rate and no description', () => {
-    mockUsePricing.mockReturnValue({ pricing: PRICING })
+    mockUseModelEntry.mockReturnValue(entry(PRICING))
     render(<ModelPicker />)
     fireEvent.click(screen.getByRole('button', { name: /Model/ }))
     const dialog = screen.getByRole('dialog')
@@ -88,9 +114,56 @@ describe('ModelPicker rows', () => {
   })
 })
 
+describe('ModelPicker unavailable rows', () => {
+  it('disables a missing row with the reason and no price', () => {
+    mockUseModelEntry.mockReturnValue(
+      unavailable('missing', 'Not available on OpenRouter right now.'),
+    )
+
+    render(<ModelPicker />)
+    fireEvent.click(screen.getByRole('button', { name: /Model/ }))
+    const dialog = screen.getByRole('dialog')
+    const row = within(dialog).getByText('Wan 3.0').closest('button') as HTMLButtonElement
+
+    expect(row.disabled).toBe(true)
+    expect(within(row).getByText('Not available on OpenRouter right now.')).toBeTruthy()
+    expect(within(row).queryByText('$0.05/s')).toBeNull()
+    expect(within(row).queryByText('$0.043/s')).toBeNull()
+  })
+
+  it('keeps the selection and the picker open when a disabled row is clicked', () => {
+    mockUseModelEntry.mockReturnValue(
+      unavailable('missing', 'Not available on OpenRouter right now.'),
+    )
+
+    render(<ModelPicker />)
+    fireEvent.click(screen.getByRole('button', { name: /Model/ }))
+    const dialog = screen.getByRole('dialog')
+    const row = within(dialog).getByText('Seedance 2.0').closest('button') as HTMLElement
+
+    fireEvent.click(row)
+
+    expect(useGeneratorStore.getState().presetId).toBe('wan-3.0')
+    expect(screen.getByRole('dialog')).toBe(dialog)
+  })
+
+  it('selects an unverified row normally', () => {
+    mockUseModelEntry.mockReturnValue({ ...entry(PRICING), status: 'unverified' })
+
+    render(<ModelPicker />)
+    fireEvent.click(screen.getByRole('button', { name: /Model/ }))
+    const dialog = screen.getByRole('dialog')
+    const row = within(dialog).getByText('Seedance 2.0').closest('button') as HTMLButtonElement
+
+    expect(row.disabled).toBe(false)
+    fireEvent.click(row)
+    expect(useGeneratorStore.getState().presetId).toBe('seedance-2.0')
+  })
+})
+
 describe('ModelPicker header', () => {
   it('shows only the percent off next to the Model label', () => {
-    mockUsePricing.mockReturnValue({ pricing: PRICING })
+    mockUseModelEntry.mockReturnValue(entry(PRICING))
     render(<ModelPicker />)
     const trigger = screen.getByRole('button', { name: /Model/ })
 

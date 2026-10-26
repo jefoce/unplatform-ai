@@ -1,14 +1,7 @@
 'use client'
 
-import {
-  type ChangeEvent,
-  type FocusEvent,
-  forwardRef,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react'
-import { clamp, isNil, round } from 'lodash-es'
+import { type ChangeEvent, type FocusEvent, forwardRef, useEffect, useState } from 'react'
+import { clamp, isNil, omit, round } from 'lodash-es'
 
 import { Input, type InputProps } from './Input'
 
@@ -19,31 +12,46 @@ interface NumberInputProps extends Omit<InputProps, 'value' | 'onChange' | 'type
   max?: number
 }
 
-const format = (value: number | null): string => (isNil(value) ? '' : String(value))
+const format = (value: number | null): string => {
+  if (isNil(value)) {
+    return ''
+  }
+
+  return String(value)
+}
 
 const parse = (text: string): number | null => {
-  if (text.trim() === '') return null
+  if (text.trim() === '') {
+    return null
+  }
 
   const value = Number(text)
 
-  return Number.isFinite(value) ? value : null
+  if (Number.isFinite(value)) {
+    return value
+  }
+
+  return null
 }
 
 /** Number input that reports null when empty and rounds/clamps on blur. */
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
   function NumberInput(props, ref) {
-    const { value, onValueChange, min, max, onBlur, ...rest } = props
+    // Callback read as props.onValueChange per lint rule. omit keeps it off the DOM input.
+    const { value, min, max, ...rest } = omit(props, 'onValueChange')
     const [draft, setDraft] = useState(format(value))
 
     useEffect(() => {
-      if (parse(draft) !== value) setDraft(format(value))
+      if (parse(draft) !== value) {
+        setDraft(format(value))
+      }
     }, [value, draft])
 
-    const commit = useCallback(() => {
+    const commit = () => {
       const parsed = parse(draft)
 
       if (isNil(parsed)) {
-        onValueChange(null)
+        props.onValueChange(null)
         setDraft('')
 
         return
@@ -51,23 +59,19 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
 
       const next = clamp(round(parsed), min ?? -Infinity, max ?? Infinity)
 
-      onValueChange(next)
+      props.onValueChange(next)
       setDraft(String(next))
-    }, [draft, max, min, onValueChange])
-    const handleChange = useCallback(
-      (event: ChangeEvent<HTMLInputElement>) => {
-        setDraft(event.target.value)
-        onValueChange(parse(event.target.value))
-      },
-      [onValueChange],
-    )
-    const handleBlur = useCallback(
-      (event: FocusEvent<HTMLInputElement>) => {
-        commit()
-        onBlur?.(event)
-      },
-      [commit, onBlur],
-    )
+    }
+
+    const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+      setDraft(event.target.value)
+      props.onValueChange(parse(event.target.value))
+    }
+
+    const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+      commit()
+      props.onBlur?.(event)
+    }
 
     return (
       <Input

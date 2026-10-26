@@ -1,13 +1,17 @@
-import type { ModelPreset } from '@/core/presets'
+import type { MediaKind } from '@/core/media-types'
 import { getPreset } from '@/core/presets'
-import type { GenerationInput, MediaKind, UploadItem } from '@/core/types'
+import type { ModelPreset } from '@/core/presets/types'
+import type { GenerationInput } from '@/core/schemas/generation-record'
+import { type UploadItem, type UploadsById } from '@/core/schemas/upload-item'
 
 export const wan = getPreset('wan-3.0')
 
-export const withPreset = (overrides: Partial<ModelPreset>): ModelPreset => ({
-  ...wan,
-  ...overrides,
-})
+export const withPreset = (overrides: Partial<ModelPreset>): ModelPreset => {
+  return {
+    ...wan,
+    ...overrides,
+  }
+}
 
 export function input(overrides: Partial<GenerationInput> = {}): GenerationInput {
   return {
@@ -43,5 +47,10 @@ export function upload(
   }
 }
 
-export const uploadsOf = (...items: UploadItem[]): Record<string, UploadItem> =>
-  Object.fromEntries(items.map((item) => [item.id, item]))
+export const uploadsOf = (...items: UploadItem[]): UploadsById => {
+  return Object.fromEntries(
+    items.map((item) => {
+      return [item.id, item]
+    }),
+  )
+}

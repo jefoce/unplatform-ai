@@ -5,9 +5,11 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/types'
+import type { UploadItem } from '@/core/schemas/upload-item'
 
-vi.mock('server-only', () => ({}))
+vi.mock('server-only', () => {
+  return {}
+})
 
 const ROOT = path.join(process.cwd(), '.cache', `uploads-update-test-${process.pid}`)
 const PREVIOUS_ROOT = process.env.STORAGE_ROOT
@@ -18,19 +20,26 @@ let updateUpload: (
   id: string,
   patch: (item: UploadItem) => UploadItem,
 ) => Promise<UploadItem | null>
+
 let saveUploadItem: (item: UploadItem) => Promise<UploadItem>
 let removeUpload: (id: string) => Promise<void>
 
 beforeAll(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
-  ;({ updateUpload, saveUploadItem, removeUpload } = await import('@/server/repos/uploads'))
+
+  ;({ updateUpload, saveUploadItem } = await import('@/server/repos/upload-record'))
+
+  ;({ removeUpload } = await import('@/server/services/uploads'))
 })
 
 afterAll(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
 
-  if (isNil(PREVIOUS_ROOT)) delete process.env.STORAGE_ROOT
-  else process.env.STORAGE_ROOT = PREVIOUS_ROOT
+  if (isNil(PREVIOUS_ROOT)) {
+    delete process.env.STORAGE_ROOT
+  } else {
+    process.env.STORAGE_ROOT = PREVIOUS_ROOT
+  }
 })
 
 describe('updateUpload', () => {
@@ -39,10 +48,12 @@ describe('updateUpload', () => {
 
     await saveUploadItem(item)
 
-    const updated = await updateUpload(item.id, (current) => ({
-      ...current,
-      originalName: 'renamed.png',
-    }))
+    const updated = await updateUpload(item.id, (current) => {
+      return {
+        ...current,
+        originalName: 'renamed.png',
+      }
+    })
 
     expect(updated?.originalName).toBe('renamed.png')
   })
@@ -53,7 +64,9 @@ describe('updateUpload', () => {
     await saveUploadItem(item)
     await removeUpload(item.id)
 
-    const updated = await updateUpload(item.id, (current) => current)
+    const updated = await updateUpload(item.id, (current) => {
+      return current
+    })
 
     expect(updated).toBeNull()
   })

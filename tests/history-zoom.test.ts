@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { ZOOM_MAX, ZOOM_MIN } from '@/core/constants'
-import { zoomToGridColumns, zoomToTileWidth } from '@/features/history/view-store'
+import { zoomToGridColumns, zoomToTileWidth } from '@/features/history/list/view-store'
 
-const steps = Array.from({ length: ZOOM_MAX + 1 }, (_, zoom) => zoom)
+const steps = Array.from({ length: ZOOM_MAX + 1 }, (_, zoom) => {
+  return zoom
+})
 
 describe('zoomToGridColumns', () => {
   it('maps all six steps, from 8 columns to 3', () => {
@@ -13,7 +15,12 @@ describe('zoomToGridColumns', () => {
   it('shrinks monotonically as zoom grows', () => {
     const columns = steps.map(zoomToGridColumns)
 
-    expect(columns).toEqual([...columns].sort((a, b) => b - a))
+    expect(columns).toEqual(
+      [...columns].sort((a, b) => {
+        return b - a
+      }),
+    )
+
     expect(new Set(columns).size).toBe(columns.length)
   })
 
@@ -37,7 +44,12 @@ describe('zoomToTileWidth', () => {
   it('grows monotonically', () => {
     const widths = steps.map(zoomToTileWidth)
 
-    expect(widths).toEqual([...widths].sort((a, b) => a - b))
+    expect(widths).toEqual(
+      [...widths].sort((a, b) => {
+        return a - b
+      }),
+    )
+
     expect(new Set(widths).size).toBe(widths.length)
   })
 })

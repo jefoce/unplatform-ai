@@ -4,20 +4,25 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { acceptForKinds } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/types'
+import type { MediaKind } from '@/core/media-types'
 
-import type { SystemAdapter } from './index'
+import type { SystemAdapter } from './types'
 
 const run = promisify(execFile)
 const DIALOG_TIMEOUT = 10 * 60_000
 
 export const win32: SystemAdapter = {
-  canChooseFiles: async () => true,
+  canChooseFiles: async () => {
+    return true
+  },
 
   async chooseFiles({ kinds, multiple: isMultiple, prompt }) {
     const patterns = extensions(kinds)
-      .map((ext) => `*.${ext}`)
+      .map((ext) => {
+        return `*.${ext}`
+      })
       .join(';')
+
     const script = [
       'Add-Type -AssemblyName System.Windows.Forms',
       '$form = New-Object System.Windows.Forms.Form',
@@ -29,7 +34,9 @@ export const win32: SystemAdapter = {
       `$dialog.Filter = ${quote(`Media|${patterns}`)}`,
     ]
 
-    if (isMultiple) script.push('$dialog.Multiselect = $true')
+    if (isMultiple) {
+      script.push('$dialog.Multiselect = $true')
+    }
 
     script.push("if ($dialog.ShowDialog($form) -eq 'OK') { $dialog.FileNames }")
     const { stdout } = await dialog(script)
@@ -48,11 +55,16 @@ export const win32: SystemAdapter = {
       `$dialog.Description = ${quote(prompt)}`,
       "if ($dialog.ShowDialog() -eq 'OK') { $dialog.SelectedPath }",
     ]
+
     const { stdout } = await dialog(script)
 
     const picked = stdout.trim()
 
-    return picked === '' ? null : picked
+    if (picked === '') {
+      return null
+    }
+
+    return picked
   },
 
   async reveal(path) {
@@ -65,13 +77,17 @@ function extensions(kinds: readonly MediaKind[]): string[] {
   return acceptForKinds(kinds)
     .split(',')
     .filter(Boolean)
-    .map((ext) => ext.slice(1))
+    .map((ext) => {
+      return ext.slice(1)
+    })
 }
 
 function lines(stdout: string): string[] {
   return stdout
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) => {
+      return line.trim()
+    })
     .filter(Boolean)
 }
 

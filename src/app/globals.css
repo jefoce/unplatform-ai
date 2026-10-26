@@ -47,11 +47,16 @@
   --font-grotesk: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* WebKitGTK may ignore backdrop-filter, solid glass keeps menus readable */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root {
-    --color-glass: #23262af2;
-  }
+@custom-variant linux (&:where([data-os='linux'] *));
+
+/* WebKitGTK renders backdrop-filter wrong or not at all. Solid surfaces instead. */
+:root[data-os='linux'] {
+  --color-glass: #23262af2;
+}
+
+:root[data-os='linux'] [class*='backdrop-blur'] {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 /* Document scroll is disabled, panes scroll internally */

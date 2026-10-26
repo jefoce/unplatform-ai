@@ -1,20 +1,26 @@
-import type { ModelPreset } from './presets'
-import type { MediaKind } from './types'
+import type { MediaKind } from './media-types'
+import { type ProviderBinding, type RESOLVED_TRANSPORTS } from './presets/types'
 
-export type ResolvedTransport = 'base64' | 'url'
+export type ResolvedTransport = (typeof RESOLVED_TRANSPORTS)[number]
 
 interface ResolveTransportParams {
-  preset: ModelPreset
+  binding: ProviderBinding
   kind: MediaKind
   remoteConfigured: boolean
 }
 
 /** Explicit transport wins. `auto` uses url only when remote storage is configured. */
 export function resolveTransport(params: ResolveTransportParams): ResolvedTransport {
-  const { preset, kind, remoteConfigured: isRemoteConfigured } = params
-  const transport = preset.inputTransport[kind]
+  const { binding, kind, remoteConfigured: isRemoteConfigured } = params
+  const transport = binding.transport[kind]
 
-  if (transport !== 'auto') return transport
+  if (transport !== 'auto') {
+    return transport
+  }
 
-  return isRemoteConfigured ? 'url' : 'base64'
+  if (isRemoteConfigured) {
+    return 'url'
+  }
+
+  return 'base64'
 }

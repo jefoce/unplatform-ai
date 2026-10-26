@@ -2,12 +2,17 @@
 
 import { isNil } from 'lodash-es'
 
-import type { UploadItem } from '@/core/types'
+import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { type ActionKey, type PreviewActions } from './preview-store'
 import { PreviewActionButton } from './PreviewActionButton'
 
-const ACTIONS: { key: ActionKey; label: string }[] = [
+interface PreviewAction {
+  key: ActionKey
+  label: string
+}
+
+const ACTIONS: PreviewAction[] = [
   { key: 'insert', label: 'Insert in prompt' },
   { key: 'replace', label: 'Replace' },
   { key: 'remove', label: 'Remove' },
@@ -30,28 +35,37 @@ interface PreviewFooterProps {
 
 /** Opener actions that apply to the current item. */
 export function PreviewFooter(props: PreviewFooterProps) {
-  const { item, actions, onRun: handleRun } = props
+  const { item, actions } = props
 
-  if (!item) return null
+  if (!item) {
+    return null
+  }
 
   const available = actions?.available?.(item)
-  const isVisible = (action: (typeof ACTIONS)[number]) =>
-    !isNil(actions?.[action.key]) && (isNil(available) || available.includes(action.key))
+
+  const isVisible = (action: (typeof ACTIONS)[number]) => {
+    return !isNil(actions?.[action.key]) && (isNil(available) || available.includes(action.key))
+  }
+
   const provided = ACTIONS.filter(isVisible)
 
-  if (provided.length === 0) return null
+  if (provided.length === 0) {
+    return null
+  }
 
   return (
     <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-3">
-      {provided.map(({ key, label }) => (
-        <PreviewActionButton
-          key={key}
-          actionKey={key}
-          label={label}
-          variant={ACTION_VARIANT[key]}
-          onRun={handleRun}
-        />
-      ))}
+      {provided.map(({ key, label }) => {
+        return (
+          <PreviewActionButton
+            key={key}
+            actionKey={key}
+            label={label}
+            variant={ACTION_VARIANT[key]}
+            onRun={props.onRun}
+          />
+        )
+      })}
     </footer>
   )
 }

@@ -1,16 +1,19 @@
-import type { GenerationRecord } from './types'
+import type { JobStatus, RecordDownload, RecordSubmit } from './schemas/generation-record'
 
-export type StatusHelpKey =
-  | 'processing'
-  | 'uploading'
-  | 'sending'
-  | 'in_queue'
-  | 'generating'
-  | 'downloading'
-  | 'completed'
-  | 'failed'
-  | 'expired'
-  | 'cancelled'
+export const STATUS_HELP_KEYS = [
+  'processing',
+  'uploading',
+  'sending',
+  'in_queue',
+  'generating',
+  'downloading',
+  'completed',
+  'failed',
+  'expired',
+  'cancelled',
+] as const
+
+export type StatusHelpKey = (typeof STATUS_HELP_KEYS)[number]
 
 export interface StatusHelp {
   label: string
@@ -94,7 +97,7 @@ export const STATUS_HELP: Record<StatusHelpKey, StatusHelp> = {
   },
 }
 
-const STATUS_KEYS: Record<GenerationRecord['status'], StatusHelpKey> = {
+const STATUS_KEYS: Record<JobStatus, StatusHelpKey> = {
   submitting: 'processing',
   pending: 'in_queue',
   in_progress: 'generating',
@@ -104,17 +107,29 @@ const STATUS_KEYS: Record<GenerationRecord['status'], StatusHelpKey> = {
   expired: 'expired',
 }
 
-/** Current visual state, including submit stages and the download phase. */
-export function statusHelpKey(
-  record: Pick<GenerationRecord, 'status' | 'submit' | 'download'>,
-): StatusHelpKey {
-  if (record.download) return 'downloading'
+interface StatusHelpRecord {
+  status: JobStatus
+  submit?: RecordSubmit
+  download?: RecordDownload
+}
 
-  if (record.status !== 'submitting') return STATUS_KEYS[record.status]
+/** Current visual state, including submit stages and the download phase. */
+export function statusHelpKey(record: StatusHelpRecord): StatusHelpKey {
+  if (record.download) {
+    return 'downloading'
+  }
+
+  if (record.status !== 'submitting') {
+    return STATUS_KEYS[record.status]
+  }
 
   const stage = record.submit?.stage
 
-  return stage === 'uploading' || stage === 'sending' ? stage : 'processing'
+  if (stage === 'uploading' || stage === 'sending') {
+    return stage
+  }
+
+  return 'processing'
 }
 
 /** Tooltip text: what is happening plus cancel, charge and quit safety. */

@@ -9,6 +9,8 @@ import path from 'node:path'
 import { isEmpty, isNil } from 'lodash-es'
 
 import { FFMPEG_TIMEOUTS, PREVIEW_WIDTH } from '@/core/constants'
+import type { PixelSize } from '@/core/geometry'
+import { isNonEmptyString } from '@/core/guards'
 
 const MAX_BUFFER = 16 * 1024 * 1024
 
@@ -18,30 +20,41 @@ let resolvedPath: string | null = null
 
 /** `ffmpeg-static` is dev-only: production ships the sidecar and sets FFMPEG_PATH. */
 function devFfmpegPath(): string {
-  if (process.env.NODE_ENV === 'production') return ''
+  if (process.env.NODE_ENV === 'production') {
+    return ''
+  }
 
   try {
     // Turbopack rewrites `require.resolve` calls, so invoke the method indirectly.
     const req = createRequire(import.meta.url)
     const specifier = ['ffmpeg-static', 'package.json'].join('/')
     const pkgPath: string = Reflect.apply(req.resolve, req, [specifier])
-    const binary = path.join(
-      path.dirname(pkgPath),
-      process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg',
-    )
 
-    return existsSync(binary) ? binary : ''
+    const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+    const binary = path.join(path.dirname(pkgPath), binaryName)
+
+    if (existsSync(binary)) {
+      return binary
+    }
+
+    return ''
   } catch {
     return ''
   }
 }
 
 function ffmpegPath(): string {
-  if (!isNil(resolvedPath)) return resolvedPath
+  if (!isNil(resolvedPath)) {
+    return resolvedPath
+  }
 
   const configured = process.env.FFMPEG_PATH?.trim() ?? ''
 
-  resolvedPath = isEmpty(configured) ? devFfmpegPath() : configured
+  if (isEmpty(configured)) {
+    resolvedPath = devFfmpegPath()
+  } else {
+    resolvedPath = configured
+  }
 
   return resolvedPath
 }
@@ -77,14 +90,19 @@ interface ExecFfmpegParams {
   timeoutMs: number
 }
 
+interface ExecFfmpegResult {
+  error: ExecFileException | null
+  stderr: string
+}
+
 /** Runs one ffmpeg child, tracks it for shutdown, and turns a timeout into a clear error. */
-function execFfmpeg(
-  params: ExecFfmpegParams,
-): Promise<{ error: ExecFileException | null; stderr: string }> {
+function execFfmpeg(params: ExecFfmpegParams): Promise<ExecFfmpegResult> {
   const { args, timeoutMs } = params
   const bin = assertFfmpeg()
 
-  if (!bin.exists) return Promise.reject(new Error('ffmpeg binary not found'))
+  if (!bin.exists) {
+    return Promise.reject(new Error('ffmpeg binary not found'))
+  }
 
   return new Promise((resolve, reject) => {
     const child = execFile(
@@ -116,7 +134,9 @@ function execFfmpeg(
 
 /** Kills every ffmpeg child still running, so quit does not wait on one. */
 export function stopAllFfmpeg(): void {
-  for (const child of running) child.kill('SIGKILL')
+  for (const child of running) {
+    child.kill('SIGKILL')
+  }
 
   running.clear()
 }
@@ -128,12 +148,15 @@ interface RunFfmpegParams {
 
 export async function runFfmpeg(params: RunFfmpegParams): Promise<void> {
   const { args, timeoutMs } = params
+
   const { error, stderr } = await execFfmpeg({
     args: ['-nostdin', '-hide_banner', '-loglevel', 'error', ...args],
     timeoutMs,
   })
 
-  if (error) throw new Error(`ffmpeg failed: ${stderr.slice(-2000)}`)
+  if (error) {
+    throw new Error(`ffmpeg failed: ${stderr.slice(-2000)}`)
+  }
 }
 
 interface ExtractFrameParams {
@@ -162,6 +185,7 @@ export async function extractFrame(params: ExtractFrameParams): Promise<void> {
     ],
     timeoutMs: FFMPEG_TIMEOUTS.frame,
   })
+
   await verifyFrame(outPath)
 }
 
@@ -169,25 +193,36 @@ export async function extractFrame(params: ExtractFrameParams): Promise<void> {
 export async function probeMedia(filePath: string): Promise<MediaProbe> {
   const stderr = await captureStderr(['-i', filePath])
   const duration = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderr)
+
   const durationSec = duration
     ? Number(duration[1]) * 3600 + Number(duration[2]) * 60 + Number(duration[3])
     : null
 
   const lines = stderr.split('\n')
-  const videoLine = lines.find((line) => line.includes('Video:'))
+
+  const videoLine = lines.find((line) => {
+    return line.includes('Video:')
+  })
+
   let candidates = lines
 
-  if (!isNil(videoLine) && videoLine !== '') candidates = [videoLine, ...lines]
+  if (isNonEmptyString(videoLine)) {
+    candidates = [videoLine, ...lines]
+  }
 
   for (const line of candidates) {
     const size = /(\d{2,5})x(\d{2,5})/.exec(line)
 
-    if (!size) continue
+    if (!size) {
+      continue
+    }
 
     const width = Number(size[1])
     const height = Number(size[2])
 
-    if (width > 0 && height > 0) return { durationSec, width, height }
+    if (width > 0 && height > 0) {
+      return { durationSec, width, height }
+    }
   }
 
   return { durationSec, width: null, height: null }
@@ -219,19 +254,25 @@ export async function extractBoundaryFrame(params: ExtractBoundaryFrameParams): 
     args: ['-sseof', '-1', '-i', videoPath, '-update', '1', '-q:v', '1', '-y', outPath],
     timeoutMs: FFMPEG_TIMEOUTS.frame,
   })
+
   await verifyFrame(outPath)
 }
 
 async function verifyFrame(outPath: string): Promise<void> {
-  const stats = await fs.stat(outPath).catch(() => null)
+  const stats = await fs.stat(outPath).catch(() => {
+    return null
+  })
 
-  if (!stats || stats.size === 0) throw new Error('Frame extraction failed')
+  if (!stats || stats.size === 0) {
+    throw new Error('Frame extraction failed')
+  }
 }
 
-export async function makeTestVideo(
-  outPath: string,
-  opts: { width: number; height: number; durationSec: number },
-): Promise<void> {
+interface MakeTestVideoOptions extends PixelSize {
+  durationSec: number
+}
+
+export async function makeTestVideo(outPath: string, opts: MakeTestVideoOptions): Promise<void> {
   await runFfmpeg({
     args: [
       '-f',
@@ -260,7 +301,9 @@ async function captureStderr(args: string[]): Promise<string> {
     timeoutMs: FFMPEG_TIMEOUTS.probe,
   })
 
-  if (error?.code === 'ENOENT') throw new Error('ffmpeg binary not found')
+  if (error?.code === 'ENOENT') {
+    throw new Error('ffmpeg binary not found')
+  }
 
   // `ffmpeg -i` exits non-zero without an output file, stderr still holds the probe.
   return stderr

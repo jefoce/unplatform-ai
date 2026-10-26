@@ -1,40 +1,45 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { shouldRetryAsBase64 } from '@/server/jobs/submit-retry'
-import { OpenRouterError } from '@/server/openrouter/client'
+import { ProviderError, type ProviderErrorKind } from '@/server/providers/provider-error'
 
-vi.mock('server-only', () => ({}))
+vi.mock('server-only', () => {
+  return {}
+})
 
-const providerError = (message: string, status: number): OpenRouterError =>
-  new OpenRouterError({ message, status })
+const providerError = (kind: ProviderErrorKind): ProviderError => {
+  return new ProviderError({
+    providerId: 'openrouter',
+    kind,
+    message: 'Provider request failed',
+    storedMessage: 'Provider request failed',
+    status: 400,
+    code: null,
+  })
+}
 
 describe('shouldRetryAsBase64', () => {
-  it('retries a 400 provider url error', () => {
-    const error = providerError('Failed to download image url', 400)
+  it('retries a provider url error', () => {
+    const error = providerError('url_input')
 
     expect(shouldRetryAsBase64({ error, hasUrlInputs: true, fitsBase64: true })).toBe(true)
   })
 
-  it('retries a 422 video_url error', () => {
-    const error = providerError('video_url is not reachable', 422)
-
-    expect(shouldRetryAsBase64({ error, hasUrlInputs: true, fitsBase64: true })).toBe(true)
-  })
-
-  it('does not retry a 500 provider error', () => {
-    const error = providerError('url download failed', 500)
+  it('does not retry a server error', () => {
+    const error = providerError('server')
 
     expect(shouldRetryAsBase64({ error, hasUrlInputs: true, fitsBase64: true })).toBe(false)
   })
 
-  it('does not retry a network timeout or fetch failure', () => {
+  it('does not retry a timeout', () => {
     expect(
       shouldRetryAsBase64({
-        error: providerError('fetch failed', 0),
+        error: providerError('timeout'),
         hasUrlInputs: true,
         fitsBase64: true,
       }),
     ).toBe(false)
+
     expect(
       shouldRetryAsBase64({
         error: new TypeError('fetch failed'),
@@ -55,7 +60,7 @@ describe('shouldRetryAsBase64', () => {
   })
 
   it('does not retry without url inputs or when base64 does not fit', () => {
-    const error = providerError('Failed to download url', 400)
+    const error = providerError('url_input')
 
     expect(shouldRetryAsBase64({ error, hasUrlInputs: false, fitsBase64: true })).toBe(false)
     expect(shouldRetryAsBase64({ error, hasUrlInputs: true, fitsBase64: false })).toBe(false)

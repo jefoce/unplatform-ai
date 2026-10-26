@@ -21,11 +21,16 @@ async function writeLock(pid: number): Promise<void> {
   )
 }
 
-const lockExists = (): Promise<boolean> =>
-  fs.lstat(lockFile).then(
-    () => true,
-    () => false,
+const lockExists = (): Promise<boolean> => {
+  return fs.lstat(lockFile).then(
+    () => {
+      return true
+    },
+    () => {
+      return false
+    },
   )
+}
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-lock-release-'))
@@ -60,6 +65,8 @@ describe('releaseInstanceLock', () => {
   it('ignores a missing lock', async () => {
     const { releaseInstanceLock } = await loadLock()
 
-    expect(() => releaseInstanceLock()).not.toThrow()
+    expect(() => {
+      releaseInstanceLock()
+    }).not.toThrow()
   })
 })

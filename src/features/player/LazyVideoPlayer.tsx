@@ -21,7 +21,7 @@ interface LazyVideoPlayerProps {
 /** Active video element with its overlay controls. */
 export function LazyVideoPlayer(props: LazyVideoPlayerProps) {
   const { videoRef, video, src, poster, isHoverPlay, fit, showControls: shouldShowControls } = props
-  const handleTogglePlay = video.togglePlay
+  const { togglePlay } = video
 
   return (
     <>
@@ -37,7 +37,7 @@ export function LazyVideoPlayer(props: LazyVideoPlayerProps) {
         className={cn('size-full bg-black', fit)}
       />
       {shouldShowControls && video.paused && (
-        <LazyVideoPlayButton label="Play" onPlay={handleTogglePlay} />
+        <LazyVideoPlayButton label="Play" onPlay={togglePlay} />
       )}
       {shouldShowControls && <PlayerControls video={video} />}
     </>

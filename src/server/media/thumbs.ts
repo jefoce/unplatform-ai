@@ -14,10 +14,11 @@ import {
   THUMBS_MAX_BYTES,
   THUMBS_TARGET_BYTES,
 } from '@/core/constants'
-import type { MediaKind } from '@/core/types'
+import type { MediaKind } from '@/core/media-types'
 
+import { HttpError } from '../errors'
 import { THUMBS_DIR } from '../paths'
-import { HttpError } from '../request-guard'
+import { createLimiter } from '../sync/limiter'
 import { extractFrame } from './ffmpeg'
 import sharp from './sharp'
 
@@ -41,24 +42,28 @@ export interface ThumbResult {
 }
 
 const MAX_CONCURRENT = 4
+const limiter = createLimiter('thumbQueue', MAX_CONCURRENT)
 const inFlight = new Map<string, Promise<ThumbResult>>()
-const waiters: Array<() => void> = []
-let active = 0
 
 export async function getThumbnail(input: ThumbInput): Promise<ThumbResult> {
-  if (input.kind === 'audio') throw new ThumbUnavailableError()
+  if (input.kind === 'audio') {
+    throw new ThumbUnavailableError()
+  }
 
   const requestedWidth = Math.round(input.width)
-  const width = clamp(
-    requestedWidth === 0 || Number.isNaN(requestedWidth) ? THUMB_WIDTH : requestedWidth,
-    32,
-    1280,
-  )
+
+  const isWidthInvalid = requestedWidth === 0 || Number.isNaN(requestedWidth)
+  const widthValue = isWidthInvalid ? THUMB_WIDTH : requestedWidth
+  const width = clamp(widthValue, 32, 1280)
+
   const hash = createHash('sha1').update(`${input.ref}:${input.mtimeMs}:${width}`).digest('hex')
   const filePath = path.join(THUMBS_DIR, `${hash}.webp`)
 
   await fs.mkdir(THUMBS_DIR, { recursive: true })
-  const stats = await fs.stat(filePath).catch(() => null)
+
+  const stats = await fs.stat(filePath).catch(() => {
+    return null
+  })
 
   if (stats) {
     // Touch at most once a day, so the sweep keeps hot files without churning mtime.
@@ -71,9 +76,13 @@ export async function getThumbnail(input: ThumbInput): Promise<ThumbResult> {
 
   const shared = inFlight.get(hash)
 
-  if (shared) return shared
+  if (shared) {
+    return shared
+  }
 
-  const task = createThumb({ input, hash, width, filePath }).finally(() => inFlight.delete(hash))
+  const task = createThumb({ input, hash, width, filePath }).finally(() => {
+    inFlight.delete(hash)
+  })
 
   inFlight.set(hash, task)
 
@@ -91,8 +100,10 @@ async function createThumb(params: CreateThumbParams): Promise<ThumbResult> {
   const { input, hash, width, filePath } = params
 
   try {
-    const buffer = await withSlot(() => {
-      if (input.kind === 'image') return renderImage(input.absolutePath, width)
+    const buffer = await limiter.run(() => {
+      if (input.kind === 'image') {
+        return renderImage(input.absolutePath, width)
+      }
 
       return renderVideo({ absPath: input.absolutePath, hash, width })
     })
@@ -102,19 +113,6 @@ async function createThumb(params: CreateThumbParams): Promise<ThumbResult> {
     return { filePath, contentType: 'image/webp' }
   } catch {
     throw new ThumbUnavailableError()
-  }
-}
-
-async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
-  if (active >= MAX_CONCURRENT) await new Promise<void>((resolve) => waiters.push(resolve))
-
-  active += 1
-
-  try {
-    return await fn()
-  } finally {
-    active -= 1
-    waiters.shift()?.()
   }
 }
 
@@ -174,11 +172,14 @@ export async function sweepThumbs(params: SweepThumbsParams = {}): Promise<numbe
     maxBytes = THUMBS_MAX_BYTES,
     targetBytes = THUMBS_TARGET_BYTES,
   } = params
+
   const cutoff = Date.now() - THUMB_UNUSED_DAYS * 86_400_000
   const collected = await collectThumbs({ dir, cutoff })
   const total = sumBy(collected.files, 'size')
 
-  if (total <= maxBytes) return collected.removed
+  if (total <= maxBytes) {
+    return collected.removed
+  }
 
   return collected.removed + (await trimThumbs({ files: collected.files, total, targetBytes }))
 }
@@ -201,17 +202,28 @@ interface CollectedThumbs {
 
 async function collectThumbs(params: CollectThumbsParams): Promise<CollectedThumbs> {
   const { dir, cutoff } = params
-  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => {
+    return []
+  })
+
   const files: ThumbFile[] = []
   let removed = 0
 
   for (const entry of entries) {
-    if (!entry.isFile()) continue
+    if (!entry.isFile()) {
+      continue
+    }
 
     const file = path.join(dir, entry.name)
-    const stats = await fs.stat(file).catch(() => null)
 
-    if (!stats) continue
+    const stats = await fs.stat(file).catch(() => {
+      return null
+    })
+
+    if (!stats) {
+      continue
+    }
 
     if (stats.mtimeMs < cutoff) {
       await fs.unlink(file).catch(() => {})
@@ -237,7 +249,9 @@ async function trimThumbs(params: TrimThumbsParams): Promise<number> {
   let removed = 0
 
   for (const item of sortBy(files, 'mtimeMs')) {
-    if (total <= targetBytes) break
+    if (total <= targetBytes) {
+      break
+    }
 
     await fs.unlink(item.file).catch(() => {})
     total -= item.size

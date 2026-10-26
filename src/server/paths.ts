@@ -4,15 +4,23 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { isNil } from 'lodash-es'
-
 import { UPLOAD_CLEANUP_MS } from '@/core/constants'
+import { isNonEmptyString } from '@/core/guards'
 
 const envRoot = process.env.STORAGE_ROOT?.trim()
 const defaultRoot = path.join(os.homedir(), '.unplatform-ai')
 
 /** Same root for browser and desktop. STORAGE_ROOT overrides it (tests, custom setups). */
-export const STORAGE_ROOT = isNil(envRoot) || envRoot === '' ? defaultRoot : path.resolve(envRoot)
+export const STORAGE_ROOT = storageRoot()
+
+function storageRoot(): string {
+  if (!isNonEmptyString(envRoot)) {
+    return defaultRoot
+  }
+
+  return path.resolve(envRoot)
+}
+
 const LOGS_DIR = path.join(STORAGE_ROOT, 'logs')
 
 export const LOCK_FILE = path.join(STORAGE_ROOT, 'server.lock')
@@ -39,10 +47,11 @@ export interface UploadPaths {
 export async function ensureDirs(): Promise<void> {
   await fs.mkdir(STORAGE_ROOT, { recursive: true, mode: 0o700 })
   await fs.chmod(STORAGE_ROOT, 0o700)
+
   await Promise.all(
-    [DOWNLOADS_DIR, UPLOADS_DIR, DATA_DIR, THUMBS_DIR, COMPAT_DIR, LOGS_DIR].map((dir) =>
-      fs.mkdir(dir, { recursive: true, mode: 0o700 }),
-    ),
+    [DOWNLOADS_DIR, UPLOADS_DIR, DATA_DIR, THUMBS_DIR, COMPAT_DIR, LOGS_DIR].map((dir) => {
+      return fs.mkdir(dir, { recursive: true, mode: 0o700 })
+    }),
   )
 }
 
@@ -63,9 +72,14 @@ export function uploadPaths(id: string, ext: string): UploadPaths {
   return { media: `${base}${ext}`, json: `${base}.json` }
 }
 
+interface CleanupResult {
+  removed: number
+}
+
 /** Deletes stale `*.part` and `*.tmp-*` files. Skips symlinks. */
-export async function cleanupStale(): Promise<{ removed: number }> {
+export async function cleanupStale(): Promise<CleanupResult> {
   const cutoff = Date.now() - UPLOAD_CLEANUP_MS
+
   const [downloads, uploads] = await Promise.all([
     removeStale(DOWNLOADS_DIR, cutoff),
     removeStale(UPLOADS_DIR, cutoff),
@@ -75,20 +89,29 @@ export async function cleanupStale(): Promise<{ removed: number }> {
 }
 
 async function removeStale(dir: string, cutoff: number): Promise<number> {
-  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => {
+    return []
+  })
+
   let removed = 0
 
   for (const entry of entries) {
-    if (!entry.isFile()) continue
+    if (!entry.isFile()) {
+      continue
+    }
 
-    if (!entry.name.endsWith('.part') && !entry.name.includes('.tmp-')) continue
+    if (!entry.name.endsWith('.part') && !entry.name.includes('.tmp-')) {
+      continue
+    }
 
     const file = path.join(dir, entry.name)
 
     try {
       const stats = await fs.lstat(file)
 
-      if (stats.mtimeMs >= cutoff) continue
+      if (stats.mtimeMs >= cutoff) {
+        continue
+      }
 
       await fs.unlink(file)
       removed += 1

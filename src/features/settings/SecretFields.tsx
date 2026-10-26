@@ -2,12 +2,15 @@
 
 import { isNull } from 'lodash-es'
 
-import type { SecretChange, SecretFieldDef } from './secret-fields'
+import type { ProviderSecretField } from '@/core/providers/types'
+import type { SecretName } from '@/core/secret-names'
+import type { SecretKeyStatus } from '@/core/types'
+
 import { SecretField } from './SecretField'
-import type { SecretKeyStatus, SecretName } from './use-secrets'
+import type { SecretChange } from './use-settings-draft'
 
 interface SecretFieldsProps {
-  fields: SecretFieldDef[]
+  fields: readonly ProviderSecretField[]
   keys: Record<SecretName, SecretKeyStatus>
   values: Partial<Record<SecretName, string | null>>
   onChange: (name: SecretName, change: SecretChange) => void
@@ -15,22 +18,24 @@ interface SecretFieldsProps {
 
 /** Renders a list of secret fields bound to the modal draft. */
 export function SecretFields(props: SecretFieldsProps) {
-  const { fields, keys, values, onChange: handleChange } = props
+  const { fields, keys, values } = props
 
   return (
     <div className="space-y-3">
-      {fields.map((field) => (
-        <SecretField
-          key={field.name}
-          name={field.name}
-          label={field.label}
-          hint={field.hint}
-          status={keys[field.name]}
-          value={values[field.name] ?? ''}
-          remove={isNull(values[field.name])}
-          onChange={handleChange}
-        />
-      ))}
+      {fields.map((field) => {
+        return (
+          <SecretField
+            key={field.name}
+            name={field.name}
+            label={field.label}
+            hint={field.hint}
+            status={keys[field.name]}
+            value={values[field.name] ?? ''}
+            remove={isNull(values[field.name])}
+            onChange={props.onChange}
+          />
+        )
+      })}
     </div>
   )
 }

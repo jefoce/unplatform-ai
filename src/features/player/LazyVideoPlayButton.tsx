@@ -13,12 +13,10 @@ interface LazyVideoPlayButtonProps {
 
 /** Round play badge over the poster or the paused video. */
 export function LazyVideoPlayButton(props: LazyVideoPlayButtonProps) {
-  const { label, onPlay } = props
-
-  const handleClick = onPlay
+  const { label } = props
 
   return (
-    <button type="button" aria-label={label} onClick={handleClick} className={CENTER_PLAY_CLASSES}>
+    <button type="button" aria-label={label} onClick={props.onPlay} className={CENTER_PLAY_CLASSES}>
       <Play size={18} className="fill-current" aria-hidden />
     </button>
   )

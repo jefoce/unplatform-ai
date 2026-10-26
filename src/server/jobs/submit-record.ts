@@ -1,9 +1,9 @@
 import 'server-only'
 
-import type { GenerationRecord } from '@/core/types'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
 
 import { getGeneration, saveGeneration } from '../repos/generations'
-import { withLock } from './lock'
+import { withLock } from '../sync/lock'
 import { isSubmitStopped } from './submit-queue'
 
 /** Serializes a read, patch and atomic save for one record. */
@@ -14,11 +14,17 @@ export async function updateSubmit(
   return withLock(id, async () => {
     const record = await getGeneration(id)
 
-    if (!record) return null
+    if (!record) {
+      return null
+    }
 
     const next = patch(record)
 
-    return next ? saveGeneration(next) : null
+    if (next) {
+      return saveGeneration(next)
+    }
+
+    return null
   })
 }
 

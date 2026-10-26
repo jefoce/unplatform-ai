@@ -23,18 +23,27 @@ Single user, local app on macOS, Windows and Linux. It is not a server for a net
 | Another OS user reads app data | Data folder created with mode 0700 on macOS and Linux. Windows relies on the user profile ACL because 0700 has no meaning there. The 0600 `secrets.json` fallback is Linux only. |
 | Keys leak into the page or logs | Secrets stay server-side, status exposes only the last four characters, logs name keys but never values or presigned URLs |
 | Path traversal in media or folder routes | `safe-path` resolution under the allowed root, UUID ids. Export routes write only to a path or folder from the native save dialog, desktop only, after an absolute path check, a real directory check, and symlink and non-file rejection. Copies are exclusive, a single-file export overwrites only when the route asks for it. |
-| The webview gains native powers | Only dialog, notification and opener permissions. Opener allows `https://openrouter.ai/*` only. Navigation is limited to the local origin. No custom IPC commands. |
+| The webview gains native powers | Dialog, notification and opener permissions. The opener allows `https://openrouter.ai/*`, `https://dash.cloudflare.com/*` and `https://github.com/jefoce/unplatform-ai*`. Five `update_*` commands are allowed through the app manifest for the local origin only. The page has no `updater:*` or `process:*` permission. |
 | A tampered Node runtime at build | Pinned source checked against NODE_SHA256 in scripts/node/versions.env, the official binary fallback is checked against SHASUMS256.txt |
 | A tampered ffmpeg source at build | Pinned SHA-256 per archive, a nonfree guard on the profile, `scripts/ffmpeg/verify.sh`, and the three source archives attached to every release. Sources are also published in a public GHCR package. |
 | A tampered sidecar artifact | Sidecars come from public GHCR packages. Only this repository's token can push, every pull verifies the binary sha256 against manifest.json and runs scripts/ffmpeg/verify.sh or scripts/node/verify.sh. Existing tags are not overwritten unless force_rebuild_sidecars is set. |
 | A tampered prebuilt sidecar in staging | The extracted binary is chmod +x, its manifest sha256 is checked, and verify.sh runs before packaging. Native packages are copied whole and ad-hoc signed on macOS. |
+| A tampered update or a downgrade | `latest.json` comes over HTTPS and is not signed, but each installer carries a signature checked against the embedded public key. A changed manifest can only point at files that fail the check. The plugin installs only a newer version. `UPAI_UPDATE_ENDPOINT` changes which manifest is read, never the key. |
 | Reference images leak location or camera data | Every image is re-encoded before sending and EXIF metadata is dropped |
 | Provider content checks | Prompts and references go to OpenRouter and the model provider, which run their own content checks. Seedance blocks realistic faces. Nothing is sent before Generate. |
 | Remote media links leak | Presigned links are short lived and scoped to one object, 2 h by default |
 
 The webview never receives key material. In desktop mode the Node server asks the Rust shell for secrets over stdin/stdout, so keychain calls happen in the signed app process.
 
-## 4. Known limits
+## 4. Updates
+
+`latest.json` comes over HTTPS from GitHub and carries one signature per installer. It is not itself signed. The shell checks the downloaded installer against the Ed25519 public key embedded in `tauri.conf.json`, so a changed manifest can only point at files that fail the check. The plugin installs only a version newer than the running one. A download that fails the check is rejected and the server keeps running. `UPAI_UPDATE_ENDPOINT` changes which manifest is read, never the key.
+
+The private signing key lives only in the GitHub secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and in the owner's password manager. It is never in the repo or on a build runner outside a release job.
+
+A lost or leaked key cannot be replaced for an installed app, because the embedded public key is fixed at build time. Every user must then reinstall by hand from the Releases page. Keep a backup of the key.
+
+## 5. Known limits
 
 - The app is ad hoc signed. macOS can show Keychain prompts again after a rebuild or update, and Gatekeeper needs the first-open bypass. A Developer ID signature is planned. See [DEVELOPMENT.md](DEVELOPMENT.md).
 - Browser mode has no session token. Any local process that can reach `127.0.0.1:3000` can call the API. Use browser mode for development only.
@@ -42,6 +51,6 @@ The webview never receives key material. In desktop mode the Node server asks th
 - If Linux has no keyring service, keys fall back to `~/.unplatform-ai/secrets.json` with mode 0600. File permissions, not the OS keyring, protect that file. macOS and Windows do not use the file fallback.
 - The R2 token can read and write the configured bucket. Create a token scoped to that bucket only.
 
-## 5. Reporting
+## 6. Reporting
 
 Security problems: use GitHub private vulnerability reporting (Security tab, "Report a vulnerability"). Normal bugs: open an issue. Do not include keys, account ids, presigned URLs or private media in the report.

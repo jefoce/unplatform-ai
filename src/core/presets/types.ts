@@ -1,4 +1,6 @@
-import type { MediaKind } from '../types'
+import type { MediaKind, MediaKindCounts } from '../media-types'
+import type { VideoProviderId } from '../providers/types'
+import type { Dict } from '../utility-types'
 
 export const RESOLUTIONS = ['480p', '720p', '768p', '1080p', '2K', '4K'] as const
 export type Resolution = (typeof RESOLUTIONS)[number]
@@ -14,14 +16,33 @@ export const ASPECT_RATIOS = [
   '9:16',
   '9:21',
 ] as const
+
 export type AspectRatio = (typeof ASPECT_RATIOS)[number]
 export type AspectChoice = AspectRatio | 'auto'
 
-type Transport = 'base64' | 'url' | 'auto'
+/** @public */
+export const RESOLVED_TRANSPORTS = ['base64', 'url'] as const
 
-type PresetFamily = 'wan' | 'seedance'
+/** @public */
+export const TRANSPORTS = [...RESOLVED_TRANSPORTS, 'auto'] as const
 
-type PresetIcon = 'sparkles' | 'audio-lines'
+/** @public */
+export type Transport = (typeof TRANSPORTS)[number]
+
+/** @public */
+export interface TransportByKind {
+  image: Transport
+  video: Transport
+  audio: Transport
+}
+
+export const PRESET_FAMILIES = ['wan', 'seedance'] as const
+
+export type PresetFamily = (typeof PRESET_FAMILIES)[number]
+
+export const PRESET_ICONS = ['sparkles', 'audio-lines'] as const
+
+export type PresetIcon = (typeof PRESET_ICONS)[number]
 
 export interface ReferenceLimits {
   maxBytes?: number
@@ -38,54 +59,100 @@ export interface ReferenceLimits {
   alpha?: boolean
 }
 
-export interface PricingKeyParams {
+export type SkuTable = Readonly<Dict<number>>
+export type ResolutionTiers = Readonly<Partial<Record<Resolution, string>>>
+
+type SizeByAspect = Partial<Record<AspectRatio, `${number}x${number}`>>
+
+export type PresetReferenceLimits = Partial<Record<MediaKind, ReferenceLimits>>
+
+export interface SkuContext {
   resolution: Resolution
   audio: boolean
   hasVideoInput: boolean
 }
 
-export type PresetPricing =
-  | {
-      kind: 'perSecond'
-      unit: 'usd' | 'cents'
-      key: (params: PricingKeyParams) => string
-      fallback: Record<string, number>
+export interface SkuCondition {
+  hasVideoInput?: boolean
+  audio?: boolean
+  hasTier?: boolean
+}
 
-      /** Billed reference-video seconds per input second. */
-      referenceVideoFactor: number
-    }
-  | {
-      kind: 'videoTokens'
-      fps: number
-      key: (params: PricingKeyParams) => string
-      fallback: Record<string, number>
+/** First rule whose every set condition matches wins. `{resolution}` and `{tier}` are replaced. */
+export interface SkuRule {
+  when: SkuCondition
+  key: string
+}
 
-      /** Billed reference-video seconds per input second. */
-      referenceVideoFactor: number
-    }
+export interface PerSecondPricing {
+  kind: 'perSecond'
+  unit: 'usd' | 'cents'
+  skuRules: readonly SkuRule[]
+  tiers: ResolutionTiers
+  fallback: SkuTable
+  minBillableSec: number
 
-/** Provider error mapping, filled per family when error handling lands. */
-interface ErrorRule {
-  match: string | RegExp
-  title: string
-  hint: string
-  kind: string
-  retry?: boolean
+  /** Billed reference-video seconds per input second. */
+  referenceVideoFactor: number
+}
+
+export interface VideoTokenPricing {
+  kind: 'videoTokens'
+  fps: number
+  skuRules: readonly SkuRule[]
+  tiers: ResolutionTiers
+  fallback: SkuTable
+  minBillableSec: number
+
+  /** Billed reference-video seconds per input second. */
+  referenceVideoFactor: number
+}
+
+export type PricingRule = PerSecondPricing | VideoTokenPricing
+
+export interface ProviderBinding {
+  provider: VideoProviderId
+  modelId: string
+  pricing: PricingRule
+  transport: TransportByKind
+}
+
+interface PresetDuration {
+  min: number
+  max: number
+  default: number
+  options?: readonly number[]
+}
+
+interface PresetAudio {
+  supported: boolean
+  default: boolean
+}
+
+interface PresetFrames {
+  start: boolean
+  end: boolean
+}
+
+interface PresetReferences extends MediaKindCounts {
+  videoTotalSec: number
+  audioTotalSec: number
+  videoMinSec?: number
+  videoMaxSec?: number
+  audioMinSec?: number
+  audioMaxSec?: number
+  audioNeedsVisual?: boolean
 }
 
 export interface ModelPreset {
   id: string
   title: string
-  slug: string
   family: PresetFamily
 
   /** Key the picker maps to a lucide icon. */
   icon: PresetIcon
-  errors: readonly ErrorRule[]
-  duration: { min: number; max: number; default: number; options?: readonly number[] }
+  duration: PresetDuration
 
-  /** Provider-billed floor in seconds, independent of the requested duration. */
-  minBillableSec?: number
   aspectRatios: readonly AspectRatio[]
   defaultAspectRatio: AspectRatio
   autoAspectWithFrames: boolean
@@ -94,26 +161,14 @@ export interface ModelPreset {
   promptOptional: boolean
   resolutions: readonly Resolution[]
   defaultResolution: Resolution
-  audio: { supported: boolean; default: boolean }
-  frames: { start: boolean; end: boolean }
-  references: {
-    image: number
-    video: number
-    audio: number
-    videoTotalSec: number
-    audioTotalSec: number
-    videoMinSec?: number
-    videoMaxSec?: number
-    audioMinSec?: number
-    audioMaxSec?: number
-    audioNeedsVisual?: boolean
-  }
-  inputTransport: { image: Transport; video: Transport; audio: Transport }
-  referenceLimits?: Partial<Record<MediaKind, ReferenceLimits>>
+  audio: PresetAudio
+  frames: PresetFrames
+  references: PresetReferences
+  referenceLimits?: PresetReferenceLimits
   maxInputPlusOutputSec: number | null
   promptMaxChars: number
   seed: boolean
   refLabel: string
-  outputSizes?: Partial<Record<Resolution, Partial<Record<AspectRatio, `${number}x${number}`>>>>
-  pricing: PresetPricing
+  outputSizes?: Partial<Record<Resolution, SizeByAspect>>
+  bindings: readonly [ProviderBinding, ...ProviderBinding[]]
 }

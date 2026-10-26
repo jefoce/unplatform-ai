@@ -5,7 +5,7 @@ export function discountLabel(discount: number): string {
   return `${Math.round(discount * 100)}% off`
 }
 
-type PriceTone = 'default' | 'onAccent'
+type PriceTone = 'default' | 'onAccent' | 'muted'
 
 interface ToneClasses {
   current: string
@@ -26,6 +26,12 @@ const TONE_CLASSES: Record<PriceTone, ToneClasses> = {
     currentFlat: 'text-on-lime',
     list: 'text-on-lime/50 line-through',
     discount: 'text-on-lime/70',
+  },
+  muted: {
+    current: 'text-disabled',
+    currentFlat: 'text-disabled',
+    list: 'text-disabled/50 line-through',
+    discount: 'text-disabled/70',
   },
 }
 
@@ -48,15 +54,15 @@ export function Price(props: PriceProps) {
     tone = 'default',
     showDiscountLabel: shouldShowDiscountLabel = false,
   } = props
+
   const classes = TONE_CLASSES[tone]
   const isDiscounted = discount > 0
+  const currentClass = isDiscounted ? classes.current : classes.currentFlat
 
   return (
     <span className="inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums">
       {!isNil(list) && list !== current && <span className={classes.list}>{format(list)}</span>}
-      <span className={isDiscounted ? classes.current : classes.currentFlat}>
-        {format(current)}
-      </span>
+      <span className={currentClass}>{format(current)}</span>
       {shouldShowDiscountLabel && isDiscounted && (
         <span className={classes.discount}>{discountLabel(discount)}</span>
       )}

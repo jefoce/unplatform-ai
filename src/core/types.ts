@@ -1,37 +1,18 @@
-import type { UploadItem } from './media-types'
-import type { AspectChoice, Resolution } from './presets'
+import type { AspectChoice, Resolution } from './presets/types'
+import type {
+  GenerationRecord,
+  GeneratorTab,
+  JobStatus,
+  PriceSource,
+} from './schemas/generation-record'
 import type { SecretName } from './secret-names'
+import type { Dict } from './utility-types'
 
-export type {
-  BrowseResult,
-  FolderDir,
-  FolderFile,
-  FolderItem,
-  FolderListing,
-  LinkMode,
-  MediaKind,
-  ReferencePlan,
-  UploadItem,
-} from './media-types'
-
-export type GeneratorTab = 'frames' | 'references'
-
-/** Exact generate panel state. Saved in record, copied back by Rerun. */
-export interface GenerationInput {
-  presetId: string
-  tab: GeneratorTab
-  prompt: string
-  audio: boolean
-  duration: number
-  aspectRatio: AspectChoice
-  resolution: Resolution
-  frames: { start: string | null; end: string | null }
-  references: string[]
-  seed: number | null
+/** Start and end frame data URLs. */
+export interface FrameSlots {
+  start: string | null
+  end: string | null
 }
-
-export type JobStatus =
-  'submitting' | 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'expired'
 
 export const ACTIVE_STATUSES: JobStatus[] = ['submitting', 'pending', 'in_progress']
 
@@ -41,74 +22,31 @@ export interface BatchSkip {
   reason: 'not_found' | 'active' | 'not_ready'
 }
 
-interface GenerationCost {
-  currency: 'USD'
-  pricePerSec: number
-  priceSource: 'live' | 'fallback' | 'mock' | 'unknown'
-  estimatedUsd: number
-  actualUsd: number | null
-  isByok: boolean | null
-  billed: boolean | null
-}
+export const HISTORY_MODES = ['all', 'text', 'frames', 'references'] as const
 
-export interface GenerationRecord {
-  id: string
-  createdAt: string
-  updatedAt: string
-  status: JobStatus
-  input: GenerationInput
-  preset: { id: string; title: string; slug: string }
-  inputsSnapshot: Record<
-    string,
-    Pick<UploadItem, 'kind' | 'originalName' | 'source' | 'target'> & {
-      width?: number
-      height?: number
-      transport?: 'base64' | 'url'
-      sentWidth?: number
-      sentHeight?: number
-      sentBytes?: number
-      format?: 'jpeg' | 'png'
-      flattened?: '#ffffff' | '#1c1e20'
-    }
-  >
-  submit?: {
-    stage: 'grace' | 'uploading' | 'sending'
-    notBefore?: string
-    progress?: number
-  }
-  job?: {
-    id: string
-    generationId?: string
-    submittedAt: string
-    startedAt?: string
-    completedAt?: string
-    expiresAt?: number
-  }
-  download?: { startedAt: string }
-  seedUsed: number | null
-  favorite: boolean
-  cost: GenerationCost
-  output?: {
-    video: string
-    preview?: string
-    width?: number
-    height?: number
-    durationSec?: number
-    bytes?: number
-  }
-  error?: string
-}
+export type HistoryMode = (typeof HISTORY_MODES)[number]
+
+export const STATUS_FILTERS = ['all', 'done', 'active', 'failed'] as const
+
+export type StatusFilter = (typeof STATUS_FILTERS)[number]
+
+export type ResolutionFilter = Resolution | 'all'
+export type AspectFilter = AspectChoice | 'all'
+
+export const AUDIO_FILTERS = ['any', 'on', 'off'] as const
+
+export type AudioFilter = (typeof AUDIO_FILTERS)[number]
 
 export interface HistoryFilters {
   q?: string
   model?: string
   favorite?: boolean
-  status?: 'all' | 'done' | 'active' | 'failed'
+  status?: StatusFilter
   tab?: GeneratorTab | 'all'
-  mode?: 'all' | 'text' | 'frames' | 'references'
-  resolution?: Resolution | 'all'
-  aspect?: AspectChoice | 'all'
-  audio?: 'any' | 'on' | 'off'
+  mode?: HistoryMode
+  resolution?: ResolutionFilter
+  aspect?: AspectFilter
+  audio?: AudioFilter
 }
 
 export interface GenerationListResult {
@@ -117,6 +55,10 @@ export interface GenerationListResult {
   activeCount: number
 }
 
+export const ACCOUNT_SOURCES = ['management', 'key', 'mock', 'none'] as const
+
+export type AccountSource = (typeof ACCOUNT_SOURCES)[number]
+
 export interface CreditsInfo {
   balance: number | null
   keyLimitRemaining: number | null
@@ -124,7 +66,7 @@ export interface CreditsInfo {
   usageDaily: number | null
   usageMonthly: number | null
   localSpent: number
-  source: 'management' | 'key' | 'mock' | 'none'
+  source: AccountSource
   fetchedAt: string
   error?: string
 }
@@ -136,7 +78,9 @@ export interface SystemCapabilities {
   platform: string
 }
 
-export type SecretSource = 'env' | 'keychain' | 'file'
+export const SECRET_SOURCES = ['env', 'keychain', 'file'] as const
+
+export type SecretSource = (typeof SECRET_SOURCES)[number]
 
 export interface SecretKeyStatus {
   set: boolean
@@ -144,9 +88,11 @@ export interface SecretKeyStatus {
   hint: string | null
 }
 
+export type SecretBackend = Exclude<SecretSource, 'env'> | null
+
 /** Stored key status, without values. */
 export interface SecretStatus {
-  backend: 'keychain' | 'file' | null
+  backend: SecretBackend
   loading: boolean
   loadError: string | null
   keys: Record<SecretName, SecretKeyStatus>
@@ -157,16 +103,16 @@ export interface GenerationEstimate {
   estimatedUsd: number
   listUsd: number
   pricePerSec: number
-  priceSource: 'live' | 'fallback' | 'mock' | 'unknown'
+  priceSource: PriceSource
   discount: number
 }
 
 /** Live and list SKU rates for one preset. */
 export interface PricingInfo {
-  skus: Record<string, number>
-  listSkus: Record<string, number>
+  skus: Dict<number>
+  listSkus: Dict<number>
   discount: number
-  source: 'live' | 'fallback' | 'mock'
+  source: Exclude<PriceSource, 'unknown'>
   fetchedAt: string
 }
 

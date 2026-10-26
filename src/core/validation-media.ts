@@ -1,18 +1,20 @@
 import { isEmpty, isNil } from 'lodash-es'
 
 import { KIND_TITLE } from './media-kinds'
-import type { ModelPreset, ReferenceLimits } from './presets'
-import type { UploadItem } from './types'
+import type { ModelPreset, ReferenceLimits } from './presets/types'
+import type { UploadItem } from './schemas/upload-item'
+import { joinWords } from './text'
 
 const MB = 1024 * 1024
 
 /** Whole seconds stay plain, fractions keep up to two decimals. */
-export const seconds = (value: number): string => String(Number(value.toFixed(2)))
+export const seconds = (value: number): string => {
+  return String(Number(value.toFixed(2)))
+}
 
-const joinOr = (items: readonly string[]): string =>
-  items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`
-
-const formatRatio = (ratio: number): string => String(Number(ratio.toFixed(1)))
+const formatRatio = (ratio: number): string => {
+  return String(Number(ratio.toFixed(1)))
+}
 
 interface CheckReferenceLimitsParams {
   upload: UploadItem
@@ -30,22 +32,31 @@ const checkFormat = (ctx: ReferenceLimitContext): void => {
   const { upload, limits, preset, errors } = ctx
   const formats = limits.formats
 
-  if (isNil(formats)) return
-  if (isEmpty(formats)) return
+  if (isNil(formats)) {
+    return
+  }
+
+  if (isEmpty(formats)) {
+    return
+  }
 
   const ext = upload.ext.replace(/^\./, '').toLowerCase()
 
-  if (formats.includes(ext)) return
+  if (formats.includes(ext)) {
+    return
+  }
 
   errors.push(
-    `${preset.title} takes ${upload.kind} references as ${joinOr(formats)} (${upload.originalName})`,
+    `${preset.title} takes ${upload.kind} references as ${joinWords(formats, 'or')} (${upload.originalName})`,
   )
 }
 
 const checkMinSide = (ctx: ReferenceLimitContext, short: number): void => {
   const min = ctx.limits.minSidePx
 
-  if (isNil(min) || short >= min) return
+  if (isNil(min) || short >= min) {
+    return
+  }
 
   ctx.errors.push(`${ctx.title} too small: ${short} px, min ${min} px (${ctx.name})`)
 }
@@ -53,7 +64,9 @@ const checkMinSide = (ctx: ReferenceLimitContext, short: number): void => {
 const checkMaxSide = (ctx: ReferenceLimitContext, long: number): void => {
   const max = ctx.limits.maxSidePx
 
-  if (isNil(max) || long <= max) return
+  if (isNil(max) || long <= max) {
+    return
+  }
 
   ctx.errors.push(`${ctx.title} too large: ${long} px, max ${max} px (${ctx.name})`)
 }
@@ -62,12 +75,16 @@ const checkAspect = (ctx: ReferenceLimitContext): void => {
   const { upload, limits, title, name, errors } = ctx
   const max = limits.maxAspect
 
-  if (isNil(max) || isNil(upload.width) || isNil(upload.height)) return
+  if (isNil(max) || isNil(upload.width) || isNil(upload.height)) {
+    return
+  }
 
   const short = Math.min(upload.width, upload.height)
   const long = Math.max(upload.width, upload.height)
 
-  if (short === 0 || long / short <= max) return
+  if (short === 0 || long / short <= max) {
+    return
+  }
 
   errors.push(`${title} too narrow: ${formatRatio(long / short)}:1, max ${max}:1 (${name})`)
 }
@@ -75,7 +92,9 @@ const checkAspect = (ctx: ReferenceLimitContext): void => {
 const checkDimensions = (ctx: ReferenceLimitContext): void => {
   const { upload } = ctx
 
-  if (isNil(upload.width) || isNil(upload.height)) return
+  if (isNil(upload.width) || isNil(upload.height)) {
+    return
+  }
 
   checkMinSide(ctx, Math.min(upload.width, upload.height))
   checkMaxSide(ctx, Math.max(upload.width, upload.height))
@@ -86,7 +105,9 @@ const checkBytes = (ctx: ReferenceLimitContext): void => {
   const { upload, limits, title, name, errors } = ctx
   const max = limits.maxBytes
 
-  if (isNil(max) || upload.sizeBytes <= max) return
+  if (isNil(max) || upload.sizeBytes <= max) {
+    return
+  }
 
   errors.push(
     `${title} file too large: ${Math.round(upload.sizeBytes / MB)} MB, max ${Math.round(max / MB)} MB (${name})`,
@@ -98,7 +119,9 @@ export function checkReferenceLimits(params: CheckReferenceLimitsParams): void {
   const { upload, preset, errors } = params
   const limits = preset.referenceLimits?.[upload.kind]
 
-  if (!limits) return
+  if (!limits) {
+    return
+  }
 
   const ctx = {
     upload,

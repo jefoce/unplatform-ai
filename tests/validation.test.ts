@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPreset, type Resolution } from '@/core/presets'
+import { getPreset } from '@/core/presets'
+import type { Resolution } from '@/core/presets/types'
 import { validateInput } from '@/core/validation'
 
 import { input, preset, upload, uploadsOf } from './helpers/validation-fixtures'
@@ -30,6 +31,7 @@ describe('validateInput prompt', () => {
 
   it('accepts an empty prompt when the preset marks it optional and a start frame exists', () => {
     const optional = { ...preset, promptOptional: true }
+
     const result = validateInput({
       input: input({
         tab: 'frames',
@@ -47,6 +49,7 @@ describe('validateInput prompt', () => {
 
   it('rejects an empty prompt with an optional preset and no start frame', () => {
     const optional = { ...preset, promptOptional: true }
+
     const result = validateInput({
       input: input({
         tab: 'frames',
@@ -82,11 +85,13 @@ describe('validateInput prompt', () => {
 describe('validateInput duration', () => {
   it('rejects a non-integer or out-of-range duration', () => {
     const low = validateInput({ input: input({ duration: 1 }), uploads: {}, preset })
+
     const fractional = validateInput({
       input: input({ duration: 5.5 }),
       uploads: {},
       preset,
     })
+
     const high = validateInput({ input: input({ duration: 31 }), uploads: {}, preset })
 
     expect(low.ok).toBe(false)
@@ -102,6 +107,7 @@ describe('validateInput duration', () => {
     expect(wanLow.errors).toContain('duration: Minimum 5s')
 
     const seedance = getPreset('seedance-2.0')
+
     const seedanceLow = validateInput({
       input: input({ presetId: seedance.id, duration: 2 }),
       uploads: {},
@@ -121,6 +127,7 @@ describe('validateInput duration', () => {
     expect(
       validateInput({ input: input({ duration: 5 }), uploads: {}, preset: optionPreset }).ok,
     ).toBe(true)
+
     const result = validateInput({
       input: input({ duration: 9 }),
       uploads: {},
@@ -158,6 +165,7 @@ describe('validateInput resolution and aspect', () => {
 
   it('allows Seedance 2.0 9:21 only at 720p', () => {
     const seedance = getPreset('seedance-2.0')
+
     const wide = validateInput({
       input: input({ presetId: seedance.id, aspectRatio: '9:21', resolution: '720p' }),
       uploads: {},
@@ -165,6 +173,7 @@ describe('validateInput resolution and aspect', () => {
     })
 
     expect(wide.ok).toBe(true)
+
     const hd = validateInput({
       input: input({ presetId: seedance.id, aspectRatio: '9:21', resolution: '1080p' }),
       uploads: {},
@@ -185,6 +194,40 @@ describe('validateInput resolution and aspect', () => {
   })
 })
 
+describe('validateInput model status', () => {
+  it.each([
+    ['missing', 'Not available on OpenRouter right now.'],
+    ['no_provider', 'Add your OpenRouter key in Settings.'],
+  ] as const)('puts the catalog reason first when the model is %s', (modelStatus, modelReason) => {
+    const result = validateInput({
+      input: input({ prompt: '' }),
+      uploads: {},
+      preset,
+      ctx: { modelStatus, modelReason },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.errors[0]).toBe(modelReason)
+  })
+
+  it('does not block an unverified model', () => {
+    const result = validateInput({
+      input: input(),
+      uploads: {},
+      preset,
+      ctx: { modelStatus: 'unverified', modelReason: null },
+    })
+
+    expect(result).toEqual({ ok: true, errors: [], warnings: [] })
+  })
+
+  it('does not block while the catalog is undefined', () => {
+    const result = validateInput({ input: input(), uploads: {}, preset })
+
+    expect(result).toEqual({ ok: true, errors: [], warnings: [] })
+  })
+})
+
 describe('validateInput frames', () => {
   it('rejects an end frame without a start frame', () => {
     const result = validateInput({
@@ -198,6 +241,7 @@ describe('validateInput frames', () => {
 
   it('rejects an end frame when the preset disables it', () => {
     const noEnd = { ...preset, frames: { start: true, end: false } }
+
     const result = validateInput({
       input: input({ tab: 'frames', prompt: '', frames: { start: 'start', end: 'end' } }),
       uploads: uploadsOf(upload('start', 'image'), upload('end', 'image')),

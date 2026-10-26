@@ -6,14 +6,19 @@ import { useEffect } from 'react'
 export function usePointerBlur(): void {
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
-      if (event.detail === 0) return // keyboard activation (Enter, Space)
+      if (event.detail === 0) {
+        return
+      } // keyboard activation (Enter, Space)
 
       const target = event.target instanceof Element ? event.target : null
+
       const control = target?.closest<HTMLElement>(
         'button, [role="button"], [role="checkbox"], [role="tab"], a[href]',
       )
 
-      if (!control) return
+      if (!control) {
+        return
+      }
 
       if (
         control.closest(
@@ -23,15 +28,21 @@ export function usePointerBlur(): void {
         return
       }
 
-      if (control.matches('[aria-haspopup], [aria-expanded="true"], [data-state="open"]')) return
+      if (control.matches('[aria-haspopup], [aria-expanded="true"], [data-state="open"]')) {
+        return
+      }
 
       requestAnimationFrame(() => {
-        if (document.activeElement === control) control.blur()
+        if (document.activeElement === control) {
+          control.blur()
+        }
       })
     }
 
     document.addEventListener('click', onClick, true)
 
-    return () => document.removeEventListener('click', onClick, true)
+    return () => {
+      document.removeEventListener('click', onClick, true)
+    }
   }, [])
 }

@@ -19,12 +19,19 @@ describe('resolveInside', () => {
   })
 
   it('rejects parent traversal', () => {
-    expect(() => resolveInside(root, '../secret')).toThrow(SafePathError)
-    expect(() => resolveInside(root, 'downloads/../../secret')).toThrow(SafePathError)
+    expect(() => {
+      return resolveInside(root, '../secret')
+    }).toThrow(SafePathError)
+
+    expect(() => {
+      return resolveInside(root, 'downloads/../../secret')
+    }).toThrow(SafePathError)
   })
 
   it('rejects absolute paths outside the root', () => {
-    expect(() => resolveInside(root, '/etc/passwd')).toThrow(SafePathError)
+    expect(() => {
+      return resolveInside(root, '/etc/passwd')
+    }).toThrow(SafePathError)
   })
 
   it('does not URL-decode percent segments', () => {
@@ -35,7 +42,9 @@ describe('resolveInside', () => {
   })
 
   it('rejects null bytes', () => {
-    expect(() => resolveInside(root, 'a\0b')).toThrow(SafePathError)
+    expect(() => {
+      return resolveInside(root, 'a\0b')
+    }).toThrow(SafePathError)
   })
 
   it.skipIf(process.platform === 'win32')('keeps backslash segments literal on posix', () => {
@@ -67,6 +76,8 @@ describe('joinInside', () => {
   })
 
   it('rejects absolute segments', () => {
-    expect(() => joinInside(root, 'downloads', '/etc')).toThrow(SafePathError)
+    expect(() => {
+      return joinInside(root, 'downloads', '/etc')
+    }).toThrow(SafePathError)
   })
 })

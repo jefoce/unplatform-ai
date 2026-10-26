@@ -5,6 +5,7 @@ mod fps;
 mod secrets;
 mod server;
 mod settings;
+mod updater;
 
 fn main() {
     install_panic_hook();
@@ -21,7 +22,16 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(server::State::default())
+        .manage(updater::UpdateState::default())
+        .invoke_handler(tauri::generate_handler![
+            updater::update_info,
+            updater::update_check,
+            updater::update_install,
+            updater::update_set_auto,
+            updater::update_open_release,
+        ])
         .setup(|app| {
             // Bundle is LSUIElement so the sidecar stays out of the Dock.
             #[cfg(target_os = "macos")]

@@ -1,0 +1,46 @@
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "createdAt": "2026-10-20T00:01:00.000Z",
+  "updatedAt": "2026-10-20T00:01:02.000Z",
+  "status": "pending",
+  "input": {
+    "presetId": "seedance-2.0",
+    "tab": "frames",
+    "prompt": "",
+    "audio": true,
+    "duration": 4,
+    "aspectRatio": "auto",
+    "resolution": "720p",
+    "frames": { "start": "33333333-3333-4333-8333-333333333333", "end": null },
+    "references": ["33333333-3333-4333-8333-333333333333"],
+    "seed": 7
+  },
+  "preset": { "id": "seedance-2.0", "title": "Seedance 2.0", "slug": "bytedance/seedance-2.0" },
+  "inputsSnapshot": {
+    "33333333-3333-4333-8333-333333333333": {
+      "kind": "image",
+      "originalName": "start.png",
+      "source": "file",
+      "width": 1280,
+      "height": 720,
+      "transport": "url"
+    }
+  },
+  "submit": { "stage": "sending", "progress": 0.4 },
+  "job": {
+    "id": "job-pending-1",
+    "generationId": "gen-pending-1",
+    "submittedAt": "2026-10-20T00:01:03.000Z"
+  },
+  "seedUsed": 7,
+  "favorite": false,
+  "cost": {
+    "currency": "USD",
+    "pricePerSec": 0.15,
+    "priceSource": "live",
+    "estimatedUsd": 0.6,
+    "actualUsd": null,
+    "isByok": null,
+    "billed": null
+  }
+}

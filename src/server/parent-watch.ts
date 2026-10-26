@@ -9,17 +9,23 @@ const CHECK_MS = 1000
 export function startParentWatch(): () => void {
   const pid = Number(process.env.PARENT_PID)
 
-  if (!Number.isInteger(pid) || pid <= 0) return () => {}
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return () => {}
+  }
 
   const timer = setInterval(() => {
-    if (isAlive(pid)) return
+    if (isAlive(pid)) {
+      return
+    }
 
     clearInterval(timer)
     console.log('[unplatform-ai] parent exited, shutting down')
     process.exit(0)
   }, CHECK_MS)
 
-  return () => clearInterval(timer)
+  return () => {
+    clearInterval(timer)
+  }
 }
 
 /** EPERM means the parent exists but is not signalable, so treat it as alive. */

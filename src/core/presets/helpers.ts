@@ -1,4 +1,10 @@
-import type { PresetPricing, PricingKeyParams } from './types'
+import type {
+  PerSecondPricing,
+  ResolutionTiers,
+  SkuRule,
+  SkuTable,
+  VideoTokenPricing,
+} from './types'
 
 interface PricingOptions {
   referenceVideoFactor?: number
@@ -6,24 +12,39 @@ interface PricingOptions {
 
 /** Fixed per-second USD rate keyed by resolution. */
 export const perSecondPricing = (
-  fallback: Record<string, number>,
+  fallback: SkuTable,
   { referenceVideoFactor = 0 }: PricingOptions = {},
-): PresetPricing => ({
-  kind: 'perSecond',
-  unit: 'usd',
-  key: ({ resolution }) => `duration_seconds_${resolution}`,
-  fallback,
-  referenceVideoFactor,
-})
+): PerSecondPricing => {
+  return {
+    kind: 'perSecond',
+    unit: 'usd',
+    skuRules: [{ when: {}, key: 'duration_seconds_{resolution}' }],
+    tiers: {},
+    fallback,
+    // Wan bills a 5 second floor regardless of the requested duration.
+    minBillableSec: 5,
+    referenceVideoFactor,
+  }
+}
 
 interface VideoTokenPricingParams extends PricingOptions {
-  key: (params: PricingKeyParams) => string
-  fallback: Record<string, number>
+  skuRules: readonly SkuRule[]
+  tiers?: ResolutionTiers
+  fallback: SkuTable
+  minBillableSec?: number
 }
 
 /** Video token cost per pixel-second at the provider's frame rate. */
-export const videoTokenPricing = (params: VideoTokenPricingParams): PresetPricing => {
-  const { key, fallback, referenceVideoFactor = 0 } = params
+export const videoTokenPricing = (params: VideoTokenPricingParams): VideoTokenPricing => {
+  const { skuRules, tiers = {}, fallback, minBillableSec = 0, referenceVideoFactor = 0 } = params
 
-  return { kind: 'videoTokens', fps: 24, key, fallback, referenceVideoFactor }
+  return {
+    kind: 'videoTokens',
+    fps: 24,
+    skuRules,
+    tiers,
+    fallback,
+    minBillableSec,
+    referenceVideoFactor,
+  }
 }

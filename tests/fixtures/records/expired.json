@@ -1,0 +1,38 @@
+{
+  "id": "99999999-9999-4999-8999-999999999999",
+  "createdAt": "2026-10-20T00:07:00.000Z",
+  "updatedAt": "2026-10-20T00:47:00.000Z",
+  "status": "expired",
+  "input": {
+    "presetId": "wan-3.0",
+    "tab": "references",
+    "prompt": "A lighthouse in a storm",
+    "audio": true,
+    "duration": 5,
+    "aspectRatio": "3:4",
+    "resolution": "4K",
+    "frames": { "start": null, "end": null },
+    "references": [],
+    "seed": null
+  },
+  "preset": { "id": "wan-3.0", "title": "Wan 3.0", "slug": "alibaba/wan-3.0" },
+  "inputsSnapshot": {},
+  "job": {
+    "id": "job-expired-1",
+    "submittedAt": "2026-10-20T00:07:01.000Z",
+    "startedAt": "2026-10-20T00:07:05.000Z",
+    "expiresAt": 1792452420000
+  },
+  "seedUsed": 8,
+  "favorite": false,
+  "cost": {
+    "currency": "USD",
+    "pricePerSec": 0.2,
+    "priceSource": "unknown",
+    "estimatedUsd": 1,
+    "actualUsd": null,
+    "isByok": null,
+    "billed": null
+  },
+  "error": "The job expired before it finished."
+}

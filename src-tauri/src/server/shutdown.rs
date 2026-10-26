@@ -17,7 +17,7 @@ const SENDING_WAIT: Duration = Duration::from_secs(65);
 const SEND_POLL: Duration = Duration::from_millis(250);
 
 #[derive(Default)]
-struct Pending {
+pub(crate) struct Pending {
     generating: u32,
     downloading: u32,
     sending: u32,
@@ -39,8 +39,12 @@ impl Pending {
         }
     }
 
-    fn busy(&self) -> bool {
+    pub(crate) fn busy(&self) -> bool {
         self.generating + self.downloading + self.sending + self.uploading + self.grace > 0
+    }
+
+    pub(crate) fn is_sending(&self) -> bool {
+        self.sending > 0
     }
 }
 
@@ -68,13 +72,13 @@ pub fn shutdown_then_exit(app: &AppHandle<Wry>, api: tauri::ExitRequestApi) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let pending = pending_work(&app).await;
-        if pending.busy() && !confirm_quit(&app, &pending).await {
+        if pending.busy() && !confirm_quit(&app, &pending, "Videos still in progress").await {
             app.state::<State>()
                 .shutting_down
                 .store(false, Ordering::SeqCst);
             return;
         }
-        shutdown(app, pending.sending > 0).await;
+        shutdown(&app, pending.sending > 0).await;
     });
 }
 
@@ -111,7 +115,7 @@ pub fn emergency_cleanup(app: &AppHandle<Wry>) {
     };
 }
 
-async fn pending_work(app: &AppHandle<Wry>) -> Pending {
+pub(crate) async fn pending_work(app: &AppHandle<Wry>) -> Pending {
     let runtime = app.state::<State>().runtime.lock().unwrap().clone();
     let Some(runtime) = runtime else {
         return Pending::default();
@@ -124,13 +128,14 @@ async fn pending_work(app: &AppHandle<Wry>) -> Pending {
 }
 
 /// True means Keep running. Runs off the main thread because the dialog blocks.
-async fn confirm_quit(app: &AppHandle<Wry>, pending: &Pending) -> bool {
+pub(crate) async fn confirm_quit(app: &AppHandle<Wry>, pending: &Pending, title: &str) -> bool {
     let app = app.clone();
     let message = guard_text(pending);
+    let title = title.to_string();
     let choice = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .message(message)
-            .title("Videos still in progress")
+            .title(title)
             .kind(MessageDialogKind::Warning)
             .buttons(MessageDialogButtons::OkCancelCustom(
                 "Keep running".to_string(),
@@ -190,7 +195,11 @@ fn group(count: u32, one: &str, many: &str) -> Option<String> {
     })
 }
 
-async fn shutdown(app: AppHandle<Wry>, wait_sending: bool) {
+/// Stops the sidecar and marks the app as exiting, without exiting the process.
+pub(crate) async fn stop_server(app: &AppHandle<Wry>, wait_sending: bool) {
+    app.state::<State>()
+        .shutting_down
+        .store(true, Ordering::SeqCst);
     let state = app.state::<State>();
     let runtime = state.runtime.lock().unwrap().clone();
 
@@ -248,6 +257,11 @@ async fn shutdown(app: AppHandle<Wry>, wait_sending: bool) {
         let _ = child.kill();
     }
     state.exiting.store(true, Ordering::SeqCst);
+}
+
+/// Stops the sidecar, then exits. The quit path keeps its sending wait.
+async fn shutdown(app: &AppHandle<Wry>, wait_sending: bool) {
+    stop_server(app, wait_sending).await;
     app.exit(0);
 }
 

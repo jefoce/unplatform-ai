@@ -1,5 +1,7 @@
+import type { MediaKind } from '@/core/media-types'
 import { getPreset } from '@/core/presets'
-import type { GenerationInput, MediaKind, UploadItem } from '@/core/types'
+import type { GenerationInput } from '@/core/schemas/generation-record'
+import { type UploadItem, type UploadsById } from '@/core/schemas/upload-item'
 
 export const preset = getPreset('wan-3.0')
 export const MB = 1024 * 1024
@@ -8,6 +10,7 @@ const EXT_BY_KIND = { image: '.png', video: '.mp4', audio: '.mp3' } satisfies Re
   MediaKind,
   string
 >
+
 const MIME_BY_KIND = {
   image: 'image/png',
   video: 'video/mp4',
@@ -51,6 +54,10 @@ export function input(overrides: Partial<GenerationInput> = {}): GenerationInput
   }
 }
 
-export function uploadsOf(...items: UploadItem[]): Record<string, UploadItem> {
-  return Object.fromEntries(items.map((item) => [item.id, item]))
+export function uploadsOf(...items: UploadItem[]): UploadsById {
+  return Object.fromEntries(
+    items.map((item) => {
+      return [item.id, item]
+    }),
+  )
 }

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "name": "Movies",
+    "path": "/Users/example/Movies",
+    "addedAt": "2026-10-20T00:09:00.000Z"
+  },
+  {
+    "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "name": "Reference clips",
+    "path": "/Users/example/Reference clips",
+    "addedAt": "2026-10-20T00:09:05.000Z"
+  }
+]

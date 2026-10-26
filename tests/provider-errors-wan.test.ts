@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { friendlyError } from '@/core/provider-errors'
+import { OPENROUTER_DESCRIPTOR } from '@/core/providers/openrouter'
+
+const HTTP_RULES = OPENROUTER_DESCRIPTOR.httpRules
 
 const REAL_PERSON =
   "InputImageSensitiveContentDetected.PrivacyInformation: The request failed because the input image 'content[1]' may contain real person. Request id: 0217925672818..."
@@ -99,7 +102,7 @@ const HTTP_ROWS: Array<[number, string, string]> = [
 describe('friendlyError Wan', () => {
   it('maps Wan codes and phrases', () => {
     for (const row of CONTROL_ROWS) {
-      const friendly = friendlyError({ raw: row.raw, family: 'wan' })
+      const friendly = friendlyError({ httpRules: HTTP_RULES, raw: row.raw, family: 'wan' })
 
       expect(friendly.title, row.raw).toBe(row.title)
       expect(friendly.kind, row.raw).toBe(row.kind)
@@ -109,28 +112,51 @@ describe('friendlyError Wan', () => {
 
   it('falls back to OpenRouter HTTP codes when no family code matches', () => {
     for (const [code, title, kind] of HTTP_ROWS) {
-      const friendly = friendlyError({ raw: 'upstream said no', family: null, httpCode: code })
+      const friendly = friendlyError({
+        httpRules: HTTP_RULES,
+        raw: 'upstream said no',
+        family: null,
+        httpCode: code,
+      })
 
       expect(friendly.title, String(code)).toBe(title)
       expect(friendly.kind, String(code)).toBe(kind)
     }
 
-    expect(friendlyError({ raw: REAL_PERSON, family: 'seedance', httpCode: 400 }).kind).toBe(
-      'real_person',
-    )
+    expect(
+      friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON, family: 'seedance', httpCode: 400 })
+        .kind,
+    ).toBe('real_person')
   })
 
   it('maps app errors', () => {
     expect(
-      friendlyError({ raw: 'Interrupted while sending. Check OpenRouter activity', family: 'wan' })
+      friendlyError({
+        httpRules: HTTP_RULES,
+        raw: 'Interrupted while sending. Check OpenRouter activity',
+        family: 'wan',
+      }).kind,
+    ).toBe('app')
+
+    expect(
+      friendlyError({
+        httpRules: HTTP_RULES,
+        raw: 'OpenRouter copy expired before download',
+        family: 'wan',
+      }).title,
+    ).toBe('The finished video was not saved.')
+
+    expect(
+      friendlyError({ httpRules: HTTP_RULES, raw: 'Disk is full. Free some space', family: 'wan' })
         .kind,
     ).toBe('app')
+
     expect(
-      friendlyError({ raw: 'OpenRouter copy expired before download', family: 'wan' }).title,
-    ).toBe('The finished video was not saved.')
-    expect(friendlyError({ raw: 'Disk is full. Free some space', family: 'wan' }).kind).toBe('app')
-    expect(
-      friendlyError({ raw: 'OpenRouter key is not set. Open Settings.', family: 'wan' }).kind,
+      friendlyError({
+        httpRules: HTTP_RULES,
+        raw: 'OpenRouter key is not set. Open Settings.',
+        family: 'wan',
+      }).kind,
     ).toBe('account')
   })
 })

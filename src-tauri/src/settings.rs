@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
     thread,
     time::Duration,
 };
@@ -15,6 +18,10 @@ pub const MIN_WIDTH: f64 = 1024.0;
 pub const MIN_HEIGHT: f64 = 700.0;
 
 static SAVE_GENERATION: AtomicU64 = AtomicU64::new(0);
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
+
+#[cfg(test)]
+static TEST_SETTINGS_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -22,6 +29,10 @@ pub struct DesktopSettings {
     pub port: u16,
     pub window: WindowBounds,
     pub close_hint_shown: bool,
+    #[serde(default = "default_auto_check_updates")]
+    pub auto_check_updates: bool,
+    #[serde(default)]
+    pub last_update_check: Option<String>,
 }
 
 impl Default for DesktopSettings {
@@ -30,8 +41,14 @@ impl Default for DesktopSettings {
             port: DEFAULT_PORT,
             window: WindowBounds::default(),
             close_hint_shown: false,
+            auto_check_updates: default_auto_check_updates(),
+            last_update_check: None,
         }
     }
+}
+
+fn default_auto_check_updates() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +93,15 @@ pub fn runtime_dir(version: &str) -> Result<PathBuf, String> {
 }
 
 fn settings_path() -> Result<PathBuf, String> {
+    #[cfg(test)]
+    {
+        let override_path = TEST_SETTINGS_PATH
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(path) = override_path.as_ref() {
+            return Ok(path.clone());
+        }
+    }
     Ok(data_dir()?.join("desktop.json"))
 }
 
@@ -90,8 +116,18 @@ pub fn load() -> DesktopSettings {
     serde_json::from_slice(&data).unwrap_or_default()
 }
 
+/// Loads, changes and saves desktop.json under one lock, so writers keep each other's fields.
+pub fn update(change: impl FnOnce(&mut DesktopSettings)) -> Result<(), String> {
+    let _guard = WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut settings = load();
+    change(&mut settings);
+    save(&settings)
+}
+
 /// Writes desktop.json atomically through a temp file and rename.
-pub fn save(settings: &DesktopSettings) -> Result<(), String> {
+fn save(settings: &DesktopSettings) -> Result<(), String> {
     let path = settings_path()?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| format!("create data dir: {error}"))?;
@@ -123,14 +159,13 @@ pub fn save_window_bounds(window: &WebviewWindow<Wry>) {
         return;
     };
     let scale = window.scale_factor().unwrap_or(1.0);
-    let mut settings = load();
-    settings.window = WindowBounds {
+    let bounds = WindowBounds {
         x: Some(position.x as f64 / scale),
         y: Some(position.y as f64 / scale),
         width: size.width as f64 / scale,
         height: size.height as f64 / scale,
     };
-    if let Err(error) = save(&settings) {
+    if let Err(error) = update(|settings| settings.window = bounds) {
         eprintln!("[unplatform-ai] could not save window bounds: {error}");
     }
 }
@@ -154,4 +189,120 @@ pub fn ensure_dirs() -> Result<(), String> {
     #[cfg(not(unix))]
     fs::create_dir_all(&logs).map_err(|error| format!("create logs dir: {error}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{update, DesktopSettings, WindowBounds, TEST_SETTINGS_PATH};
+    use std::{env, fs, path::PathBuf, thread};
+
+    const WRITERS: usize = 50;
+
+    /// Points desktop.json at a throwaway folder and returns the file path.
+    fn use_temp_settings() -> PathBuf {
+        let dir = env::temp_dir().join(format!("upai-settings-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join("desktop.json");
+        let mut current = TEST_SETTINGS_PATH
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *current = Some(path.clone());
+        path
+    }
+
+    /// 50 threads write at once, then every field must still hold a written value.
+    #[test]
+    fn concurrent_updates_keep_every_field() {
+        let path = use_temp_settings();
+        let ports: Vec<u16> = (0..10).map(|index| 40000 + index as u16).collect();
+        let sizes: Vec<f64> = (10..20).map(|index| index as f64).collect();
+        let stamps: Vec<String> = (41..WRITERS)
+            .map(|index| format!("check-{index}"))
+            .collect();
+
+        thread::scope(|scope| {
+            for index in 0..WRITERS {
+                let port = if index < 10 {
+                    Some(40000 + index as u16)
+                } else {
+                    None
+                };
+                let size = if (10..20).contains(&index) {
+                    Some(index as f64)
+                } else {
+                    None
+                };
+                let stamp = if index >= 41 {
+                    Some(format!("check-{index}"))
+                } else {
+                    None
+                };
+                scope.spawn(move || {
+                    let result = match (port, size, stamp) {
+                        (Some(port), _, _) => update(|settings| settings.port = port),
+                        (_, Some(size), _) => update(|settings| {
+                            settings.window = WindowBounds {
+                                x: Some(size),
+                                y: Some(size),
+                                width: size,
+                                height: size,
+                            };
+                        }),
+                        (_, _, Some(stamp)) => {
+                            update(|settings| settings.last_update_check = Some(stamp))
+                        }
+                        _ if index < 30 => update(|settings| settings.close_hint_shown = true),
+                        _ => update(|settings| {
+                            settings.auto_check_updates = !settings.auto_check_updates;
+                        }),
+                    };
+                    result.expect("update");
+                });
+            }
+        });
+
+        let data = fs::read(&path).expect("read settings");
+        let settings: DesktopSettings = serde_json::from_slice(&data).expect("parse settings");
+
+        assert!(ports.contains(&settings.port));
+        assert!(sizes.contains(&settings.window.x.expect("window x")));
+        assert!(sizes.contains(&settings.window.width));
+        assert!(settings.close_hint_shown);
+        assert!(!settings.auto_check_updates);
+        assert!(stamps.contains(&settings.last_update_check.expect("last check")));
+
+        let mut current = TEST_SETTINGS_PATH
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *current = None;
+        let _ = fs::remove_dir_all(path.parent().expect("settings dir"));
+    }
+
+    #[test]
+    fn old_settings_get_update_defaults() {
+        let settings: DesktopSettings = serde_json::from_str(
+            r#"{"port":47821,"window":{"x":null,"y":null,"width":1440.0,"height":900.0},"close_hint_shown":true}"#,
+        )
+        .expect("old settings");
+
+        assert!(settings.auto_check_updates);
+        assert!(settings.last_update_check.is_none());
+    }
+
+    #[test]
+    fn update_settings_round_trip() {
+        let mut settings = DesktopSettings::default();
+        settings.auto_check_updates = false;
+        settings.last_update_check = Some("2026-10-25T10:00:00Z".to_string());
+
+        let encoded = serde_json::to_string(&settings).expect("encode");
+        let decoded: DesktopSettings = serde_json::from_str(&encoded).expect("decode");
+
+        assert!(!decoded.auto_check_updates);
+        assert_eq!(
+            decoded.last_update_check.as_deref(),
+            Some("2026-10-25T10:00:00Z")
+        );
+    }
 }

@@ -3,10 +3,10 @@ import 'server-only'
 import fs from 'node:fs/promises'
 
 import { MAX_INLINE_MEDIA_MB } from '@/core/constants'
-import type { UploadItem } from '@/core/types'
+import type { UploadItem } from '@/core/schemas/upload-item'
 
+import { HttpError } from '../errors'
 import { uploadPaths } from '../paths'
-import { HttpError } from '../request-guard'
 
 class MediaTooLargeError extends HttpError {
   constructor(message: string) {
@@ -21,8 +21,13 @@ function estimateEncodedBytes(bytes: number): number {
 
 const MAX_BYTES = MAX_INLINE_MEDIA_MB * 1024 * 1024
 
+interface DataUrlResult {
+  url: string
+  bytes: number
+}
+
 /** Turns a non-image upload into a data URL. Images use image-data-url. */
-export async function toDataUrl(upload: UploadItem): Promise<{ url: string; bytes: number }> {
+export async function toDataUrl(upload: UploadItem): Promise<DataUrlResult> {
   const { media } = uploadPaths(upload.id, upload.ext)
   const bytes = await fs.readFile(media)
 

@@ -19,7 +19,9 @@ interface HoverPlayHandlers {
 }
 
 function playIfPaused(element: HTMLVideoElement | null): void {
-  if (element?.paused === true) void element.play().catch(() => {})
+  if (element?.paused === true) {
+    void element.play().catch(() => {})
+  }
 }
 
 /** Hover playback that survives pointer leave, so a re-hover resumes the same slot. */
@@ -30,7 +32,9 @@ export function useHoverPlay(params: UseHoverPlayParams): HoverPlayHandlers {
 
   const setInside = useCallback(
     (ref: RefObject<boolean>, isInside: boolean) => {
-      if (!isEnabled) return
+      if (!isEnabled) {
+        return
+      }
 
       ref.current = isInside
 
@@ -41,23 +45,41 @@ export function useHoverPlay(params: UseHoverPlayParams): HoverPlayHandlers {
         return
       }
 
-      if (!pointerInside.current && !focusInside.current) videoRef.current?.pause()
+      if (!pointerInside.current && !focusInside.current) {
+        videoRef.current?.pause()
+      }
     },
     [acquire, isEnabled, id, videoRef],
   )
 
-  const handleHoverEnter = useCallback(() => setInside(pointerInside, true), [setInside])
-  const handleHoverLeave = useCallback(() => setInside(pointerInside, false), [setInside])
-  const handleFocus = useCallback(() => setInside(focusInside, true), [setInside])
-  const handleBlur = useCallback(() => setInside(focusInside, false), [setInside])
+  const handleHoverEnter = useCallback(() => {
+    setInside(pointerInside, true)
+  }, [setInside])
+
+  const handleHoverLeave = useCallback(() => {
+    setInside(pointerInside, false)
+  }, [setInside])
+
+  const handleFocus = useCallback(() => {
+    setInside(focusInside, true)
+  }, [setInside])
+
+  const handleBlur = useCallback(() => {
+    setInside(focusInside, false)
+  }, [setInside])
 
   useEffect(() => {
     const element = videoRef.current
 
-    if (!isEnabled || !isActive || !element) return
+    if (!isEnabled || !isActive || !element) {
+      return
+    }
 
-    if (pointerInside.current || focusInside.current) playIfPaused(element)
-    else element.pause()
+    if (pointerInside.current || focusInside.current) {
+      playIfPaused(element)
+    } else {
+      element.pause()
+    }
   }, [isEnabled, isActive, src, videoRef])
 
   return {

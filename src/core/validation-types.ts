@@ -1,9 +1,21 @@
-import type { ModelPreset } from './presets'
+import type { ModelStatus } from './catalog'
+import type { ModelPreset } from './presets/types'
 import type { RefSlot } from './prompt-tokens'
-import type { GenerationInput, UploadItem } from './types'
+import type { GenerationInput } from './schemas/generation-record'
+import type { UploadsById } from './schemas/upload-item'
 
-export type ValidationIssue =
-  { type: 'missing-slot'; slot: RefSlot; attached: number } | { type: 'text'; text: string }
+interface MissingSlotIssue {
+  type: 'missing-slot'
+  slot: RefSlot
+  attached: number
+}
+
+interface TextIssue {
+  type: 'text'
+  text: string
+}
+
+export type ValidationIssue = MissingSlotIssue | TextIssue
 
 export interface ValidationResult {
   ok: boolean
@@ -20,11 +32,13 @@ export interface RuleResult {
 export interface ValidationContext {
   activeCount?: number
   remoteConfigured?: boolean
+  modelStatus: ModelStatus
+  modelReason: string | null
 }
 
 export interface ValidateFramesParams {
   input: GenerationInput
-  uploads: Record<string, UploadItem>
+  uploads: UploadsById
   preset: ModelPreset
 }
 

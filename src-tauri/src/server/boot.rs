@@ -6,7 +6,10 @@ use super::{
 use crate::settings;
 use serde::Deserialize;
 use std::{
-    fs, io,
+    collections::hash_map::DefaultHasher,
+    fs,
+    hash::{Hash, Hasher},
+    io,
     net::TcpListener,
     path::{Path, PathBuf},
     sync::{
@@ -96,15 +99,14 @@ pub async fn boot(app: &AppHandle<Wry>) -> Result<(), String> {
         }
     }
 
-    let mut desktop = settings::load();
+    let desktop = settings::load();
     let (port, fallback) = choose_port(desktop.port)?;
     if fallback {
         eprintln!(
             "[unplatform-ai] port {} busy, using {} (draft and view settings reset once)",
             desktop.port, port
         );
-        desktop.port = port;
-        settings::save(&desktop)?;
+        settings::update(|settings| settings.port = port)?;
     }
 
     let token = random_token()?;
@@ -229,9 +231,7 @@ fn create_window(
             let _ = handle.hide();
             if !settings::load().close_hint_shown {
                 notify_close_hint(handle.app_handle());
-                let mut current = settings::load();
-                current.close_hint_shown = true;
-                let _ = settings::save(&current);
+                let _ = settings::update(|current| current.close_hint_shown = true);
             }
         }
         WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
@@ -298,10 +298,14 @@ pub(crate) fn spawn_child(
     Ok(receiver)
 }
 
+/// Stamp file naming the bundled build a runtime copy came from.
+const BUILD_STAMP: &str = ".upai-build";
+
 /// Copies the bundled server into the per-version runtime dir once.
 /// Returns bytes copied and the copy duration, both zero when reused.
 fn stage_runtime(bundled: &Path, runtime: &Path) -> Result<(u64, Duration), String> {
-    if runtime.join("server.js").exists() {
+    let build_id = bundled_build_id(bundled);
+    if is_current(runtime, &build_id) {
         return Ok((0, Duration::ZERO));
     }
     let root = runtime
@@ -319,6 +323,9 @@ fn stage_runtime(bundled: &Path, runtime: &Path) -> Result<(u64, Duration), Stri
     let started = Instant::now();
     let bytes = copy_tree(bundled, &staging)
         .map_err(|error| format!("copy server to {}: {error}", staging.display()))?;
+    // Stamp last, so an interrupted copy never counts as done.
+    fs::write(staging.join(BUILD_STAMP), &build_id)
+        .map_err(|error| format!("stamp runtime at {}: {error}", staging.display()))?;
     match fs::rename(&staging, runtime) {
         Ok(()) => {}
         Err(_) if runtime.join("server.js").exists() => {
@@ -333,6 +340,36 @@ fn stage_runtime(bundled: &Path, runtime: &Path) -> Result<(u64, Duration), Stri
         }
     }
     Ok((bytes, started.elapsed()))
+}
+
+/// True when the runtime copy came from the same bundled build.
+fn is_current(runtime: &Path, build_id: &str) -> bool {
+    if !runtime.join("server.js").exists() {
+        return false;
+    }
+    fs::read_to_string(runtime.join(BUILD_STAMP))
+        .map(|stamp| stamp.trim() == build_id)
+        .unwrap_or(false)
+}
+
+/// Next writes `.next/BUILD_ID`; missing falls back to a hash of two file sizes,
+/// a stable stamp that only catches size changes.
+fn bundled_build_id(bundled: &Path) -> String {
+    let next = bundled.join(".next");
+    if let Ok(stamp) = fs::read_to_string(next.join("BUILD_ID")) {
+        let stamp = stamp.trim();
+        if !stamp.is_empty() {
+            return stamp.to_string();
+        }
+    }
+    let mut hasher = DefaultHasher::new();
+    file_size(&bundled.join("server.js")).hash(&mut hasher);
+    file_size(&next.join("BUILD_ID")).hash(&mut hasher);
+    format!("size-{:016x}", hasher.finish())
+}
+
+fn file_size(path: &Path) -> u64 {
+    fs::metadata(path).map(|meta| meta.len()).unwrap_or(0)
 }
 
 /// Removes copies left behind by an interrupted first launch.
@@ -464,15 +501,13 @@ mod tests {
 
     #[test]
     fn stages_runtime_once() {
-        let root = std::env::temp_dir().join(format!("upai-stage-{}", std::process::id()));
+        let root = unique_root();
         let bundled = root.join("bundled");
         let runtime = root.join("runtime/0.1.0");
-        fs::create_dir_all(bundled.join("nested")).unwrap();
-        fs::write(bundled.join("server.js"), b"server").unwrap();
-        fs::write(bundled.join("nested/data.txt"), b"payload").unwrap();
+        write_bundle(&bundled, "same", b"server");
 
         let (bytes, _) = stage_runtime(&bundled, &runtime).expect("first stage");
-        assert_eq!(bytes, 13);
+        assert_eq!(bytes, 17);
         assert_eq!(
             fs::read(runtime.join("nested/data.txt")).unwrap(),
             b"payload"
@@ -487,6 +522,54 @@ mod tests {
             .any(|entry| entry.file_name().to_string_lossy().starts_with(".staging-"));
         assert!(!staging);
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn restages_when_build_changes() {
+        let root = unique_root();
+        let first = root.join("bundled-first");
+        let second = root.join("bundled-second");
+        let runtime = root.join("runtime/0.2.0");
+        write_bundle(&first, "first", b"old");
+        write_bundle(&second, "second", b"new");
+
+        stage_runtime(&first, &runtime).expect("first stage");
+        assert_eq!(
+            fs::read_to_string(runtime.join(".upai-build")).unwrap(),
+            "first"
+        );
+        assert_eq!(fs::read(runtime.join("server.js")).unwrap(), b"old");
+
+        // Same id reuses the existing copy.
+        fs::write(runtime.join("server.js"), b"kept").unwrap();
+        assert_eq!(stage_runtime(&first, &runtime).expect("reuse").0, 0);
+        assert_eq!(fs::read(runtime.join("server.js")).unwrap(), b"kept");
+
+        // Different id replaces the copy and updates the stamp.
+        let (bytes, _) = stage_runtime(&second, &runtime).expect("restage");
+        assert!(bytes > 0);
+        assert_eq!(
+            fs::read_to_string(runtime.join(".upai-build")).unwrap(),
+            "second"
+        );
+        assert_eq!(fs::read(runtime.join("server.js")).unwrap(), b"new");
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn unique_root() -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("upai-stage-{}-{nanos}", std::process::id()))
+    }
+
+    fn write_bundle(dir: &std::path::Path, build_id: &str, server: &[u8]) {
+        fs::create_dir_all(dir.join(".next")).unwrap();
+        fs::create_dir_all(dir.join("nested")).unwrap();
+        fs::write(dir.join("server.js"), server).unwrap();
+        fs::write(dir.join(".next/BUILD_ID"), build_id).unwrap();
+        fs::write(dir.join("nested/data.txt"), b"payload").unwrap();
     }
 }
 

@@ -43,5 +43,9 @@ export const SECRET_SCHEMAS: Record<SecretName, z.ZodString> = {
 export function secretError(name: SecretName, value: string): string | null {
   const parsed = SECRET_SCHEMAS[name].safeParse(value)
 
-  return parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Invalid value')
+  if (parsed.success) {
+    return null
+  }
+
+  return parsed.error.issues[0]?.message ?? 'Invalid value'
 }

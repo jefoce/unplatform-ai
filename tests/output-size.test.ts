@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { aspectAllowed, outputSize, SHORT_SIDE } from '@/core/output-size'
-import type { AspectRatio } from '@/core/presets'
 import { getPreset } from '@/core/presets'
+import type { AspectRatio } from '@/core/presets/types'
 
 const seedance = getPreset('seedance-2.0')
 const seedance25 = getPreset('seedance-2.5')
@@ -14,10 +14,12 @@ describe('outputSize', () => {
       width: 1280,
       height: 720,
     })
+
     expect(outputSize({ preset: seedance, resolution: '4K', aspect: '21:9' })).toEqual({
       width: 5040,
       height: 2160,
     })
+
     expect(outputSize({ preset: seedance25, resolution: '480p', aspect: '4:3' })).toEqual({
       width: 752,
       height: 560,
@@ -29,6 +31,7 @@ describe('outputSize', () => {
       width: 720,
       height: 1680,
     })
+
     expect(outputSize({ preset: wan, resolution: '1080p', aspect: '21:9' })).toEqual({
       width: 2520,
       height: 1080,

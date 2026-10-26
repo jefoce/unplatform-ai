@@ -38,6 +38,7 @@ describe('inputForSubmit', () => {
     expect(original.frames).toEqual({ start: 'start', end: 'end' })
     expect(original.references).toEqual(['ref'])
     expect(result).not.toBe(original)
+
     expect(result).toMatchObject({
       presetId: 'wan-3.0',
       prompt: 'A cat',

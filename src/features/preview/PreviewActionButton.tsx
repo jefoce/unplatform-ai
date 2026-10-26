@@ -1,7 +1,5 @@
 'use client'
 
-import { useCallback } from 'react'
-
 import { Button } from '@/ui/Button'
 
 import type { ActionKey } from './preview-store'
@@ -15,8 +13,11 @@ interface PreviewActionButtonProps {
 
 /** Footer action bound to its key. */
 export function PreviewActionButton(props: PreviewActionButtonProps) {
-  const { actionKey, label, variant, onRun } = props
-  const handleClick = useCallback(() => onRun(actionKey), [actionKey, onRun])
+  const { actionKey, label, variant } = props
+
+  const handleClick = () => {
+    props.onRun(actionKey)
+  }
 
   return (
     <Button size="sm" variant={variant} onClick={handleClick}>

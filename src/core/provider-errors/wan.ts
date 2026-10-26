@@ -3,7 +3,9 @@ import type { Rule } from './types'
 
 export const WAN_RULES: readonly Rule[] = [
   {
-    match: (raw) => /DataInspectionFailed/.test(raw) && /output data/i.test(raw),
+    match: (raw: string): boolean => {
+      return /DataInspectionFailed/.test(raw) && /output data/i.test(raw)
+    },
     title: "The finished video was blocked by Wan's content check.",
     hint: 'Change the prompt or the seed.',
     kind: 'content',
@@ -64,24 +66,31 @@ export const WAN_RULES: readonly Rule[] = [
     kind: 'input',
   },
   {
-    match: (raw) =>
-      /InvalidURL|InputDownloadFailed|InvalidFile\.DownloadFailed|InvalidParameter\.DataInspection/.test(
-        raw,
-      ) ||
-      /authorization to access the media resource/i.test(raw) ||
-      /Failed to find the requested media resource/i.test(raw),
+    match: (raw: string): boolean => {
+      return (
+        /InvalidURL|InputDownloadFailed|InvalidFile\.DownloadFailed|InvalidParameter\.DataInspection/.test(
+          raw,
+        ) ||
+        /authorization to access the media resource/i.test(raw) ||
+        /Failed to find the requested media resource/i.test(raw)
+      )
+    },
     title: 'Wan could not download a reference from your storage.',
     hint: 'Check R2 in Settings, then try again. Links expire after the time set in Settings.',
     kind: 'input',
   },
   {
     match: /InvalidParameter/,
-    title: (raw) => settingTitle('Wan', raw),
+    title: (raw: string): string => {
+      return settingTitle('Wan', raw)
+    },
     hint: 'The app should have caught this. Send the details to the developer.',
     kind: 'input',
   },
   {
-    match: (raw) => /Throttling/.test(raw) || /Too many requests/i.test(raw),
+    match: (raw: string): boolean => {
+      return /Throttling/.test(raw) || /Too many requests/i.test(raw)
+    },
     title: 'Wan is busy right now.',
     hint: 'Try again in a few minutes.',
     kind: 'busy',

@@ -1,16 +1,22 @@
 import { clamp, isNil } from 'lodash-es'
 
 import { durationLimitFor } from './duration-limits'
-import { MEDIA_KINDS } from './media-kinds'
+import { isNonEmptyString } from './guards'
+import { MEDIA_KINDS, type MediaKindCounts } from './media-types'
 import { aspectAllowed } from './output-size'
-import { minDuration, type ModelPreset } from './presets'
-import type { GenerationInput, MediaKind, UploadItem } from './types'
+import { minDuration } from './presets'
+import type { AspectChoice, ModelPreset, Resolution } from './presets/types'
+import type { GenerationInput } from './schemas/generation-record'
+import type { UploadsById } from './schemas/upload-item'
+import type { FrameSlots } from './types'
 
 /** Drop media belonging to the inactive tab. Returns a new object. */
 export function inputForSubmit(input: GenerationInput): GenerationInput {
-  if (input.tab !== 'frames') return { ...input, frames: { start: null, end: null } }
+  if (input.tab !== 'frames') {
+    return { ...input, frames: { start: null, end: null } }
+  }
 
-  const hasStart = !isNil(input.frames.start) && input.frames.start !== ''
+  const hasStart = isNonEmptyString(input.frames.start)
   const end = hasStart ? input.frames.end : null
 
   return { ...input, references: [], frames: { start: input.frames.start, end } }
@@ -30,53 +36,70 @@ export const clampDuration = (params: ClampDurationParams): number => {
 }
 
 interface NormalizeAspectParams {
-  aspect: GenerationInput['aspectRatio']
+  aspect: AspectChoice
   preset: ModelPreset
-  resolution: GenerationInput['resolution']
+  resolution: Resolution
 }
 
-function normalizeAspect(params: NormalizeAspectParams): GenerationInput['aspectRatio'] {
+function normalizeAspect(params: NormalizeAspectParams): AspectChoice {
   const { aspect, preset, resolution } = params
 
-  if (aspect === 'auto') return preset.autoAspectWithFrames ? 'auto' : preset.defaultAspectRatio
+  if (aspect === 'auto') {
+    if (preset.autoAspectWithFrames) {
+      return 'auto'
+    }
 
-  return aspectAllowed({ preset, resolution, aspect }) ? aspect : preset.defaultAspectRatio
+    return preset.defaultAspectRatio
+  }
+
+  if (aspectAllowed({ preset, resolution, aspect })) {
+    return aspect
+  }
+
+  return preset.defaultAspectRatio
 }
 
-function normalizeFrames(
-  frames: GenerationInput['frames'],
-  preset: ModelPreset,
-): GenerationInput['frames'] {
-  if (!preset.frames.start || isNil(frames.start) || frames.start === '') {
+function normalizeFrames(frames: FrameSlots, preset: ModelPreset): FrameSlots {
+  if (!preset.frames.start || !isNonEmptyString(frames.start)) {
     return { start: null, end: null }
   }
 
-  if (!preset.frames.end || isNil(frames.end) || frames.end === '') {
+  if (!preset.frames.end || !isNonEmptyString(frames.end)) {
     return { start: frames.start, end: null }
   }
 
   return { start: frames.start, end: frames.end }
 }
 
-const referencesDisabled = (preset: ModelPreset): boolean =>
-  MEDIA_KINDS.every((kind) => preset.references[kind] === 0)
+const referencesDisabled = (preset: ModelPreset): boolean => {
+  return MEDIA_KINDS.every((kind) => {
+    return preset.references[kind] === 0
+  })
+}
 
 interface TrimReferencesParams {
   ids: string[]
   preset: ModelPreset
-  uploads: Record<string, UploadItem>
+  uploads: UploadsById
+}
+
+interface TrimReferencesResult {
+  references: string[]
+  notes: string[]
 }
 
 /** Keep references in order, dropping any past the per-kind limit. */
-function trimReferences(params: TrimReferencesParams): { references: string[]; notes: string[] } {
+function trimReferences(params: TrimReferencesParams): TrimReferencesResult {
   const { ids, preset, uploads } = params
-  const counts: Record<MediaKind, number> = { image: 0, video: 0, audio: 0 }
-  const removed: Record<MediaKind, number> = { image: 0, video: 0, audio: 0 }
+  const counts: MediaKindCounts = { image: 0, video: 0, audio: 0 }
+  const removed: MediaKindCounts = { image: 0, video: 0, audio: 0 }
 
   const references = ids.filter((id) => {
     const kind = uploads[id]?.kind
 
-    if (isNil(kind)) return true // unknown until uploads load, decided later
+    if (isNil(kind)) {
+      return true
+    } // unknown until uploads load, decided later
 
     if (counts[kind] < preset.references[kind]) {
       counts[kind] += 1
@@ -89,9 +112,14 @@ function trimReferences(params: TrimReferencesParams): { references: string[]; n
     return false
   })
 
-  const notes = MEDIA_KINDS.filter((kind) => removed[kind] > 0).map(
-    (kind) => `Removed ${removed[kind]} ${kind} reference${removed[kind] === 1 ? '' : 's'}`,
-  )
+  const notes = MEDIA_KINDS.filter((kind) => {
+    return removed[kind] > 0
+  }).map((kind) => {
+    const count = removed[kind]
+    const suffix = count === 1 ? '' : 's'
+
+    return `Removed ${count} ${kind} reference${suffix}`
+  })
 
   return { references, notes }
 }
@@ -99,14 +127,16 @@ function trimReferences(params: TrimReferencesParams): { references: string[]; n
 interface NormalizeForPresetParams {
   input: GenerationInput
   preset: ModelPreset
-  uploads?: Record<string, UploadItem>
+  uploads?: UploadsById
+}
+
+interface NormalizedInput {
+  input: GenerationInput
+  notes: string[]
 }
 
 /** Fit a draft input to a preset without mutating it. Notes list every change. */
-export function normalizeForPreset(params: NormalizeForPresetParams): {
-  input: GenerationInput
-  notes: string[]
-} {
+export function normalizeForPreset(params: NormalizeForPresetParams): NormalizedInput {
   const { input, preset, uploads = {} } = params
   const notes: string[] = []
   let tab = input.tab
@@ -126,12 +156,16 @@ export function normalizeForPreset(params: NormalizeForPresetParams): {
 
   let activeReferences: string[] = []
 
-  if (tab === 'references') activeReferences = references
+  if (tab === 'references') {
+    activeReferences = references
+  }
 
   const limit = durationLimitFor({ references: activeReferences, uploads, preset })
   const duration = clampDuration({ value: input.duration, preset, limit })
 
-  if (duration !== input.duration) notes.push(`Duration set to ${duration}s`)
+  if (duration !== input.duration) {
+    notes.push(`Duration set to ${duration}s`)
+  }
 
   let resolution = input.resolution
 
@@ -146,6 +180,8 @@ export function normalizeForPreset(params: NormalizeForPresetParams): {
     notes.push(`Aspect set to ${aspectRatio}`)
   }
 
+  const hasAudio = preset.audio.supported ? input.audio : false
+
   return {
     input: {
       ...input,
@@ -154,7 +190,7 @@ export function normalizeForPreset(params: NormalizeForPresetParams): {
       duration,
       resolution,
       aspectRatio,
-      audio: preset.audio.supported ? input.audio : false,
+      audio: hasAudio,
       frames: normalizeFrames(input.frames, preset),
       references,
     },

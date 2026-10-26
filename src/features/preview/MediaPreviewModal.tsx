@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { usePlayerSlot } from '@/features/player/use-player-slot'
 import { Modal } from '@/ui/Modal'
@@ -10,14 +10,20 @@ import { PreviewBody } from './PreviewBody'
 import { PreviewFooter } from './PreviewFooter'
 import { PreviewHeader } from './PreviewHeader'
 import { PreviewNavButton } from './PreviewNavButton'
+import { usePreviewKeys } from './use-preview-keys'
 
 function handleOpenChange(isOpen: boolean): void {
-  if (!isOpen) closePreview()
+  if (!isOpen) {
+    closePreview()
+  }
 }
 
 /** Full-size media preview with header, navigation and opener actions. */
 export function MediaPreviewModal() {
-  const request = usePreviewStore((state) => state.request)
+  const request = usePreviewStore((state) => {
+    return state.request
+  })
+
   const [lastRequest, setLastRequest] = useState(request)
   const [index, setIndex] = useState(request?.index ?? 0)
   const { acquire, release } = usePlayerSlot()
@@ -32,46 +38,45 @@ export function MediaPreviewModal() {
   const playerId = item ? `preview:${item.id}` : ''
 
   useEffect(() => {
-    if (item?.kind !== 'video') return
+    if (item?.kind !== 'video') {
+      return
+    }
 
     acquire(playerId)
 
-    return () => release(playerId)
+    return () => {
+      release(playerId)
+    }
   }, [acquire, item, playerId, release])
 
-  useEffect(() => {
-    if (!request) return
+  usePreviewKeys({ isOpen: Boolean(request), length: items.length, setIndex })
 
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowLeft') setIndex((current) => Math.max(0, current - 1))
+  const handleRun = (key: ActionKey) => {
+    const action = request?.actions?.[key]
 
-      if (event.key === 'ArrowRight') setIndex((current) => Math.min(items.length - 1, current + 1))
+    if (!action || !item) {
+      return
     }
 
-    window.addEventListener('keydown', onKey)
+    closePreview() // close first so an opener action cannot stack modals
+    action(item)
+  }
 
-    return () => window.removeEventListener('keydown', onKey)
-  }, [items.length, request])
+  const handlePrevious = () => {
+    setIndex((current) => {
+      return Math.max(0, current - 1)
+    })
+  }
 
-  const handleRun = useCallback(
-    (key: ActionKey) => {
-      const action = request?.actions?.[key]
+  const handleNext = () => {
+    setIndex((current) => {
+      return Math.min(items.length - 1, current + 1)
+    })
+  }
 
-      if (!action || !item) return
-
-      closePreview() // close first so an opener action cannot stack modals
-      action(item)
-    },
-    [item, request],
-  )
-  const handlePrevious = useCallback(() => {
-    setIndex((current) => Math.max(0, current - 1))
-  }, [])
-  const handleNext = useCallback(() => {
-    setIndex((current) => Math.min(items.length - 1, current + 1))
-  }, [items.length])
-
-  if (!request) return null
+  if (!request) {
+    return null
+  }
 
   return (
     <Modal

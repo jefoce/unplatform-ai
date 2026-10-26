@@ -1,0 +1,94 @@
+name: sidecar-restore
+description: Pull a sidecar from GHCR, verify its manifest and stage it in <name>-out.
+
+inputs:
+  name:
+    description: Sidecar name, ffmpeg or node
+    required: true
+  target:
+    description: Target triple
+    required: true
+  runner:
+    description: Runner image that built the sidecar
+    required: true
+  profile:
+    description: Sidecar profile, full for ffmpeg
+    required: false
+    default: ''
+  force:
+    description: Skip the pull and rebuild the sidecar
+    required: false
+    default: 'false'
+  token:
+    description: Token for the GHCR login
+    required: true
+
+outputs:
+  key:
+    description: GHCR key of the sidecar
+    value: ${{ steps.key.outputs.key }}
+  found:
+    description: true when GHCR served a verified sidecar
+    value: ${{ steps.pull.outputs.found }}
+
+runs:
+  using: composite
+  steps:
+    - uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+    - name: Log in to GHCR
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        ACTOR: ${{ github.actor }}
+      run: |
+        oras version
+        printf '%s' "$GH_TOKEN" | oras login ghcr.io -u "$ACTOR" --password-stdin
+    - name: Compute sidecar key
+      id: key
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        TARGET: ${{ inputs.target }}
+        RUNNER_IMAGE: ${{ inputs.runner }}
+        PROFILE: ${{ inputs.profile }}
+      run: |
+        key=$(bash .github/scripts/sidecar-key.sh "$NAME" "$TARGET" "$RUNNER_IMAGE" "$PROFILE")
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+    - name: Pull sidecar from GHCR
+      id: pull
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        TARGET: ${{ inputs.target }}
+        KEY: ${{ steps.key.outputs.key }}
+        FORCE: ${{ inputs.force }}
+      run: |
+        if [[ "$FORCE" == "true" ]]; then
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        bin=$(bash .github/scripts/sidecar-binary.sh "$NAME" "$TARGET")
+        found=$(bash .github/scripts/ghcr-pull.sh "ghcr.io/jefoce/unplatform-ai-sidecars:$KEY" ghcr-cache "$bin" manifest.json)
+        echo "found=$found" >> "$GITHUB_OUTPUT"
+    - name: Use sidecar from GHCR
+      if: steps.pull.outputs.found == 'true'
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        TARGET: ${{ inputs.target }}
+        KEY: ${{ steps.key.outputs.key }}
+      run: |
+        out="$NAME-out"
+        bin=$(bash .github/scripts/sidecar-binary.sh "$NAME" "$TARGET")
+        node .github/scripts/sidecar-manifest.mjs verify "ghcr-cache/$bin" ghcr-cache/manifest.json
+        mkdir -p "$out"
+        cp "ghcr-cache/$bin" ghcr-cache/manifest.json "$out/"
+        if [[ -f ghcr-cache/buildconf.txt ]]; then
+          cp ghcr-cache/buildconf.txt "$out/"
+        fi
+        chmod +x "$out/$bin"
+        # Windows ffmpeg cannot run on Linux, so the build job verifies it.
+        if [[ "$NAME" != "ffmpeg" || "$TARGET" != *windows* ]]; then
+          bash "scripts/$NAME/verify.sh" "$out/$bin"
+        fi
+        echo "from GHCR $KEY"

@@ -1,52 +1,84 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { createRef, type ReactNode, type RefObject, useEffect, useMemo } from 'react'
 import { X } from 'lucide-react'
 import useSWR from 'swr'
+import { useShallow } from 'zustand/react/shallow'
 
 import type { CreditsInfo } from '@/core/types'
-import { fetcher } from '@/lib/fetcher'
+import { fetchCredits } from '@/lib/api/credits'
+import { CREDITS_KEY } from '@/lib/swr-keys'
 import { Button } from '@/ui/Button'
 import { Modal } from '@/ui/Modal'
 
-import { useSettingsStore } from './settings-store'
+import { SETTINGS_SECTION_IDS, type SettingsSection, useSettingsStore } from './settings-store'
 import { SettingsBody } from './SettingsBody'
 import { backendNote, useSecrets, useSettingsPrompt } from './use-secrets'
 import { useSettingsDraft } from './use-settings-draft'
 
+function createSectionRefs(): Record<SettingsSection, RefObject<HTMLElement | null>> {
+  return Object.fromEntries(
+    SETTINGS_SECTION_IDS.map((id) => {
+      return [id, createRef<HTMLElement>()]
+    }),
+  ) as Record<SettingsSection, RefObject<HTMLElement | null>>
+}
+
+interface SettingsModalProps {
+  appSection: ReactNode
+}
+
 /** Stored key editor: status, save, remove and test. */
-export function SettingsModal() {
-  const isOpen = useSettingsStore((state) => state.open)
-  const section = useSettingsStore((state) => state.section)
-  const closeSettings = useSettingsStore((state) => state.closeSettings)
+export function SettingsModal(props: SettingsModalProps) {
+  const { appSection } = props
+
+  const { isOpen, section, closeSettings } = useSettingsStore(
+    useShallow((state) => {
+      return { isOpen: state.open, section: state.section, closeSettings: state.closeSettings }
+    }),
+  )
+
   const { status } = useSecrets()
-  const { data: credits } = useSWR<CreditsInfo>('/api/credits', fetcher, {
+
+  const { data: credits } = useSWR<CreditsInfo>(CREDITS_KEY, fetchCredits, {
     revalidateOnFocus: false,
   })
+
   const isMock = credits ? credits.source === 'mock' : undefined
 
   useSettingsPrompt(status, isMock)
 
   const draft = useSettingsDraft({ status, mock: isMock, closeSettings })
-  const openrouterRef = useRef<HTMLElement>(null)
-  const r2Ref = useRef<HTMLElement>(null)
+
+  const sectionRefs = useMemo(() => {
+    return createSectionRefs()
+  }, [])
+
   const note = backendNote(status?.backend)
-  const handleOpenChange = draft.onClose
-  const handleClose = useCallback(() => void handleOpenChange(false), [handleOpenChange])
-  const handleSave = useCallback(() => void draft.onSave(), [draft])
+  const { onClose } = draft
+
+  const handleClose = () => {
+    return void onClose(false)
+  }
+
+  const handleSave = () => {
+    return void draft.onSave()
+  }
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      return
+    }
 
-    const target = section === 'r2' ? r2Ref.current : openrouterRef.current
+    const target = sectionRefs[section]
 
-    target?.scrollIntoView({ block: 'nearest' })
-  }, [isOpen, section, status])
+    target.current?.scrollIntoView({ block: 'nearest' })
+  }, [isOpen, section, sectionRefs, status])
 
   return (
     <Modal
       open={isOpen}
-      onOpenChange={handleOpenChange}
+      onOpenChange={onClose}
       label="Settings"
       className="flex max-h-[85vh] w-[min(560px,92vw)] flex-col"
     >
@@ -63,7 +95,12 @@ export function SettingsModal() {
       </header>
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-3">
-        <SettingsBody status={status} draft={draft} openrouterRef={openrouterRef} r2Ref={r2Ref} />
+        <SettingsBody
+          status={status}
+          draft={draft}
+          sectionRefs={sectionRefs}
+          appSection={appSection}
+        />
       </div>
 
       <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">

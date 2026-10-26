@@ -1,15 +1,19 @@
 'use client'
 
-import { GeneratorPanel } from '@/features/generator/GeneratorPanel'
-import { HistorySection } from '@/features/history/HistorySection'
-import { MediaPickerModal } from '@/features/media-picker/MediaPickerModal'
+import { GeneratorPanel } from '@/features/generator/panel/GeneratorPanel'
+import { HistorySection } from '@/features/history/list/HistorySection'
+import { MediaPickerModal } from '@/features/media-picker/picker/MediaPickerModal'
 import { MediaPreviewModal } from '@/features/preview/MediaPreviewModal'
 import { SettingsModal } from '@/features/settings/SettingsModal'
+import { AppSection } from '@/features/updates/AppSection'
+import { UpdateToast } from '@/features/updates/UpdateToast'
+import { useUpdateCheck } from '@/features/updates/use-update-check'
 import { usePointerBlur } from '@/lib/use-pointer-blur'
 
 /** Two-column studio shell: generate panel left, history right. */
 export function Studio() {
   usePointerBlur()
+  useUpdateCheck()
 
   return (
     <>
@@ -23,7 +27,8 @@ export function Studio() {
       </main>
       <MediaPickerModal />
       <MediaPreviewModal />
-      <SettingsModal />
+      <SettingsModal appSection={<AppSection />} />
+      <UpdateToast />
     </>
   )
 }
