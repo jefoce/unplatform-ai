@@ -2,6 +2,7 @@
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { ACTIVE_STATUSES } from '@/core/types'
+import { cn } from '@/lib/cn'
 import { useNow } from '@/lib/use-now'
 import { Tooltip } from '@/ui/Tooltip'
 
@@ -15,11 +16,14 @@ import { InputThumbs } from './InputThumbs'
 interface DetailsPanelProps {
   record: GenerationRecord
   onDeleted?: () => void
+
+  /** Keeps the model chip and price clear of the viewer close button. */
+  topRightInset?: boolean
 }
 
 /** Prompt, inputs, settings, actions and cost for one record. */
 export function DetailsPanel(props: DetailsPanelProps) {
-  const { record } = props
+  const { record, topRightInset: hasTopRightInset = false } = props
   const plain = canonicalPrompt(record)
   const cost = costInfo(record)
   const isActive = ACTIVE_STATUSES.includes(record.status)
@@ -27,7 +31,7 @@ export function DetailsPanel(props: DetailsPanelProps) {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-2xl border border-line bg-page-2 p-3 pb-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className={cn('flex items-center justify-between gap-2', hasTopRightInset && 'pr-10')}>
         <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
           {record.preset.title}
         </span>

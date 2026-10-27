@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CatalogEntry } from '@/core/catalog'
 import { getPreset } from '@/core/presets'
-import type { PricingInfo } from '@/core/types'
+import type { GenerationEstimate, PricingInfo } from '@/core/types'
 import { ModelRow } from '@/features/generator/model/ModelRow'
 import { GeneratorPanel } from '@/features/generator/panel/GeneratorPanel'
 import { useGeneratorStore } from '@/features/generator/store/store'
@@ -14,6 +16,11 @@ const mocks = vi.hoisted(() => {
   return {
     fetchEstimate: vi.fn(),
     useModelEntry: vi.fn(),
+    draft: {
+      validation: { ok: false, errors: ['Prompt is required'], warnings: [] },
+      isKeyMissing: true,
+      isSecretsFailed: false,
+    },
   }
 })
 
@@ -28,11 +35,7 @@ vi.mock('@/lib/api/generations', () => {
 vi.mock('@/features/generator/panel/use-panel-draft', () => {
   return {
     usePanelDraft: () => {
-      return {
-        validation: { ok: false, errors: ['Prompt is required'], warnings: [] },
-        isKeyMissing: true,
-        isSecretsFailed: false,
-      }
+      return mocks.draft
     },
   }
 })
@@ -129,6 +132,22 @@ const PRICING: PricingInfo = {
   fetchedAt: '2026-10-26T00:00:00.000Z',
 }
 
+const createCache = () => {
+  return new Map()
+}
+
+function SwrWrapper(props: { children: ReactNode }) {
+  return <SWRConfig value={{ provider: createCache }}>{props.children}</SWRConfig>
+}
+
+async function settle(ms: number): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, ms)
+    })
+  })
+}
+
 function catalogEntry(status: 'missing' | 'no_provider'): CatalogEntry {
   return {
     modelId: 'alibaba/wan-3.0',
@@ -143,6 +162,9 @@ function catalogEntry(status: 'missing' | 'no_provider'): CatalogEntry {
 beforeEach(() => {
   mockUseModelEntry.mockReset()
   mocks.fetchEstimate.mockReset()
+  mocks.draft.validation = { ok: false, errors: ['Prompt is required'], warnings: [] }
+  mocks.draft.isKeyMissing = true
+  mocks.draft.isSecretsFailed = false
 
   useGeneratorStore.setState({
     presetId: 'wan-3.0',
@@ -191,7 +213,7 @@ describe('ModelRow without a key', () => {
 })
 
 describe('Generate button without a key', () => {
-  it('shows the catalog rate and discount without requesting an estimate', () => {
+  it('shows no price, discount or spinner while the draft is invalid', async () => {
     mockUseModelEntry.mockReturnValue(catalogEntry('no_provider'))
 
     render(<GeneratorPanel />)
@@ -199,9 +221,46 @@ describe('Generate button without a key', () => {
     const button = screen.getByRole('button', { name: /Generate/ })
 
     expect((button as HTMLButtonElement).disabled).toBe(true)
-    expect(within(button).getByText('$0.043/s').className).toContain('text-disabled')
-    expect(within(button).getByText('$0.05/s').className).toContain('text-disabled/50')
-    expect(within(button).getByText('15% off').className).toContain('text-disabled/70')
+    expect(within(button).queryByText('$0.043/s')).toBeNull()
+    expect(within(button).queryByText('$0.05/s')).toBeNull()
+    expect(within(button).queryByText('15% off')).toBeNull()
+    expect(within(button).queryByRole('status')).toBeNull()
+
+    await settle(700)
+
     expect(mocks.fetchEstimate).not.toHaveBeenCalled()
+  })
+
+  it('shows the estimated total and requests it when the draft is valid', async () => {
+    const estimate: GenerationEstimate = {
+      estimatedUsd: 0.51,
+      listUsd: 0.6,
+      pricePerSec: 0.1,
+      priceSource: 'mock',
+      discount: 0.15,
+    }
+
+    mocks.draft.validation = { ok: true, errors: [], warnings: [] }
+    mocks.draft.isKeyMissing = false
+    mocks.fetchEstimate.mockResolvedValue(estimate)
+
+    render(
+      <SwrWrapper>
+        <GeneratorPanel />
+      </SwrWrapper>,
+    )
+
+    const button = screen.getByRole('button', { name: /Generate/ })
+
+    await waitFor(
+      () => {
+        expect(within(button).getByText('$0.51')).toBeTruthy()
+      },
+      { timeout: 2000 },
+    )
+
+    expect((button as HTMLButtonElement).disabled).toBe(false)
+    expect(mocks.fetchEstimate).toHaveBeenCalled()
+    expect(within(button).queryByText('15% off')).toBeNull()
   })
 })

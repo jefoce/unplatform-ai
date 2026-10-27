@@ -235,6 +235,7 @@ const deletion = useAsyncAction(async () => {
   - `--spacing-<name>` gives `w-<name>`, `h-<name>`, `p-<name>`, `gap-<name>` and the rest.
   - `--radius-<name>`, `--text-<name>`, `--color-<name>`, `--shadow-<name>`, `--breakpoint-<name>`.
 - Arbitrary values last, only for what the scale and tokens cannot say: `calc()`, `var()`, gradients, grid templates, and selector variants like `group-has-[...]/card`.
+- Radius: `rounded-md` chips and small buttons, `rounded-lg` tiles and inputs, `rounded-xl` media, `rounded-2xl` panels and modals, `rounded-full` round controls. Content painted inside a rounded clip uses `rounded-[inherit]`.
 - Colors only through tokens. No `[#hex]`, no `[rgb(...)]`.
 - A repeated set of classes becomes a component in `src/ui`, or a `*_CLASSES` constant next to its component. Not `@apply`. `@utility` only for things Tailwind has no utility for (scrollbar styling, for example).
 - A value used both in JS (inline `style`, measurements) and in classes lives in `src/core/constants.ts` only, and the class side uses the inline style. Do not keep two copies.

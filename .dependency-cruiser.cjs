@@ -91,6 +91,7 @@ module.exports = {
     {
       name: 'preview-uses-player-only',
       severity: 'error',
+      comment: 'Preview renders the media stage only. Callers supply the toolbar node.',
       from: { path: '^src/features/preview/' },
       to: { path: '^src/features/(?!(preview|player)/)' },
     },
@@ -111,6 +112,15 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/features/history/' },
       to: { path: '^src/features/(studio|settings|media-picker)/' },
+    },
+    {
+      name: 'features-use-studio-file-input',
+      severity: 'error',
+      comment: 'One window file input. Features route files through the studio shell.',
+      from: {
+        path: '^src/features/(generator|media-picker|history|preview|player|settings|updates)/',
+      },
+      to: { path: '^src/features/media-input/' },
     },
     {
       name: 'only-app-composes-studio',

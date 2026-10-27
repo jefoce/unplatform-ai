@@ -1,14 +1,22 @@
 'use client'
 
-import { type ComponentProps, type CSSProperties, type MouseEvent, useRef } from 'react'
+import {
+  type ComponentProps,
+  type CSSProperties,
+  type MouseEvent,
+  type RefObject,
+  useEffect,
+  useRef,
+} from 'react'
 import { isEmpty } from 'lodash-es'
 
+import { AUTOPLAY_DELAY_MS } from '@/core/constants'
 import { cn } from '@/lib/cn'
 
 import { LazyVideoPlayer } from './LazyVideoPlayer'
 import { LazyVideoPoster } from './LazyVideoPoster'
 import { useHoverPlay } from './use-hover-play'
-import { usePlayerInput } from './use-player-input'
+import { type SeekKeys, usePlayerInput } from './use-player-input'
 import { usePlayerSlot } from './use-player-slot'
 import { useSlotLifecycle } from './use-slot-lifecycle'
 import { useVideoState } from './use-video-state'
@@ -23,6 +31,10 @@ export interface LazyVideoProps {
   posterFit?: 'cover' | 'contain'
   videoFit?: 'cover' | 'contain'
   hoverPlay?: boolean
+  seekKeys?: SeekKeys
+
+  /** Acquires the slot on mount and starts playback. */
+  autoPlay?: boolean
 
   /** False hides controls and releases the slot: selection mode owns the click. */
   interactive?: boolean
@@ -46,6 +58,41 @@ function tabIndexFor(isInteractive: boolean): number {
   return -1
 }
 
+interface UseAutoPlayParams {
+  id: string
+  isEnabled: boolean
+  isSlotActive: boolean
+  videoRef: RefObject<HTMLVideoElement | null>
+  acquire: (id: string) => void
+}
+
+/** Acquires the slot after a short stay and starts playback once the video exists. */
+function useAutoPlay(params: UseAutoPlayParams): void {
+  const { id, isEnabled, isSlotActive, videoRef, acquire } = params
+
+  useEffect(() => {
+    if (!isEnabled) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      acquire(id)
+    }, AUTOPLAY_DELAY_MS)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [acquire, id, isEnabled])
+
+  useEffect(() => {
+    if (!isEnabled || !isSlotActive) {
+      return
+    }
+
+    void videoRef.current?.play().catch(() => {})
+  }, [isEnabled, isSlotActive, videoRef])
+}
+
 /**
  * Poster-only until the user plays it and the slot is active.
  * Only two videos stay loaded across the app. Hover mode keeps the slot on leave.
@@ -61,15 +108,20 @@ export function LazyVideo(props: LazyVideoProps) {
     posterFit = 'contain',
     videoFit = 'contain',
     hoverPlay: isHoverPlay = false,
+    seekKeys,
+    autoPlay: isAutoPlayProp,
     interactive: isInteractive = true,
   } = props
 
+  const isAutoPlay = Boolean(isAutoPlayProp)
   const { acquire, release, isActive } = usePlayerSlot()
   const isSlotActive = isActive(id)
   const rootRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const video = useVideoState({ videoRef, rootRef, active: isSlotActive, src })
-  const inputHandlers = usePlayerInput({ isActive: isSlotActive, video })
+  const inputHandlers = usePlayerInput({ isActive: isSlotActive, video, seekKeys })
+
+  useAutoPlay({ id, isEnabled: isAutoPlay, isSlotActive, videoRef, acquire })
 
   const hoverHandlers = useHoverPlay({
     id,
@@ -101,7 +153,7 @@ export function LazyVideo(props: LazyVideoProps) {
       {...hoverHandlers}
       style={rootStyle}
       className={cn(
-        'group/player relative overflow-hidden bg-black outline-none',
+        'group/player relative overflow-hidden rounded-[inherit] bg-black outline-none',
         isEmpty(aspect) && 'h-full',
         className,
       )}
@@ -112,6 +164,7 @@ export function LazyVideo(props: LazyVideoProps) {
           video={video}
           src={src}
           poster={poster}
+          posterFit={posterFit}
           isHoverPlay={isHoverPlay}
           fit={fit}
           showControls={shouldShowControls}

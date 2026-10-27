@@ -19,7 +19,7 @@ interface FrameSlotCardProps {
   onRemove: (event: MouseEvent<HTMLButtonElement>) => void
 }
 
-/** Visual frame drop slot with preview, replace and remove controls. */
+/** Visual frame slot with preview, replace and remove controls. */
 export function FrameSlotCard(props: FrameSlotCardProps) {
   const { label, upload, hasFrame, isBroken, isPreviewable, isDisabled } = props
   const previewLabel = isPreviewable ? `Preview ${label.toLowerCase()}` : label
@@ -45,7 +45,7 @@ export function FrameSlotCard(props: FrameSlotCardProps) {
           <img
             src={thumbUrl({ ref: `uploads/${upload.id}`, w: 640 })}
             alt={label}
-            className="pointer-events-none absolute inset-0 size-full bg-black/40 object-contain"
+            className="pointer-events-none absolute inset-0 size-full rounded-[inherit] bg-black/40 object-contain"
           />
         )}
 

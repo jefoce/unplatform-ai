@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo } from 'react'
 import { isEmpty } from 'lodash-es'
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { useGeneratorStore } from '@/features/generator/store/store'
+import { ViewerUseButton } from '@/features/viewers/ViewerUseButton'
 import { cn } from '@/lib/cn'
 
 import { isSelectable } from '../actions/record-view'
@@ -12,6 +13,7 @@ import { useSelectionStore } from '../selection/selection-store'
 import { SelectionBar } from '../selection/SelectionBar'
 import { useJobNotifications } from '../status/use-job-notifications'
 import { EmptyState } from './EmptyState'
+import { useHistoryViewerStore } from './history-viewer-store'
 import { HistoryGrid } from './HistoryGrid'
 import { HistoryList } from './HistoryList'
 import { HistoryModal } from './HistoryModal'
@@ -21,9 +23,14 @@ import { useHistory } from './use-history'
 import { useHistoryScroll } from './use-history-scroll'
 import { useHistoryViewStore } from './view-store'
 
+/** Use button for the completed record shown in the history viewer. */
+function renderHistoryToolbar(record: GenerationRecord): ReactNode {
+  return <ViewerUseButton target={{ kind: 'record', record }} />
+}
+
 /** Right-hand feed: toolbar, list or grid, infinite scroll and grid details modal. */
 export function HistorySection() {
-  const { records, activeCount, isLoading, hasMore, loadMore } = useHistory()
+  const { records, activeCount, isLoading, isValidating, hasMore, loadMore } = useHistory()
 
   const view = useHistoryViewStore((state) => {
     return state.view
@@ -41,7 +48,13 @@ export function HistorySection() {
     return state.setActiveCount
   })
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectedId = useHistoryViewerStore((state) => {
+    return state.selectedId
+  })
+
+  const navigate = useHistoryViewerStore((state) => {
+    return state.navigate
+  })
 
   const selected =
     records.find((record) => {
@@ -54,20 +67,16 @@ export function HistorySection() {
     })
   }, [records])
 
+  const viewOrder = useMemo(() => {
+    return records.map((record) => {
+      return record.id
+    })
+  }, [records])
+
   const paddingClass = isSelecting ? 'pb-28' : 'pb-14'
 
   const handleOpen = (record: GenerationRecord) => {
-    setSelectedId(record.id)
-  }
-
-  const handleDeleted = () => {
-    setSelectedId(null)
-  }
-
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      setSelectedId(null)
-    }
+    navigate(record.id)
   }
 
   useJobNotifications({ records, activeCount, isLoading })
@@ -86,14 +95,8 @@ export function HistorySection() {
   }, [order])
 
   useEffect(() => {
-    useSelectionStore.getState().prune(
-      new Set(
-        records.map((record) => {
-          return record.id
-        }),
-      ),
-    )
-  }, [records])
+    useSelectionStore.getState().prune(new Set(viewOrder))
+  }, [viewOrder])
 
   const sentinel = useHistoryScroll(hasMore, loadMore)
 
@@ -110,9 +113,11 @@ export function HistorySection() {
       <SelectionBar records={records} />
       <HistoryModal
         record={selected}
-        open={Boolean(selected)}
-        onOpenChange={handleOpenChange}
-        onDeleted={handleDeleted}
+        viewOrder={viewOrder}
+        hasMore={hasMore}
+        isLoadingMore={isValidating}
+        onLoadMore={loadMore}
+        toolbar={renderHistoryToolbar}
       />
     </section>
   )

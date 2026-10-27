@@ -1,5 +1,6 @@
 'use client'
 
+import { X } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import type { ReactNode } from 'react'
 
@@ -14,6 +15,9 @@ interface ModalProps {
   className?: string
   backdropClassName?: string
   hideOverlay?: boolean
+
+  /** Round close control in the top-right corner. */
+  showClose?: boolean
   label: string
 }
 
@@ -25,6 +29,7 @@ export function Modal(props: ModalProps) {
     className,
     backdropClassName,
     hideOverlay: shouldHideOverlay,
+    showClose: shouldShowClose,
     label,
   } = props
 
@@ -45,6 +50,17 @@ export function Modal(props: ModalProps) {
           )}
         >
           <DialogPrimitive.Title className="sr-only">{label}</DialogPrimitive.Title>
+          {shouldShowClose === true && (
+            <DialogPrimitive.Close asChild>
+              <button
+                type="button"
+                aria-label="Close"
+                className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm transition hover:bg-black/80 focus-visible:bg-black/80"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </DialogPrimitive.Close>
+          )}
           {children}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

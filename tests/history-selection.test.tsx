@@ -96,7 +96,7 @@ describe('history selection cards', () => {
     expect(screen.queryByLabelText('Favorite')).toBeNull()
   })
 
-  it('shows a player only on a selected list row while selecting', () => {
+  it('shows no player on list rows while selecting', () => {
     const records = ['a', 'b'].map((id) => {
       return record(id)
     })
@@ -116,23 +116,11 @@ describe('history selection cards', () => {
       </div>,
     )
 
-    expect(screen.getAllByRole('button', { name: 'Play video' })).toHaveLength(1)
+    expect(screen.queryAllByRole('button', { name: 'Play video' })).toHaveLength(0)
   })
 })
 
 describe('history selection rows', () => {
-  it('keeps a selected list row selected when its media is clicked', () => {
-    const item = record('a')
-
-    setOrder(['a'])
-    setSelection(['a'])
-    const { container } = render(<HistoryRow record={item} />)
-
-    fireEvent.click(required(container.querySelector('img'), 'poster'))
-
-    expect(ids()).toEqual(['a'])
-  })
-
   it('starts a range from the anchor when nothing is selected', () => {
     const records = ['a', 'b', 'c', 'd'].map((id) => {
       return record(id)

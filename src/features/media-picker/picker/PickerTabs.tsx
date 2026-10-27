@@ -25,7 +25,7 @@ export function PickerTabs(props: PickerTabsProps) {
   }
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2">
+    <div className="flex h-12 shrink-0 items-center gap-2 rounded-xl bg-page-2/60 px-2 backdrop-blur-xl linux:bg-page-2">
       <div className="flex flex-1 scrollbar-none items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
@@ -61,9 +61,9 @@ export function PickerTabs(props: PickerTabsProps) {
         type="button"
         onClick={props.onClose}
         aria-label="Close picker"
-        className="flex size-8 shrink-0 items-center justify-center rounded-full text-fg-2 transition hover:bg-white/5 hover:text-fg"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full text-fg-2 transition hover:bg-white/5 hover:text-fg"
       >
-        <X className="size-4" />
+        <X className="size-3.5" />
       </button>
     </div>
   )

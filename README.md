@@ -117,7 +117,7 @@ Both guides are also linked in the app: gear icon → **Setup guide**.
 ## Make your first video
 
 1. Pick the cheapest model at 480p and a short length to try.
-2. Describe what should happen. Optional: add a start picture (Frames) or references (References), and call them Image 1, Video 1, Audio 1 in your text.
+2. Describe what should happen. Optional: open the picker beside the generator and click a picture or clip to attach it. Click it again to remove it. In Frames, a click picks the file and closes the picker. Call them Image 1, Video 1, Audio 1 in your text. You can also paste or drop files anywhere in the window. They go to the open picker or to the active tab.
 3. Press **Generate**. The button shows the price. You have 10 seconds to cancel before anything is sent or paid.
 
 ## Keep the app running until your video is done
@@ -159,6 +159,16 @@ To back up or move to a new computer, copy the whole folder, then enter your key
 - No account, no tracking, no server of ours. Keys stay in your system keychain.
 - Your text and pictures go to OpenRouter and the model's provider. Video and sound references go to your own R2 bucket as private links that expire after 2 hours.
 - R2 stays inside Cloudflare's free tier, see [the R2 guide](docs/user/CLOUDFLARE-R2.md).
+
+## Keyboard shortcuts
+
+- `Left` and `Right`: previous or next item in the viewer or a preview list.
+- `Shift+Left` and `Shift+Right`: seek 5 seconds inside the viewer.
+- `+` and `-`: zoom a photo in or out in the viewer.
+- `0`: fit a zoomed photo back to the screen.
+- `Space`: play or pause a focused player.
+- `F`: fullscreen for a focused player.
+- `Escape`: close a dialog or clear the selection.
 
 ## Something went wrong?
 

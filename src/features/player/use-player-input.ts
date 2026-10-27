@@ -6,9 +6,12 @@ import { isOwnEvent } from '@/lib/events'
 
 import type { VideoApi } from './use-video-state'
 
+export type SeekKeys = 'arrows' | 'shiftArrows'
+
 interface UsePlayerInputParams {
   isActive: boolean
   video: VideoApi
+  seekKeys?: SeekKeys
 }
 
 interface PlayerInputHandlers {
@@ -18,7 +21,7 @@ interface PlayerInputHandlers {
 
 /** Keyboard and click shortcuts for the player root. */
 export function usePlayerInput(params: UsePlayerInputParams): PlayerInputHandlers {
-  const { isActive, video } = params
+  const { isActive, video, seekKeys = 'arrows' } = params
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!isOwnEvent(event) || event.target !== event.currentTarget) {
@@ -40,6 +43,10 @@ export function usePlayerInput(params: UsePlayerInputParams): PlayerInputHandler
     }
 
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return
+    }
+
+    if (seekKeys === 'shiftArrows' && !event.shiftKey) {
       return
     }
 

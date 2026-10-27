@@ -11,18 +11,19 @@ import { openThumb, type ThumbItem } from './thumb-item'
 
 interface InputThumbProps {
   item: ThumbItem
+  items: ThumbItem[]
   index: number
 }
 
 /** One input thumb, grey initial when the file is gone. */
 export function InputThumb(props: InputThumbProps) {
-  const { item, index } = props
+  const { item, items, index } = props
   const [isBroken, setIsBroken] = useState(false)
   const firstChar = item.name.charAt(0).toUpperCase()
   const initial = firstChar === '' ? '?' : firstChar
 
   const handleOpen = () => {
-    return void openThumb(item)
+    return void openThumb({ item, items, index })
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -70,7 +71,7 @@ export function InputThumb(props: InputThumbProps) {
             loading="lazy"
             decoding="async"
             onError={handleError}
-            className="size-full bg-black/40 object-cover"
+            className="size-full rounded-[inherit] bg-black/40 object-cover"
           />
         )}
         <span

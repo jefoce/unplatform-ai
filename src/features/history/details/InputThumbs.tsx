@@ -19,7 +19,9 @@ export function InputThumbs(props: InputThumbsProps) {
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((item, index) => {
-        return <InputThumb key={`${item.label}-${item.id}`} item={item} index={index} />
+        return (
+          <InputThumb key={`${item.label}-${item.id}`} item={item} items={items} index={index} />
+        )
       })}
     </div>
   )

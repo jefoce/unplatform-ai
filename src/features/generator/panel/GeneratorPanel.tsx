@@ -3,12 +3,8 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { noop } from 'lodash-es'
 import { Settings } from 'lucide-react'
-import { useShallow } from 'zustand/react/shallow'
 
-import { getPreset } from '@/core/presets'
-import { pricePerSec } from '@/core/pricing'
 import { openSettings } from '@/features/settings/settings-store'
-import { useModelEntry } from '@/lib/api/models'
 
 import { CreditsBadge } from '../credits/CreditsBadge'
 import { FrameSlots } from '../frames/FrameSlots'
@@ -19,11 +15,10 @@ import { ModelPicker } from '../model/ModelPicker'
 import { PromptField } from '../prompt/PromptField'
 import { ReferencesBox } from '../references/ReferencesBox'
 import { useGeneratorStore } from '../store/store'
-import { hasVideoReference } from '../store/store-helpers'
 import { ModeTabs } from './ModeTabs'
 import { SettingsRow } from './SettingsRow'
 import { usePanelDraft } from './use-panel-draft'
-import { usePanelPaste, useUploadsRefresh } from './use-panel-uploads'
+import { useUploadsRefresh } from './use-panel-uploads'
 
 const emptySubscribe = () => {
   return noop
@@ -37,51 +32,6 @@ const getUnmounted = () => {
   return false
 }
 
-interface PanelPrice {
-  price: number | null
-  listPrice: number | null
-  discount: number
-  isLoading: boolean
-}
-
-/** Estimate while enabled, catalog rate from the active preset otherwise. */
-function usePanelPricing(isReady: boolean): PanelPrice {
-  const { presetId, resolution, aspectRatio, isAudio, hasVideoInput } = useGeneratorStore(
-    useShallow((state) => {
-      return {
-        presetId: state.presetId,
-        resolution: state.resolution,
-        aspectRatio: state.aspectRatio,
-        isAudio: state.audio,
-        hasVideoInput: hasVideoReference(state),
-      }
-    }),
-  )
-
-  const estimate = usePanelPrice(isReady)
-  const preset = getPreset(presetId)
-  const pricing = useModelEntry(presetId)?.pricing
-  const ctx = { resolution, aspect: aspectRatio, audio: isAudio, hasVideoInput }
-  const catalogDiscount = pricing?.discount ?? 0
-  const catalogPrice = pricePerSec({ preset, ctx, skus: pricing?.skus })
-  let catalogListPrice: number | null = null
-
-  if (catalogDiscount > 0) {
-    catalogListPrice = pricePerSec({ preset, ctx, skus: pricing?.listSkus })
-  }
-
-  if (isReady) {
-    return estimate
-  }
-
-  return {
-    price: catalogPrice,
-    listPrice: catalogListPrice,
-    discount: catalogDiscount,
-    isLoading: estimate.isLoading,
-  }
-}
-
 function handleOpenSettings(): void {
   openSettings()
 }
@@ -93,9 +43,8 @@ export function GeneratorPanel() {
   })
 
   const { validation, isKeyMissing, isSecretsFailed } = usePanelDraft()
-  const { handlePaste } = usePanelPaste()
   const isReady = validation.ok && !isSecretsFailed
-  const { price, listPrice, discount, isLoading: isPriceLoading } = usePanelPricing(isReady)
+  const { price, listPrice, discount, isLoading: isPriceLoading } = usePanelPrice(isReady)
   const { generate, isGenerating } = useGenerate()
 
   const isMounted = useSyncExternalStore(emptySubscribe, getMounted, getUnmounted)
@@ -115,10 +64,7 @@ export function GeneratorPanel() {
   const Body = tab === 'frames' ? FrameSlots : ReferencesBox
 
   return (
-    <div
-      className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-panel"
-      onPaste={handlePaste}
-    >
+    <div className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-panel">
       <div
         id="generator-panel"
         data-generator-panel

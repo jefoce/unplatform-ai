@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -25,6 +25,14 @@ import { listUploadRecords, loadUploadRecord, rememberUpload } from '../repos/up
 import { deleteUploadFiles, getUpload, saveFileUpload } from '../repos/uploads'
 import { getObjectStore } from '../storage/registry'
 import { withLock } from '../sync/lock'
+import {
+  forgetUpload,
+  hashPathCached,
+  hasSizeCandidate,
+  matchByHash,
+  rememberUpload as rememberUploadSize,
+  runWithHashLock,
+} from './upload-hash'
 import { assertSupported, probe } from './upload-probe'
 
 interface CreateFileUploadParams {
@@ -38,22 +46,36 @@ interface LinkUploadParams {
   relPath?: string
 }
 
-/** Validates and probes uploaded bytes, then stores them through the repo. */
+/** Reuses an upload with the same bytes, otherwise probes and stores them. */
 export async function createFileUpload(params: CreateFileUploadParams): Promise<UploadItem> {
   const { bytes, originalName } = params
   const ext = extWithDot(originalName)
   const kind = assertSupported(ext)
-  const temp = path.join(os.tmpdir(), `upload-probe-${randomUUID()}${ext}`)
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+  const size = bytes.length
 
-  await fs.writeFile(temp, bytes)
+  return runWithHashLock(size, async () => {
+    const existing = await matchByHash({ sha256, size })
 
-  try {
-    const meta = await probe(temp, kind)
+    if (existing) {
+      return existing
+    }
 
-    return await saveFileUpload({ bytes, originalName, ...meta })
-  } finally {
-    await fs.unlink(temp).catch(() => {})
-  }
+    const temp = path.join(os.tmpdir(), `upload-probe-${randomUUID()}${ext}`)
+
+    await fs.writeFile(temp, bytes)
+
+    try {
+      const meta = await probe(temp, kind)
+      const item = await saveFileUpload({ bytes, originalName, sha256, ...meta })
+
+      rememberUploadSize({ id: item.id, size })
+
+      return item
+    } finally {
+      await fs.unlink(temp).catch(() => {})
+    }
+  })
 }
 
 /** Links a disk file, falling back to hard link then copy, or reuses an existing link. */
@@ -87,35 +109,49 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
     return { ...existing, missing: false }
   }
 
-  const id = randomUUID()
-  const paths = uploadPaths(id, ext)
-  const linkMode = await linkOrCopy(target, paths.media)
+  const size = stats.size
 
-  const item: UploadItem = {
-    id,
-    source: 'link',
-    kind,
-    mime,
-    ext,
-    originalName: path.basename(requested),
-    target,
-    linkMode,
-    sizeBytes: stats.size,
-    createdAt: new Date().toISOString(),
-    ...(await probe(paths.media, kind)),
-  }
+  return runWithHashLock(size, async () => {
+    if (await hasSizeCandidate(size)) {
+      const sha256 = await hashPathCached(target)
+      const match = await matchByHash({ sha256, size })
 
-  try {
-    await writeJsonAtomic({ file: paths.json, data: item })
-  } catch (error) {
-    await removeFile(paths.media)
+      if (match) {
+        return match
+      }
+    }
 
-    throw error
-  }
+    const id = randomUUID()
+    const paths = uploadPaths(id, ext)
+    const linkMode = await linkOrCopy(target, paths.media)
 
-  await rememberUpload(item)
+    const item: UploadItem = {
+      id,
+      source: 'link',
+      kind,
+      mime,
+      ext,
+      originalName: path.basename(requested),
+      target,
+      linkMode,
+      sizeBytes: size,
+      createdAt: new Date().toISOString(),
+      ...(await probe(paths.media, kind)),
+    }
 
-  return item
+    try {
+      await writeJsonAtomic({ file: paths.json, data: item })
+    } catch (error) {
+      await removeFile(paths.media)
+
+      throw error
+    }
+
+    await rememberUpload(item)
+    rememberUploadSize({ id, size })
+
+    return item
+  })
 }
 
 /** Loads only uploads referenced by the normalized input. */
@@ -174,6 +210,10 @@ export async function removeUpload(id: string): Promise<void> {
 
     await deleteUploadFiles({ id, ext: record?.ext ?? '' })
     await removeEncoded(id)
+
+    if (record) {
+      forgetUpload({ id, size: record.sizeBytes })
+    }
 
     if (record?.remote && !isShared) {
       await deleteRemote(record.remote.key)

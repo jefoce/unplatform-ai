@@ -3,44 +3,66 @@ import { toast } from 'sonner'
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { canCancelInGrace } from '@/core/submit-state'
+import {
+  applyRecordToGenerator,
+  captureFrameAt,
+  linkRecordReference,
+} from '@/features/generator/record-input'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { captureGenerationFrame, revealGeneration } from '@/lib/api/generations'
-import { linkGenerationFile } from '@/lib/api/uploads'
+import { revealGeneration } from '@/lib/api/generations'
 import { copyText, toastError } from '@/lib/notify'
 
 import { cancelGeneration } from './record-actions'
 import { plainPrompt } from './record-view'
 
 /** Grabs the first or last frame of a finished video and arms it as the start frame. */
-export async function captureFrame(record: GenerationRecord, at: 'first' | 'last'): Promise<void> {
+export async function captureFrame(
+  record: GenerationRecord,
+  at: 'first' | 'last',
+): Promise<boolean> {
   try {
-    const upload = await captureGenerationFrame(record.id, at)
-    const store = useGeneratorStore.getState()
-
-    store.setTab('frames')
-    store.setFrame('start', upload)
+    await captureFrameAt(record, at)
     toast.success('Start frame set')
+
+    return true
   } catch (error) {
     toastError(error)
+
+    return false
   }
 }
 
 /** Links the finished video as a reference when the preset allows it. */
-export async function addReference(record: GenerationRecord): Promise<void> {
+export async function addReference(record: GenerationRecord): Promise<boolean> {
   try {
-    const upload = await linkGenerationFile({ generationId: record.id })
-    const store = useGeneratorStore.getState()
+    const upload = await linkRecordReference(record)
+    const isAdded = useGeneratorStore.getState().references.includes(upload.id)
 
-    store.setTab('references')
-    store.addReferences([upload])
-
-    if (useGeneratorStore.getState().references.includes(upload.id)) {
+    if (isAdded) {
       toast.success('Added as reference')
     } else {
       toast.error('Reference limit reached')
     }
+
+    return isAdded
   } catch (error) {
     toastError(error)
+
+    return false
+  }
+}
+
+/**
+ * Applies a record as input for the active generator tab.
+ * @public
+ */
+export async function applyRecordInput(record: GenerationRecord): Promise<boolean> {
+  try {
+    return await applyRecordToGenerator(record)
+  } catch (error) {
+    toastError(error)
+
+    return false
   }
 }
 

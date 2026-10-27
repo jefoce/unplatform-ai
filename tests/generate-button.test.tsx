@@ -50,6 +50,7 @@ describe('GenerateButton', () => {
     expect(button.getAttribute('aria-busy')).toBeNull()
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.queryByText('$1.50')).toBeNull()
+    expect(screen.queryByText('25% off')).toBeNull()
   })
 
   it('spins while generating', () => {
@@ -85,6 +86,7 @@ describe('GenerateButton', () => {
     )
 
     expect(screen.getByText('$1.50')).toBeTruthy()
+    expect(screen.queryByText('25% off')).toBeNull()
     expect(screen.queryByRole('status')).toBeNull()
   })
 })

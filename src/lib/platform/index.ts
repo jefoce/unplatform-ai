@@ -9,7 +9,7 @@ import type { AppInfo, AppUpdate, InstallResult } from './update-schemas'
 
 let instance: Promise<Platform> | null = null
 
-export const isDesktop = (): boolean => {
+const isDesktop = (): boolean => {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 

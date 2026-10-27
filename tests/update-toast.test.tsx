@@ -31,7 +31,7 @@ vi.mock('sonner', () => {
   return { toast: toastMock }
 })
 
-const update = { version: '0.2.1', notes: 'Fixes', date: null }
+const update = { version: '0.3.0', notes: 'Fixes', date: null }
 
 async function flush(): Promise<void> {
   await act(async () => {

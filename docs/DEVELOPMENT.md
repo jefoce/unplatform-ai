@@ -178,7 +178,23 @@ Dependabot opens one grouped monthly pull request for npm, cargo and GitHub Acti
 - No focus rings. Keyboard focus uses the `:focus-visible` hover UI, never `focus-visible:ring-*`.
 - Mock first: `OPENROUTER_MOCK=1` for generation work, `REMOTE_MOCK=1` for storage work.
 
-## 12. Desktop build
+## 12. Viewers
+
+- `MediaStage` (`src/ui/MediaStage.tsx`) draws one media area with a blurred thumb or a hashed gradient backdrop, optional arrow nav and a `toolbar` slot that appears on hover.
+- `useChainKeys` (`src/lib/use-chain-keys.ts`) maps left and right arrows to previous and next. `lib/dialog-keys.ts` lets a key act only inside the topmost `[role="dialog"]` or `[role="alertdialog"]`, and ignores inputs, textareas, selects, editors, sliders and the alt, ctrl and meta modifiers.
+- The history details viewer keeps its record in `features/history/list/history-viewer-store.ts` (`selectedId`, `open`, `close`, `navigate`, not persisted). `closeViewers()` closes the preview and that viewer.
+- `ZoomLayer` (`src/ui/ZoomLayer.tsx`) adds wheel, pinch and key zoom to images only. Its scale, offset and fit math lives in `zoom-math.ts`.
+- A video player starts after a half second stay (`AUTOPLAY_DELAY_MS`) and shows its poster until playback starts.
+
+## 13. Picker
+
+- `features/media-picker/picker/store.ts` holds one request: kinds, optional extensions and one of two modes. `toggle` takes `useSelectedIds`, `useUploadsById`, `canAdd` and `onToggle` from the opener, reads selection from the generator and stays open. `pick` takes only `onPick` and closes after the pick.
+- No local selection and no Add button. A file click runs the opener's action.
+- Reference limits come from `features/generator/reference-rules.ts` (`referenceRoom` and `addBlockReason`).
+- Folder files link on click and match an attached upload by its `target` through `core/folder-match.ts`.
+- `DockedPanel` docks the picker beside the generator anchor at 900 px and up, and shows a centered modal below that.
+
+## 14. Desktop build
 
 `pnpm desktop:build` builds the installers for the current platform only: dmg on macOS, NSIS on Windows, AppImage/deb/rpm on Linux.
 
@@ -226,7 +242,7 @@ Measured on 2026-10-21, macOS arm64: DMG 62.72 MiB, installed app 181.76 MiB. In
 
 Build per architecture. arm64 builds on Apple Silicon. x64 needs an Intel Mac, or an x64 Node and matching native modules.
 
-## 13. Own ffmpeg build
+## 15. Own ffmpeg build
 
 - `pnpm ffmpeg:build` builds the redistributable ffmpeg for this machine into `~/.cache/unplatform-ai-build/ffmpeg/<version>-<profile>/<triple>/`. `pnpm desktop:build` picks it up from there.
 - ffmpeg 9.0.2 with the `full` profile lands in `~/.cache/unplatform-ai-build/ffmpeg/9.0.2-full/<triple>/ffmpeg-<triple>`. The full build has x264, AAC, PNG, MJPEG, WebP and the filters the app uses, and no nonfree components.
@@ -242,7 +258,7 @@ Build per architecture. arm64 builds on Apple Silicon. x64 needs an Intel Mac, o
 
 Measured on macOS arm64: full 22.1 MiB, minimal 8.9 MiB, `ffmpeg-static` fallback 43.5 MiB.
 
-## 14. Own Node build
+## 16. Own Node build
 
 `pnpm node:build` runs `scripts/node/build-unix.sh` and builds Node 24.22.1 with `small-icu`, no npm and no corepack. The result lands in `~/.cache/unplatform-ai-build/node/24.22.1-small-icu/<triple>/unplatform-ai-server-<triple>`, and `prepare-desktop.mjs` uses it when present. Source is the official `.tar.xz`, checked against `NODE_SHA256` in `scripts/node/versions.env`.
 
@@ -264,7 +280,7 @@ Measured on 2026-10-22, macOS arm64: custom binary 65.0 MiB against 116.9 MiB fo
 
 The first build compiles Node from source and is slow. Later runs reuse the cached binary.
 
-## 15. Debugging
+## 17. Debugging
 
 ### Stale builds
 
@@ -305,7 +321,7 @@ PORT=47821 HOSTNAME=127.0.0.1 APP_TOKEN=test \
 
 Then open `http://127.0.0.1:47821/api/session?t=test`.
 
-## 16. Release checklist
+## 18. Release checklist
 
 `.github/workflows/release.yml` runs on pushes to `releases`, on `v*-rc.*` tags and on manual `workflow_dispatch` with a `tag` input. A `draft` job creates one draft release before any build. The `ffmpeg` and `node` jobs pull their sidecar from GHCR or build and push it. A `checks` job calls `checks.yml` once in parallel with the sidecar jobs. Build jobs download artifacts (or a reused run), verify sidecars, stage the server, run the smoke test, build installers, rename them `unplatform-ai-<version>-<platform>-<arch><suffix>` and upload them by release id. The checksums job reads ffmpeg sources from GHCR first and from the run artifact second, then uploads `SHA256SUMS.txt` and the archives by release id. On a push to `releases`, the `tag` job creates and pushes `vX.Y.Z` only after every job passed. Every oras push carries `org.opencontainers.image.source` linking the package to this repo.
 
@@ -381,6 +397,8 @@ Each script takes arguments and runs with `set -euo pipefail`. Expressions reach
 
 `tests/ci-scripts.test.ts` covers the rename, version, sources tag and ffmpeg plan scripts, plus the GHCR pull flattening, with a fake `oras`. The ffmpeg and Node builds under `scripts/ffmpeg` and `scripts/node` do not change. Any byte there changes a GHCR key.
 
+`ghcr-pull.sh` prints a bare `true` or `false` on stdout, and diagnostics go to stderr. Callers capture it with `found=$(...)` and write `found=$found` to `GITHUB_OUTPUT`, so a hit is never written as `found=found=true`.
+
 ### Sidecar artifacts (GHCR)
 
 Release builds pull prebuilt sidecars from the public packages `ghcr.io/jefoce/unplatform-ai-sidecars` and `ghcr.io/jefoce/unplatform-ai-sources` before compiling. Sidecar tags look like `<name>-<target>-<hash16>`, where the hash covers every file under `scripts/<name>` (sorted relative path plus sha256), the target triple, the runner image and the ffmpeg profile (`full`, empty for Node). `.github/scripts/sidecar-key.sh <name> <target> <runner> [profile]` prints the key. Sources use `ffmpeg-<FFMPEG_VERSION>-x264-<first8>-zlib-<ZLIB_VERSION>`. Actions cache is ref-scoped and only warms build work dirs.
@@ -413,7 +431,7 @@ A local test against `http://127.0.0.1` needs `dangerousInsecureTransportProtoco
 
 To roll back a bad release, edit it and mark it as a pre-release, or delete it. GitHub then marks the previous release as Latest, whose `latest.json` offers nothing newer. Apps already on the bad version need a fixed patch release.
 
-## 17. Later: Developer ID and notarization
+## 19. Later: Developer ID and notarization
 
 Not done yet. Until a Developer ID exists, `xattr -dr com.apple.quarantine "/Applications/Unplatform AI.app"` is a required install step, documented in the README, not an optional fix for a damaged app. It only clears the local quarantine flag for the downloaded copy. It does not change the signature, and it does not replace notarization.
 

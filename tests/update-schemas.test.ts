@@ -32,7 +32,7 @@ describe('update command results', () => {
   })
 
   it('parses an available update with notes', () => {
-    const value = { version: '0.2.1', notes: 'Fixes', date: null }
+    const value = { version: '0.3.0', notes: 'Fixes', date: null }
 
     expect(AppUpdateSchema.parse(value)).toEqual(value)
   })
@@ -41,8 +41,8 @@ describe('update command results', () => {
     expect(UpdateCheckSchema.parse(null)).toBeNull()
 
     expect(
-      UpdateCheckSchema.parse({ version: '0.2.1', notes: '', date: '2026-11-01T12:00:00Z' }),
-    ).toMatchObject({ version: '0.2.1' })
+      UpdateCheckSchema.parse({ version: '0.3.0', notes: '', date: '2026-11-01T12:00:00Z' }),
+    ).toMatchObject({ version: '0.3.0' })
   })
 
   it('parses install progress in both phases', () => {

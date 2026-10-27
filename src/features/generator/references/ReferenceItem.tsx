@@ -5,6 +5,7 @@ import { isNil } from 'lodash-es'
 import type { KindExtensions } from '@/core/media-kinds'
 import { type RefSlot, slotLabel } from '@/core/prompt-tokens'
 import type { UploadItem } from '@/core/schemas/upload-item'
+import { pickerAnchor } from '@/features/media-picker/picker/anchors'
 import { openMediaPicker } from '@/features/media-picker/picker/store'
 import { openPreview } from '@/features/preview/preview-store'
 
@@ -49,20 +50,16 @@ export function ReferenceItem(props: ReferenceItemProps) {
   }
 
   const handleReplace = (item: UploadItem): void => {
-    const handleReplacePick = (items: UploadItem[]): void => {
-      const [next] = items
-
-      if (!isNil(next)) {
-        props.onReplace(item.id, next)
-      }
+    const handleReplacePick = (next: UploadItem): void => {
+      props.onReplace(item.id, next)
     }
 
     openMediaPicker({
-      target: 'references',
+      openerKey: `references:replace:${id}`,
       kinds: [item.kind],
-      max: 1,
       extensions,
-      onPick: handleReplacePick,
+      anchor: pickerAnchor('references'),
+      mode: { kind: 'pick', onPick: handleReplacePick },
     })
   }
 
@@ -86,6 +83,7 @@ export function ReferenceItem(props: ReferenceItemProps) {
     openPreview({
       items: previewUploads,
       index,
+      allowUse: false,
       actions: {
         insert: handleInsert,
         replace: handleReplace,
@@ -95,7 +93,7 @@ export function ReferenceItem(props: ReferenceItemProps) {
     })
   }
 
-  const canPreview = !isNil(upload) && upload.kind !== 'audio'
+  const canPreview = !isNil(upload)
   const handleOpenPreview = canPreview ? handlePreview : undefined
 
   if (isLifted === true) {

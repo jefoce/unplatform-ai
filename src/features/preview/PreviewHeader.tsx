@@ -36,7 +36,7 @@ export function PreviewHeader(props: PreviewHeaderProps) {
           </span>
         )}
       </div>
-      <div className="ml-auto flex shrink-0 items-center gap-2 text-xs text-fg-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2 pr-12 text-xs text-fg-2">
         <span className="rounded-sm bg-white/5 px-1.5 py-0.5 font-medium text-fg">{label}</span>
         {!isNil(item) && <PreviewMeta item={item} />}
       </div>

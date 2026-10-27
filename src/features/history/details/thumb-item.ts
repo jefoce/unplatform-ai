@@ -1,4 +1,4 @@
-import { isNil } from 'lodash-es'
+import { isNil, keyBy } from 'lodash-es'
 import { toast } from 'sonner'
 
 import { isNonEmptyString } from '@/core/guards'
@@ -9,8 +9,7 @@ import type {
   SnapshotItem,
 } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
-import { useGeneratorStore } from '@/features/generator/store/store'
-import { openPreview, type PreviewActions } from '@/features/preview/preview-store'
+import { openPreview } from '@/features/preview/preview-store'
 import { fetchUploads } from '@/lib/api/uploads'
 import { formatBytes } from '@/lib/format'
 import { toastError } from '@/lib/notify'
@@ -111,43 +110,56 @@ export function thumbItems(record: GenerationRecord): ThumbItem[] {
   return items
 }
 
-function handleUseAsStart(current: UploadItem): void {
-  const store = useGeneratorStore.getState()
-
-  store.setTab('frames')
-  store.setFrame('start', current)
+export interface OpenThumbParams {
+  item: ThumbItem
+  items: ThumbItem[]
+  index: number
 }
 
-function handleAddAsReference(current: UploadItem): void {
-  useGeneratorStore.getState().addReferences([current])
-}
+/** Opens the uploads behind a thumb chain, toasting when the clicked file is gone. */
+export async function openThumb(params: OpenThumbParams): Promise<void> {
+  const { item, items, index } = params
 
-function availableActions(current: UploadItem): ('useAsStart' | 'addAsReference')[] {
-  if (current.kind === 'image') {
-    return ['useAsStart', 'addAsReference']
+  if (item.missing) {
+    toast.error('File no longer exists')
+
+    return
   }
 
-  return ['addAsReference']
-}
-
-const THUMB_ACTIONS: PreviewActions = {
-  useAsStart: handleUseAsStart,
-  addAsReference: handleAddAsReference,
-  available: availableActions,
-}
-
-/** Opens the upload behind a thumb, toasting when the file is gone. */
-export async function openThumb(item: ThumbItem): Promise<void> {
   try {
-    const [upload] = await fetchUploads({ ids: [item.id] })
+    const uploads = await fetchUploads({
+      ids: items.map((entry) => {
+        return entry.id
+      }),
+    })
 
-    if (isNil(upload) || upload.missing === true) {
+    const byId = keyBy(uploads, 'id')
+    const current = byId[item.id]
+
+    if (isNil(current) || current.missing === true) {
       toast.error('File no longer exists')
 
       return
     }
 
-    openPreview({ items: [upload], index: 0, actions: THUMB_ACTIONS })
+    const chain: UploadItem[] = []
+    let chainIndex = -1
+
+    for (const [position, entry] of items.entries()) {
+      const upload = byId[entry.id]
+
+      if (isNil(upload) || upload.missing === true) {
+        continue
+      }
+
+      if (position === index) {
+        chainIndex = chain.length
+      }
+
+      chain.push(upload)
+    }
+
+    openPreview({ items: chain, index: chainIndex })
   } catch (error) {
     toastError(error)
   }

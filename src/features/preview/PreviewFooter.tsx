@@ -18,8 +18,6 @@ const ACTIONS: PreviewAction[] = [
   { key: 'remove', label: 'Remove' },
   { key: 'select', label: 'Select' },
   { key: 'deselect', label: 'Deselect' },
-  { key: 'useAsStart', label: 'Use as start frame' },
-  { key: 'addAsReference', label: 'Add as reference' },
 ]
 
 const ACTION_VARIANT: Partial<Record<ActionKey, 'primary' | 'danger'>> = {
@@ -41,10 +39,23 @@ export function PreviewFooter(props: PreviewFooterProps) {
     return null
   }
 
+  const isSelected = actions?.isSelected?.(item) ?? false
   const available = actions?.available?.(item)
 
   const isVisible = (action: (typeof ACTIONS)[number]) => {
-    return !isNil(actions?.[action.key]) && (isNil(available) || available.includes(action.key))
+    if (isNil(actions?.[action.key])) {
+      return false
+    }
+
+    if (action.key === 'select') {
+      return !isSelected && (isNil(available) || available.includes('select'))
+    }
+
+    if (action.key === 'deselect') {
+      return isSelected && (isNil(available) || available.includes('deselect'))
+    }
+
+    return isNil(available) || available.includes(action.key)
   }
 
   const provided = ACTIONS.filter(isVisible)

@@ -2,6 +2,7 @@ import { act } from '@testing-library/react'
 
 import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
 import { useSelectionStore } from '@/features/history/selection/selection-store'
+import { getSnapshot, release } from '@/features/player/player-slots'
 
 import { required } from './required'
 
@@ -55,6 +56,12 @@ export function record(id: string, overrides: RecordOverrides = {}): GenerationR
 }
 
 export const handleNoop = () => {}
+
+export function releaseAllSlots(): void {
+  for (const id of getSnapshot()) {
+    release(id)
+  }
+}
 
 export const ids = () => {
   return [...useSelectionStore.getState().ids]

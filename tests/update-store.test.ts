@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useUpdateStore } from '@/features/updates/update-store'
 
-const update = { version: '0.2.1', notes: 'Fixes', date: null }
+const update = { version: '0.3.0', notes: 'Fixes', date: null }
 
 beforeEach(() => {
   useUpdateStore.setState({

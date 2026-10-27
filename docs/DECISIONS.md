@@ -1,5 +1,13 @@
 # Decisions
 
+## 2026-10-27 - Live picker selection and docked panel
+
+Decision: the picker has no Add confirm step and no local selection. Toggle mode adds or removes through the opener. Folder files link on click and match an attached upload by `target`. The panel docks beside the references or frames box, fixed height, vertically centered, and closes on any click outside that box. A request carries an `openerKey`: the same key keeps the open request, a different key replaces it.
+
+Why: a click on a file should show its real state immediately, and reference order and limits already live in the generator store.
+
+Rejected: local multi-select plus Add (two sources of truth), anchoring to the clicked tile (a second opener could not replace the request), anchoring to the whole generator panel (a click anywhere in the panel would have to stay open).
+
 ## 2026-10-26 - Workflow logic lives in scripts and composite actions
 
 Decision: `.github/scripts` holds the bash and Node logic, each script taking arguments instead of `${{ }}`. `.github/actions` holds the three repeated step groups: setup-pnpm, sidecar-restore and sidecar-publish. Workflow files keep the job graph and pass inputs.
@@ -191,6 +199,8 @@ Rejected: factor 0 for Seedance. `video_tokens_with_video_input` is a lower per-
 ## 2026-10-23 - Folder picker links only on Add
 
 Decision: multi-select folder clicks only toggle a ring. Preview uses a read-only `PreviewItem` with `previewRef`, no upload record. Add links and commits. Single-select links immediately because there is no Add button.
+
+Superseded in 0.3.0, see 2026-10-27 - Live picker selection and docked panel.
 
 Why: browsing must not create uploads.
 

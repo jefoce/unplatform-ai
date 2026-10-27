@@ -18,6 +18,7 @@ import { forgetUpload, getUploadRecord, listUploadRecords, rememberUpload } from
 interface SaveFileUploadParams {
   bytes: Uint8Array
   originalName: string
+  sha256: string
   width?: number
   height?: number
   durationSec?: number
@@ -35,7 +36,7 @@ interface DeleteUploadFilesParams {
 
 /** Copies bytes into uploads/ and writes the json record last. */
 export async function saveFileUpload(params: SaveFileUploadParams): Promise<UploadItem> {
-  const { bytes, originalName, width, height, durationSec } = params
+  const { bytes, originalName, sha256, width, height, durationSec } = params
   const ext = extWithDot(originalName)
   const kind = kindFromExt(ext)
   const mime = mimeFromExt(ext)
@@ -62,6 +63,7 @@ export async function saveFileUpload(params: SaveFileUploadParams): Promise<Uplo
     ext,
     originalName,
     sizeBytes: bytes.length,
+    sha256,
     width,
     height,
     durationSec,
@@ -133,7 +135,8 @@ async function pathExists(file: string): Promise<boolean> {
   )
 }
 
-async function withMissing(item: UploadItem): Promise<UploadItem> {
+/** A link symlink is only as alive as its target. Every other upload uses its media path. */
+export async function uploadExists(item: UploadItem): Promise<boolean> {
   const mode = item.linkMode ?? 'symlink'
 
   let check = uploadPaths(item.id, item.ext).media
@@ -142,7 +145,11 @@ async function withMissing(item: UploadItem): Promise<UploadItem> {
     check = item.target
   }
 
-  const hasFile = await pathExists(check)
+  return pathExists(check)
+}
+
+async function withMissing(item: UploadItem): Promise<UploadItem> {
+  const hasFile = await uploadExists(item)
 
   return { ...item, missing: !hasFile }
 }

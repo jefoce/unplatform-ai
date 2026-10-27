@@ -173,7 +173,30 @@ describe('null fields', () => {
 
     await expect(fetchDiscount(WAN)).resolves.toBe(0)
     expect(warn).toHaveBeenCalledTimes(1)
-    expect(String(warn.mock.calls[0]?.[0])).toContain('out of range')
+
+    const text = String(warn.mock.calls[0]?.[0])
+
+    expect(text).toContain('no pricing block')
+    expect(text).not.toContain('out of range')
+  })
+
+  it('warns when the endpoint list is empty', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return jsonResponse({ data: { endpoints: [] } })
+      }),
+    )
+
+    await expect(fetchDiscount(WAN)).resolves.toBe(0)
+    expect(warn).toHaveBeenCalledTimes(1)
+
+    const text = String(warn.mock.calls[0]?.[0])
+
+    expect(text).toContain('no pricing block')
+    expect(text).not.toContain('out of range')
   })
 })
 

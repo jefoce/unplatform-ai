@@ -1,19 +1,96 @@
 'use client'
 
-import { isEmpty, sumBy } from 'lodash-es'
-import { toast } from 'sonner'
+import { useEffect, useRef } from 'react'
+import { isEmpty, isNil, sumBy } from 'lodash-es'
 
-import { MEDIA_KINDS } from '@/core/media-types'
+import type { KindExtensions } from '@/core/media-kinds'
+import { MEDIA_KINDS, type MediaKind } from '@/core/media-types'
 import { getPreset } from '@/core/presets'
-import { referenceSlots } from '@/core/prompt-tokens'
-import { extensionsFromLimits, openMediaPicker } from '@/features/media-picker/picker/store'
-import { UploadProgressTile } from '@/features/media-picker/uploads/UploadProgressTile'
-import { useDropUpload } from '@/features/media-picker/uploads/use-drop-upload'
-import { useUploadQueue } from '@/features/media-picker/uploads/use-upload-queue'
+import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import { pickerAnchor, registerPickerAnchor } from '@/features/media-picker/picker/anchors'
+import {
+  extensionsFromLimits,
+  openMediaPicker,
+  type PickerCandidate,
+} from '@/features/media-picker/picker/store'
 
+import { addBlockReason, referenceRoom } from '../reference-rules'
 import { useGeneratorStore } from '../store/store'
 import { ReferencesEmpty } from './ReferencesEmpty'
 import { ReferencesGrid } from './ReferencesGrid'
+
+function useReferenceIds(): string[] {
+  return useGeneratorStore((state) => {
+    return state.references
+  })
+}
+
+function useUploadsById(): UploadsById {
+  return useGeneratorStore((state) => {
+    return state.uploadsById
+  })
+}
+
+/** Reason an upload cannot be attached, null when it can. */
+function referenceCanAdd(item: PickerCandidate): string | null {
+  const state = useGeneratorStore.getState()
+  const preset = getPreset(state.presetId)
+
+  const room = referenceRoom({
+    preset,
+    references: state.references,
+    uploadsById: state.uploadsById,
+  })
+
+  return addBlockReason({ kind: item.kind, room, preset })
+}
+
+/** Attaches an upload, or removes it when already attached. */
+function toggleReference(item: UploadItem): void {
+  const state = useGeneratorStore.getState()
+
+  if (state.references.includes(item.id)) {
+    state.removeReference(item.id)
+
+    return
+  }
+
+  state.addReferences([item])
+}
+
+/** Attaches an upload once, leaving an attached one in place. */
+function addReference(item: UploadItem): void {
+  useGeneratorStore.getState().addReferences([item])
+}
+
+interface OpenReferencesPickerParams {
+  kinds: MediaKind[]
+  extensions?: KindExtensions
+}
+
+/** Opens reference picking in toggle mode. */
+function openReferencesPicker(params: OpenReferencesPickerParams): void {
+  const { kinds, extensions } = params
+
+  if (isEmpty(kinds)) {
+    return
+  }
+
+  openMediaPicker({
+    openerKey: 'references:add',
+    kinds,
+    extensions,
+    anchor: pickerAnchor('references'),
+    mode: {
+      kind: 'toggle',
+      useSelectedIds: useReferenceIds,
+      useUploadsById,
+      canAdd: referenceCanAdd,
+      onToggle: toggleReference,
+      onAdd: addReference,
+    },
+  })
+}
 
 /** References tab: limits, thumbs, reorder, drag-drop and mention insert. */
 export function ReferencesBox() {
@@ -33,72 +110,38 @@ export function ReferencesBox() {
     return state.uploadsById
   })
 
-  const addReferences = useGeneratorStore((state) => {
-    return state.addReferences
-  })
-
-  const queue = useUploadQueue(addReferences, (message) => {
-    return toast.error(message)
-  })
-
-  const { counts } = referenceSlots(references, (id) => {
-    return uploadsById[id]?.kind
-  })
+  const room = referenceRoom({ preset, references, uploadsById })
 
   const kinds = MEDIA_KINDS.filter((kind) => {
-    return counts[kind] < preset.references[kind]
+    return preset.references[kind] > 0
   })
 
-  const max = sumBy(kinds, (kind) => {
-    return preset.references[kind] - counts[kind]
+  const max = sumBy(MEDIA_KINDS, (kind) => {
+    return room[kind]
   })
 
-  const handlePick = (): void => {
-    if (isEmpty(kinds)) {
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const element = boxRef.current
+
+    if (isNil(element)) {
       return
     }
 
-    openMediaPicker({ target: 'references', kinds, max, extensions, onPick: addReferences })
-  }
+    return registerPickerAnchor('references', element)
+  }, [])
 
-  const { dragging: isDragging, dropProps } = useDropUpload({
-    id: 'references',
-    enabled: true,
-    kinds,
-    extensions,
-    onUploaded: addReferences,
-    onFiles: queue.enqueue,
-  })
-
-  if (references.length > 0) {
-    return (
-      <ReferencesGrid
-        preset={preset}
-        extensions={extensions}
-        max={max}
-        queue={queue}
-        dropProps={dropProps}
-        isDragging={isDragging}
-        onPick={handlePick}
-      />
-    )
+  const handlePick = (): void => {
+    openReferencesPicker({ kinds, extensions })
   }
 
   return (
-    <>
-      {queue.items.length > 0 && (
-        <div className="mb-2 grid grid-cols-4 gap-2">
-          {queue.items.map((item) => {
-            return <UploadProgressTile key={item.id} item={item} />
-          })}
-        </div>
+    <div ref={boxRef} data-references-box>
+      {references.length > 0 && (
+        <ReferencesGrid preset={preset} extensions={extensions} max={max} onPick={handlePick} />
       )}
-      <ReferencesEmpty
-        preset={preset}
-        dropProps={dropProps}
-        dragging={isDragging}
-        onPick={handlePick}
-      />
-    </>
+      {isEmpty(references) && <ReferencesEmpty preset={preset} onPick={handlePick} />}
+    </div>
   )
 }

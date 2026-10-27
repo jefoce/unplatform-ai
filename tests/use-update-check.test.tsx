@@ -30,7 +30,7 @@ vi.mock('sonner', () => {
   return { toast: toastMock }
 })
 
-const update = { version: '0.2.1', notes: 'Fixes', date: null }
+const update = { version: '0.3.0', notes: 'Fixes', date: null }
 
 async function flush(): Promise<void> {
   await act(async () => {
@@ -247,7 +247,7 @@ describe('UpdateToast', () => {
     await flush()
 
     expect(toastMock).toHaveBeenCalledTimes(1)
-    expect(toastMock.mock.calls[0]?.[0]).toBe('Version 0.2.1 is available')
+    expect(toastMock.mock.calls[0]?.[0]).toBe('Version 0.3.0 is available')
 
     const options = toastMock.mock.calls[0]?.[1] as {
       cancel: { onClick: () => void }

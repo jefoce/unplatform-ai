@@ -1,21 +1,32 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { isNil } from 'lodash-es'
+import { useState } from 'react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { folderTargetPath } from '@/core/folder-match'
+import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
 import { FolderTab } from '@/features/media-picker/folders/FolderTab'
-import { closePreview, usePreviewStore } from '@/features/preview/preview-store'
+import type { PickerMode } from '@/features/media-picker/picker/store'
+
+import { upload, uploadsOf } from './helpers/validation-fixtures'
 
 const mocks = vi.hoisted(() => {
   return {
     fetchFolderFiles: vi.fn(),
     linkFolderFile: vi.fn(),
+    toastError: vi.fn(),
   }
 })
 
 vi.mock('@/lib/api/folders', () => {
   return {
     fetchFolderFiles: mocks.fetchFolderFiles,
+    linkFolderFile: mocks.linkFolderFile,
+  }
+})
+
+vi.mock('@/lib/api/uploads', () => {
+  return {
     linkFolderFile: mocks.linkFolderFile,
   }
 })
@@ -28,6 +39,12 @@ vi.mock('@/lib/api/media-urls', () => {
   }
 })
 
+vi.mock('@/lib/notify', () => {
+  return {
+    toastError: mocks.toastError,
+  }
+})
+
 vi.mock('swr', () => {
   return {
     default: () => {
@@ -35,7 +52,10 @@ vi.mock('swr', () => {
         data: {
           path: '',
           dirs: [],
-          files: [{ name: 'clip.mp4', rel: 'clip.mp4', kind: 'video', sizeBytes: 1, mtimeMs: 1 }],
+          files: [
+            { name: 'clip.mp4', rel: 'clip.mp4', kind: 'video', sizeBytes: 1, mtimeMs: 1 },
+            { name: 'second.mp4', rel: 'second.mp4', kind: 'video', sizeBytes: 1, mtimeMs: 1 },
+          ],
         },
         isLoading: false,
       }
@@ -43,124 +63,189 @@ vi.mock('swr', () => {
   }
 })
 
+const FOLDER_PATH = '/videos/root'
+
 afterEach(() => {
   cleanup()
-  closePreview()
   mocks.fetchFolderFiles.mockReset()
   mocks.linkFolderFile.mockReset()
+  mocks.toastError.mockReset()
 })
 
 interface RenderTabParams {
-  max: number
-  onPickFile: (rel: string) => void
-  selectedRels?: string[]
+  mode: PickerMode
 }
 
-interface RenderTabResult {
-  onNavigate: ReturnType<typeof vi.fn>
-  onToggleFile: ReturnType<typeof vi.fn>
-}
-
-function renderTab(params: RenderTabParams): RenderTabResult {
-  const { max, selectedRels = [] } = params
-  const handlePickFile = params.onPickFile
+function renderTab(params: RenderTabParams) {
   const handleNavigate = vi.fn()
-  const handleToggleFile = vi.fn()
 
   render(
     <FolderTab
       folderId="folder-1"
+      folderPath={FOLDER_PATH}
       folderName="Folder"
       kinds={['video']}
-      max={max}
       sub=""
-      selectedRels={selectedRels}
-      onPickFile={handlePickFile}
+      mode={params.mode}
       onNavigate={handleNavigate}
-      onToggleFile={handleToggleFile}
     />,
   )
 
-  return { onNavigate: handleNavigate, onToggleFile: handleToggleFile }
+  return { onNavigate: handleNavigate }
+}
+
+interface ToggleHarnessProps {
+  onToggle: (item: UploadItem) => void
+}
+
+/** Toggle mode backed by real state so the tile can show its attachment. */
+function ToggleHarness(props: ToggleHarnessProps) {
+  const [selected, setSelected] = useState<UploadItem[]>([])
+
+  const handleToggle = (item: UploadItem) => {
+    props.onToggle(item)
+
+    setSelected((previous) => {
+      const isAttached = previous.some((each) => {
+        return each.id === item.id
+      })
+
+      if (isAttached) {
+        return previous.filter((each) => {
+          return each.id !== item.id
+        })
+      }
+
+      return [...previous, item]
+    })
+  }
+
+  const uploadsById: UploadsById = uploadsOf(...selected)
+
+  const mode: PickerMode = {
+    kind: 'toggle',
+    useSelectedIds: () => {
+      return selected.map((item) => {
+        return item.id
+      })
+    },
+    useUploadsById: () => {
+      return uploadsById
+    },
+    canAdd: () => {
+      return null
+    },
+    onToggle: handleToggle,
+    onAdd: vi.fn(),
+  }
+
+  return (
+    <FolderTab
+      folderId="folder-1"
+      folderPath={FOLDER_PATH}
+      folderName="Folder"
+      kinds={['video']}
+      sub=""
+      mode={mode}
+      onNavigate={vi.fn()}
+    />
+  )
+}
+
+function folderUpload(id: string, rel: string): UploadItem {
+  return upload(id, 'video', {
+    source: 'link',
+    target: folderTargetPath({ folderPath: FOLDER_PATH, rel }),
+  })
+}
+
+function selectButton(name: string): HTMLElement {
+  return screen.getByRole('button', { name: `Select ${name}` })
 }
 
 describe('FolderTab selection', () => {
-  it('rings the file through the parent without linking when multiple files are allowed', () => {
-    const onPickFile = vi.fn<(rel: string) => void>()
-    const { onToggleFile } = renderTab({ max: 3, onPickFile })
+  it('links the file once, toggles it and shows it selected', async () => {
+    const linked = folderUpload('linked', 'clip.mp4')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select clip.mp4' }))
+    mocks.linkFolderFile.mockResolvedValue(linked)
 
-    expect(mocks.linkFolderFile).not.toHaveBeenCalled()
-    expect(onPickFile).not.toHaveBeenCalled()
-    expect(onToggleFile).toHaveBeenCalledWith('clip.mp4')
-  })
+    const onToggle = vi.fn<(item: UploadItem) => void>()
 
-  it('leaves the ring to the controlled prop', () => {
-    const { onToggleFile } = renderTab({
-      max: 3,
-      onPickFile: vi.fn<(rel: string) => void>(),
-      selectedRels: ['clip.mp4'],
+    render(<ToggleHarness onToggle={onToggle} />)
+
+    fireEvent.click(selectButton('clip.mp4'))
+
+    await waitFor(() => {
+      expect(onToggle).toHaveBeenCalledWith(linked)
     })
 
-    const tile = screen.getByRole('button', { name: 'Select clip.mp4' })
-
-    fireEvent.click(tile)
-    fireEvent.click(tile)
-
-    expect(onToggleFile).toHaveBeenCalledTimes(2)
-    expect(onToggleFile).toHaveBeenNthCalledWith(1, 'clip.mp4')
-    expect(onToggleFile).toHaveBeenNthCalledWith(2, 'clip.mp4')
-  })
-
-  it('opens the folder preview without linking', () => {
-    renderTab({ max: 3, onPickFile: vi.fn<(rel: string) => void>() })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Preview clip.mp4' }))
-
-    expect(mocks.linkFolderFile).not.toHaveBeenCalled()
-
-    const request = usePreviewStore.getState().request
-    const item = request?.items[0]
-
-    if (isNil(request) || isNil(item)) {
-      throw new Error('preview request missing')
-    }
-
-    expect(item.id).toBe('folder:folder-1:clip.mp4')
-    expect(item.previewRef).toBe('folders/folder-1/clip.mp4')
-    expect(item.mime).toBe('video/mp4')
-  })
-
-  it('selects from the preview without linking when multiple files are allowed', () => {
-    const onPickFile = vi.fn<(rel: string) => void>()
-    const { onToggleFile } = renderTab({ max: 3, onPickFile })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Preview clip.mp4' }))
-
-    const request = usePreviewStore.getState().request
-    const item = request?.items[0]
-
-    if (isNil(request) || isNil(item)) {
-      throw new Error('preview request missing')
-    }
-
-    act(() => {
-      return request.actions?.select?.(item)
+    expect(mocks.linkFolderFile).toHaveBeenCalledWith({
+      folderId: 'folder-1',
+      relPath: 'clip.mp4',
     })
 
-    expect(mocks.linkFolderFile).not.toHaveBeenCalled()
-    expect(onPickFile).not.toHaveBeenCalled()
-    expect(onToggleFile).toHaveBeenCalledWith('clip.mp4')
+    await waitFor(() => {
+      expect(selectButton('clip.mp4').getAttribute('aria-pressed')).toBe('true')
+    })
   })
 
-  it('picks the file immediately when only one is allowed', () => {
-    const onPickFile = vi.fn<(rel: string) => void>()
-    const { onToggleFile } = renderTab({ max: 1, onPickFile })
+  it('toggles the already linked upload without linking again', async () => {
+    const linked = folderUpload('linked', 'clip.mp4')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select clip.mp4' }))
+    mocks.linkFolderFile.mockResolvedValue(linked)
 
-    expect(onPickFile).toHaveBeenCalledWith('clip.mp4')
-    expect(onToggleFile).not.toHaveBeenCalled()
+    const onToggle = vi.fn<(item: UploadItem) => void>()
+
+    render(<ToggleHarness onToggle={onToggle} />)
+
+    fireEvent.click(selectButton('clip.mp4'))
+
+    await waitFor(() => {
+      expect(selectButton('clip.mp4').getAttribute('aria-pressed')).toBe('true')
+    })
+
+    fireEvent.click(selectButton('clip.mp4'))
+
+    expect(onToggle).toHaveBeenCalledTimes(2)
+    expect(onToggle).toHaveBeenLastCalledWith(linked)
+    expect(mocks.linkFolderFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('toasts a failed link and keeps the tile unselected', async () => {
+    mocks.linkFolderFile.mockRejectedValue(new Error('link failed'))
+
+    const onToggle = vi.fn<(item: UploadItem) => void>()
+
+    render(<ToggleHarness onToggle={onToggle} />)
+
+    fireEvent.click(selectButton('clip.mp4'))
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalled()
+    })
+
+    expect(selectButton('clip.mp4').getAttribute('aria-pressed')).toBe('false')
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+
+  it('links and picks the file in pick mode', async () => {
+    const linked = folderUpload('linked', 'clip.mp4')
+
+    mocks.linkFolderFile.mockResolvedValue(linked)
+
+    const onPick = vi.fn<(item: UploadItem) => void>()
+
+    renderTab({ mode: { kind: 'pick', onPick } })
+
+    fireEvent.click(selectButton('clip.mp4'))
+
+    await waitFor(() => {
+      expect(onPick).toHaveBeenCalledWith(linked)
+    })
+
+    expect(mocks.linkFolderFile).toHaveBeenCalledWith({
+      folderId: 'folder-1',
+      relPath: 'clip.mp4',
+    })
   })
 })

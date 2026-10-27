@@ -5,7 +5,9 @@ import { Trash2 } from 'lucide-react'
 
 import type { FriendlyError } from '@/core/provider-errors/types'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { closeViewers } from '@/features/viewers/close-viewers'
 import { formatDate } from '@/lib/format'
+import { useAsyncAction } from '@/lib/use-async-action'
 import { useBoolean } from '@/lib/use-boolean'
 import { Button } from '@/ui/Button'
 
@@ -24,22 +26,33 @@ interface DetailsActionsProps {
   onDeleted?: () => void
 }
 
-/** Timestamps on the left, hover actions on the right, delete dialog for failed records. */
-export function DetailsActions(props: DetailsActionsProps) {
-  const { record, isActive, now } = props
-  const confirmDialog = useBoolean()
-  const isFailed = record.status === 'failed'
-  let friendly: FriendlyError | null = null
-
-  if (isFailed) {
-    friendly = recordError(record)
+/** Friendly error for failed records, null for every other status. */
+function failedRecordError(record: GenerationRecord): FriendlyError | null {
+  if (record.status !== 'failed') {
+    return null
   }
 
-  const timeNow = isActive ? now : undefined
+  return recordError(record)
+}
 
-  const handleReuse = () => {
-    return void rerunRecord(record)
-  }
+interface DetailsFooterParams {
+  record: GenerationRecord
+}
+
+/** Actions and the error shown for one details record. */
+function useDetailsFooter(params: DetailsFooterParams) {
+  const { record } = params
+  const friendly = failedRecordError(record)
+
+  const reuse = useAsyncAction(async () => {
+    const isLoaded = await rerunRecord(record)
+
+    if (!isLoaded) {
+      return
+    }
+
+    closeViewers()
+  })
 
   const handleDownload = () => {
     return void saveRecordVideo(record)
@@ -49,9 +62,17 @@ export function DetailsActions(props: DetailsActionsProps) {
     return void toggleFavorite(record)
   }
 
-  const handleConfirmOpenChange = (isOpen: boolean): void => {
-    confirmDialog.set(isOpen)
-  }
+  return { friendly, handleDownload, handleFavorite, reuse }
+}
+
+/** Timestamps on the left, hover actions on the right, delete dialog for failed records. */
+export function DetailsActions(props: DetailsActionsProps) {
+  const { record, isActive, now } = props
+  const confirmDialog = useBoolean()
+  const { friendly, handleDownload, handleFavorite, reuse } = useDetailsFooter(props)
+
+  const isFailed = record.status === 'failed'
+  const timeNow = isActive ? now : undefined
 
   return (
     <>
@@ -65,7 +86,7 @@ export function DetailsActions(props: DetailsActionsProps) {
             size="sm"
             variant="ghost"
             className="h-5.5 rounded-md px-4 text-xxs font-semibold text-fg hover:bg-hover"
-            onClick={handleReuse}
+            onClick={reuse.run}
           >
             Reuse
           </Button>
@@ -103,7 +124,7 @@ export function DetailsActions(props: DetailsActionsProps) {
       <DeleteConfirm
         record={record}
         open={confirmDialog.value}
-        onOpenChange={handleConfirmOpenChange}
+        onOpenChange={confirmDialog.set}
         onDeleted={props.onDeleted}
       />
     </>

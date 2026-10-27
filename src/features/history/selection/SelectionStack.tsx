@@ -41,7 +41,7 @@ export function SelectionStack(props: SelectionStackProps) {
             )}
             {!isNil(poster) && (
               // eslint-disable-next-line @next/next/no-img-element -- 32px poster thumb
-              <img src={poster} alt="" className="size-full object-cover" />
+              <img src={poster} alt="" className="size-full rounded-[inherit] object-cover" />
             )}
           </span>
         )

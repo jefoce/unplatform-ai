@@ -71,40 +71,6 @@ export function kindFromName(name: string): MediaKind | null {
   return kindFromExt(name.slice(dot + 1))
 }
 
-const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/])/
-
-interface PastedPathParams {
-  text: string
-  kinds: readonly MediaKind[]
-  extensions?: KindExtensions
-}
-
-/** Absolute media path pasted as text, filtered to the requested kinds and formats. */
-export function pastedPath(params: PastedPathParams): string | null {
-  const { text, kinds, extensions } = params
-
-  const path = text
-    .trim()
-    .replaceAll(/^["']+|["']+$/g, '')
-    .trim()
-
-  if (!ABSOLUTE_PATH.test(path)) {
-    return null
-  }
-
-  const kind = kindFromName(path)
-
-  if (isNil(kind) || !kinds.includes(kind)) {
-    return null
-  }
-
-  if (extensionAllowed({ kind, ext: extWithDot(path), extensions })) {
-    return path
-  }
-
-  return null
-}
-
 interface ExtensionAllowedParams {
   kind: MediaKind
   ext: string

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pulls an ORAS artifact, flattens it, and prints found=true when every required file exists.
+# Pulls an ORAS artifact, flattens it, and prints true when every required file exists, false otherwise. Diagnostics go to stderr.
 set -euo pipefail
 
 ref=${1:?ref}
@@ -7,7 +7,7 @@ dir=${2:?dir}
 shift 2
 
 if ! oras pull "$ref" -o "$dir" >&2; then
-  echo "found=false"
+  echo false
   exit 0
 fi
 
@@ -17,9 +17,9 @@ find "$dir" -mindepth 1 -type d -empty -delete
 for required in "$@"; do
   if ! compgen -G "$dir/$required" >/dev/null; then
     echo "GHCR tag incomplete, rebuilding" >&2
-    echo "found=false"
+    echo false
     exit 0
   fi
 done
 
-echo "found=true"
+echo true

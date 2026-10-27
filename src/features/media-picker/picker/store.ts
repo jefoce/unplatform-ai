@@ -6,17 +6,37 @@ import { create } from 'zustand'
 import { type KindExtensions } from '@/core/media-kinds'
 import { MEDIA_KINDS, type MediaKind } from '@/core/media-types'
 import type { PresetReferenceLimits } from '@/core/presets/types'
-import type { UploadItem } from '@/core/schemas/upload-item'
+import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
 
-type PickerTarget = 'frame-start' | 'frame-end' | 'references'
+export type PickerCandidate = Pick<UploadItem, 'id' | 'kind'>
+
+export interface PickerToggleMode {
+  kind: 'toggle'
+  useSelectedIds: () => string[]
+  useUploadsById: () => UploadsById
+  canAdd: (item: PickerCandidate) => string | null
+  onToggle: (item: UploadItem) => void
+  onAdd: (item: UploadItem) => void
+}
+
+export interface PickerPickMode {
+  kind: 'pick'
+  onPick: (item: UploadItem) => void
+}
+
+export type PickerMode = PickerToggleMode | PickerPickMode
 
 export interface PickerRequest {
   id: number
-  target: PickerTarget
+
+  /** Control that opened the picker. A different opener replaces the request. */
+  openerKey: string
   kinds: MediaKind[]
-  max: number
   extensions?: KindExtensions
-  onPick: (items: UploadItem[]) => void
+  mode: PickerMode
+
+  /** Region that keeps the picker open, not the clicked control. */
+  anchor: HTMLElement | null
 }
 
 /** Picker extensions from preset reference formats, ignoring kinds without a list. */
@@ -40,7 +60,9 @@ export function extensionsFromLimits(
   return Object.fromEntries(entries)
 }
 
-type PickerInput = Omit<PickerRequest, 'id'>
+interface PickerInput extends Omit<PickerRequest, 'id' | 'anchor'> {
+  anchor?: HTMLElement | null
+}
 
 interface MediaPickerState {
   request: PickerRequest | null
@@ -50,11 +72,18 @@ interface MediaPickerState {
 
 let nextId = 0
 
-export const useMediaPickerStore = create<MediaPickerState>((set) => {
+export const useMediaPickerStore = create<MediaPickerState>((set, get) => {
   return {
     request: null,
     open: (request) => {
-      set({ request: { ...request, id: (nextId += 1) } })
+      const current = get().request
+
+      // Same opener keeps its request; a different one replaces it.
+      if (!isNil(current) && current.openerKey === request.openerKey) {
+        return
+      }
+
+      set({ request: { ...request, anchor: request.anchor ?? null, id: (nextId += 1) } })
     },
     close: () => {
       set({ request: null })
@@ -62,7 +91,7 @@ export const useMediaPickerStore = create<MediaPickerState>((set) => {
   }
 })
 
-/** Opens the shared picker, replacing any current request. */
+/** Opens the shared picker, keeping the request when the same opener is already open. */
 export function openMediaPicker(request: PickerInput): void {
   useMediaPickerStore.getState().open(request)
 }

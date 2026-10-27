@@ -1,7 +1,11 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import { isNil } from 'lodash-es'
+
 import { isNonEmptyString } from '@/core/guards'
 import { getPreset } from '@/core/presets'
+import { registerPickerAnchor } from '@/features/media-picker/picker/anchors'
 
 import { useGeneratorStore } from '../store/store'
 import { FrameSlot } from './FrameSlot'
@@ -18,12 +22,27 @@ export function FrameSlots() {
     return state.frames.start
   })
 
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const element = containerRef.current
+
+    if (isNil(element)) {
+      return
+    }
+
+    return registerPickerAnchor('frames', element)
+  }, [preset.frames.start])
+
   if (!preset.frames.start) {
     return null
   }
 
   return (
-    <div className="rounded-panel border border-line p-1 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+    <div
+      ref={containerRef}
+      className="rounded-panel border border-line p-1 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
+    >
       <div className="grid grid-cols-2 gap-1">
         <FrameSlot slot="start" />
         {preset.frames.end && (

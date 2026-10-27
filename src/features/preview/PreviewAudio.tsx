@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { isNil } from 'lodash-es'
 import { Pause, Play } from 'lucide-react'
 
+import { AUTOPLAY_DELAY_MS } from '@/core/constants'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import {
   currentDuration,
@@ -52,9 +53,13 @@ export function PreviewAudio(props: PreviewAudioProps) {
   }
 
   useEffect(() => {
-    playAudio(src)
+    const timer = setTimeout(() => {
+      playAudio(src)
+    }, AUTOPLAY_DELAY_MS)
 
     return () => {
+      clearTimeout(timer)
+
       if (currentSrc() === src) {
         pauseAudio()
       }

@@ -141,6 +141,25 @@ const PLAN_CASES: PlanCase[] = [
   },
 ]
 
+const CALLER_SNIPPET = `found=$(bash .github/scripts/ghcr-pull.sh "$REF" "$DIR" ffmpeg-x manifest.json)
+echo "found=$found" >> "$GITHUB_OUTPUT"
+`
+
+function callerOutput(ref: string) {
+  const { root, env } = fakeOrasEnv()
+  const githubOutput = path.join(root, 'github-output')
+
+  fs.mkdirSync(path.join(root, '.github'))
+  fs.symlinkSync(path.resolve('.github/scripts'), path.join(root, '.github', 'scripts'), 'dir')
+
+  execFileSync('bash', ['-c', CALLER_SNIPPET], {
+    cwd: root,
+    env: { ...env, GITHUB_OUTPUT: githubOutput, REF: ref, DIR: path.join(root, 'cache') },
+  })
+
+  return fs.readFileSync(githubOutput, 'utf8')
+}
+
 afterEach(cleanupTempDirs)
 
 describe('rename-installers.sh', () => {
@@ -261,7 +280,7 @@ describe('ghcr-pull.sh', () => {
     })
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toBe('found=true\n')
+    expect(result.stdout).toBe('true\n')
     expect(fs.existsSync(path.join(work, 'cache', 'ffmpeg-x'))).toBe(true)
     expect(fs.existsSync(path.join(work, 'cache', 'manifest.json'))).toBe(true)
     expect(fs.existsSync(path.join(work, 'cache', 'nested'))).toBe(false)
@@ -281,7 +300,7 @@ describe('ghcr-pull.sh', () => {
     })
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toBe('found=false\n')
+    expect(result.stdout).toBe('false\n')
     expect(result.stderr).toContain('GHCR tag incomplete')
   })
 
@@ -299,6 +318,14 @@ describe('ghcr-pull.sh', () => {
     })
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toBe('found=false\n')
+    expect(result.stdout).toBe('false\n')
+  })
+
+  it.skipIf(process.platform === 'win32')('writes found=true from the caller step', () => {
+    expect(callerOutput('ghcr.io/test:tag')).toBe('found=true\n')
+  })
+
+  it.skipIf(process.platform === 'win32')('writes found=false from the caller step', () => {
+    expect(callerOutput('ghcr.io/test:missing')).toBe('found=false\n')
   })
 })

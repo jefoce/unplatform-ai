@@ -37,10 +37,13 @@ describe('LazyVideo hoverPlay', () => {
 
     fireEvent.pointerOver(root)
     const video = container.querySelector('video')
+    const posterOverlay = container.querySelector('img')
 
     expect(video).not.toBeNull()
     expect(video?.muted).toBe(true)
     expect(video?.loop).toBe(true)
+    expect(video?.classList.contains('rounded-[inherit]')).toBe(true)
+    expect(posterOverlay?.classList.contains('rounded-[inherit]')).toBe(true)
     expect(play).toHaveBeenCalled()
 
     fireEvent.pointerOut(root)
@@ -50,5 +53,18 @@ describe('LazyVideo hoverPlay', () => {
     play.mockClear()
     fireEvent.pointerOver(root)
     expect(play).toHaveBeenCalled()
+  })
+
+  it('loops a non-hover player until paused', () => {
+    const { container, getByLabelText } = render(
+      <LazyVideo id="inline-1" src="/a.mp4" poster="/a.jpg" />,
+    )
+
+    fireEvent.click(getByLabelText('Play video'))
+    const video = container.querySelector('video')
+
+    expect(video).not.toBeNull()
+    expect(video?.loop).toBe(true)
+    expect(video?.muted).toBe(false)
   })
 })

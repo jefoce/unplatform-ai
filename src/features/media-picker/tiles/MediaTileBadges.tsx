@@ -1,17 +1,18 @@
 'use client'
 
+import { isNil } from 'lodash-es'
 import { Link2 } from 'lucide-react'
 
 interface MediaTileBadgesProps {
   isMissing: boolean
   isLink: boolean
   isSelected: boolean
-  selectIndex?: number
+  slotNumber?: number
 }
 
 /** Missing, linked and selection badges for a media tile. */
 export function MediaTileBadges(props: MediaTileBadgesProps) {
-  const { isMissing, isLink, isSelected, selectIndex } = props
+  const { isMissing, isLink, isSelected, slotNumber } = props
 
   return (
     <>
@@ -27,9 +28,9 @@ export function MediaTileBadges(props: MediaTileBadgesProps) {
         </span>
       )}
 
-      {isSelected && (
+      {isSelected && !isNil(slotNumber) && (
         <span className="pointer-events-none absolute bottom-1.5 left-1.5 z-20 flex size-5 items-center justify-center rounded-full bg-lime text-xxs font-semibold text-on-lime">
-          {(selectIndex ?? 0) + 1}
+          {slotNumber}
         </span>
       )}
     </>

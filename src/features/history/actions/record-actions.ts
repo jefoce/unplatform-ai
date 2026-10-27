@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
+import { focusGenerator } from '@/features/generator/focus-generator'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { cancelGenerationRequest, fetchUploadsByIds, setFavorite } from '@/lib/api/generations'
 import { ApiError } from '@/lib/fetcher'
@@ -98,7 +99,7 @@ function ghostUploads(params: GhostUploadsParams): UploadItem[] {
 }
 
 /** Copies a record input into the generator, reusing the seed actually sent. */
-export async function rerunRecord(record: GenerationRecord, presetId?: string): Promise<void> {
+export async function rerunRecord(record: GenerationRecord, presetId?: string): Promise<boolean> {
   const ids = uniq(
     compact([record.input.frames.start, record.input.frames.end, ...record.input.references]),
   )
@@ -125,14 +126,12 @@ export async function rerunRecord(record: GenerationRecord, presetId?: string): 
       toast(`${ghosts.length} inputs no longer exist`)
     }
 
-    const panel = document.getElementById('generator-panel')
+    focusGenerator()
 
-    if (panel) {
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    return true
   } catch (error) {
     toastError(error)
+
+    return false
   }
 }

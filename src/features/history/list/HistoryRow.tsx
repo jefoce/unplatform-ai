@@ -55,7 +55,7 @@ export function HistoryRow(props: HistoryRowProps) {
       return
     }
 
-    if (isSelecting && !isSelected && canSelect) {
+    if (isSelecting && canSelect) {
       select(false)
     }
   }
@@ -92,7 +92,7 @@ export function HistoryRow(props: HistoryRowProps) {
             poster={poster}
             posterFit="cover"
             videoFit="contain"
-            interactive={!isSelecting || isSelected}
+            interactive={!isSelecting}
             className="size-full"
           />
         )}

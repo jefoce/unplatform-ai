@@ -32,18 +32,3 @@ export function isInside(root: string, abs: string): boolean {
 
   return resolved === resolvedRoot || resolved.startsWith(resolvedRoot + path.sep)
 }
-
-/** Joins normalized segments and resolves them under `root`. */
-export function joinInside(root: string, ...segments: string[]): string {
-  const parts = segments.map((segment) => {
-    const normalized = path.normalize(segment)
-
-    if (path.isAbsolute(normalized)) {
-      throw new SafePathError()
-    }
-
-    return normalized
-  })
-
-  return resolveInside(root, path.join(...parts))
-}

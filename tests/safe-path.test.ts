@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { isInside, joinInside, resolveInside, SafePathError } from '@/server/fs/safe-path'
+import { isInside, resolveInside, SafePathError } from '@/server/fs/safe-path'
 
 const root = path.resolve('/srv/storage')
 
@@ -65,19 +65,5 @@ describe('isInside', () => {
     expect(isInside(root, root)).toBe(true)
     expect(isInside(root, path.resolve(root, '..'))).toBe(false)
     expect(isInside(root, `${root}-backup`)).toBe(false)
-  })
-})
-
-describe('joinInside', () => {
-  it('joins and normalizes segments', () => {
-    expect(joinInside(root, 'downloads', 'nested', '..', 'video.mp4')).toBe(
-      path.join(root, 'downloads', 'video.mp4'),
-    )
-  })
-
-  it('rejects absolute segments', () => {
-    expect(() => {
-      return joinInside(root, 'downloads', '/etc')
-    }).toThrow(SafePathError)
   })
 })

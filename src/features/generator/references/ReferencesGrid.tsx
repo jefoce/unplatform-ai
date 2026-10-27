@@ -5,10 +5,6 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 
 import type { KindExtensions } from '@/core/media-kinds'
 import type { ModelPreset } from '@/core/presets/types'
-import { UploadProgressTile } from '@/features/media-picker/uploads/UploadProgressTile'
-import type { DropProps } from '@/features/media-picker/uploads/use-drop-upload'
-import type { UploadQueue } from '@/features/media-picker/uploads/use-upload-queue'
-import { cn } from '@/lib/cn'
 
 import { AddReferenceTile } from './AddReferenceTile'
 import { labelFor, noteFor } from './reference-notes'
@@ -21,15 +17,12 @@ interface ReferencesGridProps {
   preset: ModelPreset
   extensions?: KindExtensions
   max: number
-  queue: UploadQueue
-  dropProps: DropProps
-  isDragging: boolean
   onPick: () => void
 }
 
-/** Sortable reference grid with counters, drag reorder and upload progress. */
+/** Sortable reference grid with counters and drag reorder. */
 export function ReferencesGrid(props: ReferencesGridProps) {
-  const { preset, extensions, max, queue, dropProps, isDragging } = props
+  const { preset, extensions, max } = props
 
   const grid = useReferencesGrid(preset)
 
@@ -42,13 +35,7 @@ export function ReferencesGrid(props: ReferencesGridProps) {
       onDragEnd={grid.handleDragEnd}
       onDragCancel={grid.handleDragCancel}
     >
-      <div
-        className={cn(
-          'max-h-50 min-h-34.5 overflow-y-auto rounded-2xl border border-transparent bg-surface p-4',
-          isDragging && 'ring-1 ring-lime/40',
-        )}
-        {...dropProps}
-      >
+      <div className="max-h-50 min-h-34.5 overflow-y-auto rounded-2xl border border-transparent bg-surface p-4">
         <ReferenceCounters counts={grid.counts} preset={preset} plan={grid.plan} />
         <div className="grid grid-cols-4 justify-center gap-2">
           {max > 0 && <AddReferenceTile onPick={props.onPick} />}
@@ -71,9 +58,6 @@ export function ReferencesGrid(props: ReferencesGridProps) {
               )
             })}
           </SortableContext>
-          {queue.items.map((item) => {
-            return <UploadProgressTile key={item.id} item={item} />
-          })}
         </div>
       </div>
       <ReferenceDragOverlay

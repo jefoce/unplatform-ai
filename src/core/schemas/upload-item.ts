@@ -33,6 +33,7 @@ export const UploadItemSchema = z.object({
   target: z.string().optional(),
   linkMode: LinkModeSchema.optional(),
   sizeBytes: z.number(),
+  sha256: z.string().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
   durationSec: z.number().optional(),

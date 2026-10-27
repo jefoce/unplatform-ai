@@ -19,7 +19,7 @@ vi.mock('@/lib/platform', () => {
   return { platform: platformMock }
 })
 
-const update = { version: '0.2.1', notes: 'Fixes', date: null }
+const update = { version: '0.3.0', notes: 'Fixes', date: null }
 
 beforeEach(() => {
   platformMock.setAutoCheck.mockReset()
@@ -115,7 +115,7 @@ describe('AppSection', () => {
     render(<AppSection />)
 
     expect(screen.getByRole('button', { name: 'Install and restart' })).toBeTruthy()
-    expect(screen.getByText('Version 0.2.1 is available')).toBeTruthy()
+    expect(screen.getByText('Version 0.3.0 is available')).toBeTruthy()
   })
 
   it('shows the download percentage', () => {

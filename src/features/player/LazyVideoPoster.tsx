@@ -23,7 +23,7 @@ export function LazyVideoPoster(props: LazyVideoPosterProps) {
   return (
     <>
       {isEmpty(poster) && (
-        <div className="flex size-full items-center justify-center bg-subtle">
+        <div className="flex size-full items-center justify-center rounded-[inherit] bg-subtle">
           <Video className="size-8 text-fg-2" aria-hidden />
         </div>
       )}
@@ -35,7 +35,7 @@ export function LazyVideoPoster(props: LazyVideoPosterProps) {
           decoding="async"
           alt={alt ?? ''}
           className={cn(
-            'size-full bg-black',
+            'size-full rounded-[inherit] bg-black',
             posterFit === 'cover' && 'object-cover',
             !(posterFit === 'cover') && 'object-contain',
           )}

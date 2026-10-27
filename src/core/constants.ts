@@ -13,6 +13,9 @@ export const POLL_PARALLEL = 3
 export const MAX_JOB_AGE_MIN = 360
 export const MAX_DOWNLOAD_RETRIES = 5
 
+/** Pause before a viewer autoplays the current item, so quick switches load nothing. */
+export const AUTOPLAY_DELAY_MS = 500
+
 export const HISTORY_PAGE_SIZE = 20
 export const HISTORY_MAX_PAGE_SIZE = 50
 export const HISTORY_POLL_MS = 4000

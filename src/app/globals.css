@@ -26,6 +26,9 @@
   --color-toolbar-mid: #ffffff0f;
   --color-toolbar-end: #ffffff05;
   --color-info: #5cc8ff; /* cool cyan: downscaled references */
+  --color-teal: #2dd4bf; /* stage gradient accent */
+  --color-violet: #8b5cf6; /* stage gradient purple */
+  --color-indigo: #6366f1; /* stage gradient deep blue */
   --color-disabled: #737475;
   --color-disabled-surface: #292b2c;
   --color-glass: #23262abf;
@@ -41,6 +44,7 @@
   --text-xxs: 0.625rem;
   --text-xxs--line-height: 0.875rem;
   --breakpoint-compact: 900px;
+  --z-drop: 2147483000; /* window drop overlay, above every modal and menu */
   --text-xs--line-height: 1.125rem;
   --text-sm--line-height: 1.25rem;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;

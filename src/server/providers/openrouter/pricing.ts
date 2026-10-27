@@ -154,9 +154,17 @@ export async function fetchDiscount(preset: ModelPreset): Promise<number> {
     }
 
     // Reads the first endpoint. Each model has one provider today, add per-endpoint pricing before a second provider.
-    const raw = parsed.data.data.endpoints[0]?.pricing?.discount
+    const pricing = parsed.data.data.endpoints[0]?.pricing
 
-    if (isNil(raw) || raw < 0 || raw > 1) {
+    if (isNil(pricing)) {
+      warnFallback({ preset, modelId, reason: 'no pricing block', kind: 'discount' })
+
+      return 0
+    }
+
+    const raw = pricing.discount
+
+    if (raw < 0 || raw > 1) {
       warnFallback({
         preset,
         modelId,

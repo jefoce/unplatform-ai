@@ -33,7 +33,7 @@ export function MediaTilePreview(props: MediaTilePreviewProps) {
           loading="lazy"
           alt=""
           onError={props.onThumbError}
-          className="pointer-events-none absolute inset-0 size-full bg-black/40 object-cover"
+          className="pointer-events-none absolute inset-0 size-full rounded-[inherit] bg-black/40 object-cover"
         />
       )}
 

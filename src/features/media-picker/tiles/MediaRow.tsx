@@ -1,5 +1,7 @@
 'use client'
 
+import { isNil } from 'lodash-es'
+
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { openPreview, type PreviewActions } from '@/features/preview/preview-store'
 
@@ -10,24 +12,24 @@ interface MediaRowProps {
   items: UploadItem[]
   previewIndex: number
   actions: PreviewActions
-  selectedIndex: number
-  isAtMax: boolean
+  slotNumber?: number
+  isSelected: boolean
+  disabledReason?: string
   onSelect: (item: UploadItem) => void
   onDelete: (item: UploadItem) => void
 }
 
 /** Upload grid row bridging selection state to the media tile. */
 export function MediaRow(props: MediaRowProps) {
-  const { item, items, previewIndex, actions, selectedIndex, isAtMax } = props
+  const { item, items, previewIndex, actions, slotNumber, isSelected, disabledReason } = props
   const stamp = new Date(item.createdAt).getTime()
   const isVersion = Number.isNaN(stamp)
 
   const version = isVersion ? item.id : stamp
-  const isSelected = selectedIndex >= 0
-  const isDisabled = !isSelected && isAtMax
+  const isDisabled = !isSelected && !isNil(disabledReason)
 
   const handlePreview = () => {
-    openPreview({ items, index: previewIndex, actions })
+    openPreview({ items, index: previewIndex, actions, allowUse: false })
   }
 
   const handleDelete = () => {
@@ -39,7 +41,6 @@ export function MediaRow(props: MediaRowProps) {
   }
 
   const handlePreviewAction = item.missing === true ? undefined : handlePreview
-  const selectIndex = isSelected ? selectedIndex : undefined
 
   return (
     <MediaTile
@@ -47,8 +48,9 @@ export function MediaRow(props: MediaRowProps) {
       mediaRef={`uploads/${item.id}`}
       thumbVersion={version}
       selected={isSelected}
-      selectIndex={selectIndex}
+      slotNumber={slotNumber}
       disabled={isDisabled}
+      disabledReason={disabledReason}
       missing={item.missing}
       onDelete={handleDelete}
       onSelect={handleSelect}
