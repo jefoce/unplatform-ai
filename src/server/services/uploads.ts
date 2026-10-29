@@ -20,7 +20,7 @@ import { resolveInside, SafePathError } from '../fs/safe-path'
 import { removeEncoded } from '../media/image-cache'
 import { downloadPaths, uploadPaths } from '../paths'
 import { getFolder } from '../repos/folders'
-import { getGeneration } from '../repos/generations'
+import { getGeneration, listActiveGenerations } from '../repos/generations'
 import { listUploadRecords, loadUploadRecord, rememberUpload } from '../repos/upload-record'
 import { deleteUploadFiles, getUpload, saveFileUpload } from '../repos/uploads'
 import { getObjectStore } from '../storage/registry'
@@ -202,6 +202,16 @@ export async function removeUpload(id: string): Promise<void> {
 
   await withLock(`upload:${id}`, async () => {
     const record = await loadUploadRecord(id)
+    const active = await listActiveGenerations()
+
+    if (
+      active.some((entry) => {
+        return inputIds(entry.input).includes(id)
+      })
+    ) {
+      throw new UploadError(409, 'Used by a running generation')
+    }
+
     let isShared = true
 
     if (record?.remote) {

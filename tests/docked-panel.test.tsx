@@ -39,21 +39,28 @@ const ANCHOR_RECT = {
 
 interface HarnessProps {
   onOpenChange: (isOpen: boolean) => void
+  isAnchored?: boolean
 }
 
 function Harness(props: HarnessProps) {
+  const { onOpenChange, isAnchored = true } = props
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
 
   return (
     <>
-      <aside id="generator-panel">
+      <aside>
         <button ref={setAnchor} type="button">
           Generate
         </button>
         <button type="button">Panel</button>
       </aside>
       <button type="button">History</button>
-      <DockedPanel open onOpenChange={props.onOpenChange} anchor={anchor} label="Choose media">
+      <DockedPanel
+        open
+        onOpenChange={onOpenChange}
+        anchor={isAnchored ? anchor : null}
+        label="Choose media"
+      >
         <p>Picker body</p>
       </DockedPanel>
     </>
@@ -136,6 +143,16 @@ describe('DockedPanel wide branch', () => {
     })
   })
 
+  it('falls back to the centered modal when the caller has no anchor', () => {
+    render(<Harness onOpenChange={vi.fn()} isAnchored={false} />)
+
+    const dialog = screen.getByRole('dialog')
+
+    expect(dialog.className).toContain('h-[min(720px,85vh)]')
+    expect(dialog.className).toContain('w-[min(900px,90vw)]')
+    expect(document.querySelector('[data-radix-popper-content-wrapper]')).toBeNull()
+  })
+
   it('stays open when the pointer goes down inside the opener', async () => {
     const { onOpenChange } = renderPanel()
 
@@ -147,7 +164,7 @@ describe('DockedPanel wide branch', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('closes on a pointerdown inside the generator panel but outside the opener', async () => {
+  it('closes on a pointerdown inside the panel but outside the opener', async () => {
     const { onOpenChange } = renderPanel()
 
     await settleDismissableLayer()

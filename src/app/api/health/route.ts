@@ -1,5 +1,6 @@
 import { isNil } from 'lodash-es'
 
+import { appVersion } from '@/core/app-version'
 import { errorResponse } from '@/server/http'
 import { downloadQueueIds } from '@/server/jobs/download-queue'
 import { isBooted } from '@/server/jobs/poller'
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     return Response.json({
       app: 'unplatform-ai',
       pid: process.pid,
-      version: process.env.npm_package_version ?? null,
+      version: appVersion(),
       desktop: sessionRequired(),
       ready: isBooted(),
       generating,

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import { clamp } from 'lodash-es'
 
@@ -40,7 +41,10 @@ export async function GET(request: Request, { params }: PathRouteContext) {
     return streamFile({
       absPath: thumb.filePath,
       request,
-      opts: { cacheControl: 'private, max-age=31536000, immutable' },
+      opts: {
+        cacheControl: 'private, no-cache',
+        etag: `"${path.basename(thumb.filePath, '.webp')}"`,
+      },
     })
   } catch (error) {
     return errorResponse(error)

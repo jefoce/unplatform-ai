@@ -4,8 +4,9 @@ import { ImagePlus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { focusGenerator } from '@/features/generator/focus-generator'
+import { applyMedia } from '@/features/generator/media-actions'
+import { type MediaTarget, mediaUse } from '@/features/generator/media-rules'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { applyMedia, type MediaTarget, mediaUse } from '@/features/generator/use-media'
 import { useAsyncAction } from '@/lib/use-async-action'
 import { Tooltip } from '@/ui/Tooltip'
 

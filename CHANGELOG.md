@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.1 - 2026-10-29
+
+Fewer lost paid videos, a real R2 cap, and thumbnails that recover.
+
+### Added
+
+- Retry download on a video whose download failed, while OpenRouter still has the copy. No new charge.
+- Settings warns when your OpenRouter key has no spend limit.
+
+### Changed
+
+- The R2 cap counts everything in the bucket and removes leftover files the app no longer uses, so it stays under 10 GB.
+- The app only ever deletes its own files inside its storage folder.
+
+### Fixed
+
+- Finished videos download reliably, even when OpenRouter sends no backup link.
+- A submit cut off during Sending warns that the job may exist, so you don't pay twice.
+- Thumbnails retry before showing a placeholder, short clips get a poster, and edited linked files show their new thumbnail.
+- The "generating" count clears when the running video is filtered out or on another page.
+- Escape in a delete confirm no longer clears your selection.
+
 ## 0.3.0 - 2026-10-27
 
 A roomier viewer with zoom, a live docked picker, paste and drop anywhere, and one copy per file.

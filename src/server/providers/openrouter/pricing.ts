@@ -10,7 +10,7 @@ import type { ModelPreset } from '@/core/presets/types'
 import type { PricingInfo } from '@/core/types'
 import type { Dict } from '@/core/utility-types'
 
-import { onSecretsChange } from '../../secrets'
+import { registerSecretsListener } from '../../secrets'
 import { createTtlCache, type TtlLoadResult } from '../../sync/ttl-cache'
 import { issueSummary } from './http'
 import { fetchVideoModelsResult } from './video-models'
@@ -232,6 +232,9 @@ function readSkus(skus: Dict<unknown> | undefined): Dict<number> | null {
   return result
 }
 
-onSecretsChange(() => {
-  cache.clear()
-})
+/** Clears the pricing cache when keys change. */
+export function registerPricingSecretsListener(): void {
+  registerSecretsListener('pricing', () => {
+    cache.clear()
+  })
+}

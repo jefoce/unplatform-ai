@@ -22,10 +22,6 @@ interface MediaRowProps {
 /** Upload grid row bridging selection state to the media tile. */
 export function MediaRow(props: MediaRowProps) {
   const { item, items, previewIndex, actions, slotNumber, isSelected, disabledReason } = props
-  const stamp = new Date(item.createdAt).getTime()
-  const isVersion = Number.isNaN(stamp)
-
-  const version = isVersion ? item.id : stamp
   const isDisabled = !isSelected && !isNil(disabledReason)
 
   const handlePreview = () => {
@@ -46,7 +42,6 @@ export function MediaRow(props: MediaRowProps) {
     <MediaTile
       item={item}
       mediaRef={`uploads/${item.id}`}
-      thumbVersion={version}
       selected={isSelected}
       slotNumber={slotNumber}
       disabled={isDisabled}

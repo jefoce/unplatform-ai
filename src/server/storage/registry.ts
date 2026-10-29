@@ -4,7 +4,7 @@ import { isNil } from 'lodash-es'
 
 import { isMockMode } from '../config/mock-mode'
 import { globalState } from '../global-state'
-import { onSecretsChange } from '../secrets'
+import { registerSecretsListener } from '../secrets'
 import { createMockStore } from './mock-store'
 import { r2Config } from './r2'
 import { createS3Store } from './s3-store'
@@ -45,6 +45,9 @@ export function getObjectStore(): ObjectStore | null {
   return cache.value
 }
 
-onSecretsChange(() => {
-  cache.value = undefined
-})
+/** Drops the store when keys change. */
+export function registerObjectStoreSecretsListener(): void {
+  registerSecretsListener('object-store', () => {
+    cache.value = undefined
+  })
+}

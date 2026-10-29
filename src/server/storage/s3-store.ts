@@ -8,16 +8,18 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
+  type ListObjectsV2CommandOutput,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { isObject, isString } from 'lodash-es'
+import { isNil, isObject, isString } from 'lodash-es'
 
 import type { TestResult } from '@/core/types'
 
-import type { ObjectInfo, ObjectStore } from './types'
+import type { ListedObject, ObjectInfo, ObjectStore } from './types'
 
 const PART_SIZE = 64 * 1024 * 1024
 
@@ -68,6 +70,7 @@ export function createS3Store(config: S3StoreConfig): ObjectStore {
           key,
           size: res.ContentLength ?? 0,
           serverSha256: res.ChecksumSHA256 ?? null,
+          lastModified: res.LastModified?.getTime() ?? 0,
         }
       } catch (error) {
         if (isNotFound(error)) {
@@ -109,7 +112,12 @@ export function createS3Store(config: S3StoreConfig): ObjectStore {
 
       const res = await upload.done()
 
-      return { key, size: stats.size, serverSha256: res.ChecksumSHA256 ?? null }
+      return {
+        key,
+        size: stats.size,
+        serverSha256: res.ChecksumSHA256 ?? null,
+        lastModified: Date.now(),
+      }
     },
 
     async presign(params): Promise<string> {
@@ -126,24 +134,32 @@ export function createS3Store(config: S3StoreConfig): ObjectStore {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
     },
 
-    /** Writes, reads and deletes a 4-byte probe. Returns the S3 error code on failure. */
-    async testConnection(): Promise<TestResult> {
-      const key = `probe/${randomUUID()}.txt`
-
-      try {
-        await client.send(
-          new PutObjectCommand({ Bucket: bucket, Key: key, Body: 'test', ContentLength: 4 }),
-        )
-
-        await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
-
-        return { ok: true }
-      } catch (error) {
-        return { ok: false, error: s3ErrorCode(error) }
-      } finally {
-        await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })).catch(() => {})
-      }
+    list(prefix: string): AsyncIterable<ListedObject> {
+      return listObjects({ client, bucket, prefix })
     },
+
+    testConnection(): Promise<TestResult> {
+      return probeBucket(client, bucket)
+    },
+  }
+}
+
+/** Writes, reads and deletes a 4-byte probe. Returns the S3 error code on failure. */
+async function probeBucket(client: S3Client, bucket: string): Promise<TestResult> {
+  const key = `probe/${randomUUID()}.txt`
+
+  try {
+    await client.send(
+      new PutObjectCommand({ Bucket: bucket, Key: key, Body: 'test', ContentLength: 4 }),
+    )
+
+    await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
+
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: s3ErrorCode(error) }
+  } finally {
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })).catch(() => {})
   }
 }
 
@@ -159,6 +175,62 @@ function clientFor(config: S3StoreConfig): S3ClientBundle {
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',
     }),
+  }
+}
+
+interface ListObjectsParams {
+  client: S3Client
+  bucket: string
+  prefix: string
+}
+
+interface S3ObjectEntry {
+  Key?: string
+  Size?: number
+  LastModified?: Date
+}
+
+async function* listObjects(params: ListObjectsParams): AsyncIterable<ListedObject> {
+  const { client, bucket, prefix } = params
+  let token: string | null = null
+
+  do {
+    const res: ListObjectsV2CommandOutput = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        MaxKeys: 1000,
+        ContinuationToken: token ?? undefined,
+      }),
+    )
+
+    for (const entry of res.Contents ?? []) {
+      const object = listedFrom(entry)
+
+      if (isNil(object)) {
+        continue
+      }
+
+      yield object
+    }
+
+    token = null
+
+    if (res.IsTruncated === true) {
+      token = res.NextContinuationToken ?? null
+    }
+  } while (!isNil(token))
+}
+
+function listedFrom(entry: S3ObjectEntry): ListedObject | null {
+  if (isNil(entry.Key)) {
+    return null
+  }
+
+  return {
+    key: entry.Key,
+    size: entry.Size ?? 0,
+    lastModified: entry.LastModified?.getTime() ?? 0,
   }
 }
 

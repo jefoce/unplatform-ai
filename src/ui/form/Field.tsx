@@ -51,16 +51,14 @@ export function Field(props: FieldProps) {
 
   return (
     <div className={cn('space-y-1', className)}>
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={controlId} className="text-xs font-medium text-fg">
-          {label}
-        </label>
-        {Boolean(hint) && (
-          <span id={hintId} className="text-xxs text-fg-2">
-            {hint}
-          </span>
-        )}
-      </div>
+      <label htmlFor={controlId} className="block text-xs font-medium text-fg">
+        {label}
+      </label>
+      {Boolean(hint) && (
+        <span id={hintId} className="mb-2.5 block text-xxs text-fg-2">
+          {hint}
+        </span>
+      )}
       <div className="flex items-start gap-1.5">
         {control}
         {trailing}

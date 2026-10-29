@@ -25,6 +25,7 @@ interface SecretSectionProps {
   ready: boolean
   testing: boolean
   result: TestMessage | null
+  hint?: ReactNode
   note?: string
   warning?: ReactNode
   onTest: (target: SettingsSection) => void
@@ -41,6 +42,7 @@ export function SecretSection(props: SecretSectionProps) {
     ready: isReady,
     testing: isTesting,
     result,
+    hint,
     note,
     warning,
   } = props
@@ -72,6 +74,7 @@ export function SecretSection(props: SecretSectionProps) {
         values={values}
         onChange={props.onChange}
       />
+      {hint}
       {!isNil(note) && <p className="text-xxs text-fg-2">{note}</p>}
       {warning}
       <div className="flex items-center gap-3">

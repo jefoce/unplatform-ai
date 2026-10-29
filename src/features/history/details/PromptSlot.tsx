@@ -3,6 +3,7 @@ import { Music } from 'lucide-react'
 import { isNonEmptyString } from '@/core/guards'
 import { idForSlot, type RefSlot, slotLabel } from '@/core/prompt-tokens'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { RetryImage } from '@/ui/RetryImage'
 
 import { recordSlots, uploadThumb } from '../actions/record-view'
 
@@ -30,8 +31,13 @@ export function PromptSlot(props: PromptSlotProps) {
     >
       {slot.kind === 'audio' && <Music size={12} />}
       {slot.kind !== 'audio' && (
-        /* eslint-disable-next-line @next/next/no-img-element -- 16px mention thumb */
-        <img src={uploadThumb(id, 64)} alt="" className="size-4 rounded-xs object-cover" />
+        <RetryImage
+          src={uploadThumb(id, 64)}
+          alt=""
+          kind={slot.kind}
+          placeholder={<span />}
+          className="size-4 rounded-xs object-cover"
+        />
       )}
       @{label}
     </span>

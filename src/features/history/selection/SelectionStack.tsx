@@ -1,6 +1,7 @@
 import { isNil } from 'lodash-es'
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { RetryImage } from '@/ui/RetryImage'
 
 import { posterSrc } from '../actions/record-view'
 import { StackIcon } from './StackIcon'
@@ -40,8 +41,12 @@ export function SelectionStack(props: SelectionStackProps) {
               </span>
             )}
             {!isNil(poster) && (
-              // eslint-disable-next-line @next/next/no-img-element -- 32px poster thumb
-              <img src={poster} alt="" className="size-full rounded-[inherit] object-cover" />
+              <RetryImage
+                src={poster}
+                alt=""
+                placeholder={<span />}
+                className="size-full rounded-[inherit] object-cover"
+              />
             )}
           </span>
         )

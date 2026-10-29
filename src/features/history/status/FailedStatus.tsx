@@ -21,6 +21,8 @@ interface FailedStatusProps {
   tone: Tone
   friendly: FriendlyError | null
   line: string | null
+  isRetryable: boolean
+  onRetry: () => void
   onRerun: () => void
 }
 
@@ -28,19 +30,16 @@ interface FailedStatusProps {
 export function FailedStatus(props: FailedStatusProps) {
   const { id, isCompact, isSelecting, label, help, tone, friendly, line } = props
 
+  const selectionClasses = isSelecting
+    ? 'pointer-events-none opacity-0'
+    : 'group-hover/card:pointer-events-none group-hover/card:opacity-0 group-has-[:focus-visible]/card:pointer-events-none group-has-[:focus-visible]/card:opacity-0'
+
   return (
     <>
       <div
         className={cn('absolute z-30', isCompact && 'top-3 left-3', !isCompact && 'top-4 left-4')}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-150',
-            isSelecting && 'pointer-events-none opacity-0',
-            !isSelecting &&
-              'group-hover/card:pointer-events-none group-hover/card:opacity-0 group-has-[:focus-visible]/card:pointer-events-none group-has-[:focus-visible]/card:opacity-0',
-          )}
-        >
+        <div className={cn('transition-opacity duration-150', selectionClasses)}>
           <StatusPill label={label} help={help} tone={tone} isCompact={isCompact} />
         </div>
       </div>
@@ -51,6 +50,11 @@ export function FailedStatus(props: FailedStatusProps) {
           <p className="line-clamp-2 text-danger">{friendly?.title ?? help.label}</p>
           {!isNil(line) && <p className="line-clamp-3 text-sm text-fg-2">{line}</p>}
           <div className="flex flex-wrap items-center justify-center gap-2">
+            {props.isRetryable && (
+              <Button size="sm" variant="outline" onClick={props.onRetry}>
+                Retry download
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={props.onRerun}>
               Reuse
             </Button>

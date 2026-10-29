@@ -1,7 +1,5 @@
 'use client'
 
-import { useState } from 'react'
-
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { mediaUrl, thumbUrl } from '@/lib/api/media-urls'
 import { cn } from '@/lib/cn'
@@ -21,7 +19,6 @@ export interface MediaTileProps {
   disabled?: boolean
   disabledReason?: string
   missing?: boolean
-  thumbVersion?: string | number
   onDelete?: () => void
   onSelect: () => void
   onPreview?: () => void
@@ -37,21 +34,14 @@ export function MediaTile(props: MediaTileProps) {
     disabled: isDisabled,
     disabledReason,
     missing: isMissing,
-    thumbVersion,
   } = props
 
-  const [brokenSrc, setBrokenSrc] = useState<string | null>(null)
   const isBlocked = isMissing === true || isDisabled === true
   const tooltip = isDisabled === true ? disabledReason : undefined
   const isAudio = item.kind === 'audio'
   const isPreviewable = item.kind === 'image' || item.kind === 'video'
-  const thumbSrc = thumbUrl({ ref: mediaRef, w: undefined, version: thumbVersion })
-  const isBroken = brokenSrc === thumbSrc
+  const thumbSrc = thumbUrl({ ref: mediaRef })
   const mediaSrc = mediaUrl(mediaRef, item.mime)
-
-  const handleThumbError = () => {
-    setBrokenSrc(thumbSrc)
-  }
 
   return (
     <Tooltip content={tooltip}>
@@ -63,13 +53,7 @@ export function MediaTile(props: MediaTileProps) {
           isSelected === true && SELECTED_TILE_CLASSES,
         )}
       >
-        <MediaTilePreview
-          kind={item.kind}
-          isBroken={isBroken}
-          thumbSrc={thumbSrc}
-          durationSec={item.durationSec}
-          onThumbError={handleThumbError}
-        />
+        <MediaTilePreview kind={item.kind} thumbSrc={thumbSrc} durationSec={item.durationSec} />
 
         {isAudio && (
           <MediaTileAudio item={item} audioSrc={mediaSrc} isMissing={isMissing === true} />

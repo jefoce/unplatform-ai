@@ -7,6 +7,7 @@ import type { MouseEvent } from 'react'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { thumbUrl } from '@/lib/api/media-urls'
 import { cn } from '@/lib/cn'
+import { RetryImage } from '@/ui/RetryImage'
 
 interface FrameSlotCardProps {
   label: string
@@ -41,10 +42,14 @@ export function FrameSlotCard(props: FrameSlotCardProps) {
         />
 
         {!isNil(upload) && (
-          // eslint-disable-next-line @next/next/no-img-element -- uploads are pre-sized thumbs
-          <img
+          <RetryImage
             src={thumbUrl({ ref: `uploads/${upload.id}`, w: 640 })}
             alt={label}
+            placeholder={
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-fg-2">
+                <ImageIcon size={16} aria-hidden />
+              </span>
+            }
             className="pointer-events-none absolute inset-0 size-full rounded-[inherit] bg-black/40 object-contain"
           />
         )}

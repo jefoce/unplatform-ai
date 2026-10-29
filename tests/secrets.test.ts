@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SECRET_NAMES } from '@/core/secret-names'
+import { onSecretsChange } from '@/server/secrets'
 
 import { memoryBackend, setup } from './helpers/secrets'
 
@@ -81,7 +82,7 @@ describe('secrets', () => {
   it('notifies listeners once per save', async () => {
     const { secrets } = await setup()
     const listener = vi.fn()
-    const off = secrets.onSecretsChange(listener)
+    const off = onSecretsChange(listener)
 
     await secrets.setSecrets({
       OPENROUTER_API_KEY: 'abc12345',
@@ -92,6 +93,18 @@ describe('secrets', () => {
 
     off()
     await secrets.setSecrets({ OPENROUTER_API_KEY: 'abc99999' })
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('adds one listener when the same registration runs twice', async () => {
+    const { secrets } = await setup()
+    const listener = vi.fn()
+
+    secrets.registerSecretsListener('pricing', listener)
+    secrets.registerSecretsListener('pricing', listener)
+
+    await secrets.setSecrets({ OPENROUTER_API_KEY: 'abc12345' })
+
     expect(listener).toHaveBeenCalledTimes(1)
   })
 

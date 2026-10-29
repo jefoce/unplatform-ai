@@ -1,9 +1,10 @@
 'use client'
 
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent } from 'react'
 
 import { isNonEmptyString } from '@/core/guards'
 import { cn } from '@/lib/cn'
+import { RetryImage } from '@/ui/RetryImage'
 import { Tooltip } from '@/ui/Tooltip'
 
 import { uploadThumb } from '../actions/record-view'
@@ -18,7 +19,6 @@ interface InputThumbProps {
 /** One input thumb, grey initial when the file is gone. */
 export function InputThumb(props: InputThumbProps) {
   const { item, items, index } = props
-  const [isBroken, setIsBroken] = useState(false)
   const firstChar = item.name.charAt(0).toUpperCase()
   const initial = firstChar === '' ? '?' : firstChar
 
@@ -35,15 +35,17 @@ export function InputThumb(props: InputThumbProps) {
     handleOpen()
   }
 
-  const handleError = () => {
-    setIsBroken(true)
-  }
-
   const title = `${item.label} \u00b7 ${item.name}`
   const sent = item.sent
   const isContent = !isNonEmptyString(sent)
 
   const content = isContent ? title : `${title} \u00b7 ${sent}`
+
+  const initialBadge = (
+    <span className="flex size-full items-center justify-center text-xs font-medium text-fg-2">
+      {initial}
+    </span>
+  )
 
   return (
     <Tooltip content={content}>
@@ -58,19 +60,14 @@ export function InputThumb(props: InputThumbProps) {
           !(index % 2 === 0) && 'rotate-[5deg]',
         )}
       >
-        {(isBroken || item.missing) && (
-          <span className="flex size-full items-center justify-center text-xs font-medium text-fg-2">
-            {initial}
-          </span>
-        )}
-        {!isBroken && !item.missing && (
-          // eslint-disable-next-line @next/next/no-img-element -- pre-sized upload thumb
-          <img
+        {item.missing && initialBadge}
+        {!item.missing && (
+          <RetryImage
             src={uploadThumb(item.id)}
             alt=""
             loading="lazy"
             decoding="async"
-            onError={handleError}
+            placeholder={initialBadge}
             className="size-full rounded-[inherit] bg-black/40 object-cover"
           />
         )}

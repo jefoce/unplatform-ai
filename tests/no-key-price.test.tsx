@@ -10,7 +10,10 @@ import type { GenerationEstimate, PricingInfo } from '@/core/types'
 import { ModelRow } from '@/features/generator/model/ModelRow'
 import { GeneratorPanel } from '@/features/generator/panel/GeneratorPanel'
 import { useGeneratorStore } from '@/features/generator/store/store'
+import { pickerAnchor } from '@/features/media-picker/picker/anchors'
 import { useModelEntry } from '@/lib/api/models'
+
+import { required } from './helpers/required'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -262,5 +265,15 @@ describe('Generate button without a key', () => {
     expect((button as HTMLButtonElement).disabled).toBe(false)
     expect(mocks.fetchEstimate).toHaveBeenCalled()
     expect(within(button).queryByText('15% off')).toBeNull()
+  })
+})
+
+describe('Generator panel picker anchor', () => {
+  it('registers the panel root as the generator anchor', () => {
+    const view = render(<GeneratorPanel />)
+    const panel = required(view.container.firstElementChild, 'generator panel')
+
+    expect(pickerAnchor('generator')).toBe(panel)
+    expect(panel.querySelector('[data-generator-panel]')).toBeTruthy()
   })
 })

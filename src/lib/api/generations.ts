@@ -33,6 +33,10 @@ export function cancelGenerationRequest(id: string): Promise<void> {
   return apiPost<void>(`/api/generations/${id}/cancel`)
 }
 
+export function retryDownloadRequest(id: string): Promise<void> {
+  return apiPost<void>(`/api/generations/${id}/download`)
+}
+
 export function setFavorite(id: string, isFavorite: boolean): Promise<GenerationRecord> {
   return apiPatch<GenerationRecord>(`/api/generations/${id}`, { favorite: isFavorite })
 }

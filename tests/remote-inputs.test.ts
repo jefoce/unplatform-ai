@@ -7,12 +7,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { UploadItem } from '@/core/schemas/upload-item'
 import type { FileHash } from '@/server/storage/hash'
-import type {
-  ObjectInfo,
-  ObjectStore,
-  PresignParams,
-  PutObjectParams,
-} from '@/server/storage/types'
+import type { ObjectInfo, ObjectStore, PutObjectParams } from '@/server/storage/types'
+
+import { daysAgo, FakeStore } from './helpers/remote-fixtures'
 
 vi.mock('server-only', () => {
   return {}
@@ -45,40 +42,6 @@ interface PutOnceParams {
 
 let putOnce: (params: PutOnceParams) => Promise<ObjectInfo>
 
-class FakeStore implements ObjectStore {
-  readonly id = 'r2'
-  readonly objects = new Map<string, ObjectInfo>()
-  readonly puts: string[] = []
-
-  async head(key: string): Promise<ObjectInfo | null> {
-    return this.objects.get(key) ?? null
-  }
-
-  async put(params: PutObjectParams): Promise<ObjectInfo> {
-    const { key, file, sha256 } = params
-
-    this.puts.push(key)
-    const stats = await fs.stat(file)
-    const info = { key, size: stats.size, serverSha256: sha256 }
-
-    this.objects.set(key, info)
-
-    return info
-  }
-
-  async presign(params: PresignParams): Promise<string> {
-    return `mock://${params.key}`
-  }
-
-  async delete(key: string): Promise<void> {
-    this.objects.delete(key)
-  }
-
-  async testConnection(): Promise<{ ok: boolean }> {
-    return { ok: true }
-  }
-}
-
 class GatedStore extends FakeStore {
   private startPut!: () => void
   private finishPut!: () => void
@@ -95,7 +58,7 @@ class GatedStore extends FakeStore {
 
     this.startPut()
     await this.gate
-    const info = { key, size: 1, serverSha256: null }
+    const info = { key, size: 1, serverSha256: null, lastModified: Date.now() }
 
     this.objects.set(key, info)
 
@@ -164,7 +127,12 @@ describe('ensureRemote', () => {
     const digest = await hashFile(mediaPath(upload.id))
     const key = `refs/${digest.sha256Hex}.png`
 
-    store.objects.set(key, { key, size: digest.size, serverSha256: digest.sha256Base64 })
+    store.objects.set(key, {
+      key,
+      size: digest.size,
+      serverSha256: digest.sha256Base64,
+      lastModified: Date.now(),
+    })
 
     const result = await ensureRemote({ upload, onProgress: undefined, store })
 
@@ -209,12 +177,79 @@ describe('ensureRemote', () => {
       key: remote.key,
       size: remote.size,
       serverSha256: 'wrong-checksum',
+      lastModified: Date.now(),
     })
 
     const second = await ensureRemote({ upload: first, onProgress: undefined, store })
 
     expect(store.puts).toHaveLength(2)
     expect(second.remote?.serverSha256).toBe(first.remote?.serverSha256)
+  })
+})
+
+describe('ensureRemote refresh', () => {
+  it('re-uploads a remote older than the refresh window and resets its dates', async () => {
+    const store = new FakeStore()
+    const upload = await makeUpload('old-head')
+    const first = await ensureRemote({ upload, onProgress: undefined, store })
+    const remote = remoteOf(first)
+
+    const old: UploadItem = {
+      ...first,
+      remote: { ...remote, uploadedAt: daysAgo(40), lastUsedAt: daysAgo(40) },
+    }
+
+    await saveUploadItem(old)
+    store.setLastModified(remote.key, Date.now() - 26 * 86_400_000)
+    store.headCalls = 0
+
+    const second = await ensureRemote({ upload: old, onProgress: undefined, store })
+
+    expect(store.headCalls).toBe(1)
+    expect(store.puts).toHaveLength(2)
+    expect(second.remote?.uploadedAt).not.toBe(old.remote?.uploadedAt)
+    expect(second.remote?.lastUsedAt).not.toBe(old.remote?.lastUsedAt)
+    expect(Date.parse(second.remote?.uploadedAt ?? '')).toBeGreaterThan(Date.now() - 60_000)
+    expect(Date.parse(second.remote?.lastUsedAt ?? '')).toBeGreaterThan(Date.now() - 60_000)
+  })
+
+  it('reuses a remote younger than the refresh window', async () => {
+    const store = new FakeStore()
+    const upload = await makeUpload('young-head')
+    const first = await ensureRemote({ upload, onProgress: undefined, store })
+    const remote = remoteOf(first)
+
+    const old: UploadItem = {
+      ...first,
+      remote: { ...remote, lastUsedAt: daysAgo(40) },
+    }
+
+    await saveUploadItem(old)
+    store.setLastModified(remote.key, Date.now() - 10 * 86_400_000)
+    store.headCalls = 0
+
+    const second = await ensureRemote({ upload: old, onProgress: undefined, store })
+
+    expect(store.headCalls).toBe(1)
+    expect(store.puts).toHaveLength(1)
+    expect(second.remote?.uploadedAt).toBe(old.remote?.uploadedAt)
+    expect(second.remote?.lastUsedAt).not.toBe(old.remote?.lastUsedAt)
+  })
+
+  it('heads once when the object is deleted and the file is unchanged', async () => {
+    const store = new FakeStore()
+    const upload = await makeUpload('deleted-head')
+    const first = await ensureRemote({ upload, onProgress: undefined, store })
+    const remote = remoteOf(first)
+
+    store.markDeleted(remote.key)
+    store.headCalls = 0
+
+    const second = await ensureRemote({ upload: first, onProgress: undefined, store })
+
+    expect(store.headCalls).toBe(1)
+    expect(store.puts).toHaveLength(2)
+    expect(second.remote?.key).toBe(remote.key)
   })
 })
 

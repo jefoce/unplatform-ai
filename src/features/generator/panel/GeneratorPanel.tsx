@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useSyncExternalStore } from 'react'
-import { noop } from 'lodash-es'
+import { isNil, noop } from 'lodash-es'
 import { Settings } from 'lucide-react'
 
+import { registerPickerAnchor } from '@/features/media-picker/picker/anchors'
 import { openSettings } from '@/features/settings/settings-store'
 
 import { CreditsBadge } from '../credits/CreditsBadge'
@@ -57,6 +58,14 @@ export function GeneratorPanel() {
     }
   }, [validation.ok, generate])
 
+  const handlePanelRef = useCallback((element: HTMLDivElement | null) => {
+    if (isNil(element)) {
+      return
+    }
+
+    return registerPickerAnchor('generator', element)
+  }, [])
+
   if (!isMounted) {
     return <div className="h-full" />
   }
@@ -64,7 +73,10 @@ export function GeneratorPanel() {
   const Body = tab === 'frames' ? FrameSlots : ReferencesBox
 
   return (
-    <div className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-panel">
+    <div
+      ref={handlePanelRef}
+      className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-panel"
+    >
       <div
         id="generator-panel"
         data-generator-panel

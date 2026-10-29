@@ -3,7 +3,7 @@ import 'server-only'
 import { type GenerationRecord, GenerationRecordSchema } from '@/core/schemas/generation-record'
 import { ACTIVE_STATUSES } from '@/core/types'
 
-import { removeFile, writeJsonAtomic } from '../fs/json-file'
+import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { downloadPaths, DOWNLOADS_DIR } from '../paths'
 import { jsonDirStore } from './json-dir-store'
@@ -48,10 +48,10 @@ export async function deleteGenerationFiles(id: string): Promise<void> {
   const paths = downloadPaths(id)
 
   await Promise.all([
-    removeFile(paths.json),
-    removeFile(paths.video),
-    removeFile(paths.preview),
-    removeFile(paths.part),
+    removeOwnedFile(paths.json),
+    removeOwnedFile(paths.video),
+    removeOwnedFile(paths.preview),
+    removeOwnedFile(paths.part),
   ])
 
   await store.forget(id)

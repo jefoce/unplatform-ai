@@ -118,19 +118,51 @@ async function boot(): Promise<void> {
 
 /** Deletes remote objects and cache files unused for their retention window. */
 async function sweepUnusedRemote(): Promise<void> {
-  try {
-    const { deleted, cleared } = await sweepRemote()
-    const compat = await sweepCompatFiles()
-    const thumbs = await sweepThumbs()
+  const { deleted, cleared, compat, thumbs } = await runSweeps()
 
-    if (deleted > 0 || cleared > 0 || compat > 0 || thumbs > 0) {
-      console.log(
-        `[unplatform-ai] remote sweep deleted ${deleted}, cleared ${cleared}, compat ${compat}, thumbs ${thumbs}`,
-      )
-    }
+  if (deleted > 0 || cleared > 0 || compat > 0 || thumbs > 0) {
+    console.log(
+      `[unplatform-ai] remote sweep deleted ${deleted}, cleared ${cleared}, compat ${compat}, thumbs ${thumbs}`,
+    )
+  }
+}
+
+interface SweepTotals {
+  deleted: number
+  cleared: number
+  compat: number
+  thumbs: number
+}
+
+/** Runs each sweep in its own try block so one failure never skips the others. */
+export async function runSweeps(): Promise<SweepTotals> {
+  let deleted = 0
+  let cleared = 0
+  let compat = 0
+  let thumbs = 0
+
+  try {
+    const remote = await sweepRemote()
+
+    deleted = remote.deleted
+    cleared = remote.cleared
   } catch (error) {
     console.error('[unplatform-ai] remote sweep failed', error)
   }
+
+  try {
+    compat = await sweepCompatFiles()
+  } catch (error) {
+    console.error('[unplatform-ai] compat sweep failed', error)
+  }
+
+  try {
+    thumbs = await sweepThumbs()
+  } catch (error) {
+    console.error('[unplatform-ai] thumbs sweep failed', error)
+  }
+
+  return { deleted, cleared, compat, thumbs }
 }
 
 async function tick(): Promise<void> {

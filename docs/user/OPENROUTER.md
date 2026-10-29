@@ -20,6 +20,8 @@ Open **Workspace → [API Keys](https://openrouter.ai/workspaces/default/keys) �
 - **Expiration:** shorter is safer, for example 30 days. When it ends, create a new key (this step) and paste it again.
 - **Credit limit:** **Custom amount**, for example `5`. The key stops at $5 in total until you raise the limit. Set **Reset limit every** to Monthly if you want a fresh $5 each month.
 
+Use a dedicated key for this app, with its own spend limit, rather than a key you share with other tools.
+
 Press **Create** and copy the key. It starts with `sk-or-v1-`.
 
 <img src="../images/openrouter-api-key.png" width="720" alt="OpenRouter New Key dialog with name, expiration and credit limit">
@@ -29,9 +31,11 @@ Press **Create** and copy the key. It starts with `sk-or-v1-`.
 
 ## 3. Optional: a management key for your balance
 
-Without it the wallet pill shows what is left of the key's credit limit. With it, the pill shows your whole account balance.
+The management key is optional. This app only reads from it: the one call is `/api/v1/credits`, and the only thing it unlocks is your account balance in the wallet pill. Without it, that balance is simply unavailable.
 
-Open **Account → [Management Keys](https://openrouter.ai/settings/management-keys) → New Key**, give it a name and an expiration, and press **Create**.
+A spend-limited API key already reports what is left of its limit through `/api/v1/key`, and the app shows that by default. The management key only matters when you want the whole account balance.
+
+On OpenRouter a management key can create and delete API keys. Keep it private and paste it only into the app. Open **Account → [Management Keys](https://openrouter.ai/settings/management-keys) → New Key**, give it a name and an expiration, and press **Create**.
 
 <img src="../images/openrouter-mgmt-key.png" width="720" alt="OpenRouter Create a Management Key dialog">
 

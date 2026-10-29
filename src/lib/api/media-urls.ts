@@ -13,7 +13,6 @@ const encodeRef = (ref: string): string => {
 interface ThumbUrlParams {
   ref: string
   w?: number
-  version?: string | number
 }
 
 /** Media stream URL, routed through the compat copy when the MIME cannot play. */
@@ -37,9 +36,9 @@ export function mediaUrl(ref: string, mime?: string): string {
 
 /** Thumbnail URL for a ref, encoding each path segment. */
 export function thumbUrl(params: ThumbUrlParams): string {
-  const { ref, w = THUMB_WIDTH, version } = params
+  const { ref, w = THUMB_WIDTH } = params
 
-  return withQuery(`/api/thumbs/${encodeRef(ref)}`, { w, v: version })
+  return withQuery(`/api/thumbs/${encodeRef(ref)}`, { w })
 }
 
 /** Download URL for a stored video file, optionally forcing a download. */

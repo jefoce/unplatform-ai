@@ -2,6 +2,10 @@
 
 import { useEffect } from 'react'
 
+import { DIALOG_SELECTOR } from '@/lib/dialog-keys'
+
+const OPEN_LAYER_SELECTOR = `${DIALOG_SELECTOR}, [role="menu"]`
+
 /** Clears the selection on Escape unless a dialog or menu is open. */
 export function useSelectionEscape(onClear: () => void) {
   useEffect(() => {
@@ -10,7 +14,7 @@ export function useSelectionEscape(onClear: () => void) {
         return
       }
 
-      if (document.querySelector('[role="dialog"],[role="menu"]')) {
+      if (document.querySelector(OPEN_LAYER_SELECTOR)) {
         return
       }
 

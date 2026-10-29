@@ -5,34 +5,31 @@ import { Play } from 'lucide-react'
 
 import type { MediaKind } from '@/core/media-types'
 import { formatSecondsExact } from '@/lib/format'
+import { RetryImage } from '@/ui/RetryImage'
 
 import { MediaTileBrokenPreview } from './MediaTileBrokenPreview'
 
 interface MediaTilePreviewProps {
   kind: MediaKind
-  isBroken: boolean
   thumbSrc: string
   durationSec?: number
-  onThumbError: () => void
 }
 
 /** Thumbnail, broken fallback and kind overlays for a media tile. */
 export function MediaTilePreview(props: MediaTilePreviewProps) {
-  const { kind, isBroken, thumbSrc, durationSec } = props
+  const { kind, thumbSrc, durationSec } = props
   const isPreviewable = kind === 'image' || kind === 'video'
   const isVideo = kind === 'video'
 
   return (
     <>
-      {isPreviewable && isBroken && <MediaTileBrokenPreview kind={kind} />}
-
-      {isPreviewable && !isBroken && (
-        // eslint-disable-next-line @next/next/no-img-element -- pre-sized thumbs
-        <img
+      {isPreviewable && (
+        <RetryImage
           src={thumbSrc}
           loading="lazy"
           alt=""
-          onError={props.onThumbError}
+          kind={kind}
+          placeholder={<MediaTileBrokenPreview kind={kind} />}
           className="pointer-events-none absolute inset-0 size-full rounded-[inherit] bg-black/40 object-cover"
         />
       )}

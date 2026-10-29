@@ -7,10 +7,15 @@ import path from 'node:path'
 import type { ZodType } from 'zod'
 
 import { globalState } from '../global-state'
+import { STORAGE_ROOT } from '../paths'
+import { isInside } from './safe-path'
 
 const warnings = globalState<Set<string>>('jsonWarnings', () => {
   return new Set()
 })
+
+const UUID_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.-]/i
+const HASH_NAME = /^[0-9a-f]{16,}\./
 
 /** Logs once per file path and mtime, so a bad file does not warn on every reload. */
 async function warnInvalid(file: string, message: string): Promise<void> {
@@ -96,6 +101,29 @@ export async function removeFile(file: string): Promise<void> {
       throw error
     }
   }
+}
+
+/** True when the basename matches a name the app writes: a UUID or a content hash. */
+export function isOwnedName(name: string): boolean {
+  const base = path.basename(name)
+
+  return UUID_NAME.test(base) || HASH_NAME.test(base)
+}
+
+/** Deletes an app-owned file inside STORAGE_ROOT. Missing counts as success. */
+export async function removeOwnedFile(file: string): Promise<void> {
+  const root = path.resolve(STORAGE_ROOT)
+  const resolved = path.resolve(root, file)
+
+  if (resolved === root || !isInside(root, resolved)) {
+    throw new Error('Refusing to delete outside storage')
+  }
+
+  if (!isOwnedName(resolved)) {
+    throw new Error('Refusing to delete a file the app does not own')
+  }
+
+  await removeFile(resolved)
 }
 
 export async function listJsonFileNames(dir: string): Promise<string[]> {

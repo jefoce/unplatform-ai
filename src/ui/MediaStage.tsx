@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/cn'
 
+import { RetryImage } from './RetryImage'
 import { stageGradient } from './stage-gradients'
 import { StageNavButton } from './StageNavButton'
 
@@ -44,8 +45,7 @@ export function MediaStage(props: MediaStageProps) {
     <div className="group/stage relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl">
       <div className="pointer-events-none absolute inset-0 -z-10">
         {backdrop.kind === 'image' && (
-          // eslint-disable-next-line @next/next/no-img-element -- blurred thumb, not a content image
-          <img
+          <RetryImage
             src={backdrop.src}
             alt=""
             aria-hidden

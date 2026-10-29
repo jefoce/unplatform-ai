@@ -7,7 +7,6 @@ import path from 'node:path'
 import { clamp, sortBy, sumBy } from 'lodash-es'
 
 import {
-  PREVIEW_AT_SEC,
   THUMB_TOUCH_MS,
   THUMB_UNUSED_DAYS,
   THUMB_WIDTH,
@@ -17,9 +16,10 @@ import {
 import type { MediaKind } from '@/core/media-types'
 
 import { HttpError } from '../errors'
+import { isOwnedName, removeOwnedFile } from '../fs/json-file'
 import { THUMBS_DIR } from '../paths'
 import { createLimiter } from '../sync/limiter'
-import { extractFrame } from './ffmpeg'
+import { extractPosterFrame } from './poster-frame'
 import sharp from './sharp'
 
 class ThumbUnavailableError extends HttpError {
@@ -135,7 +135,7 @@ async function renderVideo(params: RenderVideoParams): Promise<Buffer> {
   const frame = path.join(THUMBS_DIR, `${hash}.${randomUUID()}.tmp.png`)
 
   try {
-    await extractFrame({ videoPath: absPath, atSec: PREVIEW_AT_SEC, width, outPath: frame })
+    await extractPosterFrame({ videoPath: absPath, width, outPath: frame })
 
     return await sharp(frame).webp({ quality: 78 }).toBuffer()
   } finally {
@@ -215,6 +215,10 @@ async function collectThumbs(params: CollectThumbsParams): Promise<CollectedThum
       continue
     }
 
+    if (!isOwnedName(entry.name)) {
+      continue
+    }
+
     const file = path.join(dir, entry.name)
 
     const stats = await fs.stat(file).catch(() => {
@@ -226,8 +230,12 @@ async function collectThumbs(params: CollectThumbsParams): Promise<CollectedThum
     }
 
     if (stats.mtimeMs < cutoff) {
-      await fs.unlink(file).catch(() => {})
-      removed += 1
+      const didRemove = await removeThumb(file)
+
+      if (didRemove) {
+        removed += 1
+      }
+
       continue
     }
 
@@ -235,6 +243,19 @@ async function collectThumbs(params: CollectThumbsParams): Promise<CollectedThum
   }
 
   return { files, removed }
+}
+
+/** Removes one thumb without letting a single failure stop the sweep. */
+async function removeThumb(file: string): Promise<boolean> {
+  try {
+    await removeOwnedFile(file)
+
+    return true
+  } catch (error) {
+    console.warn('[unplatform-ai] thumb cleanup failed', error)
+
+    return false
+  }
 }
 
 interface TrimThumbsParams {
@@ -253,9 +274,16 @@ async function trimThumbs(params: TrimThumbsParams): Promise<number> {
       break
     }
 
-    await fs.unlink(item.file).catch(() => {})
-    total -= item.size
-    removed += 1
+    if (!isOwnedName(item.file)) {
+      continue
+    }
+
+    const didRemove = await removeThumb(item.file)
+
+    if (didRemove) {
+      total -= item.size
+      removed += 1
+    }
   }
 
   return removed

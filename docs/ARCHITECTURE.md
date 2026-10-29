@@ -163,7 +163,7 @@ Validation warns when a prompt mentions a slot that has no attached reference, a
 | File linked from a connected folder | Path stored, original never moved |
 | Pasted image | Re-encoded through sharp as sRGB, 4096 px ladder, transparency flattened or kept per preset |
 
-Transport comes from `preset.inputTransport[kind]`. `auto` uses `url` when R2 is configured, else `base64`. Video and audio on R2 become presigned links with `REMOTE_LINK_TTL_SEC` lifetime. Keys are content addressed: `refs/<sha256><ext>`. Uploads are de-duplicated with `putOnce`, and the daily sweep removes objects unused for `REMOTE_UNUSED_DAYS`.
+Transport comes from `preset.inputTransport[kind]`. `auto` uses `url` when R2 is configured, else `base64`. Video and audio on R2 become presigned links with `REMOTE_LINK_TTL_SEC` lifetime. Keys are content addressed: `refs/<sha256><ext>`. Uploads are de-duplicated with `putOnce`. A `remoteCap` lock wraps the cap check and the put. The cap counts the listed `refs/` objects when the store can list, else the tracked upload sizes. The daily sweep removes objects unused for `REMOTE_UNUSED_DAYS` and untracked objects older than the link TTL.
 
 If a provider rejects base64 input, submit retries once with all media as URLs. A missing R2 for a `url` transport blocks validation before submit.
 
@@ -257,10 +257,10 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `FETCH_TIMEOUTS.poll` | 30000 | Poll request timeout |
 | `FETCH_TIMEOUTS.content` | 600000 | Video download timeout |
 | `FETCH_TIMEOUTS.meta` | 15000 | Metadata and test timeout |
-| `REMOTE_LINK_TTL_SEC` | 7200 | Presigned R2 link lifetime |
+| `REMOTE_LINK_TTL_SEC` | 7200 | Presigned R2 link lifetime and orphan sweep cutoff |
 | `REMOTE_UNUSED_DAYS` | 30 | R2 retention after last use |
 | `REMOTE_FREE_GB` | 10 | Cloudflare free R2 storage |
-| `REMOTE_MAX_GB` | 8 | Tracked R2 storage cap, evicts older keys before a put |
+| `REMOTE_MAX_GB` | 8 | R2 storage cap from the listed `refs/` objects, evicts older keys before a put |
 | `UPLOAD_CLEANUP_MS` | 3600000 | Age before stale temp files are deleted |
 | `THUMB_WIDTH` | 320 | Thumbnail width |
 | `PREVIEW_WIDTH` | 640 | Preview frame width |

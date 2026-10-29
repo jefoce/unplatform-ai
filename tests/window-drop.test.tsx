@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react'
+import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { linkDroppedPaths } from '@/features/media-input/link-dropped'
 import { WindowDropOverlay } from '@/features/media-input/WindowDropOverlay'
+import { registerPickerAnchor } from '@/features/media-picker/picker/anchors'
 import { MediaPicker } from '@/features/media-picker/picker/MediaPicker'
 import { closeMediaPicker, openMediaPicker } from '@/features/media-picker/picker/store'
 import { linkPaths } from '@/lib/platform/link-paths'
@@ -38,12 +40,20 @@ interface DockedHarnessProps {
   isDragging: boolean
 }
 
+function handlePanelRef(element: HTMLElement | null): (() => void) | undefined {
+  if (isNil(element)) {
+    return
+  }
+
+  return registerPickerAnchor('generator', element)
+}
+
 function DockedHarness(props: DockedHarnessProps) {
   const { isDragging } = props
 
   return (
     <>
-      <aside id="generator-panel" />
+      <aside ref={handlePanelRef} />
       <Modal open onOpenChange={vi.fn()} label="Settings">
         <span>Modal body</span>
       </Modal>

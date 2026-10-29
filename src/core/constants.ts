@@ -103,6 +103,9 @@ export const SHUTDOWN_SEND_WAIT_MS = 60_000
 export const SHUTDOWN_EXIT_DELAY_MS = 100
 export const REMOTE_LINK_TTL_SEC = 7200
 export const REMOTE_UNUSED_DAYS = 30
+
+/** Must stay below the 30 day R2 lifecycle rule in docs/user/CLOUDFLARE-R2.md. */
+export const REMOTE_REFRESH_DAYS = 25
 export const REMOTE_MOCK_MBPS = 20
 
 /** Cloudflare free R2 storage in GB-month. */

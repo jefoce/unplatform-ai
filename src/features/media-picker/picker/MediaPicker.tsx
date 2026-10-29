@@ -4,6 +4,7 @@ import { isNil } from 'lodash-es'
 
 import { DockedPanel } from '@/ui/DockedPanel'
 
+import { pickerAnchor } from './anchors'
 import { PickerBody } from './PickerBody'
 import { closeMediaPicker, useMediaPickerStore } from './store'
 
@@ -23,7 +24,7 @@ export function MediaPicker() {
     <DockedPanel
       open={!isNil(request)}
       onOpenChange={handleOpenChange}
-      anchor={request?.anchor ?? null}
+      anchor={request?.anchor ?? pickerAnchor('generator')}
       fallback="modal"
       label="Choose media"
     >

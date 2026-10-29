@@ -53,7 +53,6 @@ export function FolderGrid(props: FolderGridProps) {
           const src = thumbUrl({
             ref: `folders/${folderId}/${file.rel}`,
             w: undefined,
-            version: file.mtimeMs,
           })
 
           return (

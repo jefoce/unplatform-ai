@@ -6,6 +6,7 @@ import { isString } from 'lodash-es'
 
 import { isNonEmptyString } from '@/core/guards'
 import { cn } from '@/lib/cn'
+import { RetryImage } from '@/ui/RetryImage'
 
 import { ReferenceIcon } from './ReferenceIcon'
 
@@ -51,8 +52,13 @@ export const ReferencePickerMenuItem = forwardRef<HTMLLIElement, BeautifulMentio
         )}
       >
         {hasThumb && (
-          // eslint-disable-next-line @next/next/no-img-element -- pre-sized upload thumb
-          <img src={thumbSrc ?? undefined} alt="" className="size-6 rounded-sm object-cover" />
+          <RetryImage
+            src={thumbSrc ?? ''}
+            alt=""
+            kind={iconKind}
+            placeholder={<span />}
+            className="size-6 rounded-sm object-cover"
+          />
         )}
         {!hasThumb && <ReferenceIcon kind={iconKind} size={14} />}
         <span className="shrink-0 font-medium">{item.displayValue}</span>

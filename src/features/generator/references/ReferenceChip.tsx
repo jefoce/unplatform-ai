@@ -11,6 +11,7 @@ import { slotLabel } from '@/core/prompt-tokens'
 import type { Dict } from '@/core/utility-types'
 import { thumbUrl } from '@/lib/api/media-urls'
 import { cn } from '@/lib/cn'
+import { RetryImage } from '@/ui/RetryImage'
 
 import { mentionSlot } from '../prompt/prompt-convert'
 import { useGeneratorStore } from '../store/store'
@@ -46,10 +47,11 @@ export const ReferenceChip = forwardRef<
       )}
     >
       {!isNil(upload) && slot.kind !== 'audio' && (
-        // eslint-disable-next-line @next/next/no-img-element -- pre-sized upload thumb
-        <img
+        <RetryImage
           src={thumbUrl({ ref: `uploads/${upload.id}`, w: 32 })}
           alt=""
+          kind={slot.kind}
+          placeholder={<span />}
           className="size-4 rounded-xs object-cover"
         />
       )}

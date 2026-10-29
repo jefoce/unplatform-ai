@@ -4,18 +4,18 @@ import fs from 'node:fs/promises'
 
 import { isNil } from 'lodash-es'
 
-import { REMOTE_LINK_TTL_SEC, REMOTE_UNUSED_DAYS } from '@/core/constants'
+import { REMOTE_LINK_TTL_SEC, REMOTE_REFRESH_DAYS, REMOTE_UNUSED_DAYS } from '@/core/constants'
 import type { UploadItem, UploadRemote } from '@/core/schemas/upload-item'
 
 import { globalState } from '../global-state'
 import { uploadPaths } from '../paths'
-import { updateUpload } from '../repos/upload-record'
-import { listUploads } from '../repos/uploads'
+import { listUploadRecords, updateUpload } from '../repos/upload-record'
 import { secretsReady } from '../secrets'
 import { type FileHash, hashFile } from '../storage/hash'
 import { getObjectStore } from '../storage/registry'
 import type { ObjectInfo, ObjectStore, ProgressCallback } from '../storage/types'
-import { deleteRemoteGroup, makeRoom, remoteKeyGroups } from './remote-cap'
+import { withLock } from '../sync/lock'
+import { deleteOrphans, deleteRemoteGroup, makeRoom, remoteKeyGroups } from './remote-cap'
 
 interface SweepResult {
   deleted: number
@@ -53,24 +53,48 @@ export async function ensureRemote(params: EnsureRemoteParams): Promise<UploadIt
   const stats = await fs.stat(media)
   const now = new Date().toISOString()
   const prev = upload.remote
+  const refreshCutoff = Date.now() - REMOTE_REFRESH_DAYS * 86_400_000
+  let firstHead: ObjectInfo | null = null
+  let hasFirstHead = false
 
   if (prev?.size === stats.size && prev.mtimeMs === stats.mtimeMs) {
-    const head = await remoteStore.head(prev.key)
+    firstHead = await remoteStore.head(prev.key)
+    hasFirstHead = true
 
-    if (head && sameObject({ head, sha: prev.serverSha256, size: prev.size })) {
+    const reusable = freshHead({
+      head: firstHead,
+      cutoff: refreshCutoff,
+      check: (headInfo) => {
+        return sameObject({ head: headInfo, sha: prev.serverSha256, size: prev.size })
+      },
+    })
+
+    if (reusable) {
       return saveRemote(upload.id, { ...prev, lastUsedAt: now })
     }
   }
 
   const digest = await hashFile(media)
   const key = `refs/${digest.sha256Hex}${upload.ext}`
-  const head = await remoteStore.head(key)
+  let head = firstHead
 
-  if (head && sameDigest({ head, digest, prev })) {
+  if (!hasFirstHead || key !== prev?.key) {
+    head = await remoteStore.head(key)
+  }
+
+  const reusableHead = freshHead({
+    head,
+    cutoff: refreshCutoff,
+    check: (headInfo) => {
+      return sameDigest({ head: headInfo, digest, prev })
+    },
+  })
+
+  if (reusableHead) {
     return saveRemote(upload.id, {
       key,
       sha256: digest.sha256Hex,
-      serverSha256: head.serverSha256,
+      serverSha256: reusableHead.serverSha256,
       size: digest.size,
       mtimeMs: digest.mtimeMs,
       uploadedAt: now,
@@ -78,17 +102,19 @@ export async function ensureRemote(params: EnsureRemoteParams): Promise<UploadIt
     })
   }
 
-  await makeRoom({ store: remoteStore, bytes: digest.size, keepKey: key })
+  const stored = await withLock('remoteCap', async () => {
+    await makeRoom({ store: remoteStore, bytes: digest.size, keepKey: key })
 
-  const stored = await putOnce({
-    store: remoteStore,
-    key,
-    file: media,
-    opts: {
-      contentType: upload.mime,
-      sha256: digest.sha256Base64,
-      onProgress,
-    },
+    return putOnce({
+      store: remoteStore,
+      key,
+      file: media,
+      opts: {
+        contentType: upload.mime,
+        sha256: digest.sha256Base64,
+        onProgress,
+      },
+    })
   })
 
   return saveRemote(upload.id, {
@@ -124,10 +150,11 @@ export async function sweepRemote(store?: ObjectStore): Promise<SweepResult> {
     return { deleted: 0, cleared: 0 }
   }
 
-  const uploads = await listUploads()
+  const uploads = await listUploadRecords()
   const groups = remoteKeyGroups(uploads)
 
   const cutoff = Date.now() - REMOTE_UNUSED_DAYS * 86_400_000
+  const swept = new Set<string>()
   let deleted = 0
   let cleared = 0
 
@@ -145,14 +172,25 @@ export async function sweepRemote(store?: ObjectStore): Promise<SweepResult> {
 
     const result = await deleteRemoteGroup(remoteStore, items)
 
+    swept.add(first.remote.key)
     deleted += result.deleted
     cleared += result.cleared
   }
 
+  const referenced = new Set(
+    Object.keys(groups).filter((key) => {
+      return !swept.has(key)
+    }),
+  )
+
+  const orphans = await deleteOrphans({ store: remoteStore, referenced, skip: swept })
+
+  deleted += orphans.count
+
   return { deleted, cleared }
 }
 
-/** One put per key at a time. Later callers wait for the first. */
+/** One put per key at a time. Callers must HEAD first because a put overwrites by key. */
 export function putOnce(params: PutOnceParams): Promise<ObjectInfo> {
   const { store, key, file, opts } = params
   const running = puts.get(key)
@@ -188,6 +226,26 @@ async function saveRemote(id: string, remote: UploadRemote): Promise<UploadItem>
   }
 
   return saved
+}
+
+interface FreshObjectParams {
+  head: ObjectInfo | null
+  cutoff: number
+  check: (head: ObjectInfo) => boolean
+}
+
+function freshHead(params: FreshObjectParams): ObjectInfo | null {
+  const { head, cutoff, check } = params
+
+  if (isNil(head)) {
+    return null
+  }
+
+  if (head.lastModified < cutoff || !check(head)) {
+    return null
+  }
+
+  return head
 }
 
 interface RemoteHead {

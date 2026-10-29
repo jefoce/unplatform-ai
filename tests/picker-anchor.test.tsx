@@ -31,7 +31,7 @@ const image = upload('image-1', 'image')
 function renderPanel(body: ReactNode): void {
   render(
     <>
-      <div id="generator-panel">
+      <div>
         {body}
         <button type="button">Outside</button>
       </div>
@@ -114,7 +114,7 @@ describe('picker anchor region', () => {
     expect(requestId()).toBe(id)
   })
 
-  it('closes the picker on a pointerdown elsewhere in the generator panel', async () => {
+  it('closes the picker on a pointerdown elsewhere in the panel', async () => {
     renderPanel(<ReferencesBox />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Add references' }))

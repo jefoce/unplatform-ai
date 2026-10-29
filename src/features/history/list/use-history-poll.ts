@@ -41,6 +41,29 @@ function shouldSkipTick(isForced: boolean, lastRunAt: number): boolean {
   return !isForced && document.hidden && Date.now() - lastRunAt < HIDDEN_POLL_MS
 }
 
+interface PollState {
+  isRunning: boolean
+  lastRevalidateAt: number
+}
+
+/** Revalidates the loaded pages when an active count has no loaded active id. */
+async function revalidateIdleCount(state: PollState): Promise<void> {
+  if (Date.now() - state.lastRevalidateAt < HISTORY_POLL_MS * 3) {
+    return
+  }
+
+  state.lastRevalidateAt = Date.now()
+  state.isRunning = true
+
+  try {
+    await revalidateHistory()
+  } catch {
+    // Next tick retries, polling does not surface transient errors.
+  } finally {
+    state.isRunning = false
+  }
+}
+
 /** One ids request per tick while any loaded record is active. */
 export function useHistoryPoll(params: HistoryPollParams): void {
   const { activeCount, records, mutate } = params
@@ -56,11 +79,11 @@ export function useHistoryPoll(params: HistoryPollParams): void {
     }
 
     let isStopped = false
-    let isRunning = false
     let lastRunAt = 0
+    const state: PollState = { isRunning: false, lastRevalidateAt: Date.now() }
 
     const tick = async (isForced = false) => {
-      if (isRunning || shouldSkipTick(isForced, lastRunAt)) {
+      if (state.isRunning || shouldSkipTick(isForced, lastRunAt)) {
         return
       }
 
@@ -68,10 +91,12 @@ export function useHistoryPoll(params: HistoryPollParams): void {
       const ids = activeIds(recordsRef.current)
 
       if (ids.length === 0) {
+        await revalidateIdleCount(state)
+
         return
       }
 
-      isRunning = true
+      state.isRunning = true
 
       try {
         const result = await fetchGenerationsByIds(ids)
@@ -102,7 +127,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
       } catch {
         // Next tick retries, polling does not surface transient errors.
       } finally {
-        isRunning = false
+        state.isRunning = false
       }
     }
 

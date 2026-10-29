@@ -231,8 +231,10 @@ describe('history selection bar', () => {
   })
 })
 
+const OPEN_LAYERS = ['dialog', 'alertdialog', 'menu'] as const
+
 describe('history selection batches', () => {
-  it('does not clear on Escape while a dialog is open', () => {
+  it.each(OPEN_LAYERS)('does not clear on Escape while a %s is open', (role) => {
     const records = ['a', 'b'].map((id) => {
       return record(id)
     })
@@ -240,14 +242,23 @@ describe('history selection batches', () => {
     setSelection(['a', 'b'])
     render(<SelectionBar records={records} />)
 
-    const dialog = document.createElement('div')
+    const layer = document.createElement('div')
 
-    dialog.setAttribute('role', 'dialog')
-    document.body.append(dialog)
+    layer.setAttribute('role', role)
+    document.body.append(layer)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(ids()).toEqual(['a', 'b'])
+    layer.remove()
+  })
 
-    dialog.remove()
+  it('clears on Escape without an open layer', () => {
+    const records = ['a', 'b'].map((id) => {
+      return record(id)
+    })
+
+    setSelection(['a', 'b'])
+    render(<SelectionBar records={records} />)
+
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(ids()).toEqual([])
   })

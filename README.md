@@ -109,7 +109,7 @@ If your keyring is locked when you save keys, Linux asks for your login password
 
 ## First setup
 
-1. **OpenRouter (required).** Add credit, create an API key with a spend limit, and paste it in Settings (gear icon). [Step-by-step guide](docs/user/OPENROUTER.md)
+1. **OpenRouter (required).** Add credit, create a dedicated API key with a spend limit, and paste it in Settings (gear icon). [Step-by-step guide](docs/user/OPENROUTER.md)
 2. **Cloudflare R2 (only for video or sound references).** Create a bucket and a token for it, then paste four values in Settings. Free up to 10 GB, and the app stays under 8 GB. Cloudflare asks for a card. [Step-by-step guide](docs/user/CLOUDFLARE-R2.md)
 
 Both guides are also linked in the app: gear icon → **Setup guide**.
@@ -155,7 +155,7 @@ To back up or move to a new computer, copy the whole folder, then enter your key
 
 ## Costs and privacy
 
-- Unplatform AI is free and adds no fee. The wallet pill shows what is left of your key's credit limit, or your account balance when you add a management key.
+- Unplatform AI is free and adds no fee. The wallet pill shows what is left of your key's credit limit, or your account balance when you add a management key. The management key is optional and read-only in this app.
 - No account, no tracking, no server of ours. Keys stay in your system keychain.
 - Your text and pictures go to OpenRouter and the model's provider. Video and sound references go to your own R2 bucket as private links that expire after 2 hours.
 - R2 stays inside Cloudflare's free tier, see [the R2 guide](docs/user/CLOUDFLARE-R2.md).

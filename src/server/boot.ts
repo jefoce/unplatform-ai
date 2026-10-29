@@ -8,7 +8,11 @@ import { configureSubmitQueue } from './jobs/submit-queue'
 import { assertFfmpeg } from './media/ffmpeg'
 import { startParentWatch } from './parent-watch'
 import { STORAGE_ROOT } from './paths'
+import { registerAccountSecretsListener } from './providers/openrouter/account'
+import { registerPricingSecretsListener } from './providers/openrouter/pricing'
+import { registerVideoModelsSecretsListener } from './providers/openrouter/video-models'
 import { secretsReady } from './secrets'
+import { registerObjectStoreSecretsListener } from './storage/registry'
 
 /** Composition root: wires every server dependency in one place. */
 export async function bootServer(): Promise<void> {
@@ -16,6 +20,12 @@ export async function bootServer(): Promise<void> {
 
   // Never block readiness on the keychain. Routes and the poller await secretsReady().
   void secretsReady()
+
+  // The listener set only serves later reloads, so registering after the first load is fine.
+  registerPricingSecretsListener()
+  registerAccountSecretsListener()
+  registerVideoModelsSecretsListener()
+  registerObjectStoreSecretsListener()
 
   configureSubmitQueue({ run: runSubmit })
   onJobSent(startPoller)

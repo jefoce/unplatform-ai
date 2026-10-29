@@ -33,6 +33,20 @@ describe('Field', () => {
     expect(describedBy).toContain('name-hint')
     expect(describedBy).toContain('name-error')
   })
+
+  it('renders the hint on its own line below the label', () => {
+    render(
+      <Field id="name" label="Name" hint="Optional">
+        <Input value="" onChange={handleNoop} />
+      </Field>,
+    )
+
+    const label = screen.getByText('Name')
+    const hint = screen.getByText('Optional')
+
+    expect(label.contains(hint)).toBe(false)
+    expect(hint.parentElement).toBe(label.parentElement)
+  })
 })
 
 function NumberHarness({ onValueChange }: { onValueChange: (value: number | null) => void }) {

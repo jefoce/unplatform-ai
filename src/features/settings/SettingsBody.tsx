@@ -5,19 +5,21 @@ import { isEmpty } from 'lodash-es'
 
 import { REMOTE_MAX_GB } from '@/core/constants'
 import { STORAGE_PROVIDERS, VIDEO_PROVIDERS } from '@/core/providers/registry'
-import type { SecretStatus } from '@/core/types'
+import type { CreditsInfo, SecretStatus } from '@/core/types'
 import { type RemoteStatus, useRemoteStatusData } from '@/lib/api/remote'
 import { formatBytes } from '@/lib/format'
 import { Button } from '@/ui/Button'
 
+import { KeyLimitHint } from './KeyLimitHint'
 import { SecretSection } from './SecretSection'
 import type { SettingsSection } from './settings-store'
 import type { SettingsDraft } from './use-settings-draft'
 
-const STORAGE_DESCRIPTION = 'optional, needed for video/audio refs on some models'
+const STORAGE_DESCRIPTION = 'optional: needed for video/audio refs on some models'
 
 interface SettingsBodyProps {
   status: SecretStatus | undefined
+  credits: CreditsInfo | undefined
   draft: SettingsDraft
   sectionRefs: Record<SettingsSection, RefObject<HTMLElement | null>>
   appSection: ReactNode
@@ -33,7 +35,7 @@ function storedNote(remote: RemoteStatus | undefined): string | undefined {
 
 /** Loading, error and key sections inside the settings modal. */
 export function SettingsBody(props: SettingsBodyProps) {
-  const { status, draft, sectionRefs, appSection } = props
+  const { status, credits, draft, sectionRefs, appSection } = props
   const remote = useRemoteStatusData()
 
   const {
@@ -45,11 +47,10 @@ export function SettingsBody(props: SettingsBodyProps) {
     valid,
     onFieldChange: handleFieldChange,
     onTest: handleTest,
-    onRetry,
   } = draft
 
   const handleRetry = () => {
-    return void onRetry()
+    return void draft.onRetry()
   }
 
   if (!isEmpty(status?.loadError)) {
@@ -85,6 +86,7 @@ export function SettingsBody(props: SettingsBodyProps) {
             ready={ready[descriptor.id]}
             testing={testing === descriptor.id}
             result={results[descriptor.id]}
+            hint={descriptor.id === 'openrouter' && <KeyLimitHint credits={credits} />}
             onTest={handleTest}
           />
         )

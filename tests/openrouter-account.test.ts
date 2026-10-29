@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getProviderAccount } from '@/server/providers/openrouter/account'
+import {
+  getProviderAccount,
+  registerAccountSecretsListener,
+} from '@/server/providers/openrouter/account'
 import { __setSecretsBackendForTests, setSecrets } from '@/server/secrets'
 
 import { memoryBackend } from './helpers/secrets'
@@ -27,6 +30,7 @@ beforeEach(async () => {
   vi.stubEnv('OPENROUTER_API_KEY', '')
   vi.stubEnv('OPENROUTER_MANAGEMENT_KEY', '')
 
+  registerAccountSecretsListener()
   __setSecretsBackendForTests(memoryBackend({ OPENROUTER_API_KEY: 'key-a' }))
   await setSecrets({ OPENROUTER_API_KEY: 'key-a' })
 })

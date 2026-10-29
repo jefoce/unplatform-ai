@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { FETCH_TIMEOUTS, PRICING_FALLBACK_TTL_MS } from '@/core/constants'
 import { messageOf } from '@/core/errors'
 
-import { onSecretsChange } from '../../secrets'
+import { registerSecretsListener } from '../../secrets'
 import { createTtlCache, type TtlLoadResult } from '../../sync/ttl-cache'
 import { BASE_URL, issueSummary } from './http'
 
@@ -110,6 +110,9 @@ function fallback(reason: string): TtlLoadResult<VideoModelsResult> {
   return { value: { models: [], reason }, isOk: false }
 }
 
-onSecretsChange(() => {
-  cache.clear()
-})
+/** Clears the model list cache when keys change. */
+export function registerVideoModelsSecretsListener(): void {
+  registerSecretsListener('video-models', () => {
+    cache.clear()
+  })
+}

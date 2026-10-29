@@ -2,10 +2,12 @@
 
 import { isNil } from 'lodash-es'
 import { Maximize2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { cn } from '@/lib/cn'
 import { formatSecondsExact } from '@/lib/format'
+import { RetryImage } from '@/ui/RetryImage'
 
 import { AudioReference } from './AudioReference'
 import { ReferenceBrokenOverlay } from './ReferenceBrokenOverlay'
@@ -41,6 +43,12 @@ export function ReferenceThumbBody(props: ReferenceThumbBodyProps) {
     isPreviewShown,
   } = props
 
+  let brokenPlaceholder: ReactNode
+
+  if (!isMissing) {
+    brokenPlaceholder = <ReferenceBrokenOverlay isMissing={isMissing} />
+  }
+
   return (
     <div
       className={cn(
@@ -49,11 +57,11 @@ export function ReferenceThumbBody(props: ReferenceThumbBodyProps) {
       )}
     >
       {!isNil(imageSrc) && (
-        // eslint-disable-next-line @next/next/no-img-element -- uploads are pre-sized thumbs
-        <img
+        <RetryImage
           src={imageSrc}
           alt={name}
           draggable={false}
+          placeholder={brokenPlaceholder}
           className="pointer-events-none absolute inset-0 size-full rounded-[inherit] bg-black/40 object-cover"
         />
       )}

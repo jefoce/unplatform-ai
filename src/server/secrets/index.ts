@@ -38,6 +38,10 @@ const state = globalState<SecretsState>('secrets', () => {
   }
 })
 
+const registered = globalState<Set<string>>('secretsRegistered', () => {
+  return new Set()
+})
+
 /** Starts or waits for the one-time load. */
 export function secretsReady(): Promise<void> {
   state.loading ??= load()
@@ -249,6 +253,16 @@ const hintFor = (value: string): string | null => {
   return value.slice(-4)
 }
 
+/** Registers one listener per process, so a hot reload cannot add duplicates. */
+export function registerSecretsListener(name: string, listener: () => void): void {
+  if (registered.has(name)) {
+    return
+  }
+
+  registered.add(name)
+  onSecretsChange(listener)
+}
+
 /** Fires after a save. Returns an unsubscribe function. */
 export function onSecretsChange(listener: () => void): () => void {
   state.listeners.add(listener)
@@ -285,4 +299,5 @@ export function __resetSecretsForTests(): void {
   state.listeners.clear()
   state.loading = null
   state.loadError = null
+  registered.clear()
 }

@@ -1,8 +1,8 @@
 import 'server-only'
 
-import { PREVIEW_AT_SEC, PREVIEW_WIDTH } from '@/core/constants'
+import { PREVIEW_WIDTH } from '@/core/constants'
 
-import { extractFrame } from './ffmpeg'
+import { extractPosterFrame } from './poster-frame'
 
 interface MakePreviewParams {
   id: string
@@ -15,9 +15,8 @@ export async function makePreview(params: MakePreviewParams): Promise<string | u
   const { id, video, out } = params
 
   try {
-    await extractFrame({
+    await extractPosterFrame({
       videoPath: video,
-      atSec: PREVIEW_AT_SEC,
       width: PREVIEW_WIDTH,
       outPath: out,
     })

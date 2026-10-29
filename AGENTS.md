@@ -38,6 +38,7 @@ pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pn
 - Error texts and hints describe the current model only. Never suggest a specific other model.
 - Change a preset only with a source link (provider docs or a real-key test) in the commit message and in a comment next to the value.
 - Do not add a dependency for something the stdlib or an installed package already does.
+- Never delete outside `STORAGE_ROOT`. Never use recursive rm.
 - No focus rings. Keyboard focus uses the `:focus-visible` hover UI, never `focus-visible:ring-*`. Mouse clicks do not leave buttons focused (`usePointerBlur`), menus excepted.
 
 ## Mock first

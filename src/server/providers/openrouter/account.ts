@@ -6,7 +6,7 @@ import { FETCH_TIMEOUTS } from '@/core/constants'
 import { messageOf } from '@/core/errors'
 import { isNonEmptyString } from '@/core/guards'
 
-import { getSecret, onSecretsChange, secretsReady } from '../../secrets'
+import { getSecret, registerSecretsListener, secretsReady } from '../../secrets'
 import { createTtlCache, type TtlLoadResult } from '../../sync/ttl-cache'
 import type { AccountLookupParams, ProviderAccount } from '../types'
 
@@ -156,6 +156,9 @@ function withError(last: ProviderAccount | undefined, message: string): Provider
   }
 }
 
-onSecretsChange(() => {
-  cache.clear()
-})
+/** Clears the account cache when keys change. */
+export function registerAccountSecretsListener(): void {
+  registerSecretsListener('account', () => {
+    cache.clear()
+  })
+}

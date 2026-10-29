@@ -9,7 +9,7 @@ import {
   type MediaUse,
   mediaUse,
   type MediaUseState,
-} from '@/features/generator/use-media'
+} from '@/features/generator/media-rules'
 import type { PreviewItem } from '@/features/preview/preview-store'
 
 import { record as makeRecord } from './helpers/history'

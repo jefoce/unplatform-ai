@@ -5,6 +5,7 @@ import { isNil } from 'lodash-es'
 import { MAX_REQUEST_MB } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 import { getPreset } from '@/core/presets'
+import { INTERRUPT_SENDING_TEXT } from '@/core/provider-errors/app'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadsById } from '@/core/schemas/upload-item'
 import { graceDelayMs, inputIds, transportsFor, withTransports } from '@/core/submit-state'
@@ -179,8 +180,20 @@ async function fail(id: string, error: unknown): Promise<void> {
       return null
     }
 
-    return { ...record, status: 'failed', error: submitError(error), submit: undefined }
+    return { ...record, status: 'failed', error: failText(record, error), submit: undefined }
   })
+}
+
+/** A send that may have reached the provider keeps the job-may-exist warning. */
+function failText(record: GenerationRecord, error: unknown): string {
+  const isUncertain =
+    error instanceof TypeError || (error instanceof ProviderError && error.kind === 'timeout')
+
+  if (record.submit?.stage === 'sending' && isUncertain) {
+    return INTERRUPT_SENDING_TEXT
+  }
+
+  return submitError(error)
 }
 
 /** Formats a stored failure without repeating the HTTP status. */

@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
+
+import { isNil } from 'lodash-es'
 
 import type { UploadItem } from '@/core/schemas/upload-item'
 import type {
+  ListedObject,
   ObjectInfo,
   ObjectStore,
   PresignParams,
@@ -19,17 +23,34 @@ export interface RecordParams {
 export class FakeStore implements ObjectStore {
   readonly id = 'r2'
   readonly objects = new Map<string, ObjectInfo>()
+  readonly listed = new Map<string, ListedObject>()
   readonly deleted: string[] = []
+  readonly puts: string[] = []
+  private readonly lastModified = new Map<string, number>()
+  listCalls = 0
+  headCalls = 0
 
   async head(key: string): Promise<ObjectInfo | null> {
-    return this.objects.get(key) ?? null
+    this.headCalls += 1
+    const info = this.objects.get(key)
+
+    if (isNil(info)) {
+      return null
+    }
+
+    return { ...info, lastModified: this.lastModified.get(key) ?? Date.now() }
   }
 
   async put(params: PutObjectParams): Promise<ObjectInfo> {
-    const { key, sha256 } = params
-    const info = { key, size: 1, serverSha256: sha256 }
+    const { key, file, sha256 } = params
+    const stats = await fs.stat(file)
+    const lastModified = Date.now()
+    const info = { key, size: stats.size, serverSha256: sha256, lastModified }
 
+    this.puts.push(key)
     this.objects.set(key, info)
+    this.lastModified.set(key, lastModified)
+    this.listed.set(key, { key, size: stats.size, lastModified })
 
     return info
   }
@@ -38,9 +59,34 @@ export class FakeStore implements ObjectStore {
     return `mock://${params.key}`
   }
 
+  async *list(prefix: string): AsyncIterable<ListedObject> {
+    this.listCalls += 1
+
+    for (const object of this.listed.values()) {
+      if (object.key.startsWith(prefix)) {
+        yield object
+      }
+    }
+  }
+
+  seed(object: ListedObject): void {
+    this.listed.set(object.key, object)
+  }
+
+  setLastModified(key: string, lastModified: number): void {
+    this.lastModified.set(key, lastModified)
+  }
+
+  markDeleted(key: string): void {
+    this.objects.delete(key)
+    this.listed.delete(key)
+    this.lastModified.delete(key)
+  }
+
   async delete(key: string): Promise<void> {
     this.deleted.push(key)
     this.objects.delete(key)
+    this.listed.delete(key)
   }
 
   async testConnection(): Promise<{ ok: boolean }> {

@@ -5,6 +5,7 @@ import type { MouseEvent, ReactNode } from 'react'
 
 import type { FolderFile } from '@/core/media-types'
 import { cn } from '@/lib/cn'
+import { RetryImage } from '@/ui/RetryImage'
 import { Spinner } from '@/ui/Spinner'
 import { Tooltip } from '@/ui/Tooltip'
 
@@ -29,12 +30,11 @@ interface FolderFileBodyParams {
   file: FolderFile
   src: string
   isBroken: boolean
-  onBroken: (src: string) => void
 }
 
 /** Thumbnail, audio label or broken icon for a folder file. */
 function folderFileBody(params: FolderFileBodyParams): ReactNode {
-  const { file, src, isBroken, onBroken } = params
+  const { file, src, isBroken } = params
 
   if (file.kind === 'audio') {
     return (
@@ -45,9 +45,9 @@ function folderFileBody(params: FolderFileBodyParams): ReactNode {
     )
   }
 
-  if (isBroken) {
-    const BrokenIcon = file.kind === 'video' ? Film : ImageIcon
+  const BrokenIcon = file.kind === 'video' ? Film : ImageIcon
 
+  if (isBroken) {
     return (
       <span className="flex size-full items-center justify-center bg-white/5 text-fg-2">
         <BrokenIcon size={24} aria-hidden />
@@ -55,18 +55,18 @@ function folderFileBody(params: FolderFileBodyParams): ReactNode {
     )
   }
 
-  const handleImageError = () => {
-    onBroken(src)
-  }
-
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized thumbs */}
-      <img
+      <RetryImage
         src={src}
         loading="lazy"
         alt=""
-        onError={handleImageError}
+        kind={file.kind}
+        placeholder={
+          <span className="flex size-full items-center justify-center bg-white/5 text-fg-2">
+            <BrokenIcon size={24} aria-hidden />
+          </span>
+        }
         className="pointer-events-none absolute inset-0 size-full rounded-[inherit] bg-black/40 object-cover"
       />
       {file.kind === 'video' && (
@@ -117,7 +117,7 @@ export function FolderFileTile(props: FolderFileTileProps) {
           )}
         />
 
-        {folderFileBody({ file, src, isBroken, onBroken: props.onBroken })}
+        {folderFileBody({ file, src, isBroken })}
 
         <MediaTileBadges isMissing={false} isLink isSelected={isSelected} slotNumber={slotNumber} />
 

@@ -112,6 +112,16 @@ Mock mode keeps the Test button enabled without stored keys.
 5. Add the secret names to `SecretName` so Settings renders the descriptor fields.
 6. Test the store through `tests/remote-inputs.test.ts` and the mock store.
 
+### Storage, downloads and thumbnails
+
+- The R2 cap counts the listed `refs/` objects when the store can list, else the tracked upload sizes. The sweep removes unused keys after `REMOTE_UNUSED_DAYS` and untracked objects older than `REMOTE_LINK_TTL_SEC`.
+- The cap check and the put run under one `remoteCap` lock.
+- Downloads call the authenticated content endpoint with `record.job.id`, then fall back to `job.urls` when that call fails.
+- A failed download can be retried from the record while the provider copy is valid, through `POST /api/generations/{id}/download`. It never submits again.
+- `RetryImage` retries a thumb twice, then shows the placeholder for its kind.
+- The thumbs route answers `private, no-cache` with a strong ETag and 304 on a matching `If-None-Match`.
+- Deletes go through `removeOwnedFile`, which refuses anything outside `STORAGE_ROOT` or with a foreign basename.
+
 ## 8. Environment variables
 
 | Variable | Purpose |

@@ -144,6 +144,7 @@ export const GenerationRecordSchema = z.object({
   submit: RecordSubmitSchema.optional(),
   job: RecordJobSchema.optional(),
   download: RecordDownloadSchema.optional(),
+  downloadFailed: z.boolean().nullish(),
   seedUsed: z.number().nullable(),
   favorite: z.boolean(),
   cost: GenerationCostSchema,

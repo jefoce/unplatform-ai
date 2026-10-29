@@ -11,7 +11,7 @@ import type { MediaKind } from '@/core/media-types'
 import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { UploadError } from '../errors'
-import { removeFile, writeJsonAtomic } from '../fs/json-file'
+import { removeFile, removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { uploadPaths, UPLOADS_DIR } from '../paths'
 import { forgetUpload, getUploadRecord, listUploadRecords, rememberUpload } from './upload-record'
 
@@ -119,8 +119,11 @@ export async function deleteUploadFiles(params: DeleteUploadFilesParams): Promis
   const { id, ext } = params
   const paths = uploadPaths(id, ext)
 
-  await removeFile(paths.media)
-  await removeFile(paths.json)
+  if (isNonEmptyString(ext)) {
+    await removeOwnedFile(paths.media)
+  }
+
+  await removeOwnedFile(paths.json)
   await forgetUpload(id)
 }
 

@@ -17,6 +17,7 @@ const R2_GUIDE_IMAGES = [
   'cloudflare-r2-api-step-2.png',
   'cloudflare-r2-api-step-3.png',
   'cloudflare-r2-api-step-4.png',
+  'cloudflare-r2-lifecycle-rule.png',
 ]
 
 const file = (rel: string) => {

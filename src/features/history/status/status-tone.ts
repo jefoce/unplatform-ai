@@ -1,5 +1,7 @@
 import { isNil } from 'lodash-es'
 
+import { isDownloadFailure } from '@/core/download-failure'
+import { isNonEmptyString } from '@/core/guards'
 import type { FriendlyError } from '@/core/provider-errors/types'
 import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
 import { STATUS_HELP, statusHelpKey } from '@/core/status-help'
@@ -95,4 +97,23 @@ export function isGraceCancelVisible(params: GraceCancelVisibleParams): boolean 
   }
 
   return remainingMs > 0 && !isNil(onCancel)
+}
+
+/** Failed copy that failed on download, still has a provider job and has not expired. */
+export function isDownloadRetryable(record: GenerationRecord): boolean {
+  const expiresAt = record.job?.expiresAt
+
+  if (record.status !== 'failed' || !isNil(record.output)) {
+    return false
+  }
+
+  if (!isDownloadFailure(record)) {
+    return false
+  }
+
+  if (!isNonEmptyString(record.job?.id)) {
+    return false
+  }
+
+  return isNil(expiresAt) || Date.now() <= expiresAt
 }

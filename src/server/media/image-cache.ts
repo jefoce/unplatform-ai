@@ -13,7 +13,7 @@ import {
   type ImageFormat,
 } from '@/core/media-types'
 
-import { readJson, writeJsonAtomic } from '../fs/json-file'
+import { readJson, removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { UPLOADS_DIR } from '../paths'
 
 export interface EncodedImage {
@@ -135,7 +135,7 @@ export async function removeEncoded(id: string): Promise<void> {
         return name.startsWith(prefix) || name === opaque
       })
       .map((name) => {
-        return fs.unlink(path.join(UPLOADS_DIR, name)).catch(() => {})
+        return removeOwnedFile(path.join(UPLOADS_DIR, name))
       }),
   )
 }

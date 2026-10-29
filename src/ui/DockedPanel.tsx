@@ -48,34 +48,19 @@ function isInsideAnchor(anchor: HTMLElement | null, target: EventTarget | null):
   return !isNil(anchor) && target instanceof Node && anchor.contains(target)
 }
 
-/** Opener element, falling back to the generator panel when the caller has none. */
-function resolveAnchor(anchor: HTMLElement | null): HTMLElement | null {
-  if (!isNil(anchor)) {
-    return anchor
-  }
-
-  if (typeof document === 'undefined') {
-    return null
-  }
-
-  return document.getElementById('generator-panel')
-}
-
 /** Panel docked beside an anchor at wide widths, a centered modal below 900 px. */
 export function DockedPanel(props: DockedPanelProps) {
   const { open: isOpen, anchor, fallback = 'modal', label, className, children } = props
   const isWide = useMediaQuery(WIDE_QUERY)
   const [size, setSize] = useState<PanelSize | null>(null)
 
-  const resolvedAnchor = resolveAnchor(anchor)
-
   useEffect(() => {
-    if (!isOpen || !isWide || isNil(resolvedAnchor)) {
+    if (!isOpen || !isWide || isNil(anchor)) {
       return
     }
 
     const update = () => {
-      setSize(measureAnchor(resolvedAnchor))
+      setSize(measureAnchor(anchor))
     }
 
     update()
@@ -84,15 +69,15 @@ export function DockedPanel(props: DockedPanelProps) {
     return () => {
       window.removeEventListener('resize', update)
     }
-  }, [resolvedAnchor, isOpen, isWide])
+  }, [anchor, isOpen, isWide])
 
   const handleInteractOutside = (event: Event) => {
-    if (isInsideAnchor(resolvedAnchor, event.target)) {
+    if (isInsideAnchor(anchor, event.target)) {
       event.preventDefault()
     }
   }
 
-  if (isNil(resolvedAnchor) || (!isWide && fallback === 'modal')) {
+  if (isNil(anchor) || (!isWide && fallback === 'modal')) {
     return (
       <Modal
         open={isOpen}
@@ -105,7 +90,7 @@ export function DockedPanel(props: DockedPanelProps) {
     )
   }
 
-  const virtualRef = { current: resolvedAnchor }
+  const virtualRef = { current: anchor }
 
   return (
     <PopoverPrimitive.Root open={isOpen} onOpenChange={props.onOpenChange} modal={false}>

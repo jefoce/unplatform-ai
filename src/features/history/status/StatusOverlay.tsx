@@ -7,13 +7,14 @@ import { ACTIVE_STATUSES } from '@/core/types'
 import { cn } from '@/lib/cn'
 import { useNow } from '@/lib/use-now'
 
-import { rerunRecord } from '../actions/record-actions'
+import { rerunRecord, retryDownload } from '../actions/record-actions'
 import { recordAspect, recordError } from '../actions/record-view'
 import { useSelectionItem } from '../selection/use-selection-item'
 import { ActiveStatus } from './ActiveStatus'
 import { FailedStatus } from './FailedStatus'
 import { GlowLayers } from './GlowLayers'
 import {
+  isDownloadRetryable,
   isGraceCancelVisible,
   isGraceRecord,
   statusLabel,
@@ -48,11 +49,16 @@ export function StatusOverlay(props: StatusOverlayProps) {
   const remainingMs = isGrace ? graceNowMs : 0
   const graceSeconds = Math.ceil(remainingMs / 1000)
   const canCancel = isGraceCancelVisible({ record, remainingMs, onCancel: props.onCancel })
+  const isRetryable = isDownloadRetryable(record)
   const aspectStyle = { aspectRatio: boxAspect ?? recordAspect(record), margin: '0 auto' }
   const boxStyle = isFill ? undefined : aspectStyle
 
   const handleRerun = () => {
     return void rerunRecord(record)
+  }
+
+  const handleRetryDownload = () => {
+    return void retryDownload(record.id)
   }
 
   return (
@@ -72,6 +78,8 @@ export function StatusOverlay(props: StatusOverlayProps) {
           tone={tone}
           friendly={friendly}
           line={line}
+          isRetryable={isRetryable}
+          onRetry={handleRetryDownload}
           onRerun={handleRerun}
         />
       )}

@@ -7,7 +7,12 @@ import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { focusGenerator } from '@/features/generator/focus-generator'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { cancelGenerationRequest, fetchUploadsByIds, setFavorite } from '@/lib/api/generations'
+import {
+  cancelGenerationRequest,
+  fetchUploadsByIds,
+  retryDownloadRequest,
+  setFavorite,
+} from '@/lib/api/generations'
 import { ApiError } from '@/lib/fetcher'
 import { toastError } from '@/lib/notify'
 import { platform } from '@/lib/platform'
@@ -42,6 +47,24 @@ export async function cancelGeneration(id: string): Promise<void> {
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       toast.error('Already sent, cannot cancel')
+      await refreshHistory()
+
+      return
+    }
+
+    toastError(error)
+  }
+}
+
+/** Re-queues the provider copy of a failed download without paying for a rerun. */
+export async function retryDownload(id: string): Promise<void> {
+  try {
+    await retryDownloadRequest(id)
+    toast.success('Download restarted')
+    await refreshHistory()
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      toast.error(error.message)
       await refreshHistory()
 
       return

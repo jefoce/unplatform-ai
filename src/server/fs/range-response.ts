@@ -18,6 +18,7 @@ interface Range {
 interface StreamOptions {
   downloadName?: string
   cacheControl?: string
+  etag?: string
 }
 
 interface StreamFileParams {
@@ -35,7 +36,7 @@ export async function streamFile(params: StreamFileParams): Promise<Response> {
   }
 
   const size = stats.size
-  const etag = `W/"${size}-${Math.floor(stats.mtimeMs)}"`
+  const etag = opts.etag ?? `W/"${size}-${Math.floor(stats.mtimeMs)}"`
   const headers = buildHeaders({ absPath, stats, opts, etag })
 
   if (isNotModified(request.headers.get('if-none-match'), etag)) {

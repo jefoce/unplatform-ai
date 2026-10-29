@@ -5,6 +5,7 @@ import { Video } from 'lucide-react'
 import type { MouseEvent } from 'react'
 
 import { cn } from '@/lib/cn'
+import { RetryImage } from '@/ui/RetryImage'
 
 import { LazyVideoPlayButton } from './LazyVideoPlayButton'
 
@@ -28,12 +29,12 @@ export function LazyVideoPoster(props: LazyVideoPosterProps) {
         </div>
       )}
       {!isEmpty(poster) && (
-        // eslint-disable-next-line @next/next/no-img-element -- posters are pre-sized thumbs
-        <img
-          src={poster}
+        <RetryImage
+          src={poster ?? ''}
           loading="lazy"
           decoding="async"
           alt={alt ?? ''}
+          kind="video"
           className={cn(
             'size-full rounded-[inherit] bg-black',
             posterFit === 'cover' && 'object-cover',

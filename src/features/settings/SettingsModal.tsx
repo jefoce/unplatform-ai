@@ -97,6 +97,7 @@ export function SettingsModal(props: SettingsModalProps) {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-3">
         <SettingsBody
           status={status}
+          credits={credits}
           draft={draft}
           sectionRefs={sectionRefs}
           appSection={appSection}
