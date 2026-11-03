@@ -2,14 +2,14 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AUTOPLAY_DELAY_MS } from '@/core/constants'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { useHistoryViewerStore } from '@/features/history/list/history-viewer-store'
 import { HistoryModal } from '@/features/history/list/HistoryModal'
 import { HistoryTile } from '@/features/history/list/HistoryTile'
 import { isActive } from '@/features/player/player-slots'
+import { useHistoryViewerStore } from '@/features/shared/history-viewer-store'
 
-import { Observer, record, releaseAllSlots } from './helpers/history'
+import { AUTOPLAY_DELAY_MS, ZOOM_DEFAULT } from '../src/core/constants'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { itemOf, Observer, record, releaseAllSlots } from './helpers/history'
 
 vi.mock('@/lib/fetcher', () => {
   return {
@@ -43,7 +43,7 @@ const load = vi.fn()
 function modal(selectedRecord: GenerationRecord) {
   return (
     <HistoryModal
-      record={selectedRecord}
+      item={itemOf(selectedRecord)}
       viewOrder={['a', 'b']}
       hasMore={false}
       isLoadingMore={false}
@@ -108,7 +108,9 @@ describe('HistoryModal autoplay', () => {
 
 describe('HistoryTile autoplay', () => {
   it('keeps the poster only until hover', () => {
-    const { container } = render(<HistoryTile record={record('tile')} onOpen={vi.fn()} />)
+    const { container } = render(
+      <HistoryTile item={itemOf(record('tile'))} zoom={ZOOM_DEFAULT} onOpen={vi.fn()} />,
+    )
 
     expect(container.querySelector('video')).toBeNull()
     expect(play).not.toHaveBeenCalled()

@@ -4,8 +4,8 @@ import { type ChangeEvent, useId, useRef, useState } from 'react'
 import { isNil } from 'lodash-es'
 import { CloudUpload } from 'lucide-react'
 
-import { acceptForKinds, type KindExtensions } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import { acceptForKinds, type KindExtensions } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { cn } from '@/lib/cn'
 
@@ -67,7 +67,7 @@ export function UploadTile(props: UploadTileProps) {
     <div
       className={cn(
         'relative aspect-square rounded-lg border border-dashed border-divider bg-white/2 transition',
-        isOver && 'border-lime bg-lime/5',
+        isOver && 'border-accent bg-accent/5',
       )}
     >
       <button

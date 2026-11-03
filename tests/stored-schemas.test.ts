@@ -3,10 +3,10 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { isRecord } from '@/core/guards'
-import { FoldersFileSchema } from '@/core/schemas/folder-item'
-import { GenerationRecordSchema } from '@/core/schemas/generation-record'
-import { UploadItemSchema } from '@/core/schemas/upload-item'
+import { isRecord } from '../src/core/guards'
+import { FoldersFileSchema } from '../src/core/schemas/folder-item'
+import { GenerationRecordSchema } from '../src/core/schemas/generation-record'
+import { UploadItemSchema } from '../src/core/schemas/upload-item'
 
 const FIXTURES = path.join(process.cwd(), 'tests/fixtures')
 

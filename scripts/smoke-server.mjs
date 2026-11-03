@@ -62,6 +62,26 @@ async function waitFor(fn, timeoutMs, message) {
   throw new Error(`${message}${lastError ? `: ${lastError.message}` : ''}`)
 }
 
+/** Every script tag on the page carries the nonce from the CSP header. */
+async function assertNonceCsp(page) {
+  const csp = page.headers.get('content-security-policy') ?? ''
+  const script = csp.split('; ').find((directive) => directive.startsWith('script-src')) ?? ''
+  const nonce = script.match(/'nonce-([^']+)'/)?.[1]
+
+  if (!nonce) throw new Error(`CSP has no script nonce: ${csp}`)
+  if (!script.includes("'strict-dynamic'")) throw new Error(`CSP lacks strict-dynamic: ${script}`)
+  if (script.includes("'unsafe-inline'")) throw new Error(`CSP allows inline scripts: ${script}`)
+
+  const html = await page.text()
+  const tags = html.match(/<script\b[^>]*>/g) ?? []
+
+  if (tags.length === 0) throw new Error('Page rendered no script tags')
+
+  for (const tag of tags) {
+    if (!tag.includes(`nonce="${nonce}"`)) throw new Error(`Script tag without the nonce: ${tag}`)
+  }
+}
+
 /** Diagnostic view of a generation record while polling. */
 function recordSnapshot(record) {
   return {
@@ -232,15 +252,31 @@ async function main() {
       'Server never became ready',
     )
 
-    const session = await fetch(`${base}/api/session?t=smoke`, { redirect: 'manual' })
-    if (session.status !== 303) throw new Error(`Session returned ${session.status}`)
+    const anonymous = await fetch(`${base}/api/settings/secrets`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
+      body: JSON.stringify({ values: {} }),
+    })
+    if (anonymous.status !== 401) {
+      throw new Error(`Write without a session returned ${anonymous.status}`)
+    }
+
+    const session = await fetch(`${base}/api/session`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
+      body: JSON.stringify({ token: 'smoke' }),
+    })
+    if (session.status !== 204) throw new Error(`Session returned ${session.status}`)
     const setCookie = session.headers.get('set-cookie') ?? ''
     if (!setCookie.startsWith(`${SESSION_COOKIE}=`)) throw new Error('Session did not set a cookie')
     cookie = `${SESSION_COOKIE}=${setCookie.slice(SESSION_COOKIE.length + 1).split(';')[0]}`
 
+    await assertNonceCsp(await api('/'))
+
     const secrets = await api('/api/settings/secrets', {
       method: 'PUT',
-      body: JSON.stringify({ values: { OPENROUTER_API_KEY: 'sk-or-smoke' } }),
+      body: JSON.stringify({ values: { OPENROUTER_API_KEY: 'sk-or-v1-test' } }),
     })
     const secretBody = await secrets.json()
     if (secrets.status !== 200 || secretBody.keys?.OPENROUTER_API_KEY?.set !== true) {

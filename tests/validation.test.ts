@@ -1,9 +1,9 @@
+/* eslint-disable max-lines -- cases stay in one suite */
 import { describe, expect, it } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import type { Resolution } from '@/core/presets/types'
-import { validateInput } from '@/core/validation'
-
+import { getPreset } from '../src/core/presets'
+import type { Resolution } from '../src/core/presets/video/types'
+import { validateInput, validateSettings } from '../src/core/validation/video'
 import { input, preset, upload, uploadsOf } from './helpers/validation-fixtures'
 
 describe('validateInput prompt', () => {
@@ -79,6 +79,45 @@ describe('validateInput prompt', () => {
 
     expect(result.ok).toBe(false)
     expect(result.errors[0]).toContain('prompt')
+  })
+})
+
+describe('validateSettings', () => {
+  it('ignores the prompt and the model status', () => {
+    const result = validateSettings({
+      input: input({ prompt: '' }),
+      uploads: {},
+      preset,
+      ctx: { modelStatus: 'missing', modelReason: 'No model' },
+    })
+
+    expect(result).toEqual({ ok: true, errors: [], warnings: [] })
+  })
+
+  it('still rejects invalid settings', () => {
+    const result = validateSettings({ input: input({ duration: 1 }), uploads: {}, preset })
+
+    expect(result.ok).toBe(false)
+    expect(result.errors[0]).toContain('duration')
+  })
+
+  it('still rejects an aspect the preset cannot render', () => {
+    const seedance = getPreset('seedance-2.0')
+
+    const result = validateSettings({
+      input: input({ presetId: seedance.id, aspectRatio: '9:21', resolution: '1080p' }),
+      uploads: {},
+      preset: seedance,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.errors).toContain('Aspect 9:21 is only available at 720p')
+  })
+
+  it('still rejects auto aspect without a start frame', () => {
+    const result = validateSettings({ input: input({ aspectRatio: 'auto' }), uploads: {}, preset })
+
+    expect(result.errors).toContain('Auto aspect ratio needs a start frame')
   })
 })
 

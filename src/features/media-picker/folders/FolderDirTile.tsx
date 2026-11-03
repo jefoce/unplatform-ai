@@ -2,7 +2,7 @@
 
 import { Folder } from 'lucide-react'
 
-import type { FolderDir } from '@/core/media-types'
+import type { FolderDir } from '@/core/api/folders'
 
 interface FolderDirTileProps {
   dir: FolderDir

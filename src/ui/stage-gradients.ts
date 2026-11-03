@@ -1,5 +1,5 @@
 export const STAGE_GRADIENTS = [
-  'bg-linear-to-br from-lime to-teal',
+  'bg-linear-to-br from-accent to-teal',
   'bg-linear-to-br from-violet to-favorite',
   'bg-linear-to-br from-amber to-warn',
   'bg-linear-to-br from-info to-indigo',

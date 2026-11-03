@@ -22,7 +22,7 @@ export function ProgressRing(props: ProgressRingProps) {
           strokeLinecap="round"
           pathLength={100}
           strokeDasharray={`${percent} 100`}
-          className="stroke-lime transition-[stroke-dasharray]"
+          className="stroke-accent transition-[stroke-dasharray]"
         />
       </svg>
       <span className="text-xxs font-medium text-fg tabular-nums">{percent}%</span>

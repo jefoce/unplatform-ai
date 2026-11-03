@@ -3,10 +3,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=versions.env
+# shellcheck source=scripts/ffmpeg/versions.env
 source "$SCRIPT_DIR/versions.env"
 
-PROFILE=full
+PROFILE=minimal
 TARGET=x86_64-pc-windows-msvc
 OUT=""
 SOURCES=""

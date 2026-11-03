@@ -2,7 +2,7 @@
 
 import { Image as ImageIcon, Music, Video } from 'lucide-react'
 
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 
 const ICONS = {
   image: ImageIcon,

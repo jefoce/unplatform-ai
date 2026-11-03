@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import { applyRecordToGenerator } from '@/features/generator/record-input'
 import { useGeneratorStore } from '@/features/generator/store/store'
 
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { record } from './helpers/history'
 import { upload } from './helpers/validation-fixtures'
 

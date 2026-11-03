@@ -16,6 +16,7 @@ import { getObjectStore } from '../storage/registry'
 import type { ObjectInfo, ObjectStore, ProgressCallback } from '../storage/types'
 import { withLock } from '../sync/lock'
 import { deleteOrphans, deleteRemoteGroup, makeRoom, remoteKeyGroups } from './remote-cap'
+import { forgetRemoteListing } from './remote-listing'
 
 interface SweepResult {
   deleted: number
@@ -30,6 +31,7 @@ interface PutObjectOptions {
   contentType: string
   sha256: string
   onProgress?: ProgressCallback
+  signal?: AbortSignal
 }
 
 interface PutOnceParams {
@@ -44,68 +46,74 @@ interface EnsureRemoteParams {
   upload: UploadItem
   onProgress?: ProgressCallback
   store?: ObjectStore
+  signal?: AbortSignal
 }
 
 export async function ensureRemote(params: EnsureRemoteParams): Promise<UploadItem> {
-  const { upload, onProgress, store } = params
+  const { upload, onProgress, store, signal } = params
+
+  throwIfAborted(signal)
   const remoteStore = store ?? requireStore()
   const media = uploadPaths(upload.id, upload.ext).media
   const stats = await fs.stat(media)
   const now = new Date().toISOString()
   const prev = upload.remote
   const refreshCutoff = Date.now() - REMOTE_REFRESH_DAYS * 86_400_000
-  let firstHead: ObjectInfo | null = null
-  let hasFirstHead = false
 
   if (prev?.size === stats.size && prev.mtimeMs === stats.mtimeMs) {
-    firstHead = await remoteStore.head(prev.key)
-    hasFirstHead = true
+    const reused = await withLock('remoteCap', async () => {
+      const head = await remoteStore.head(prev.key)
 
-    const reusable = freshHead({
-      head: firstHead,
-      cutoff: refreshCutoff,
-      check: (headInfo) => {
-        return sameObject({ head: headInfo, sha: prev.serverSha256, size: prev.size })
-      },
+      const reusable = freshHead({
+        head,
+        cutoff: refreshCutoff,
+        check: (headInfo) => {
+          return sameObject({ head: headInfo, sha: prev.serverSha256, size: prev.size })
+        },
+      })
+
+      if (!reusable) {
+        return null
+      }
+
+      return saveRemote(upload.id, { ...prev, lastUsedAt: now })
     })
 
-    if (reusable) {
-      return saveRemote(upload.id, { ...prev, lastUsedAt: now })
+    if (!isNil(reused)) {
+      return reused
     }
   }
 
   const digest = await hashFile(media)
   const key = `refs/${digest.sha256Hex}${upload.ext}`
-  let head = firstHead
 
-  if (!hasFirstHead || key !== prev?.key) {
-    head = await remoteStore.head(key)
-  }
+  // Reuse is re-read under the cap lock, so an eviction between the hash and the save wins.
+  return await withLock('remoteCap', async () => {
+    const head = await remoteStore.head(key)
 
-  const reusableHead = freshHead({
-    head,
-    cutoff: refreshCutoff,
-    check: (headInfo) => {
-      return sameDigest({ head: headInfo, digest, prev })
-    },
-  })
-
-  if (reusableHead) {
-    return saveRemote(upload.id, {
-      key,
-      sha256: digest.sha256Hex,
-      serverSha256: reusableHead.serverSha256,
-      size: digest.size,
-      mtimeMs: digest.mtimeMs,
-      uploadedAt: now,
-      lastUsedAt: now,
+    const reusableHead = freshHead({
+      head,
+      cutoff: refreshCutoff,
+      check: (headInfo) => {
+        return sameDigest({ head: headInfo, digest, prev })
+      },
     })
-  }
 
-  const stored = await withLock('remoteCap', async () => {
+    if (reusableHead) {
+      return saveRemote(upload.id, {
+        key,
+        sha256: digest.sha256Hex,
+        serverSha256: reusableHead.serverSha256,
+        size: digest.size,
+        mtimeMs: digest.mtimeMs,
+        uploadedAt: now,
+        lastUsedAt: now,
+      })
+    }
+
     await makeRoom({ store: remoteStore, bytes: digest.size, keepKey: key })
 
-    return putOnce({
+    const stored = await putOnce({
       store: remoteStore,
       key,
       file: media,
@@ -113,19 +121,26 @@ export async function ensureRemote(params: EnsureRemoteParams): Promise<UploadIt
         contentType: upload.mime,
         sha256: digest.sha256Base64,
         onProgress,
+        signal,
       },
     })
-  })
 
-  return saveRemote(upload.id, {
-    key,
-    sha256: digest.sha256Hex,
-    serverSha256: stored.serverSha256,
-    size: digest.size,
-    mtimeMs: digest.mtimeMs,
-    uploadedAt: now,
-    lastUsedAt: now,
+    forgetRemoteListing(remoteStore)
+
+    return saveRemote(upload.id, {
+      key,
+      sha256: digest.sha256Hex,
+      serverSha256: stored.serverSha256,
+      size: digest.size,
+      mtimeMs: digest.mtimeMs,
+      uploadedAt: now,
+      lastUsedAt: now,
+    })
   })
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  signal?.throwIfAborted()
 }
 
 /** Returns a short-lived private link. Never persist the result. */
@@ -150,44 +165,46 @@ export async function sweepRemote(store?: ObjectStore): Promise<SweepResult> {
     return { deleted: 0, cleared: 0 }
   }
 
-  const uploads = await listUploadRecords()
-  const groups = remoteKeyGroups(uploads)
+  return withLock('remoteCap', async () => {
+    const uploads = await listUploadRecords()
+    const groups = remoteKeyGroups(uploads)
 
-  const cutoff = Date.now() - REMOTE_UNUSED_DAYS * 86_400_000
-  const swept = new Set<string>()
-  let deleted = 0
-  let cleared = 0
+    const cutoff = Date.now() - REMOTE_UNUSED_DAYS * 86_400_000
+    const swept = new Set<string>()
+    let deleted = 0
+    let cleared = 0
 
-  for (const items of Object.values(groups)) {
-    const [first] = items
+    for (const items of Object.values(groups)) {
+      const [first] = items
 
-    if (
-      isNil(first) ||
-      items.some((item) => {
-        return Date.parse(item.remote.lastUsedAt) >= cutoff
-      })
-    ) {
-      continue
+      if (
+        isNil(first) ||
+        items.some((item) => {
+          return Date.parse(item.remote.lastUsedAt) >= cutoff
+        })
+      ) {
+        continue
+      }
+
+      const result = await deleteRemoteGroup(remoteStore, items)
+
+      swept.add(first.remote.key)
+      deleted += result.deleted
+      cleared += result.cleared
     }
 
-    const result = await deleteRemoteGroup(remoteStore, items)
+    const referenced = new Set(
+      Object.keys(groups).filter((key) => {
+        return !swept.has(key)
+      }),
+    )
 
-    swept.add(first.remote.key)
-    deleted += result.deleted
-    cleared += result.cleared
-  }
+    const orphans = await deleteOrphans({ store: remoteStore, referenced, skip: swept })
 
-  const referenced = new Set(
-    Object.keys(groups).filter((key) => {
-      return !swept.has(key)
-    }),
-  )
+    deleted += orphans.count
 
-  const orphans = await deleteOrphans({ store: remoteStore, referenced, skip: swept })
-
-  deleted += orphans.count
-
-  return { deleted, cleared }
+    return { deleted, cleared }
+  })
 }
 
 /** One put per key at a time. Callers must HEAD first because a put overwrites by key. */
@@ -199,17 +216,9 @@ export function putOnce(params: PutOnceParams): Promise<ObjectInfo> {
     return running
   }
 
-  const job = store
-    .put({
-      key,
-      file,
-      contentType: opts.contentType,
-      sha256: opts.sha256,
-      onProgress: opts.onProgress ?? null,
-    })
-    .finally(() => {
-      puts.delete(key)
-    })
+  const job = store.put({ key, file, ...opts, onProgress: opts.onProgress ?? null }).finally(() => {
+    puts.delete(key)
+  })
 
   puts.set(key, job)
 

@@ -4,17 +4,19 @@ import path from 'node:path'
 import { find, isString } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 
-import * as bounds from '@/core/constants'
-import { MODEL_PRESETS } from '@/core/presets'
-import { APP_RULES } from '@/core/provider-errors/app'
-import { OPENROUTER_DESCRIPTOR } from '@/core/providers/openrouter'
-import { STORAGE_PROVIDERS, VIDEO_PROVIDERS } from '@/core/providers/registry'
-import { GUIDE_BASE } from '@/core/providers/types'
-import { STATUS_HELP } from '@/core/status-help'
-import type { Dict } from '@/core/utility-types'
-
-import { file, ROOT, tableRows } from './helpers/docs-tables'
+import * as bounds from '../src/core/constants'
+import { isRecord } from '../src/core/guards'
+import { VIDEO_PRESETS } from '../src/core/presets'
+import { IMAGE_PRESETS } from '../src/core/presets/image'
+import { APP_RULES } from '../src/core/provider-errors/app'
+import { OPENROUTER_DESCRIPTOR } from '../src/core/providers/openrouter'
+import { PROVIDERS, STORAGE_PROVIDERS } from '../src/core/providers/registry'
+import { GUIDE_BASE } from '../src/core/providers/types'
+import { STATUS_HELP } from '../src/core/status-help'
+import type { Dict } from '../src/core/utility-types'
+import { file, ROOT, sectionLines, tableRows } from './helpers/docs-tables'
 import { imageTargets } from './helpers/image-targets'
+import { modelFamily, PRESET_FAMILIES } from './helpers/model-families'
 import { required } from './helpers/required'
 
 const DOCS = path.join(ROOT, 'docs')
@@ -40,37 +42,28 @@ function rowLabels(cells: string[]): string[] {
     })
 }
 
+/** Numeric constant as one bounds row. */
+function singleValue(name: string, value: unknown): [string, number | string][] {
+  return typeof value === 'number' ? [[name, value]] : []
+}
+
+/** Numeric fields of a nested constant as dotted bounds rows. */
+function nestedValues(name: string, value: object): [string, number][] {
+  return Object.entries(value).flatMap(([field, nested]) => {
+    return typeof nested === 'number' ? [[`${name}.${field}`, nested]] : []
+  })
+}
+
 describe('bounds table', () => {
   it('keeps the bounds table equal to the constants', () => {
-    const expected: Dict<number | string> = {
-      MAX_ACTIVE_JOBS: bounds.MAX_ACTIVE_JOBS,
-      MAX_REQUEST_MB: bounds.MAX_REQUEST_MB,
-      MAX_INLINE_MEDIA_MB: bounds.MAX_INLINE_MEDIA_MB,
-      MAX_IDS: bounds.MAX_IDS,
-      SUBMIT_GRACE_MS: bounds.SUBMIT_GRACE_MS,
-      GRACE_STALE_MS: bounds.GRACE_STALE_MS,
-      SHUTDOWN_SEND_WAIT_MS: bounds.SHUTDOWN_SEND_WAIT_MS,
-      POLL_INTERVAL_MS: bounds.POLL_INTERVAL_MS,
-      HISTORY_POLL_MS: bounds.HISTORY_POLL_MS,
-      CREDITS_POLL_MS: bounds.CREDITS_POLL_MS,
-      UPDATE_CHECK_DELAY_MS: bounds.UPDATE_CHECK_DELAY_MS,
-      UPDATE_CHECK_INTERVAL_MS: bounds.UPDATE_CHECK_INTERVAL_MS,
-      MAX_JOB_AGE_MIN: bounds.MAX_JOB_AGE_MIN,
-      MAX_DOWNLOAD_RETRIES: bounds.MAX_DOWNLOAD_RETRIES,
-      'FETCH_TIMEOUTS.submit': bounds.FETCH_TIMEOUTS.submit,
-      'FETCH_TIMEOUTS.poll': bounds.FETCH_TIMEOUTS.poll,
-      'FETCH_TIMEOUTS.content': bounds.FETCH_TIMEOUTS.content,
-      'FETCH_TIMEOUTS.meta': bounds.FETCH_TIMEOUTS.meta,
-      REMOTE_LINK_TTL_SEC: bounds.REMOTE_LINK_TTL_SEC,
-      REMOTE_UNUSED_DAYS: bounds.REMOTE_UNUSED_DAYS,
-      REMOTE_FREE_GB: bounds.REMOTE_FREE_GB,
-      REMOTE_MAX_GB: bounds.REMOTE_MAX_GB,
-      UPLOAD_CLEANUP_MS: bounds.UPLOAD_CLEANUP_MS,
-      THUMB_WIDTH: bounds.THUMB_WIDTH,
-      PREVIEW_WIDTH: bounds.PREVIEW_WIDTH,
-      SEED_MAX: bounds.SEED_MAX,
-      MODEL_PRESETS: 'reference',
-    }
+    const numeric = Object.entries(bounds).flatMap(([name, value]) => {
+      return isRecord(value) ? nestedValues(name, value) : singleValue(name, value)
+    })
+
+    const expected: Dict<number | string> = Object.fromEntries([
+      ...numeric,
+      ['VIDEO_PRESETS', 'reference'],
+    ])
 
     const rows = tableRows(fs.readFileSync(file('docs/ARCHITECTURE.md'), 'utf8'), '11. Bounds')
 
@@ -83,7 +76,7 @@ describe('bounds table', () => {
 
       expect(want, `bounds row not covered: ${name}`).toBeDefined()
 
-      if (name === 'MODEL_PRESETS') {
+      if (name === 'VIDEO_PRESETS') {
         expect(value).toContain('presets/index.ts')
         continue
       }
@@ -94,6 +87,14 @@ describe('bounds table', () => {
 })
 
 describe('documentation tables', () => {
+  it('separates the video and image active caps in DEVELOPMENT', () => {
+    const text = fs.readFileSync(file('docs/DEVELOPMENT.md'), 'utf8')
+
+    expect(text).toContain('image jobs use `IMAGE_MAX_ACTIVE`')
+    expect(text).toContain('Video jobs use `MAX_ACTIVE_JOBS`')
+    expect(text).not.toContain('share the `MAX_ACTIVE_JOBS` limit')
+  })
+
   it('keeps the README status table equal to STATUS_HELP', () => {
     const rows = tableRows(fs.readFileSync(file('README.md'), 'utf8'), 'What the statuses mean')
 
@@ -117,10 +118,10 @@ describe('documentation tables', () => {
   it('keeps the architecture models table equal to the presets', () => {
     const rows = tableRows(fs.readFileSync(file('docs/ARCHITECTURE.md'), 'utf8'), '7. Presets')
 
-    expect(rows.length).toBe(MODEL_PRESETS.length)
+    expect(rows.length).toBe(VIDEO_PRESETS.length)
 
     for (const [title, duration, resolutions, references] of rows) {
-      const preset = MODEL_PRESETS.find((item) => {
+      const preset = VIDEO_PRESETS.find((item) => {
         return item.title === title
       })
 
@@ -135,6 +136,34 @@ describe('documentation tables', () => {
         `${preset.references.image} / ${preset.references.video} / ${preset.references.audio}`,
       )
     }
+  })
+
+  it('keeps the README model list on every preset family', () => {
+    const readme = fs.readFileSync(file('README.md'), 'utf8')
+
+    const bullets = sectionLines(readme, 'Models').filter((line) => {
+      return line.startsWith('- ')
+    })
+
+    const families = new Set(
+      [...VIDEO_PRESETS, ...IMAGE_PRESETS].map((preset) => {
+        const family = required(PRESET_FAMILIES[preset.title], `Family for ${preset.title}`)
+
+        expect(family, preset.title).toBe(modelFamily(preset.title))
+
+        return family
+      }),
+    )
+
+    const listed = new Set(
+      bullets.map((line) => {
+        const first = required(line.slice(2).split('/')[0], 'model bullet').trim()
+
+        return modelFamily(first)
+      }),
+    )
+
+    expect(listed).toEqual(families)
   })
 })
 
@@ -164,7 +193,7 @@ describe('user guides', () => {
       expect(fs.existsSync(file(rel)), rel).toBe(true)
     }
 
-    for (const descriptor of [...VIDEO_PROVIDERS, ...STORAGE_PROVIDERS]) {
+    for (const descriptor of [...PROVIDERS, ...STORAGE_PROVIDERS]) {
       const link = required(
         descriptor.links.find((candidate) => {
           return candidate.label === 'Setup guide'
@@ -205,14 +234,53 @@ describe('user guides', () => {
   })
 })
 
+describe('storage and code maps', () => {
+  it('lists every storage folder in the README', () => {
+    const readme = fs.readFileSync(file('README.md'), 'utf8')
+
+    for (const folder of ['downloads', 'images', 'uploads', 'data', '.cache', 'runtime']) {
+      expect(readme, folder).toContain(`- \`${folder}\``)
+    }
+  })
+
+  it('names the image and core modules in the architecture map', () => {
+    const rows = tableRows(fs.readFileSync(file('docs/ARCHITECTURE.md'), 'utf8'), '2. Code map')
+
+    const names = rows.map((cells) => {
+      return required(cells[0], 'map path')
+    })
+
+    const expected = [
+      'src/core/pricing',
+      'src/core/media',
+      'src/core/feed',
+      'src/core/api',
+      'src/server/jobs',
+      'src/server/services',
+      'src/server/repos',
+      'src/features/image-generator',
+    ]
+
+    for (const name of expected) {
+      expect(names, name).toContain(name)
+    }
+  })
+})
+
 describe('documentation text', () => {
-  it('keeps the affiliation disclaimer'), () => {
+  it('explains the data folder move', () => {
+    const readme = fs.readFileSync(file('README.md'), 'utf8')
+
+    expect(readme).toContain('0.3.2 bridge')
+    expect(readme).toContain('The data folder used by 0.3.x')
+    expect(readme).toContain('.unplatform-ai')
+    expect(readme).toContain('does not read the old one')
+  })
+
+  it('keeps the affiliation disclaimer', () => {
     const readme = fs.readFileSync(file('README.md'), 'utf8').replaceAll(/\s+/g, ' ')
 
-    const disclaimer =
-      'Not affiliated with any commercial AI video platform.'
-
-    expect(readme).toContain(disclaimer)
+    expect(readme).toContain('Not affiliated with any commercial AI video platform.')
   })
 
   it('has no broken relative links', () => {

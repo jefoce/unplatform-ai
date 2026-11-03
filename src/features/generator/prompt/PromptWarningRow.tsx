@@ -1,8 +1,7 @@
 'use client'
 
 import { type RefSlot, slotLabel } from '@/core/prompt-tokens'
-import { issueText } from '@/core/validation'
-import type { ValidationIssue } from '@/core/validation-types'
+import { issueText, type ValidationIssue } from '@/core/validation/common'
 
 interface PromptWarningRowProps {
   issue: ValidationIssue

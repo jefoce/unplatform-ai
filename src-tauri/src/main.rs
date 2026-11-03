@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod export;
 #[cfg(target_os = "macos")]
 mod fps;
 mod secrets;
@@ -26,6 +27,8 @@ fn main() {
         .manage(server::State::default())
         .manage(updater::UpdateState::default())
         .invoke_handler(tauri::generate_handler![
+            export::choose_export_path,
+            export::choose_export_folder,
             updater::update_info,
             updater::update_check,
             updater::update_install,

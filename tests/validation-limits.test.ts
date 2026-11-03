@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import { validateInput } from '@/core/validation'
-
+import { getPreset } from '../src/core/presets'
+import { primaryBinding } from '../src/core/presets/common/bindings'
+import { validateInput } from '../src/core/validation/video'
 import { input, MB, preset, upload, uploadsOf } from './helpers/validation-fixtures'
 
 describe('validateInput remote storage', () => {

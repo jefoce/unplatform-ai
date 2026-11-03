@@ -1,27 +1,31 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { rememberExportFolder } from '@/server/services/export-tokens'
 
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
 import { required } from './helpers/required'
 
-const root = await mkdtemp(path.join(os.tmpdir(), 'upai-export-batch-'))
+const root = await mkdtemp(path.join(os.tmpdir(), 'cf-export-batch-'))
 
 process.env.STORAGE_ROOT = root
 delete process.env.APP_TOKEN
 
 const session = vi.hoisted(() => {
-  return { required: true }
+  return { required: true, desktop: true }
 })
 
 vi.mock('@/server/session', () => {
   return {
-    sessionRequired: () => {
+    desktopMode: () => {
       return session.required
+    },
+    isDesktopMode: () => {
+      return session.desktop
     },
     hasSession: () => {
       return true
@@ -89,6 +93,14 @@ const exportRequest = (body: unknown): Request => {
 
 const item = record(randomUUID(), 'A cat!')
 
+async function grantedDir(): Promise<string> {
+  const dir = await mkdtemp(path.join(root, 'out-'))
+
+  rememberExportFolder(dir, 1)
+
+  return dir
+}
+
 beforeAll(async () => {
   await mkdir(downloads, { recursive: true })
   await write(item)
@@ -97,10 +109,11 @@ beforeAll(async () => {
 describe('POST /api/generations/export-batch', () => {
   beforeEach(() => {
     session.required = true
+    session.desktop = true
   })
 
   it('copies videos into the folder', async () => {
-    const dir = await mkdtemp(path.join(root, 'out-'))
+    const dir = await grantedDir()
     const response = await POST(exportRequest({ ids: [item.id], dir }))
     const body = (await response.json()) as { saved: string[]; skipped: unknown[] }
 
@@ -114,8 +127,22 @@ describe('POST /api/generations/export-batch', () => {
     expect(body.skipped).toEqual([])
   })
 
+  it('leaves no temp files in the export folder', async () => {
+    const dir = await grantedDir()
+
+    await POST(exportRequest({ ids: [item.id], dir }))
+
+    const names = await readdir(dir)
+
+    expect(
+      names.filter((name) => {
+        return name.includes('.tmp-')
+      }),
+    ).toEqual([])
+  })
+
   it('adds (2) on a name collision and never overwrites', async () => {
-    const dir = await mkdtemp(path.join(root, 'out-'))
+    const dir = await grantedDir()
     const first = path.join(dir, `a-cat-${item.id.slice(0, 6)}.mp4`)
 
     await writeFile(first, 'keep')
@@ -146,7 +173,7 @@ describe('POST /api/generations/export-batch', () => {
 
     expect(relative.status).toBe(400)
 
-    const dir = await mkdtemp(path.join(root, 'out-'))
+    const dir = await grantedDir()
     const missing = randomUUID()
     const response = await POST(exportRequest({ ids: [missing], dir }))
     const body = (await response.json()) as { skipped: { reason: string }[] }
@@ -154,9 +181,25 @@ describe('POST /api/generations/export-batch', () => {
     expect(body.skipped).toEqual([{ id: missing, reason: 'not_found' }])
   })
 
+  it('403s without a folder grant', async () => {
+    const dir = await mkdtemp(path.join(root, 'out-'))
+    const response = await POST(exportRequest({ ids: [item.id], dir }))
+
+    expect(response.status).toBe(403)
+    expect(await readdir(dir)).toEqual([])
+  })
+
   it('404s in browser mode', async () => {
     session.required = false
-    const dir = await mkdtemp(path.join(root, 'out-'))
+    const dir = await grantedDir()
+    const response = await POST(exportRequest({ ids: [item.id], dir }))
+
+    expect(response.status).toBe(404)
+  })
+
+  it('404s when the shell is not the desktop parent', async () => {
+    session.desktop = false
+    const dir = await grantedDir()
     const response = await POST(exportRequest({ ids: [item.id], dir }))
 
     expect(response.status).toBe(404)

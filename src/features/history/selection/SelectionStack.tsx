@@ -1,14 +1,11 @@
-import { isNil } from 'lodash-es'
-
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { type HistoryItem, posterSrc } from '@/lib/feed/output-items'
 import { RetryImage } from '@/ui/RetryImage'
 
-import { posterSrc } from '../actions/record-view'
 import { StackIcon } from './StackIcon'
 
 interface SelectionStackProps {
   stack: string[]
-  byId: Map<string, GenerationRecord>
+  byId: Map<string, HistoryItem>
 }
 
 /** Up to three poster thumbs for the selected records, newest first. */
@@ -18,13 +15,17 @@ export function SelectionStack(props: SelectionStackProps) {
   return (
     <div data-testid="selection-stack" className="relative mr-3 ml-1 size-8 shrink-0" aria-hidden>
       {stack.map((id, index) => {
-        const record = byId.get(id)
+        const item = byId.get(id)
 
-        if (!record) {
+        if (!item) {
           return null
         }
 
-        const poster = posterSrc(record, 80)
+        let poster = item.thumbSrc
+
+        if (item.recordKind === 'video') {
+          poster = posterSrc(item.source, 80) ?? ''
+        }
 
         return (
           <span
@@ -35,12 +36,12 @@ export function SelectionStack(props: SelectionStackProps) {
               zIndex: 3 - index,
             }}
           >
-            {isNil(poster) && (
+            {poster === '' && (
               <span className="flex size-full items-center justify-center text-fg-2">
-                <StackIcon record={record} />
+                <StackIcon item={item} />
               </span>
             )}
-            {!isNil(poster) && (
+            {poster !== '' && (
               <RetryImage
                 src={poster}
                 alt=""

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import { resolveTransport } from '@/core/transport'
+import { getPreset } from '../src/core/presets'
+import { primaryBinding } from '../src/core/presets/common/bindings'
+import { resolveTransport } from '../src/core/transport'
 
 const wan = getPreset('wan-3.0')
 const seedance = getPreset('seedance-2.0')

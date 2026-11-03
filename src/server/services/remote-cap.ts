@@ -8,6 +8,7 @@ import type { UploadItem, UploadRemote } from '@/core/schemas/upload-item'
 import { RemoteCapError } from '../errors'
 import { listUploadRecords, updateUpload } from '../repos/upload-record'
 import type { ListedObject, ObjectStore } from '../storage/types'
+import { forgetRemoteListing, listRemoteObjects } from './remote-listing'
 
 interface RemoteUpload extends UploadItem {
   remote: UploadRemote
@@ -68,7 +69,7 @@ export function trackedRemoteBytes(uploads: UploadItem[]): number {
 export async function makeRoom(params: MakeRoomParams): Promise<void> {
   const { store, bytes, keepKey } = params
   const uploads = await listUploadRecords()
-  const objects = await listRefs(store)
+  const objects = await listRemoteObjects(store)
   const listing = sizeByKey(objects)
   let tracked = currentBytes(listing, uploads)
 
@@ -225,24 +226,11 @@ async function deleteCollected(params: DeleteCollectedParams): Promise<DeletedOr
     }
   }
 
+  if (count > 0) {
+    forgetRemoteListing(store)
+  }
+
   return { count, bytes }
-}
-
-/** Every object under refs/, or null when the store cannot list. */
-async function listRefs(store: ObjectStore): Promise<ListedObject[] | null> {
-  const list = store.list?.bind(store)
-
-  if (isNil(list)) {
-    return null
-  }
-
-  const objects: ListedObject[] = []
-
-  for await (const object of list('refs/')) {
-    objects.push(object)
-  }
-
-  return objects
 }
 
 function sizeByKey(objects: ListedObject[] | null): Map<string, number> | null {
@@ -285,6 +273,7 @@ export async function deleteRemoteGroup(
   }
 
   await store.delete(first.remote.key)
+  forgetRemoteListing(store)
   let cleared = 0
 
   for (const item of items) {

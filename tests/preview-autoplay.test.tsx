@@ -2,12 +2,12 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AUTOPLAY_DELAY_MS } from '@/core/constants'
 import { LazyVideo } from '@/features/player/LazyVideo'
 import { getSnapshot, release } from '@/features/player/player-slots'
 import { MediaPreviewModal } from '@/features/preview/MediaPreviewModal'
 import { closePreview, openPreview } from '@/features/preview/preview-store'
 
+import { AUTOPLAY_DELAY_MS } from '../src/core/constants'
 import { upload } from './helpers/validation-fixtures'
 
 const mocks = vi.hoisted(() => {

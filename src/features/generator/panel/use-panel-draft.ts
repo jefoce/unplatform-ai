@@ -1,17 +1,18 @@
 'use client'
 
 import { useMemo } from 'react'
-import { isEmpty, isNil } from 'lodash-es'
+import { isEmpty } from 'lodash-es'
 import { useShallow } from 'zustand/react/shallow'
 
 import { getPreset } from '@/core/presets'
 import type { GenerationInput } from '@/core/schemas/generation-record'
-import { validateInput } from '@/core/validation'
+import { validateInput, validateSettings } from '@/core/validation/video'
 import { useSecrets } from '@/features/settings/use-secrets'
 import { useModelEntry } from '@/lib/api/models'
 import { useRemoteStatus } from '@/lib/api/remote'
 
 import { useGeneratorStore } from '../store/store'
+import { useProviderReady } from '../use-provider-ready'
 
 /** Draft input and validation for the active preset. */
 export function usePanelDraft() {
@@ -47,6 +48,10 @@ export function usePanelDraft() {
     return state.uploadsById
   })
 
+  const setPrompt = useGeneratorStore((state) => {
+    return state.setPrompt
+  })
+
   const activeCount = useGeneratorStore((state) => {
     return state.activeCount
   })
@@ -57,7 +62,8 @@ export function usePanelDraft() {
   const modelStatus = entry?.status ?? 'unverified'
   const modelReason = entry?.reason ?? null
   const { status: secrets } = useSecrets()
-  const isKeyMissing = !isNil(secrets) && !secrets.keys.OPENROUTER_API_KEY.set
+  const provider = useProviderReady(presetId)
+  const isKeyMissing = provider.isKeyMissing
   const isSecretsFailed = !isEmpty(secrets?.loadError)
 
   const input = useMemo<GenerationInput>(() => {
@@ -75,19 +81,25 @@ export function usePanelDraft() {
     }
   }, [presetId, tab, prompt, isAudio, duration, aspectRatio, resolution, frames, references, seed])
 
-  const validation = useMemo(() => {
-    return validateInput({
-      input,
-      uploads: uploadsById,
-      preset,
-      ctx: {
-        activeCount,
-        remoteConfigured: isRemoteConfigured,
-        modelStatus,
-        modelReason,
-      },
-    })
-  }, [input, uploadsById, preset, activeCount, isRemoteConfigured, modelStatus, modelReason])
+  const ctx = useMemo(() => {
+    return { activeCount, remoteConfigured: isRemoteConfigured, modelStatus, modelReason }
+  }, [activeCount, isRemoteConfigured, modelStatus, modelReason])
 
-  return { validation, isKeyMissing, isSecretsFailed }
+  const validation = useMemo(() => {
+    return validateInput({ input, uploads: uploadsById, preset, ctx })
+  }, [input, uploadsById, preset, ctx])
+
+  const settingsValidation = useMemo(() => {
+    return validateSettings({ input, uploads: uploadsById, preset, ctx })
+  }, [input, uploadsById, preset, ctx])
+
+  return {
+    validation,
+    settingsValidation,
+    isKeyMissing,
+    isSecretsFailed,
+    provider,
+    prompt,
+    setPrompt,
+  }
 }

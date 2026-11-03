@@ -110,6 +110,24 @@ const VERSION_CASES: VersionCase[] = [
   },
 ]
 
+function releaseHistory(subjects: string[], version: string) {
+  const root = tempDir()
+
+  fs.writeFileSync(path.join(root, 'package.json'), `{"version":"${version}"}\n`)
+  execFileSync('git', ['init', '-q'], { cwd: root })
+  execFileSync('git', ['config', 'user.email', 'ci@example.com'], { cwd: root })
+  execFileSync('git', ['config', 'user.name', 'CI'], { cwd: root })
+  execFileSync('git', ['add', 'package.json'], { cwd: root })
+
+  for (const subject of subjects) {
+    execFileSync('git', ['commit', '-qm', subject, '--allow-empty'], { cwd: root })
+  }
+
+  execFileSync('git', ['branch', '-M', 'releases'], { cwd: root })
+
+  return root
+}
+
 const PLAN_CASES: PlanCase[] = [
   {
     name: 'keeps a restored Linux sidecar when the sources exist',
@@ -217,6 +235,91 @@ describe('release-version.sh', () => {
   })
 })
 
+describe('release-repository.sh', () => {
+  const cases = [
+    { version: '0.4.0', repo: 'jefoce/unplatform-ai', status: 0 },
+    { version: '0.4.1', repo: 'jefoce/unplatform-ai', status: 0 },
+    { version: '0.10.0', repo: 'jefoce/unplatform-ai', status: 0 },
+    { version: '0.3.2', repo: 'jefoce/unplatform-ai', status: 1 },
+    { version: '0.3.2', repo: 'jefoce/old-app', status: 1 },
+    { version: '0.3.1', repo: 'jefoce/old-app', status: 1 },
+    { version: '0.4.0', repo: 'jefoce/old-app', status: 1 },
+    { version: '0.5.0', repo: 'someone/unplatform-ai', status: 1 },
+  ]
+
+  it.skipIf(process.platform === 'win32').each(cases)('checks $version in $repo', (item) => {
+    const result = runScript({
+      script: 'release-repository.sh',
+      env: { ...process.env, VERSION: item.version, GITHUB_REPOSITORY: item.repo },
+    })
+
+    expect(result.status).toBe(item.status)
+  })
+
+  it('keeps the bridge release out of this repository', () => {
+    const script = fs.readFileSync(path.resolve('.github/scripts/release-repository.sh'), 'utf8')
+
+    expect(script).not.toContain('0.3.2')
+    expect(script).not.toContain('old-app')
+  })
+
+  it.skipIf(process.platform === 'win32')('accepts six ascending release versions', () => {
+    const root = releaseHistory(['0.1.0', '0.1.1', '0.2.0', '0.3.0', '0.3.1', '0.4.0'], '0.4.0')
+
+    const result = runScript({
+      script: 'release-repository.sh',
+      cwd: root,
+      env: {
+        ...process.env,
+        VERSION: '0.4.0',
+        GITHUB_REPOSITORY: 'jefoce/unplatform-ai',
+        GITHUB_REF_NAME: 'releases',
+      },
+    })
+
+    expect(result.status).toBe(0)
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects descending release versions', () => {
+    const root = releaseHistory(['0.1.0', '0.1.1', '0.2.0', '0.3.1', '0.3.0', '0.4.0'], '0.4.0')
+
+    const result = runScript({
+      script: 'release-repository.sh',
+      cwd: root,
+      env: {
+        ...process.env,
+        VERSION: '0.4.0',
+        GITHUB_REPOSITORY: 'jefoce/unplatform-ai',
+        GITHUB_REF_NAME: 'releases',
+      },
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('not strictly ascending')
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a newest version that is not the package version',
+    () => {
+      const root = releaseHistory(['0.1.0', '0.1.1', '0.2.0', '0.3.0', '0.3.1', '0.5.0'], '0.4.0')
+
+      const result = runScript({
+        script: 'release-repository.sh',
+        cwd: root,
+        env: {
+          ...process.env,
+          VERSION: '0.4.0',
+          GITHUB_REPOSITORY: 'jefoce/unplatform-ai',
+          GITHUB_REF_NAME: 'releases',
+        },
+      })
+
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('is not package version 0.4.0')
+    },
+  )
+})
+
 describe('ffmpeg-sources-tag.sh', () => {
   it.skipIf(process.platform === 'win32')('matches the inline versions.env tag', () => {
     const expected = execFileSync(
@@ -255,13 +358,96 @@ describe('ffmpeg-plan.sh', () => {
   })
 })
 
+describe('node build-unix.sh', () => {
+  const script = fs.readFileSync(path.resolve('scripts/node/build-unix.sh'), 'utf8')
+
+  it('validates NODE_CONFIGURE_EXTRA against configure --help', () => {
+    expect(script).toContain('read -r -a extra_flags')
+    expect(script).toContain('NODE_CONFIGURE_EXTRA token must start with --')
+    expect(script).toContain('unknown configure flag')
+  })
+
+  it('disables Amaro in the base configure flags', () => {
+    expect(script).toContain(
+      'for flag in --with-intl --without-npm --without-corepack --without-amaro; do',
+    )
+
+    expect(script).toContain('--without-corepack --without-amaro --enable-lto')
+  })
+
+  it('applies NODE_OUTPUT_SUFFIX to the cache path and binary name', () => {
+    expect(script).toContain('SUFFIX=${NODE_OUTPUT_SUFFIX:-}')
+    expect(script).toContain('VARIANT="$NODE_VERSION-small-icu$SUFFIX"')
+    expect(script).toContain('unplatform-ai-server-$TARGET$SUFFIX')
+  })
+})
+
 const WORKFLOW_FILES = ['.github/workflows/checks.yml', '.github/workflows/release.yml']
+
+/** Every workflow and action YAML file, recursively. */
+function ciYamlFiles(dir: string): string[] {
+  return fs.readdirSync(path.resolve(dir), { withFileTypes: true }).flatMap((entry) => {
+    const rel = path.join(dir, entry.name)
+
+    if (entry.isDirectory()) {
+      return ciYamlFiles(rel)
+    }
+
+    return entry.name.endsWith('.yml') ? [rel] : []
+  })
+}
+
+const CI_YAML_FILES = [...ciYamlFiles('.github/workflows'), ...ciYamlFiles('.github/actions')]
 
 describe('workflow checkouts', () => {
   it.each(WORKFLOW_FILES)('%s checks out before using repo files', (file) => {
     const text = fs.readFileSync(path.resolve(file), 'utf8')
 
     expect(jobsMissingCheckout(text)).toEqual([])
+  })
+})
+
+describe('Rust tests', () => {
+  it.each(WORKFLOW_FILES)('%s runs cargo test', (file) => {
+    const text = fs.readFileSync(path.resolve(file), 'utf8')
+
+    expect(text).toContain('cargo test --manifest-path src-tauri/Cargo.toml')
+  })
+})
+
+describe('GHCR owner', () => {
+  it('comes from github.repository_owner', () => {
+    for (const file of CI_YAML_FILES) {
+      const text = fs.readFileSync(path.resolve(file), 'utf8')
+
+      expect(text, file).not.toContain('ghcr.io/jefoce')
+    }
+
+    const sidecars = fs.readFileSync(
+      path.resolve('.github/actions/sidecar-restore/action.yml'),
+      'utf8',
+    )
+
+    expect(sidecars).toContain('ghcr.io/${{ github.repository_owner }}/unplatform-ai-sidecars')
+  })
+
+  it('documents the first release in a new repository', () => {
+    const text = fs.readFileSync(path.resolve('docs/DEVELOPMENT.md'), 'utf8')
+
+    expect(text).toContain('SIDECARS_RUN_ID')
+    expect(text).toContain('reuse_sidecars_run_id')
+    expect(text).toContain('force_rebuild_sidecars')
+    expect(text.toLowerCase()).toContain('missing from this repository')
+  })
+})
+
+describe('redistributable ffmpeg', () => {
+  it('CI never allows the nonfree fallback', () => {
+    for (const file of CI_YAML_FILES) {
+      const text = fs.readFileSync(path.resolve(file), 'utf8')
+
+      expect(text, file).not.toContain('ALLOW_NONFREE_FFMPEG')
+    }
   })
 })
 

@@ -6,17 +6,21 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { HISTORY_SCROLL_DELAY_MS } from '@/core/constants'
+import type { GridItemStatus } from '@/core/feed/grid-item'
 import { isNonEmptyString } from '@/core/guards'
 import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
+import type { ImageRecord, ImageRecordStatus } from '@/core/schemas/image-record'
+import { canonicalPrompt } from '@/lib/feed/output-items'
 import { truncate } from '@/lib/format'
 import { readLocal, writeLocal } from '@/lib/local-store'
 import { getPlatform } from '@/lib/platform'
 
-import { plainPrompt } from '../actions/record-view'
 import { useHistoryViewStore } from '../list/view-store'
+import { useCreditsAfterJob } from './use-credits-after-job'
 
 interface JobNotificationParams {
   records: GenerationRecord[]
+  imageRecords: ImageRecord[]
   activeCount: number
   isLoading: boolean
 }
@@ -24,11 +28,41 @@ interface JobNotificationParams {
 const LAST_SEEN_KEY = 'unplatform-ai:lastSeenAt'
 const LAST_SEEN_VALUE = z.string()
 const SUMMARY_STATUSES: JobStatus[] = ['completed', 'expired', 'failed']
+const IMAGE_READY_STATUSES: ImageRecordStatus[] = ['completed', 'partial']
 
-const FAILED_TITLES: Partial<Record<JobStatus, string>> = {
-  failed: 'Generation failed',
-  cancelled: 'Generation cancelled',
-  expired: 'Generation expired',
+type NotificationKind = 'image' | 'video'
+
+type FailureTitles = Partial<Record<GridItemStatus, string>>
+
+const FAILED_TITLES: Record<NotificationKind, FailureTitles> = {
+  video: {
+    failed: 'Generation failed',
+    cancelled: 'Generation cancelled',
+    expired: 'Generation expired',
+  },
+  image: {
+    failed: 'Image failed',
+    cancelled: 'Image cancelled',
+    expired: 'Image expired',
+  },
+}
+
+interface NotifyFailureParams {
+  kind: NotificationKind
+  status: GridItemStatus
+  description: string
+}
+
+/** Toasts the failure title shared by both generators, when that kind has one. */
+export function notifyFailure(params: NotifyFailureParams): void {
+  const { kind, status, description } = params
+  const title = FAILED_TITLES[kind][status]
+
+  if (isNil(title)) {
+    return
+  }
+
+  toast.error(title, { description })
 }
 
 function scrollToRecord(id: string): void {
@@ -127,12 +161,62 @@ function notifyHidden(title: string, body: string): void {
     .catch(() => {})
 }
 
+function notifyVideoChanges(before: Map<string, JobStatus>, records: GenerationRecord[]): void {
+  for (const record of records) {
+    const previousStatus = before.get(record.id)
+
+    if (isNil(previousStatus) || previousStatus === record.status) {
+      continue
+    }
+
+    const body = truncate(canonicalPrompt(record), 80)
+
+    if (record.status === 'completed') {
+      toast.success('Video ready', {
+        description: body,
+        action: {
+          label: 'Show',
+          onClick: () => {
+            scrollToRecord(record.id)
+          },
+        },
+      })
+
+      notifyHidden('Video ready', body)
+    }
+
+    notifyFailure({ kind: 'video', status: record.status, description: record.error ?? body })
+  }
+}
+
+function notifyImageChanges(before: Map<string, ImageRecordStatus>, records: ImageRecord[]): void {
+  for (const record of records) {
+    const previousStatus = before.get(record.id)
+
+    if (isNil(previousStatus) || previousStatus === record.status) {
+      continue
+    }
+
+    const body = truncate(record.input.prompt, 80)
+
+    if (IMAGE_READY_STATUSES.includes(record.status)) {
+      toast.success('Image ready', { description: body })
+      notifyHidden('Image ready', body)
+    }
+
+    notifyFailure({ kind: 'image', status: record.status, description: record.error ?? body })
+  }
+}
+
 /** Toasts for status transitions, hidden-tab notifications and the tab title. */
 export function useJobNotifications(params: JobNotificationParams): void {
-  const { records, activeCount, isLoading } = params
+  const { records, imageRecords, activeCount, isLoading } = params
   const previous = useRef<Map<string, JobStatus> | null>(null)
+  const previousImages = useRef<Map<string, ImageRecordStatus> | null>(null)
   const baseTitle = useRef<string | null>(null)
   const summaryChecked = useRef(false)
+
+  useCreditsAfterJob({ records, imageRecords })
 
   useEffect(() => {
     baseTitle.current ??= document.title
@@ -186,6 +270,20 @@ export function useJobNotifications(params: JobNotificationParams): void {
   }, [isLoading, records])
 
   useEffect(() => {
+    const before = previousImages.current
+
+    previousImages.current = new Map(
+      imageRecords.map((record) => {
+        return [record.id, record.status]
+      }),
+    )
+
+    if (!isNil(before)) {
+      notifyImageChanges(before, imageRecords)
+    }
+  }, [imageRecords])
+
+  useEffect(() => {
     const before = previous.current
 
     previous.current = new Map(
@@ -194,38 +292,8 @@ export function useJobNotifications(params: JobNotificationParams): void {
       }),
     )
 
-    if (!before) {
-      return
-    }
-
-    for (const record of records) {
-      const previousStatus = before.get(record.id)
-
-      if (isNil(previousStatus) || previousStatus === record.status) {
-        continue
-      }
-
-      const body = truncate(plainPrompt(record), 80)
-
-      if (record.status === 'completed') {
-        toast.success('Video ready', {
-          description: body,
-          action: {
-            label: 'Show',
-            onClick: () => {
-              scrollToRecord(record.id)
-            },
-          },
-        })
-
-        notifyHidden('Video ready', body)
-      }
-
-      const failedTitle = FAILED_TITLES[record.status]
-
-      if (!isNil(failedTitle)) {
-        toast.error(failedTitle, { description: record.error ?? body })
-      }
+    if (!isNil(before)) {
+      notifyVideoChanges(before, records)
     }
   }, [records])
 }

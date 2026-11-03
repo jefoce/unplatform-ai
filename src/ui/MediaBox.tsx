@@ -1,19 +1,8 @@
 import type { ReactNode } from 'react'
 
 interface MediaBoxProps {
-  aspect: string
+  aspect: number
   children: ReactNode
-}
-
-/** CSS ratio form of `16/9`, `16:9` or `16 / 9`. */
-function ratioOf(aspect: string): string {
-  return aspect.replace(':', '/')
-}
-
-function aspectValue(aspect: string): number {
-  const [width, height] = ratioOf(aspect).split('/').map(Number)
-
-  return (width ?? 0) / (height ?? 0)
 }
 
 /**
@@ -25,8 +14,8 @@ export function MediaBox(props: MediaBoxProps) {
   const { aspect, children } = props
 
   const style = {
-    aspectRatio: ratioOf(aspect),
-    width: `min(100cqw, calc(100cqh * ${aspectValue(aspect)}))`,
+    aspectRatio: aspect,
+    width: `min(100cqw, calc(100cqh * ${aspect}))`,
     height: 'auto',
   }
 

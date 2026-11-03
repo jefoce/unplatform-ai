@@ -5,6 +5,7 @@ import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
 import {
+  type CompleteMultipartUploadCommandOutput,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -54,6 +55,30 @@ interface S3ErrorShape {
 }
 
 /** Generic S3 store used by the R2 backend. */
+interface CompleteUploadParams {
+  upload: Upload
+  signal?: AbortSignal
+}
+
+/** Aborts a running multipart upload when the caller signal fires. */
+async function completeUpload(
+  params: CompleteUploadParams,
+): Promise<CompleteMultipartUploadCommandOutput> {
+  const { upload, signal } = params
+
+  const onAbort = (): void => {
+    void upload.abort()
+  }
+
+  signal?.addEventListener('abort', onAbort)
+
+  try {
+    return await upload.done()
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
+}
+
 export function createS3Store(config: S3StoreConfig): ObjectStore {
   const { bucket, client } = clientFor(config)
 
@@ -82,7 +107,7 @@ export function createS3Store(config: S3StoreConfig): ObjectStore {
     },
 
     async put(params): Promise<ObjectInfo> {
-      const { key, file, contentType, sha256, onProgress } = params
+      const { key, file, contentType, sha256, onProgress, signal } = params
       const stats = await fs.stat(file)
       const isMultipart = stats.size > PART_SIZE
       const checksum: ChecksumFields = {}
@@ -110,7 +135,7 @@ export function createS3Store(config: S3StoreConfig): ObjectStore {
         onProgress?.(loaded ?? 0, total ?? stats.size)
       })
 
-      const res = await upload.done()
+      const res = await completeUpload({ upload, signal })
 
       return {
         key,

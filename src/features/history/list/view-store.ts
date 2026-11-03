@@ -2,22 +2,15 @@
 
 import { clamp, isNil } from 'lodash-es'
 import { z } from 'zod'
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
-import { ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN } from '@/core/constants'
-import { DEFAULT_FILTERS, FILTER_PARAMS } from '@/core/history-filters'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/types'
+import { ZOOM_MAX, ZOOM_MIN } from '@/core/constants'
+import { DEFAULT_FILTERS, FILTER_PARAMS } from '@/core/feed/history-filters'
+import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { GENERATOR_TABS } from '@/core/schemas/generation-record'
-import {
-  AUDIO_FILTERS,
-  HISTORY_MODES,
-  type HistoryFilters,
-  type HistoryMode,
-  STATUS_FILTERS,
-} from '@/core/types'
+import { AUDIO_FILTERS, HISTORY_MODES, type HistoryFilters, STATUS_FILTERS } from '@/core/types'
+import { createViewStore } from '@/lib/create-view-store'
 
-export const HISTORY_VIEWS = ['list', 'grid'] as const
+export const HISTORY_VIEWS = ['list', 'grid', 'masonry'] as const
 
 export type HistoryView = (typeof HISTORY_VIEWS)[number]
 
@@ -32,16 +25,6 @@ const PersistedFiltersSchema = z.object({
   aspect: z.enum([...ASPECT_RATIOS, 'all']).optional(),
   audio: z.enum(AUDIO_FILTERS).optional(),
 })
-
-const PersistedViewSchema = z.object({
-  view: z.enum(HISTORY_VIEWS).optional().catch(undefined),
-  zoom: z.number().int().min(ZOOM_MIN).max(ZOOM_MAX).optional().catch(undefined),
-  filters: PersistedFiltersSchema.optional().catch(undefined),
-})
-
-interface ViewFilters extends HistoryFilters {
-  mode?: HistoryMode
-}
 
 /** Reference width the supplied slider sizes were measured at (video + details + gap). */
 const REFERENCE_ROW_WIDTH = 1518
@@ -82,7 +65,7 @@ export const zoomToTileWidth = (zoom: number): number => {
   return stepValue(TILE_WIDTHS, zoom)
 }
 
-export function countActiveFilters(filters: ViewFilters): number {
+export function countActiveFilters(filters: HistoryFilters): number {
   const active = FILTER_PARAMS.filter(([key, fallback]) => {
     const value = filters[key]
 
@@ -97,64 +80,11 @@ export function countActiveFilters(filters: ViewFilters): number {
   return active.length + favorites + query
 }
 
-interface ViewState {
-  view: HistoryView
-  zoom: number
-  filters: ViewFilters
-  setView: (view: HistoryView) => void
-  setZoom: (zoom: number) => void
-  setFilters: (patch: Partial<ViewFilters>) => void
-  resetFilters: () => void
-}
-
-export const useHistoryViewStore = create<ViewState>()(
-  persist(
-    (set) => {
-      return {
-        view: 'list',
-        zoom: ZOOM_DEFAULT,
-        filters: { ...DEFAULT_FILTERS },
-        setView: (view) => {
-          set({ view })
-        },
-        setZoom: (zoom) => {
-          set({ zoom: clamp(Math.round(zoom), ZOOM_MIN, ZOOM_MAX) })
-        },
-        setFilters: (patch) => {
-          set((state) => {
-            return { filters: { ...state.filters, ...patch } }
-          })
-        },
-        resetFilters: () => {
-          set({ filters: { ...DEFAULT_FILTERS } })
-        },
-      }
-    },
-    {
-      name: 'unplatform-ai:view',
-      version: 1,
-      partialize: (state) => {
-        return { view: state.view, zoom: state.zoom, filters: state.filters }
-      },
-      migrate: (persisted) => {
-        return persisted
-      },
-      merge: (persisted, current) => {
-        const parsed = PersistedViewSchema.safeParse(persisted)
-
-        if (!parsed.success) {
-          return current
-        }
-
-        const { view, zoom, filters } = parsed.data
-
-        return {
-          ...current,
-          view: view ?? current.view,
-          zoom: zoom ?? current.zoom,
-          filters: { ...current.filters, ...filters },
-        }
-      },
-    },
-  ),
-)
+export const useHistoryViewStore = createViewStore<HistoryFilters, HistoryView>({
+  name: 'unplatform-ai:view',
+  version: 1,
+  views: HISTORY_VIEWS,
+  initialView: 'list',
+  defaultFilters: DEFAULT_FILTERS,
+  filtersSchema: PersistedFiltersSchema,
+})

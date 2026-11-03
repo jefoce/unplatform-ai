@@ -11,6 +11,8 @@ Generated with ffmpeg test sources. No third-party content.
 | `sample.opus` | Opus | `sine`, 1 s |
 | `sample.mp3` | MP3 | `sine`, 1 s |
 | `sample.wav` | PCM s16le 8 kHz mono | `sine`, 1 s |
+| `sample.m4a` | AAC-LC | `sample.wav`, 1 s |
+| `sample.aac` | AAC-LC ADTS | `sample.wav`, 1 s |
 | `sample.png` | PNG RGBA 64x64 | `color=red@0.5`, one frame |
 | `sample.jpg` | MJPEG 64x64 | `color=blue`, one frame |
 | `sample.webp` | WebP 64x64 | `color=green`, one frame |
@@ -31,6 +33,8 @@ ffmpeg -f lavfi -i sine=frequency=440:sample_rate=44100 -t 1 -c:a libvorbis -q:a
 ffmpeg -f lavfi -i sine=frequency=440:sample_rate=48000 -t 1 -c:a libopus -b:a 24k sample.opus
 ffmpeg -f lavfi -i sine=frequency=440:sample_rate=22050 -t 1 -c:a libmp3lame -b:a 32k -ac 1 sample.mp3
 ffmpeg -f lavfi -i sine=frequency=440:sample_rate=8000 -t 1 -c:a pcm_s16le -ac 1 sample.wav
+ffmpeg -i sample.wav -c:a aac -b:a 48k sample.m4a
+ffmpeg -i sample.wav -c:a aac -b:a 48k -f adts sample.aac
 ffmpeg -f lavfi -i color=c=red@0.5:s=64x64 -frames:v 1 -vf format=rgba sample.png
 ffmpeg -f lavfi -i color=c=blue:s=64x64 -frames:v 1 -q:v 5 sample.jpg
 ffmpeg -f lavfi -i color=c=green:s=64x64 -frames:v 1 -c:v libwebp sample.webp

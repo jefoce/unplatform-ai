@@ -3,15 +3,23 @@ import 'server-only'
 import { isEmpty, isNil } from 'lodash-es'
 
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
-import { MODEL_PRESETS } from '@/core/presets'
-import { activeBinding } from '@/core/presets/bindings'
-import type { ModelPreset, ProviderBinding } from '@/core/presets/types'
-import { videoProviderDescriptor } from '@/core/providers/registry'
+import { MODEL_CATALOG_TTL_MS } from '@/core/constants'
+import { VIDEO_PRESETS } from '@/core/presets'
+import type { ProviderBinding } from '@/core/presets/common/binding'
+import { activeBinding, primaryBinding } from '@/core/presets/common/bindings'
+import { IMAGE_PRESETS } from '@/core/presets/image'
+import type { ImagePreset } from '@/core/presets/image/types'
+import type { VideoPreset } from '@/core/presets/video/types'
+import type { PricingInfo } from '@/core/pricing/types'
+import { providerDescriptor } from '@/core/providers/registry'
 
 import { globalState } from '../global-state'
-import { getVideoProvider } from '../providers/registry'
+import { loadLivePricing } from '../pricing/live'
+import { getImageProvider, getVideoProvider } from '../providers/registry'
 import type { ProviderModel } from '../providers/types'
-import { secretsReady } from '../secrets'
+import { registerSecretsListener, secretsReady } from '../secrets'
+import { createTtlCache } from '../sync/ttl-cache'
+import { catalogStatus } from './catalog-status'
 
 interface DriftState {
   logged: Set<string>
@@ -27,20 +35,52 @@ function isBindingConfigured(binding: ProviderBinding): boolean {
   return getVideoProvider(binding.provider).isConfigured()
 }
 
+const cache = createTtlCache<ModelCatalog>({
+  key: 'modelCatalog',
+  okTtlMs: MODEL_CATALOG_TTL_MS,
+  failTtlMs: MODEL_CATALOG_TTL_MS,
+})
+
 /** One entry per preset, with availability from the provider model list. */
 export async function getModelCatalog(): Promise<ModelCatalog> {
-  await secretsReady()
+  return cache.get('catalog', async () => {
+    const catalog = await loadCatalog()
 
-  const entries = await Promise.all(MODEL_PRESETS.map(buildEntry))
-
-  return { entries, fetchedAt: new Date().toISOString() }
+    return { value: catalog, isOk: true }
+  })
 }
 
-async function buildEntry(preset: ModelPreset): Promise<CatalogEntry> {
+/** Drops the cached catalog after settings change. */
+export function clearModelCatalog(): void {
+  cache.clear()
+}
+
+/** Drops the cached catalog when any key changes. */
+export function registerModelCatalogSecretsListener(): void {
+  registerSecretsListener('model-catalog', () => {
+    cache.clear()
+  })
+}
+
+async function loadCatalog(): Promise<ModelCatalog> {
+  await secretsReady()
+
+  const [videoEntries, imageEntries] = await Promise.all([
+    Promise.all(VIDEO_PRESETS.map(buildEntry)),
+    Promise.all(IMAGE_PRESETS.map(buildImageEntry)),
+  ])
+
+  return {
+    entries: [...videoEntries, ...imageEntries],
+    fetchedAt: new Date().toISOString(),
+  }
+}
+
+async function buildEntry(preset: VideoPreset): Promise<CatalogEntry> {
   const binding = activeBinding(preset, isBindingConfigured)
   const provider = getVideoProvider(binding.provider)
   const pricing = await provider.getPricing(preset)
-  const label = videoProviderDescriptor(binding.provider).label
+  const label = providerDescriptor(binding.provider).label
   const base = { modelId: binding.modelId, presetId: preset.id, pricing }
 
   const isConfigured = preset.bindings.some(isBindingConfigured)
@@ -54,32 +94,17 @@ async function buildEntry(preset: ModelPreset): Promise<CatalogEntry> {
     }
   }
 
-  const { models, isFresh } = await provider.listModels()
+  const status = await catalogStatus({ provider, binding, label })
 
-  if (!isFresh || isEmpty(models)) {
-    return { ...base, provider: binding.provider, status: 'unverified', reason: null }
+  if (!isNil(status.model)) {
+    logDrift(preset, status.model)
   }
 
-  const model = models.find((item) => {
-    return item.modelId === binding.modelId
-  })
-
-  if (isNil(model)) {
-    return {
-      ...base,
-      provider: binding.provider,
-      status: 'missing',
-      reason: `Not available on ${label} right now.`,
-    }
-  }
-
-  logDrift(preset, model)
-
-  return { ...base, provider: binding.provider, status: 'available', reason: null }
+  return { ...base, provider: binding.provider, status: status.status, reason: status.reason }
 }
 
 /** Development-only drift report. Logs once per preset, never blocks. */
-function logDrift(preset: ModelPreset, model: ProviderModel): void {
+function logDrift(preset: VideoPreset, model: ProviderModel): void {
   if (process.env.NODE_ENV !== 'development' || driftState.logged.has(preset.id)) {
     return
   }
@@ -94,7 +119,7 @@ function logDrift(preset: ModelPreset, model: ProviderModel): void {
   console.warn(`[model-catalog] ${preset.id} drift`, drifts)
 }
 
-function driftList(preset: ModelPreset, model: ProviderModel): string[] {
+function driftList(preset: VideoPreset, model: ProviderModel): string[] {
   const durations = preset.duration.options ?? allDurations(preset)
 
   return [
@@ -145,7 +170,7 @@ function mismatch(params: MismatchParams): string[] {
   return [`${label} is ${isValue} but live is ${isLive}`]
 }
 
-function framesOf(preset: ModelPreset): string[] {
+function framesOf(preset: VideoPreset): string[] {
   const frames: string[] = []
 
   if (preset.frames.start) {
@@ -159,10 +184,55 @@ function framesOf(preset: ModelPreset): string[] {
   return frames
 }
 
-function allDurations(preset: ModelPreset): number[] {
+function allDurations(preset: VideoPreset): number[] {
   const { min, max } = preset.duration
 
   return Array.from({ length: max - min + 1 }, (_, index) => {
     return min + index
   })
+}
+
+async function buildImageEntry(preset: ImagePreset): Promise<CatalogEntry> {
+  const binding = primaryBinding(preset)
+  const provider = getImageProvider(binding.provider)
+  const pricing = await imagePricing(preset)
+  const label = providerDescriptor(binding.provider).label
+  const base = { modelId: binding.modelId, presetId: preset.id, pricing }
+
+  const isConfigured = preset.bindings.some((item) => {
+    return getImageProvider(item.provider).isConfigured()
+  })
+
+  if (!isConfigured) {
+    return {
+      ...base,
+      provider: null,
+      status: 'no_provider',
+      reason: `Add your ${label} key in Settings.`,
+    }
+  }
+
+  const status = await catalogStatus({ provider, binding, label })
+
+  return { ...base, provider: binding.provider, status: status.status, reason: status.reason }
+}
+
+async function imagePricing(preset: ImagePreset): Promise<PricingInfo> {
+  const binding = primaryBinding(preset)
+
+  const live = await loadLivePricing({
+    provider: binding.provider,
+    kind: 'image',
+    modelId: binding.modelId,
+    fallback: binding.pricing.fallback,
+    presetId: preset.id,
+  })
+
+  return {
+    skus: live.skus,
+    listSkus: live.listSkus,
+    discount: live.discountPct,
+    source: live.source,
+    fetchedAt: new Date().toISOString(),
+  }
 }

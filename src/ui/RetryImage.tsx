@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { isNil } from 'lodash-es'
 import { Image as ImageIcon, Music, Video } from 'lucide-react'
 
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 import { withQuery } from '@/lib/api/query'
 import { cn } from '@/lib/cn'
 

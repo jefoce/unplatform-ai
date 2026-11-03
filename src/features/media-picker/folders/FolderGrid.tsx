@@ -2,12 +2,14 @@
 
 import { isEmpty } from 'lodash-es'
 
-import type { FolderDir, FolderFile, MediaKind } from '@/core/media-types'
+import type { FolderDir, FolderFile } from '@/core/api/folders'
+import type { UploadsById } from '@/core/api/uploads'
+import type { MediaKind } from '@/core/media/media-types'
 import { referenceSlots } from '@/core/prompt-tokens'
-import type { UploadsById } from '@/core/schemas/upload-item'
 import { thumbUrl } from '@/lib/api/media-urls'
 
 import type { PickerMode } from '../picker/store'
+import { PICKER_GRID_CLASSES } from '../tiles/tile-classes'
 import { FolderDirTile } from './FolderDirTile'
 import { FolderGridTile } from './FolderGridTile'
 
@@ -44,7 +46,7 @@ export function FolderGrid(props: FolderGridProps) {
 
   return (
     <div className="min-h-0 flex-1 scrollbar-gutter-stable overflow-y-auto overscroll-contain">
-      <div className="grid grid-cols-4 content-start gap-3 p-3">
+      <div className={PICKER_GRID_CLASSES}>
         {dirs.map((dir) => {
           return <FolderDirTile key={dir.rel} dir={dir} onNavigate={props.onNavigate} />
         })}

@@ -7,10 +7,10 @@ import { z } from 'zod'
 
 import { isNonEmptyString } from '@/core/guards'
 import { STORAGE_PROVIDER_IDS } from '@/core/providers/types'
-import type { SecretBackend, SecretStatus, TestResult } from '@/core/types'
+import type { SecretBackendKind, SecretStatus, TestResult } from '@/core/types'
 import { fetchSecrets } from '@/lib/api/settings'
+import { SECRETS_KEY } from '@/lib/api/swr-keys'
 import { readLocal, writeLocal } from '@/lib/local-store'
-import { SECRETS_KEY } from '@/lib/swr-keys'
 
 import { openSettings, type SettingsSection } from './settings-store'
 
@@ -86,7 +86,7 @@ export function testLine(target: SettingsSection, result: TestResult): TestMessa
 }
 
 /** Footer text for the active backend. */
-export function backendNote(backend: SecretBackend | undefined): string | null {
+export function backendNote(backend: SecretBackendKind | undefined): string | null {
   if (backend === 'keychain') {
     return `Stored in ${keychainLabel()}`
   }

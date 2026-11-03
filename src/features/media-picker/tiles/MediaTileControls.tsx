@@ -12,6 +12,7 @@ interface MediaTileControlsProps {
   isBlocked: boolean
   isSelected: boolean
   isMissing: boolean
+  describedById?: string
   onSelect: () => void
   onPreview?: () => void
   onDelete?: () => void
@@ -43,6 +44,7 @@ export function MediaTileControls(props: MediaTileControlsProps) {
         disabled={isBlocked}
         aria-label={label}
         aria-pressed={isSelected}
+        aria-describedby={props.describedById}
         className={cn(
           'absolute inset-0 z-10 size-full rounded-lg',
           isBlocked && 'cursor-not-allowed',

@@ -1,12 +1,19 @@
+import { writeFile } from 'node:fs/promises'
+
 import { isNil } from 'lodash-es'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { MODEL_PRESETS } from '@/core/presets'
-import type { ModelPreset } from '@/core/presets/types'
 import type { ProviderModel } from '@/server/providers/types'
 
+import { VIDEO_PRESETS } from '../src/core/presets'
+import { IMAGE_PRESETS } from '../src/core/presets/image'
+import type { VideoPreset } from '../src/core/presets/video/types'
+import { IMAGE_BILLABLE_KINDS, PRICE_UNITS } from '../src/core/pricing/types'
+
 const MODELS_URL = 'https://openrouter.ai/api/v1/videos/models'
+const IMAGE_MODELS_URL = 'https://openrouter.ai/api/v1/images/models'
+const FIXTURE_URL = new URL('./fixtures/image-live-prices.json', import.meta.url)
 const FETCH_TIMEOUT_MS = 30_000
 const TEST_TIMEOUT_MS = 35_000
 
@@ -24,9 +31,25 @@ const ModelSchema = z
 
 const ModelsSchema = z.object({ data: z.array(ModelSchema) }).loose()
 
+const ImageLineSchema = z
+  .object({
+    billable: z.enum(IMAGE_BILLABLE_KINDS),
+    unit: z.enum(PRICE_UNITS),
+    cost_usd: z.number(),
+    variant: z.string().nullish(),
+  })
+  .loose()
+
+const ImageEndpointSchema = z.object({ pricing: z.array(ImageLineSchema).nullish() }).loose()
+
+const ImageEndpointsSchema = z
+  .object({ data: z.object({ endpoints: z.array(z.unknown()) }).loose() })
+  .loose()
+
 type ModelResponse = z.infer<typeof ModelSchema>
 
 const isLive = process.env.LIVE_CATALOG === '1'
+const isWriteFixture = process.env.WRITE_IMAGE_PRICE_FIXTURE === '1'
 
 function toModel(model: ModelResponse): ProviderModel {
   return {
@@ -58,7 +81,7 @@ function expectFlag(
   expect(isActual, `${presetId} ${field}`).toBe(isExpected)
 }
 
-function assertBinding(preset: ModelPreset, model: ProviderModel): void {
+function assertBinding(preset: VideoPreset, model: ProviderModel): void {
   for (const value of preset.duration.options ?? []) {
     expectSupported(preset.id, 'duration.options', value, model.durations)
   }
@@ -98,6 +121,7 @@ function assertBinding(preset: ModelPreset, model: ProviderModel): void {
 
 describe.skipIf(!isLive)('live OpenRouter catalog', () => {
   const models = new Map<string, ProviderModel>()
+  const imagePrices = new Map<string, Record<string, number>>()
 
   beforeAll(async () => {
     const res = await fetch(MODELS_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
@@ -113,10 +137,26 @@ describe.skipIf(!isLive)('live OpenRouter catalog', () => {
     for (const model of parsed.data.data) {
       models.set(model.id, toModel(model))
     }
+
+    for (const preset of IMAGE_PRESETS) {
+      const modelId = preset.bindings[0].modelId
+
+      imagePrices.set(modelId, await fetchImagePrices(modelId))
+    }
+
+    if (isWriteFixture) {
+      const sorted = Object.fromEntries(
+        [...imagePrices].sort(([left], [right]) => {
+          return left.localeCompare(right)
+        }),
+      )
+
+      await writeFile(FIXTURE_URL, `${JSON.stringify(sorted, null, 2)}\n`)
+    }
   }, TEST_TIMEOUT_MS)
 
   it('matches every preset binding', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       for (const binding of preset.bindings) {
         const model = models.get(binding.modelId)
 
@@ -130,4 +170,61 @@ describe.skipIf(!isLive)('live OpenRouter catalog', () => {
       }
     }
   })
+
+  it('matches every image preset fallback exactly', () => {
+    for (const preset of IMAGE_PRESETS) {
+      const live = imagePrices.get(preset.bindings[0].modelId)
+
+      expect(live, `${preset.id} endpoints are missing`).toBeDefined()
+
+      if (isNil(live)) {
+        continue
+      }
+
+      for (const [key, rate] of Object.entries(preset.bindings[0].pricing.fallback)) {
+        const liveRate = live[key]
+
+        expect(liveRate, `${preset.id} ${key} is missing live`).toBeDefined()
+
+        if (isNil(liveRate)) {
+          continue
+        }
+
+        expect(rate, `${preset.id} ${key} drifted`).toBe(liveRate)
+      }
+    }
+  })
 })
+
+/** Highest rate per billable/variant/unit key across every endpoint. */
+async function fetchImagePrices(modelId: string): Promise<Record<string, number>> {
+  const res = await fetch(`${IMAGE_MODELS_URL}/${modelId}/endpoints`, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
+
+  expect(res.ok, `OpenRouter ${res.status} ${res.statusText}`).toBe(true)
+
+  const parsed = ImageEndpointsSchema.safeParse(await res.json())
+
+  if (!parsed.success) {
+    throw new Error(`Invalid image endpoints for ${modelId}: ${parsed.error.message}`)
+  }
+
+  const prices: Record<string, number> = {}
+
+  for (const item of parsed.data.data.endpoints) {
+    const endpoint = ImageEndpointSchema.safeParse(item)
+
+    if (!endpoint.success) {
+      continue
+    }
+
+    for (const line of endpoint.data.pricing ?? []) {
+      const key = `${line.billable}_${line.variant?.toLowerCase() ?? 'base'}_${line.unit}`
+
+      prices[key] = Math.max(prices[key] ?? 0, line.cost_usd)
+    }
+  }
+
+  return prices
+}

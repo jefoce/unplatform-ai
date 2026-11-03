@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
 import { SECRET_NAMES, SECRET_SCHEMAS } from '@/core/secret-names'
-import { errorResponse, zodError } from '@/server/http'
+import { errorResponse, jsonResponse, zodError } from '@/server/http'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { secretsReady, secretStatus, setSecrets } from '@/server/secrets'
+import { clearModelCatalog } from '@/server/services/model-catalog'
 
 const SecretValuesSchema = z.object(
   Object.fromEntries(
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     assertLocalRequest(request)
     void secretsReady()
 
-    return Response.json(secretStatus())
+    return jsonResponse(secretStatus())
   } catch (error) {
     return errorResponse(error)
   }
@@ -37,6 +38,7 @@ export async function PUT(request: Request) {
 
     await secretsReady()
     await setSecrets(body.data.values)
+    clearModelCatalog()
 
     const names = Object.keys(body.data.values)
 
@@ -44,7 +46,7 @@ export async function PUT(request: Request) {
       console.log(`[unplatform-ai] secrets updated: ${names.join(', ')}`)
     }
 
-    return Response.json(secretStatus())
+    return jsonResponse(secretStatus())
   } catch (error) {
     return errorResponse(error)
   }

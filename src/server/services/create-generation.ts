@@ -2,27 +2,44 @@ import 'server-only'
 
 import { randomInt, randomUUID } from 'node:crypto'
 
-import { MAX_REQUEST_MB, REQUEST_RESERVE_MB, SEED_MAX, SUBMIT_GRACE_MS } from '@/core/constants'
-import type { ReferencePlan } from '@/core/media-types'
-import { activeBinding } from '@/core/presets/bindings'
+import { isNil } from 'lodash-es'
+
+import type { UploadsById } from '@/core/api/uploads'
+import {
+  MAX_ACTIVE_JOBS,
+  MAX_REQUEST_MB,
+  REQUEST_RESERVE_MB,
+  SEED_MAX,
+  SUBMIT_GRACE_MS,
+} from '@/core/constants'
+import type { ReferencePlan } from '@/core/media/media-types'
+import { activeBinding } from '@/core/presets/common/bindings'
 import type {
   GenerationCost,
   GenerationInput,
   GenerationRecord,
   InputSnapshot,
-  SnapshotItem,
 } from '@/core/schemas/generation-record'
-import type { UploadsById } from '@/core/schemas/upload-item'
 
+import { HttpError } from '../errors'
 import { startSubmit } from '../jobs/submit-queue'
 import { encodeImages } from '../media/image-data-url'
 import { getVideoProvider } from '../providers/registry'
-import { saveGeneration } from '../repos/generations'
+import { getActiveCount, saveGeneration } from '../repos/generations'
+import { withLock } from '../sync/lock'
 import { estimateGeneration, loadDraft } from './estimate-generation'
+import { snapshotItem } from './upload-snapshot'
 
 /** Validates, writes a grace record, then queues upload and submit in the background. */
 export async function createGeneration(raw: GenerationInput): Promise<GenerationRecord> {
   const { preset, input, uploads } = await loadDraft(raw)
+
+  const estimate = await estimateGeneration({ preset, input, uploads })
+  const { estimatedUsd, pricePerSec } = estimate
+
+  if (estimate.priceSource === 'unknown' || isNil(estimatedUsd) || isNil(pricePerSec)) {
+    throw new HttpError(409, 'Price unavailable for this model')
+  }
 
   const encoded = await encodeImages({
     uploads: Object.values(uploads),
@@ -30,7 +47,6 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
     budgetBytes: MAX_REQUEST_MB * 1024 * 1024 - REQUEST_RESERVE_MB * 1024 * 1024,
   })
 
-  const estimate = await estimateGeneration({ preset, input, uploads })
   const now = new Date().toISOString()
 
   const binding = activeBinding(preset, (item) => {
@@ -39,10 +55,11 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
 
   const cost: GenerationCost = {
     currency: 'USD',
-    pricePerSec: estimate.pricePerSec,
+    pricePerSec,
     priceSource: estimate.priceSource,
-    estimatedUsd: estimate.estimatedUsd,
+    estimatedUsd,
     actualUsd: null,
+    referenceSeconds: estimate.referenceSeconds,
     isByok: null,
     billed: null,
   }
@@ -65,7 +82,16 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
     cost,
   }
 
-  const saved = await saveGeneration(record)
+  const saved = await withLock('active-generations', async () => {
+    if ((await getActiveCount()) >= MAX_ACTIVE_JOBS) {
+      throw new HttpError(
+        429,
+        `${MAX_ACTIVE_JOBS} videos already generating. Wait for one to finish.`,
+      )
+    }
+
+    return saveGeneration(record)
+  })
 
   await startSubmit(saved.id)
 
@@ -82,15 +108,7 @@ function snapshot(uploads: UploadsById, plan: ReferencePlan): InputSnapshot {
   return Object.fromEntries(
     Object.values(uploads).map((upload) => {
       const image = sent.get(upload.id)
-
-      const item: SnapshotItem = {
-        kind: upload.kind,
-        originalName: upload.originalName,
-        source: upload.source,
-        target: upload.target,
-        width: upload.width,
-        height: upload.height,
-      }
+      const item = snapshotItem(upload)
 
       if (image) {
         item.sentWidth = image.width

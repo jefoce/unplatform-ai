@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
-import { errorResponse, type IdRouteContext, jsonError, zodError } from '@/server/http'
+import {
+  errorResponse,
+  type IdRouteContext,
+  jsonError,
+  jsonResponse,
+  zodError,
+} from '@/server/http'
 import { deleteGeneration, setFavorite } from '@/server/jobs/generation-actions'
 import { getGeneration } from '@/server/repos/generations'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
@@ -17,7 +23,7 @@ export async function GET(request: Request, { params }: IdRouteContext) {
       return jsonError({ status: 404, error: 'Generation not found' })
     }
 
-    return Response.json(record)
+    return jsonResponse(record)
   } catch (error) {
     return errorResponse(error)
   }
@@ -39,7 +45,7 @@ export async function PATCH(request: Request, { params }: IdRouteContext) {
       return jsonError({ status: 404, error: 'Generation not found' })
     }
 
-    return Response.json(saved)
+    return jsonResponse(saved)
   } catch (error) {
     return errorResponse(error)
   }

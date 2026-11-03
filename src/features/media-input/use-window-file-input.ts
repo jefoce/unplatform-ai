@@ -7,11 +7,13 @@ import { isNonEmptyString } from '@/core/guards'
 import type { GeneratorTab } from '@/core/schemas/generation-record'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { type PickerRequest, useMediaPickerStore } from '@/features/media-picker/picker/store'
+import type { WorkspaceTab } from '@/features/shared/use-workspace-tab'
 import { getPlatform } from '@/lib/platform'
 
 export interface UseWindowFileInputParams {
   onFiles: (files: File[]) => void
   onPaths: (paths: string[]) => void
+  workspace: WorkspaceTab
 }
 
 interface UseWindowFileInput {
@@ -39,8 +41,20 @@ function readPasteTarget(event: ClipboardEvent): PasteTarget {
   return { files, isEditing: Boolean(target?.closest(EDITABLE_SELECTOR)), text }
 }
 
-function hintFor(request: PickerRequest | null, tab: GeneratorTab): string {
+interface HintParams {
+  request: PickerRequest | null
+  tab: GeneratorTab
+  workspace: WorkspaceTab
+}
+
+function hintFor(params: HintParams): string {
+  const { request, tab, workspace } = params
+
   if (isNil(request)) {
+    if (workspace === 'image') {
+      return 'as reference'
+    }
+
     if (tab === 'references') {
       return 'as references'
     }
@@ -113,7 +127,7 @@ function useDesktopDrop(params: DesktopDropParams): void {
 
 /** One window drag, drop and paste handler for the generator and the open picker. */
 export function useWindowFileInput(params: UseWindowFileInputParams): UseWindowFileInput {
-  const { onFiles, onPaths } = params
+  const { onFiles, onPaths, workspace } = params
   const [isDragging, setIsDragging] = useState(false)
 
   const request = useMediaPickerStore((state) => {
@@ -213,5 +227,5 @@ export function useWindowFileInput(params: UseWindowFileInputParams): UseWindowF
     }
   }, [])
 
-  return { isDragging, hint: hintFor(request, tab) }
+  return { isDragging, hint: hintFor({ request, tab, workspace }) }
 }

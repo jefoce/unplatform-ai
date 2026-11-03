@@ -3,13 +3,15 @@ import { toast } from 'sonner'
 import { mutate } from 'swr'
 
 import { isNonEmptyString } from '@/core/guards'
-import { acceptFiles, type KindExtensions } from '@/core/media-kinds'
-import { MEDIA_KINDS, type MediaKind } from '@/core/media-types'
+import { acceptFiles, type KindExtensions } from '@/core/media/media-kinds'
+import { MEDIA_KINDS, type MediaKind } from '@/core/media/media-types'
 import { getPreset } from '@/core/presets'
 import { referenceSlots } from '@/core/prompt-tokens'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { addBlockReason, referenceRoom } from '@/features/generator/reference-rules'
 import { useGeneratorStore } from '@/features/generator/store/store'
+import { currentImagePreset } from '@/features/image-generator/preset'
+import { useImageGeneratorStore } from '@/features/image-generator/store'
 import {
   closeMediaPicker,
   extensionsFromLimits,
@@ -17,6 +19,7 @@ import {
   type PickerToggleMode,
   useMediaPickerStore,
 } from '@/features/media-picker/picker/store'
+import { currentWorkspaceTab } from '@/features/shared/use-workspace-tab'
 import { uploadFiles } from '@/lib/api/uploads'
 import { toastError } from '@/lib/notify'
 
@@ -57,8 +60,19 @@ function addToReferences(items: UploadItem[]): void {
   }
 }
 
+/** Adds image references through the shared cap and skip toast. */
+function addToImageReferences(items: UploadItem[]): void {
+  useImageGeneratorStore.getState().addReferences(items)
+}
+
 /** Attaches uploads to the active tab. */
 function route(items: UploadItem[]): void {
+  if (currentWorkspaceTab() === 'image') {
+    addToImageReferences(items)
+
+    return
+  }
+
   const state = useGeneratorStore.getState()
 
   if (state.tab === 'references') {
@@ -145,7 +159,7 @@ interface AddResult {
 /** Adds each new upload once, leaving attached ids alone without counting them. */
 function applyAdd(mode: PickerToggleMode, items: UploadItem[]): AddResult {
   const unique = uniqBy(items, 'id')
-  const selected = mode.useSelectedIds()
+  const selected = mode.getSelectedIds()
   let skipped = 0
   let reason: string | null = null
 
@@ -216,6 +230,16 @@ function ingestTarget(): IngestTarget {
   const request = useMediaPickerStore.getState().request
 
   if (isNil(request)) {
+    if (currentWorkspaceTab() === 'image') {
+      const preset = currentImagePreset(useImageGeneratorStore.getState().presetId)
+
+      return {
+        isPicker: false,
+        kinds: ['image'],
+        extensions: extensionsFromLimits(preset.referenceLimits),
+      }
+    }
+
     return { isPicker: false, kinds: allowedKinds(), extensions: allowedExtensions() }
   }
 

@@ -1,25 +1,25 @@
 'use client'
 
 import { useCallback, useSyncExternalStore } from 'react'
-import { isNil, noop } from 'lodash-es'
-import { Settings } from 'lucide-react'
+import { compact, isNil, noop } from 'lodash-es'
+import { useShallow } from 'zustand/react/shallow'
 
 import { registerPickerAnchor } from '@/features/media-picker/picker/anchors'
-import { openSettings } from '@/features/settings/settings-store'
+import { useUploadsRefresh } from '@/lib/use-uploads-refresh'
 
-import { CreditsBadge } from '../credits/CreditsBadge'
 import { FrameSlots } from '../frames/FrameSlots'
 import { GenerateButton } from '../generate/GenerateButton'
 import { useGenerate } from '../generate/use-generate'
 import { usePanelPrice } from '../generate/use-panel-price'
+import { isPriceReason, useSubmitGate } from '../generate/use-submit-gate'
 import { ModelPicker } from '../model/ModelPicker'
-import { PromptField } from '../prompt/PromptField'
 import { ReferencesBox } from '../references/ReferencesBox'
 import { useGeneratorStore } from '../store/store'
 import { ModeTabs } from './ModeTabs'
+import { PanelHeader } from './PanelHeader'
+import { PanelPrompt } from './PanelPrompt'
 import { SettingsRow } from './SettingsRow'
 import { usePanelDraft } from './use-panel-draft'
-import { useUploadsRefresh } from './use-panel-uploads'
 
 const emptySubscribe = () => {
   return noop
@@ -33,30 +33,81 @@ const getUnmounted = () => {
   return false
 }
 
-function handleOpenSettings(): void {
-  openSettings()
+interface PanelErrorParams {
+  validationError?: string
+  providerReason: string | null
+  priceReason: string | null
+}
+
+/** Validation first, then the provider reason, then the price reasons. */
+function panelError(params: PanelErrorParams): string | undefined {
+  const { validationError, providerReason, priceReason } = params
+  const error = validationError ?? providerReason ?? undefined
+
+  if (!isNil(error)) {
+    return error
+  }
+
+  if (isPriceReason(priceReason)) {
+    return priceReason ?? undefined
+  }
+
+  return undefined
 }
 
 /** Left generate panel: tabs, prompt, settings, warnings, generate. */
+/* eslint-disable-next-line max-lines-per-function -- one panel owns its draft, price and gate */
 export function GeneratorPanel() {
-  const tab = useGeneratorStore((state) => {
-    return state.tab
+  const draft = usePanelDraft()
+
+  const isReady = draft.validation.ok && draft.provider.isReady && !draft.isSecretsFailed
+
+  const {
+    price,
+    listPrice,
+    discount,
+    isLoading: isPriceLoading,
+  } = usePanelPrice(draft.settingsValidation.ok && !draft.isSecretsFailed)
+
+  const gate = useSubmitGate({
+    isValid: draft.validation.ok,
+    isReady: draft.provider.isReady && !draft.isSecretsFailed,
+    isAtLimit: false,
+    isPriceLoading,
+    price,
   })
 
-  const { validation, isKeyMissing, isSecretsFailed } = usePanelDraft()
-  const isReady = validation.ok && !isSecretsFailed
-  const { price, listPrice, discount, isLoading: isPriceLoading } = usePanelPrice(isReady)
-  const { generate, isGenerating } = useGenerate()
+  const error = panelError({
+    validationError: draft.validation.errors[0],
+    providerReason: draft.provider.reason,
+    priceReason: gate.reason,
+  })
+
+  const { generate, isGenerating } = useGenerate({ canSubmit: gate.canSubmit })
 
   const isMounted = useSyncExternalStore(emptySubscribe, getMounted, getUnmounted)
 
-  useUploadsRefresh()
+  const { tab, frames, references, upsertUploads } = useGeneratorStore(
+    useShallow((state) => {
+      return {
+        tab: state.tab,
+        frames: state.frames,
+        references: state.references,
+        upsertUploads: state.upsertUploads,
+      }
+    }),
+  )
+
+  const isUploadsLoading = useUploadsRefresh({
+    ids: compact([frames.start, frames.end, ...references]),
+    upsert: upsertUploads,
+  })
 
   const handleSubmit = useCallback((): void => {
-    if (validation.ok) {
+    if (gate.canSubmit) {
       void generate()
     }
-  }, [validation.ok, generate])
+  }, [gate.canSubmit, generate])
 
   const handlePanelRef = useCallback((element: HTMLDivElement | null) => {
     if (isNil(element)) {
@@ -70,7 +121,7 @@ export function GeneratorPanel() {
     return <div className="h-full" />
   }
 
-  const Body = tab === 'frames' ? FrameSlots : ReferencesBox
+  const isFrames = tab === 'frames'
 
   return (
     <div
@@ -82,31 +133,18 @@ export function GeneratorPanel() {
         data-generator-panel
         className="min-h-0 flex-1 overflow-y-auto px-2 pt-3"
       >
-        <div className="mb-6 flex h-9 items-center justify-between">
-          <span className="relative ml-1 flex h-full items-center pb-2 text-sm font-medium">
-            Create Video
-            <span className="absolute inset-x-0 bottom-0 h-0.5 bg-white" />
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              aria-label="Settings"
-              onClick={handleOpenSettings}
-              className="relative inline-flex size-7 items-center justify-center rounded-lg border border-white/8 bg-white/2 text-fg-2 hover:bg-hover hover:text-fg"
-            >
-              <Settings size={14} aria-hidden />
-              {isKeyMissing && (
-                <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-danger" />
-              )}
-            </button>
-            <CreditsBadge />
-          </div>
-        </div>
+        <PanelHeader isKeyMissing={draft.isKeyMissing} />
         <ModeTabs />
         <div className="mb-4">
-          <Body />
+          {isFrames && <FrameSlots />}
+          {!isFrames && <ReferencesBox isUploadsLoading={isUploadsLoading} />}
         </div>
-        <PromptField onSubmit={handleSubmit} warnings={validation.warnings} />
+        <PanelPrompt
+          value={draft.prompt}
+          onChange={draft.setPrompt}
+          onSubmit={handleSubmit}
+          warnings={draft.validation.warnings}
+        />
         <ModelPicker />
         <SettingsRow />
       </div>
@@ -116,7 +154,7 @@ export function GeneratorPanel() {
           isGenerating={isGenerating}
           isPriceLoading={isPriceLoading}
           disabled={!isReady}
-          error={validation.errors[0]}
+          error={error}
           price={price}
           listPrice={listPrice}
           discount={discount}

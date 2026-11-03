@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { GenerationListResult, HistoryFilters } from '@/core/types'
+import type { GenerationListResult } from '@/core/api/video'
+import type { HistoryFilters } from '@/core/types'
 import { generationPageKey } from '@/lib/api/generations'
 import { withQuery } from '@/lib/api/query'
 

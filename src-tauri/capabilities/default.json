@@ -3,9 +3,6 @@
   "identifier": "main",
   "description": "Permissions for the Unplatform AI webview",
   "windows": ["main"],
-  "remote": {
-    "urls": ["http://127.0.0.1:*/*"]
-  },
   "permissions": [
     "core:default",
     "allow-update-info",

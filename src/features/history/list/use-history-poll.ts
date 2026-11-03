@@ -3,14 +3,15 @@
 import { useEffect, useRef } from 'react'
 import { uniq } from 'lodash-es'
 
-import { HISTORY_POLL_MS } from '@/core/constants'
+import { type GenerationListResult } from '@/core/api/video'
+import { HIDDEN_POLL_MS, HISTORY_POLL_MS } from '@/core/constants'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { ACTIVE_STATUSES, type GenerationListResult } from '@/core/types'
+import { ACTIVE_STATUSES } from '@/core/types'
 import { fetchGenerationsByIds } from '@/lib/api/generations'
+import { currentFavoriteEpoch } from '@/lib/favorite-epoch'
+import { refreshHistoryFeeds } from '@/lib/history-feed-refresh'
 
-import { patchPage, revalidateHistory } from './history-pages'
-
-const HIDDEN_POLL_MS = 15_000
+import { patchPage } from './history-pages'
 
 interface HistoryPagesMutator {
   (
@@ -56,7 +57,7 @@ async function revalidateIdleCount(state: PollState): Promise<void> {
   state.isRunning = true
 
   try {
-    await revalidateHistory()
+    await refreshHistoryFeeds()
   } catch {
     // Next tick retries, polling does not surface transient errors.
   } finally {
@@ -97,6 +98,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
       }
 
       state.isRunning = true
+      const epoch = currentFavoriteEpoch()
 
       try {
         const result = await fetchGenerationsByIds(ids)
@@ -106,7 +108,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
         }
 
         if (result.items.length < ids.length) {
-          void revalidateHistory()
+          void refreshHistoryFeeds()
         } // some ids no longer exist
 
         if (result.items.length === 0) {
@@ -121,7 +123,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
 
         await mutate((pages) => {
           return pages?.map((page) => {
-            return patchPage({ page, byId, activeCount: result.activeCount })
+            return patchPage({ page, byId, activeCount: result.activeCount, epoch })
           })
         }, false)
       } catch {

@@ -1,5 +1,8 @@
 import 'server-only'
 
+import { isNil } from 'lodash-es'
+
+import { MAX_JSON_BODY_BYTES } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 
 import { HttpError, RequestBodyError } from './errors'
@@ -40,20 +43,81 @@ function assertSameOrigin(request: Request): void {
     throw new HttpError(403, 'Cross-site request')
   }
 
-  if (isNonEmptyString(origin) && !LOCAL_HOSTS.has(new URL(origin).hostname)) {
+  if (!isNonEmptyString(origin)) {
+    return
+  }
+
+  const parsed = parseOrigin(origin)
+
+  if (isNil(parsed) || parsed.protocol !== 'http:' || !LOCAL_HOSTS.has(parsed.hostname)) {
+    throw new HttpError(403, 'Bad origin')
+  }
+
+  if (parsed.host !== (request.headers.get('host') ?? '')) {
     throw new HttpError(403, 'Bad origin')
   }
 }
 
-/** Parses a JSON body, requiring an application/json content type. */
+/** Malformed origins fail closed instead of throwing. */
+function parseOrigin(origin: string): URL | null {
+  try {
+    return new URL(origin)
+  } catch {
+    return null
+  }
+}
+
+/** Parses a JSON body, rejecting anything over MAX_JSON_BODY_BYTES. */
 export async function readJsonBody(request: Request): Promise<unknown> {
   if (request.headers.get('content-type')?.includes('application/json') !== true) {
     throw new HttpError(415, 'JSON required')
   }
 
+  assertBodySize(request.headers.get('content-length'))
+
+  const body = request.body
+
+  if (isNil(body)) {
+    throw new RequestBodyError()
+  }
+
+  const chunks: Buffer[] = []
+  let total = 0
+  const reader = body.getReader()
+
+  for (;;) {
+    const { done: isDone, value } = await reader.read()
+
+    if (isDone) {
+      break
+    }
+
+    total += value.byteLength
+
+    if (total > MAX_JSON_BODY_BYTES) {
+      await reader.cancel()
+
+      throw new HttpError(413, 'Request body too large')
+    }
+
+    chunks.push(Buffer.from(value))
+  }
+
   try {
-    return (await request.json()) as unknown
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
   } catch {
     throw new RequestBodyError()
+  }
+}
+
+function assertBodySize(header: string | null): void {
+  if (isNil(header)) {
+    return
+  }
+
+  const size = Number(header)
+
+  if (Number.isFinite(size) && size > MAX_JSON_BODY_BYTES) {
+    throw new HttpError(413, 'Request body too large')
   }
 }

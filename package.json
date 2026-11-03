@@ -1,6 +1,6 @@
 {
   "name": "unplatform-ai",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
@@ -11,17 +11,24 @@
     "format:check": "prettier --check .",
     "deps": "depcruise src --config .dependency-cruiser.cjs",
     "deps:graph": "depcruise src --config .dependency-cruiser.cjs --output-type mermaid > docs/deps.mmd",
+    "e2e": "node tests/e2e/run.mjs",
     "test": "vitest run",
     "knip": "knip",
     "typecheck": "tsc --noEmit",
     "desktop:prepare": "node scripts/notices.mjs && next build && node scripts/prepare-desktop.mjs",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build",
+    "desktop:build": "tauri build && node scripts/compress-downloads.mjs && node scripts/size-report.mjs",
     "ffmpeg:build": "bash scripts/ffmpeg/build-unix.sh",
+    "icon:mac": "node scripts/generate-mac-icon.mjs",
+    "icons": "tauri icon app-icon.png && node scripts/generate-mac-icon.mjs && node scripts/generate-favicon.mjs && bash scripts/generate-header.sh",
     "node:build": "bash scripts/node/build-unix.sh",
     "notices": "node scripts/notices.mjs",
     "smoke": "node scripts/smoke-server.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "size:report": "node scripts/size-report.mjs --check",
+    "size:baseline": "node scripts/size-report.mjs --write-baseline",
+    "check:standalone": "node scripts/check-standalone-compiled.mjs",
+    "check:names": "node scripts/check-old-names.mjs"
   },
   "engines": {
     "node": ">=24 <25"

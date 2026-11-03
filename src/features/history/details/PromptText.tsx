@@ -1,18 +1,19 @@
-import { parsePromptParts } from '@/core/prompt-tokens'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { MediaKindCounts } from '@/core/media/media-types'
+import { parsePromptParts, type RefSlot } from '@/core/prompt-tokens'
+import type { InputSnapshot } from '@/core/schemas/generation-record'
 
-import { recordCounts } from '../actions/record-view'
 import { PromptSlot } from './PromptSlot'
 
 interface PromptTextProps {
   prompt: string
-  record: GenerationRecord
+  counts: MediaKindCounts
+  slots: Map<string, RefSlot>
+  snapshot: InputSnapshot
 }
 
 /** Prompt text with live slot chips. */
 export function PromptText(props: PromptTextProps) {
-  const { prompt, record } = props
-  const counts = recordCounts(record)
+  const { prompt, counts, slots, snapshot } = props
 
   return (
     <>
@@ -26,7 +27,7 @@ export function PromptText(props: PromptTextProps) {
 
         return (
           // eslint-disable-next-line react/no-array-index-key -- static list
-          <PromptSlot key={index} slot={part.slot} record={record} />
+          <PromptSlot key={index} slot={part.slot} slots={slots} snapshot={snapshot} />
         )
       })}
     </>

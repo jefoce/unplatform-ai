@@ -1,5 +1,9 @@
-import type { AspectChoice, Resolution } from '@/core/presets/types'
-import type { GenerationRecord, GeneratorTab, JobStatus } from '@/core/schemas/generation-record'
+import type { AspectChoice, Resolution } from '../../src/core/presets/video/types'
+import type {
+  GenerationRecord,
+  GeneratorTab,
+  JobStatus,
+} from '../../src/core/schemas/generation-record'
 
 export interface RecordOptions {
   id: string

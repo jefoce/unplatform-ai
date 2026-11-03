@@ -1,15 +1,16 @@
 import { clamp, isNil, sumBy } from 'lodash-es'
 import { toast } from 'sonner'
 
+import type { UploadsById } from '@/core/api/uploads'
 import { SEED_MAX } from '@/core/constants'
 import { maxDurationFor } from '@/core/duration-limits'
 import { isNonEmptyString } from '@/core/guards'
-import type { MediaKind, MediaKindCounts } from '@/core/media-types'
+import type { MediaKind, MediaKindCounts } from '@/core/media/media-types'
 import { minDuration } from '@/core/presets'
-import type { ModelPreset } from '@/core/presets/types'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { idForSlot, referenceSlots, type RefSlot } from '@/core/prompt-tokens'
 import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-record'
-import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import { formatSecondsExact } from '@/lib/format'
 
 interface ReferenceState {
@@ -60,7 +61,7 @@ export function uploadForSlot(state: ReferenceState, slot: RefSlot): UploadItem 
 interface ClampReferenceDurationParams {
   input: GenerationInput
   uploads: UploadsById
-  preset: ModelPreset
+  preset: VideoPreset
 }
 
 /** Lower duration to the reference-video limit, toast when it changed. */

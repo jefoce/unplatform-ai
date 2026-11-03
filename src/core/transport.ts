@@ -1,5 +1,6 @@
-import type { MediaKind } from './media-types'
-import { type ProviderBinding, type RESOLVED_TRANSPORTS } from './presets/types'
+import type { MediaKind } from './media/media-types'
+import { type ProviderBinding } from './presets/common/binding'
+import { type RESOLVED_TRANSPORTS } from './presets/common/transport'
 
 export type ResolvedTransport = (typeof RESOLVED_TRANSPORTS)[number]
 

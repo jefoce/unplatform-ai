@@ -12,7 +12,7 @@ inputs:
     description: Release version written to the manifest
     required: true
   profile:
-    description: Sidecar profile, full for ffmpeg
+    description: Sidecar profile, minimal for ffmpeg
     required: false
     default: ''
   key:
@@ -60,7 +60,7 @@ runs:
         fi
         node .github/scripts/sidecar-manifest.mjs write "$out/$bin" "$out/manifest.json" "$NAME" "$TARGET" "$VERSION" "$PROFILE"
         read -r -a push_files <<< "$FILES"
-        bash .github/scripts/ghcr-push.sh "ghcr.io/jefoce/unplatform-ai-sidecars:$KEY" "$out" "${push_files[@]}"
+        bash .github/scripts/ghcr-push.sh "ghcr.io/${{ github.repository_owner }}/unplatform-ai-sidecars:$KEY" "$out" "${push_files[@]}"
     # tar keeps the executable bit that upload-artifact drops.
     - name: Pack sidecar
       shell: bash

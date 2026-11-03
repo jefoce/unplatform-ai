@@ -2,10 +2,10 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import type { PixelSize } from '@/core/geometry'
-import { outputSize } from '@/core/output-size'
-import { MODEL_PRESETS } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
+import type { PixelSize } from '@/core/media/geometry'
+import { outputSize } from '@/core/media/output-size'
+import { VIDEO_PRESETS } from '@/core/presets'
+import { primaryBinding } from '@/core/presets/common/bindings'
 
 interface MockDimensionsParams {
   model: unknown
@@ -19,10 +19,10 @@ export function mockDimensions(params: MockDimensionsParams): PixelSize {
   const { model, presetId, resolution, aspect } = params
 
   const preset =
-    MODEL_PRESETS.find((item) => {
+    VIDEO_PRESETS.find((item) => {
       return primaryBinding(item).modelId === model
     }) ??
-    MODEL_PRESETS.find((item) => {
+    VIDEO_PRESETS.find((item) => {
       return item.id === presetId
     })
 

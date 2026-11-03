@@ -56,6 +56,10 @@ jobs:
         env:
           TAG_INPUT: ${{ inputs.tag }}
         run: bash .github/scripts/release-version.sh >> "$GITHUB_OUTPUT"
+      - name: Require the canonical release repository
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: bash .github/scripts/release-repository.sh
 
   draft:
     needs: version
@@ -112,7 +116,7 @@ jobs:
           name: ffmpeg
           target: ${{ matrix.target }}
           runner: ${{ matrix.runner }}
-          profile: full
+          profile: minimal
           force: ${{ inputs.force_rebuild_sidecars }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull ffmpeg sources from GHCR
@@ -129,13 +133,13 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          found=$(bash .github/scripts/ghcr-pull.sh "ghcr.io/jefoce/unplatform-ai-sources:$tag" ghcr-sources '*.tar.*')
+          found=$(bash .github/scripts/ghcr-pull.sh "ghcr.io/${{ github.repository_owner }}/unplatform-ai-sources:$tag" ghcr-sources '*.tar.*')
           echo "found=$found" >> "$GITHUB_OUTPUT"
           if [[ "$found" == "true" ]]; then
             source scripts/ffmpeg/versions.env
             mkdir -p ffmpeg-sources
             cp ghcr-sources/*.tar.* ffmpeg-sources/
-            src="$HOME/.cache/unplatform-ai-build/ffmpeg/work/$FFMPEG_VERSION-full-$TARGET/src"
+            src="$HOME/.cache/unplatform-ai-build/ffmpeg/work/$FFMPEG_VERSION-minimal-$TARGET/src"
             mkdir -p "$src"
             cp ghcr-sources/*.tar.* "$src"/
           fi
@@ -193,7 +197,7 @@ jobs:
           name: ffmpeg
           target: ${{ matrix.target }}
           version: ${{ needs.version.outputs.version }}
-          profile: full
+          profile: minimal
           key: ${{ steps.restore.outputs.key }}
           force: ${{ inputs.force_rebuild_sidecars }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -205,7 +209,7 @@ jobs:
           FORCE: ${{ inputs.force_rebuild_sidecars }}
         run: |
           tag=$(bash .github/scripts/ffmpeg-sources-tag.sh)
-          ref="ghcr.io/jefoce/unplatform-ai-sources:$tag"
+          ref="ghcr.io/${{ github.repository_owner }}/unplatform-ai-sources:$tag"
           archives=(ffmpeg-sources/*.tar.*)
           node .github/scripts/sources-manifest.mjs ffmpeg-sources "$tag"
           bash .github/scripts/ghcr-push.sh "$ref" ffmpeg-sources "${archives[@]##*/}" ffmpeg-sources-manifest.json
@@ -386,7 +390,7 @@ jobs:
           sudo apt-get remove -y 'libunwind-*-dev' || true
           apt-cache policy libunwind-dev
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
-            gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+            gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav zstd
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - name: Download ffmpeg sidecar
@@ -434,15 +438,15 @@ jobs:
           set -euo pipefail
           runners=$(bash .github/scripts/target-runners.sh "$TARGET")
           read -r ff_runner node_runner <<< "$runners"
-          ff_key=$(bash .github/scripts/sidecar-key.sh ffmpeg "$TARGET" "$ff_runner" full)
+          ff_key=$(bash .github/scripts/sidecar-key.sh ffmpeg "$TARGET" "$ff_runner" minimal)
           node_key=$(bash .github/scripts/sidecar-key.sh node "$TARGET" "$node_runner")
           if [[ ! -f ffmpeg-out/buildconf.txt ]]; then
             "ffmpeg-out/ffmpeg-$TARGET$EXE" -hide_banner -buildconf | tr -d '\r' > ffmpeg-out/buildconf.txt
           fi
-          node .github/scripts/sidecar-manifest.mjs write "ffmpeg-out/ffmpeg-$TARGET$EXE" ffmpeg-out/manifest.json ffmpeg "$TARGET" "$VERSION" full
+          node .github/scripts/sidecar-manifest.mjs write "ffmpeg-out/ffmpeg-$TARGET$EXE" ffmpeg-out/manifest.json ffmpeg "$TARGET" "$VERSION" minimal
           node .github/scripts/sidecar-manifest.mjs write "node-out/unplatform-ai-server-$TARGET$EXE" node-out/manifest.json node "$TARGET" "$VERSION"
-          bash .github/scripts/ghcr-push.sh "ghcr.io/jefoce/unplatform-ai-sidecars:$ff_key" ffmpeg-out "ffmpeg-$TARGET$EXE" buildconf.txt manifest.json
-          bash .github/scripts/ghcr-push.sh "ghcr.io/jefoce/unplatform-ai-sidecars:$node_key" node-out "unplatform-ai-server-$TARGET$EXE" manifest.json
+          bash .github/scripts/ghcr-push.sh "ghcr.io/${{ github.repository_owner }}/unplatform-ai-sidecars:$ff_key" ffmpeg-out "ffmpeg-$TARGET$EXE" buildconf.txt manifest.json
+          bash .github/scripts/ghcr-push.sh "ghcr.io/${{ github.repository_owner }}/unplatform-ai-sidecars:$node_key" node-out "unplatform-ai-server-$TARGET$EXE" manifest.json
       - name: Download reused ffmpeg sources
         if: matrix.target == 'x86_64-unknown-linux-gnu' && (inputs.reuse_sidecars_run_id || vars.SIDECARS_RUN_ID) != ''
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -457,7 +461,7 @@ jobs:
         run: |
           set -euo pipefail
           tag=$(bash .github/scripts/ffmpeg-sources-tag.sh)
-          ref="ghcr.io/jefoce/unplatform-ai-sources:$tag"
+          ref="ghcr.io/${{ github.repository_owner }}/unplatform-ai-sources:$tag"
           archives=(reuse-sources/*.tar.*)
           node .github/scripts/sources-manifest.mjs reuse-sources "$tag"
           bash .github/scripts/ghcr-push.sh "$ref" reuse-sources "${archives[@]##*/}" ffmpeg-sources-manifest.json
@@ -465,10 +469,19 @@ jobs:
         if: needs.node.result == 'skipped' && (inputs.reuse_sidecars_run_id || vars.SIDECARS_RUN_ID) == ''
         shell: bash
         run: echo "ALLOW_OFFICIAL_NODE=1" >> "$GITHUB_ENV"
+      - name: Install zstd
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install zstd
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            choco install zstd --no-progress -y
+          fi
       - name: Stage server
         run: pnpm desktop:prepare
         env:
           TAURI_ENV_TARGET_TRIPLE: ${{ matrix.target }}
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Smoke test packaged server
         env:
           TARGET: ${{ matrix.target }}
@@ -481,6 +494,24 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target "$TARGET" --config src-tauri/tauri.release.conf.json
+      - name: Compress downloads
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: node scripts/compress-downloads.mjs --target "$TARGET"
+      - name: Size report
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: node scripts/size-report.mjs --target "$TARGET" --check --out size-report.txt
+      - name: Upload size report
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: size-report-${{ matrix.target }}
+          path: size-report.txt
       - name: Verify macOS signature
         if: runner.os == 'macOS'
         shell: bash
@@ -564,7 +595,7 @@ jobs:
         shell: bash
         run: |
           tag=$(bash .github/scripts/ffmpeg-sources-tag.sh)
-          found=$(bash .github/scripts/ghcr-pull.sh "ghcr.io/jefoce/unplatform-ai-sources:$tag" sources '*.tar.*')
+          found=$(bash .github/scripts/ghcr-pull.sh "ghcr.io/${{ github.repository_owner }}/unplatform-ai-sources:$tag" sources '*.tar.*')
           rm -f sources/manifest.json sources/ffmpeg-sources-manifest.json
           echo "found=$found" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0

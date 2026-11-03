@@ -1,4 +1,4 @@
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 import type { FolderItem } from '@/core/schemas/folder-item'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import type { SystemCapabilities } from '@/core/types'
@@ -15,4 +15,9 @@ export function chooseFiles(kinds: MediaKind[], isMultiple: boolean): Promise<Up
 
 export function chooseFolder(): Promise<FolderItem | null> {
   return apiPost<FolderItem | null>('/api/system/choose-folder', {})
+}
+
+/** Exchanges a session token for the browser cookie. */
+export function startSession(token: string): Promise<void> {
+  return apiPost<void>('/api/session', { token })
 }

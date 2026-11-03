@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { MODEL_PRESETS } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import { skuKey } from '@/core/pricing'
-import type { Dict } from '@/core/utility-types'
-
+import { VIDEO_PRESETS } from '../src/core/presets'
+import { primaryBinding } from '../src/core/presets/common/bindings'
+import { skuKey } from '../src/core/pricing/sku'
+import type { Dict } from '../src/core/utility-types'
 import { required } from './helpers/required'
 
 /** Keys recorded from the per-preset key functions before the SKU rules replaced them. */
@@ -76,7 +75,7 @@ const COMBINATIONS = [
 
 describe('skuKey', () => {
   it('returns the recorded key for every preset combination', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       const expected = required(EXPECTED[preset.id], preset.id)
 
       for (const resolution of preset.resolutions) {

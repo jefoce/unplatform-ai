@@ -1,7 +1,7 @@
 import { isNil } from 'lodash-es'
 import { vi } from 'vitest'
 
-import type { SecretName } from '@/core/secret-names'
+import type { SecretName } from '../../src/core/secret-names'
 
 export interface Backend {
   kind: 'file'

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { INTERRUPT_SENDING_TEXT } from '@/core/provider-errors/app'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { ProviderError, type ProviderErrorKind } from '@/server/providers/provider-error'
+
+import { INTERRUPT_SENDING_TEXT } from '../src/core/provider-errors/app'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
 
 const control = vi.hoisted(() => {
   return { current: null as GenerationRecord | null }

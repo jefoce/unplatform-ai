@@ -25,7 +25,13 @@ export function MediaPicker() {
       open={!isNil(request)}
       onOpenChange={handleOpenChange}
       anchor={request?.anchor ?? pickerAnchor('generator')}
+      extraAnchors={[
+        pickerAnchor('references'),
+        pickerAnchor('frames'),
+        pickerAnchor('image-prompt'),
+      ]}
       fallback="modal"
+      placement={request?.placement}
       label="Choose media"
     >
       {!isNil(request) && <PickerBody key={request.id} request={request} />}

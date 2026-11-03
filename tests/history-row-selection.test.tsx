@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HistoryRow } from '@/features/history/list/HistoryRow'
 import { useSelectionStore } from '@/features/history/selection/selection-store'
 
-import { ids, Observer, record, setOrder, setSelection } from './helpers/history'
+import { ids, item, itemOf, Observer, record, setOrder, setSelection } from './helpers/history'
 import { required } from './helpers/required'
 
 const play = vi.fn()
@@ -51,10 +51,18 @@ afterEach(() => {
 })
 
 describe('history row selection', () => {
+  it('sizes row media statuses from the media box', () => {
+    setOrder(['a'])
+
+    const { container } = render(<HistoryRow item={item('a')} />)
+
+    expect(container.querySelector('[class~="@container"]')).not.toBeNull()
+  })
+
   it('selects and unselects a row with two clicks while selecting', () => {
     setOrder(['a', 'b'])
     setSelection(['b'])
-    const { container } = render(<HistoryRow record={record('a')} />)
+    const { container } = render(<HistoryRow item={item('a')} />)
 
     clickPoster(container)
     expect(ids()).toEqual(['b', 'a'])
@@ -66,12 +74,35 @@ describe('history row selection', () => {
   it('unselects a selected row from its media without playing the video', () => {
     setOrder(['a'])
     setSelection(['a'])
-    const { container } = render(<HistoryRow record={record('a')} />)
+    const { container } = render(<HistoryRow item={item('a')} />)
 
     clickPoster(container)
 
     expect(ids()).toEqual([])
     expect(play).not.toHaveBeenCalled()
+  })
+
+  it('shows no player on list rows while selecting', () => {
+    const records = ['a', 'b'].map((id) => {
+      return record(id)
+    })
+
+    setOrder(
+      records.map((item) => {
+        return item.id
+      }),
+    )
+
+    setSelection(['b'])
+
+    render(
+      <div>
+        <HistoryRow item={itemOf(required(records[0], 'first record'))} />
+        <HistoryRow item={itemOf(required(records[1], 'second record'))} />
+      </div>,
+    )
+
+    expect(screen.queryAllByRole('button', { name: 'Play video' })).toHaveLength(0)
   })
 
   it('keeps the shift range from the last plain click', () => {
@@ -81,7 +112,7 @@ describe('history row selection', () => {
       useSelectionStore.getState().toggle('b')
     })
 
-    const { container } = render(<HistoryRow record={record('d')} />)
+    const { container } = render(<HistoryRow item={item('d')} />)
 
     clickPoster(container, true)
 

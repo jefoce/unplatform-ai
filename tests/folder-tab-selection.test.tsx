@@ -3,11 +3,12 @@ import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { folderTargetPath } from '@/core/folder-match'
-import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import type { UploadsById } from '@/core/api/uploads'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import { FolderTab } from '@/features/media-picker/folders/FolderTab'
 import type { PickerMode } from '@/features/media-picker/picker/store'
 
+import { folderTargetPath } from '../src/core/folder-match'
 import { upload, uploadsOf } from './helpers/validation-fixtures'
 
 const mocks = vi.hoisted(() => {
@@ -45,6 +46,7 @@ vi.mock('@/lib/notify', () => {
   }
 })
 
+// Revalidation is irrelevant: the picker only needs the initial list data.
 vi.mock('swr', () => {
   return {
     default: () => {
@@ -125,6 +127,11 @@ function ToggleHarness(props: ToggleHarnessProps) {
   const mode: PickerMode = {
     kind: 'toggle',
     useSelectedIds: () => {
+      return selected.map((item) => {
+        return item.id
+      })
+    },
+    getSelectedIds: () => {
       return selected.map((item) => {
         return item.id
       })

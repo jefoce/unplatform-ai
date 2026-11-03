@@ -2,17 +2,17 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
+import type { UploadsById } from '@/core/api/uploads'
 import { MAX_REQUEST_MB } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
-import { getPreset } from '@/core/presets'
+import { findPreset } from '@/core/presets'
 import { INTERRUPT_SENDING_TEXT } from '@/core/provider-errors/app'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
-import type { UploadsById } from '@/core/schemas/upload-item'
 import { graceDelayMs, inputIds, transportsFor, withTransports } from '@/core/submit-state'
 import type { ResolvedTransport } from '@/core/transport'
 import type { Dict } from '@/core/utility-types'
 
-import { ProviderError } from '../providers/provider-error'
+import { ProviderError, providerStatusOf } from '../providers/provider-error'
 import type { SubmittedJob } from '../providers/types'
 import { getGeneration, saveGeneration } from '../repos/generations'
 import { secretsReady } from '../secrets'
@@ -21,7 +21,8 @@ import { getObjectStore } from '../storage/registry'
 import { withLock } from '../sync/lock'
 import { emitJobSent } from './job-events'
 import { buildMedia, recordSent, send, uploadUrls } from './submit-media'
-import { setSubmitStage, type SubmitOutcome } from './submit-queue'
+import { setSubmitStage } from './submit-queue'
+import type { SubmitOutcome } from './submit-queue-factory'
 import { throwIfStopped, updateSubmit } from './submit-record'
 
 const LIMIT_BYTES = MAX_REQUEST_MB * 1024 * 1024
@@ -45,15 +46,15 @@ export async function runSubmit(id: string, signal?: AbortSignal): Promise<Submi
     return 'requeue'
   }
 
-  const prepared = await beginUpload(id)
-
-  if (!prepared) {
-    return 'done'
-  }
-
-  setSubmitStage(id, 'uploading')
-
   try {
+    const prepared = await beginUpload(id)
+
+    if (!prepared) {
+      return 'done'
+    }
+
+    setSubmitStage(id, 'uploading')
+
     await uploadAndSend(prepared, signal)
   } catch (error) {
     await fail(id, error)
@@ -72,8 +73,13 @@ async function beginUpload(id: string): Promise<Prepared | null> {
       return null
     }
 
+    const preset = findPreset(record.input.presetId)
+
+    if (!preset) {
+      throw new Error('Unknown model')
+    }
+
     const uploads = await loadUploads(record.input)
-    const preset = getPreset(record.input.presetId)
 
     const transports = transportsFor({
       uploads,
@@ -81,11 +87,16 @@ async function beginUpload(id: string): Promise<Prepared | null> {
       remoteConfigured: !isNil(getObjectStore()),
     })
 
-    const saved = await saveGeneration({
-      ...record,
-      inputsSnapshot: withTransports(record.inputsSnapshot, transports),
-      submit: { stage: 'uploading', progress: 0 },
-    })
+    const hasUploads = inputIds(record.input).length > 0
+    let saved = record
+
+    if (hasUploads) {
+      saved = await saveGeneration({
+        ...record,
+        inputsSnapshot: withTransports(record.inputsSnapshot, transports),
+        submit: { stage: 'uploading', progress: 0 },
+      })
+    }
 
     return { record: saved, uploads, transports }
   })
@@ -112,7 +123,11 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
     throw new Error(`File missing: ${gone.originalName}`)
   }
 
-  const preset = getPreset(record.input.presetId)
+  const preset = findPreset(record.input.presetId)
+
+  if (!preset) {
+    throw new Error('Unknown model')
+  }
 
   await uploadUrls({ id: record.id, uploads, transports, signal })
   throwIfStopped(signal)
@@ -129,24 +144,19 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
   throwIfStopped(signal)
   // Mark the stage before the save so shutdown waits for the send that follows it.
   setSubmitStage(record.id, 'sending')
+  const restoreStage = record.submit?.stage === 'uploading' ? 'uploading' : null
   let marked: GenerationRecord | null
 
   try {
-    marked = await updateSubmit(record.id, (current) => {
-      if (current.submit?.stage !== 'uploading') {
-        return null
-      }
-
-      return { ...current, submit: { ...current.submit, stage: 'sending' } }
-    })
+    marked = await markSending(record.id)
   } catch (error) {
-    setSubmitStage(record.id, 'uploading')
+    setSubmitStage(record.id, restoreStage)
 
     throw error
   }
 
   if (!marked) {
-    setSubmitStage(record.id, 'uploading')
+    setSubmitStage(record.id, restoreStage)
 
     return
   }
@@ -157,6 +167,19 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
   if (saved) {
     emitJobSent(record.id)
   }
+}
+
+/** Records the send, accepting a record that skipped the upload stage. */
+async function markSending(id: string): Promise<GenerationRecord | null> {
+  return updateSubmit(id, (current) => {
+    const stage = current.submit?.stage
+
+    if (stage !== 'uploading' && stage !== 'grace') {
+      return null
+    }
+
+    return { ...current, submit: { ...current.submit, stage: 'sending' } }
+  })
 }
 
 async function complete(id: string, response: SubmittedJob): Promise<GenerationRecord | null> {
@@ -180,7 +203,13 @@ async function fail(id: string, error: unknown): Promise<void> {
       return null
     }
 
-    return { ...record, status: 'failed', error: failText(record, error), submit: undefined }
+    return {
+      ...record,
+      status: 'failed',
+      error: failText(record, error),
+      errorStatus: providerStatusOf(error),
+      submit: undefined,
+    }
   })
 }
 

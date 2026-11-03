@@ -3,8 +3,8 @@
 import { isEmpty } from 'lodash-es'
 import { FolderOpen } from 'lucide-react'
 
-import type { KindExtensions } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import type { KindExtensions } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { toastError } from '@/lib/notify'
 import { getPlatform } from '@/lib/platform'

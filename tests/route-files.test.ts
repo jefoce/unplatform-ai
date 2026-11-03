@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import type { UploadItem } from '@/core/schemas/upload-item'
 import { addBlockReason, referenceRoom } from '@/features/generator/reference-rules'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { routeFiles, routeUploads } from '@/features/media-input/route-files'
@@ -15,6 +13,8 @@ import {
 } from '@/features/media-picker/picker/store'
 import { uploadFiles } from '@/lib/api/uploads'
 
+import { getPreset } from '../src/core/presets'
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { upload, uploadsOf } from './helpers/validation-fixtures'
 
 const toast = vi.hoisted(() => {
@@ -62,6 +62,9 @@ function toggleMode(params: ToggleModeParams): PickerToggleMode {
   return {
     kind: 'toggle',
     useSelectedIds: () => {
+      return useGeneratorStore.getState().references
+    },
+    getSelectedIds: () => {
       return useGeneratorStore.getState().references
     },
     useUploadsById: () => {

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 let dir = ''
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-ffmpeg-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-ffmpeg-'))
 })
 
 afterEach(async () => {

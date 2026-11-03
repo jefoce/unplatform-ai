@@ -1,6 +1,7 @@
 import { isNil } from 'lodash-es'
 
-import type { UploadItem, UploadsById } from './schemas/upload-item'
+import type { UploadsById } from './api/uploads'
+import type { UploadItem } from './schemas/upload-item'
 
 export interface FolderTarget {
   folderPath: string
@@ -45,9 +46,4 @@ export function folderFileUpload(params: FolderFileUploadParams): UploadItem | n
   }
 
   return null
-}
-
-/** True when a selected upload points at the folder file. */
-export function isFolderFileAttached(params: FolderFileUploadParams): boolean {
-  return !isNil(folderFileUpload(params))
 }

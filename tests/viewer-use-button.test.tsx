@@ -3,11 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import type { UploadItem } from '@/core/schemas/upload-item'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { DetailsPanel } from '@/features/history/details/DetailsPanel'
-import { useHistoryViewerStore } from '@/features/history/list/history-viewer-store'
 import { HistoryModal } from '@/features/history/list/HistoryModal'
 import { MediaPreviewModal } from '@/features/preview/MediaPreviewModal'
 import {
@@ -16,9 +13,12 @@ import {
   type PreviewItem,
   usePreviewStore,
 } from '@/features/preview/preview-store'
+import { useHistoryViewerStore } from '@/features/shared/history-viewer-store'
 import { ViewerUseButton } from '@/features/viewers/ViewerUseButton'
 
-import { Observer, record, releaseAllSlots } from './helpers/history'
+import type { UploadItem } from '../src/core/schemas/upload-item'
+import { type HistoryItem, isVideoItem } from '../src/lib/feed/output-items'
+import { itemOf, Observer, record, releaseAllSlots } from './helpers/history'
 import { required } from './helpers/required'
 import { upload } from './helpers/validation-fixtures'
 
@@ -82,8 +82,12 @@ vi.mock('@/lib/api/generations', async (importOriginal) => {
 const selectedRecord = record('history-record')
 const image = upload('upload-image', 'image')
 
-function renderHistoryToolbar(item: GenerationRecord): ReactNode {
-  return <ViewerUseButton target={{ kind: 'record', record: item }} />
+function renderHistoryToolbar(item: HistoryItem): ReactNode {
+  if (!isVideoItem(item)) {
+    return null
+  }
+
+  return <ViewerUseButton target={{ kind: 'record', record: item.source }} />
 }
 
 function renderPreviewToolbar(item: PreviewItem): ReactNode {
@@ -93,7 +97,7 @@ function renderPreviewToolbar(item: PreviewItem): ReactNode {
 function historyModal() {
   return (
     <HistoryModal
-      record={selectedRecord}
+      item={itemOf(selectedRecord)}
       viewOrder={[selectedRecord.id]}
       hasMore={false}
       isLoadingMore={false}
@@ -256,7 +260,7 @@ describe('ViewerUseButton in the viewers', () => {
   })
 
   it('shows no Reference button in the list-view details panel', () => {
-    render(<DetailsPanel record={selectedRecord} />)
+    render(<DetailsPanel item={itemOf(selectedRecord)} />)
 
     expect(screen.queryByRole('button', { name: 'Reference' })).toBeNull()
   })

@@ -16,9 +16,11 @@ import {
 } from 'lexical-beautiful-mentions'
 import { isNil } from 'lodash-es'
 
-import { kindFromTitle } from '@/core/media-kinds'
-import { MEDIA_KINDS, type MediaKind, type MediaKindCounts } from '@/core/media-types'
+import type { UploadsById } from '@/core/api/uploads'
+import { kindFromTitle } from '@/core/media/media-kinds'
+import { MEDIA_KINDS, type MediaKind, type MediaKindCounts } from '@/core/media/media-types'
 import {
+  normalizeMentionText,
   parsePromptParts,
   type PromptPart,
   type RefSlot,
@@ -28,11 +30,19 @@ import {
 import type { Dict } from '@/core/utility-types'
 import { thumbUrl } from '@/lib/api/media-urls'
 
-import { useGeneratorStore } from '../store/store'
 import { slotCounts, uploadForSlot } from '../store/store-helpers'
-import type { GeneratorState } from '../store/store-state'
 
 const LABEL = /^(Image|Video|Audio) (\d+)$/
+
+/** Mentions resolve against this source, never against the video store. */
+export interface PromptMentions {
+  references: string[]
+  uploadsById: UploadsById
+}
+
+export type PromptMentionInserter = (slot: RefSlot) => void
+
+export type PromptSlotFocuser = (slot: RefSlot, occurrence: number) => void
 
 function slotFromData(data?: Dict<BeautifulMentionsItemData>): RefSlot | null {
   const kind = MEDIA_KINDS.find((item) => {
@@ -67,7 +77,7 @@ function serializeNode(node: LexicalNode): string {
   }
 
   if ($isTextNode(node)) {
-    return node.getTextContent()
+    return normalizeMentionText(node.getTextContent())
   }
 
   if ($isLineBreakNode(node)) {
@@ -102,16 +112,14 @@ interface MentionItemGroups {
 }
 
 /** One typeahead row per current slot, with its live thumb. */
-export function mentionItems(
-  state: Pick<GeneratorState, 'references' | 'uploadsById'>,
-): MentionItemGroups {
-  const counts = slotCounts(state)
+export function mentionItems(mentions: PromptMentions): MentionItemGroups {
+  const counts = slotCounts(mentions)
   const items: MentionItem[] = []
 
   for (const kind of MEDIA_KINDS) {
     for (let n = 1; n <= counts[kind]; n += 1) {
       const slot = { kind, n }
-      const upload = uploadForSlot(state, slot)
+      const upload = uploadForSlot(mentions, slot)
       let thumb: string | null = null
 
       if (!isNil(upload) && kind !== 'audio') {
@@ -159,15 +167,21 @@ function $partsToNodes(parts: readonly PromptPart[]): LexicalNode[] {
   return nodes
 }
 
+interface BuildEditorParams {
+  prompt: string
+  isReferences: boolean
+  counts: MediaKindCounts
+}
+
 /** Fills the editor from the stored prompt, converting slots on References. */
-export function buildEditor(prompt: string): void {
-  const state = useGeneratorStore.getState()
+export function buildEditor(params: BuildEditorParams): void {
+  const { prompt, isReferences, counts } = params
   let parts: PromptPart[]
 
-  if (state.tab === 'references') {
-    parts = parsePromptParts(prompt, slotCounts(state))
+  if (isReferences) {
+    parts = parsePromptParts(prompt, counts)
   } else {
-    parts = [{ type: 'text', text: prompt }]
+    parts = [{ type: 'text', text: normalizeMentionText(prompt) }]
   }
 
   const root = $getRoot()
@@ -183,8 +197,8 @@ export function buildEditor(prompt: string): void {
 }
 
 /** Converts literal slot labels in text nodes to mention chips. */
-export function $convertLiteralMentions(counts: MediaKindCounts): void {
-  if (useGeneratorStore.getState().tab !== 'references') {
+export function $convertLiteralMentions(counts: MediaKindCounts, isReferences: boolean): void {
+  if (!isReferences) {
     return
   }
 

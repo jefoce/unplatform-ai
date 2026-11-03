@@ -1,107 +1,156 @@
 'use client'
 
-import { GRID_TILE_ASPECT } from '@/core/constants'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { LazyVideo } from '@/features/player/LazyVideo'
+import type { CSSProperties } from 'react'
 
-import { CardActions } from '../actions/CardActions'
-import { FavoriteBadge } from '../actions/FavoriteBadge'
-import { cancelGeneration } from '../actions/record-actions'
-import { isSelectable, posterSrc, videoSrc } from '../actions/record-view'
+import { GRID_TILE_ASPECT } from '@/core/constants'
+import { cn } from '@/lib/cn'
+import {
+  type HistoryItem,
+  imageThumbForWidth,
+  isVideoItem,
+  posterForWidth,
+  selectionLabel,
+} from '@/lib/feed/output-items'
+
 import { SelectionCheckbox } from '../selection/SelectionCheckbox'
 import { useSelectionItem } from '../selection/use-selection-item'
-import { StatusOverlay } from '../status/StatusOverlay'
-import { CardVignette } from './CardVignette'
+import { canOpenItem } from './can-open'
+import { HistoryTileChrome } from './HistoryTileChrome'
+import { ImageTileMedia } from './ImageTileMedia'
+import { TILE_RADIUS } from './tile-radius'
 import { useTileActivation } from './use-tile-activation'
-import { useHistoryViewStore, zoomToGridColumns, zoomToTileWidth } from './view-store'
+import { VideoTileMedia } from './VideoTileMedia'
+import { zoomToTileWidth } from './view-store'
+
+type TileVariant = 'grid' | 'masonry'
 
 interface HistoryTileProps {
-  record: GenerationRecord
-  onOpen: (record: GenerationRecord) => void
+  item: HistoryItem
+  zoom: number
+  onOpen: (item: HistoryItem) => void
+  variant?: TileVariant
 }
 
-/** Grid tile: hover plays a muted loop, actions replace the liked badge. */
+const BASE_CLASSES =
+  'group/card @container relative overflow-hidden bg-surface outline-none select-none'
+
+const SIZE_CLASSES = {
+  grid: '',
+  masonry: 'size-full',
+} satisfies Record<TileVariant, string>
+
+const tileCursorClass = (isCompleted: boolean, isSelecting: boolean): string => {
+  if (isCompleted || isSelecting) {
+    return 'cursor-pointer'
+  }
+
+  return 'cursor-default'
+}
+
+const tileLabel = (isVideo: boolean, isSelecting: boolean): string => {
+  if (isSelecting) {
+    return 'Toggle selection'
+  }
+
+  if (isVideo) {
+    return 'Open video details'
+  }
+
+  return 'Open image details'
+}
+
+interface TilePosterParams {
+  item: HistoryItem
+  tileWidth: number
+  devicePixelRatio: number
+}
+
+const tilePoster = (params: TilePosterParams): string => {
+  const { item, tileWidth, devicePixelRatio } = params
+
+  if (!isVideoItem(item)) {
+    return imageThumbForWidth({ item, mediaWidth: tileWidth, devicePixelRatio })
+  }
+
+  return posterForWidth({ record: item.source, mediaWidth: tileWidth, devicePixelRatio }) ?? ''
+}
+
+const gridTileStyle = (tileWidth: number): CSSProperties => {
+  return {
+    aspectRatio: GRID_TILE_ASPECT,
+    contentVisibility: 'auto',
+    containIntrinsicSize: `auto ${tileWidth}px`,
+  }
+}
+
+/** Grid tile: images use one item per output, video keeps one per record. */
 export function HistoryTile(props: HistoryTileProps) {
-  const { record } = props
-  const isCompleted = record.status === 'completed'
+  const { item, variant = 'grid' } = props
+  const isVideo = isVideoItem(item)
+  const isCompleted = item.status === 'completed'
+  const isMasonry = variant === 'masonry'
+  const { zoom } = props
 
-  const zoom = useHistoryViewStore((state) => {
-    return state.zoom
-  })
-
+  const radius = TILE_RADIUS[variant][item.recordKind]
   const tileWidth = zoomToTileWidth(zoom)
-  const isCompact = zoomToGridColumns(zoom) >= 7 // dense rows shrink the status pill
-  const deviceDpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio
-  const dpr = Math.max(deviceDpr, 1)
-  const poster = posterSrc(record, Math.ceil((tileWidth * dpr) / 80) * 80)
-  const { selected: isSelected, selecting: isSelecting, select } = useSelectionItem(record.id)
-  const canSelect = isSelectable(record)
+  const devicePixelRatio = typeof window === 'undefined' ? 1 : window.devicePixelRatio
+  const poster = tilePoster({ item, tileWidth, devicePixelRatio })
+
+  const { selected: isSelected, selecting: isSelecting, select } = useSelectionItem(item.id)
+  const isDisabled = !item.canSelect && !canOpenItem(item)
 
   const { handleClick, handleKeyDown } = useTileActivation({
-    record,
+    item,
     isSelecting,
-    canSelect,
+    canSelect: item.canSelect,
+    isDisabled,
     select,
     onOpen: props.onOpen,
   })
 
-  const handleCancel = () => {
-    return void cancelGeneration(record.id)
-  }
+  const selectLabel = tileLabel(isVideo, isSelecting)
+  const cursorClass = tileCursorClass(isCompleted, isSelecting)
+  const tabIndex = isDisabled ? -1 : 0
 
-  const selectLabel = isSelecting ? 'Toggle selection' : 'Open video details'
+  let tileStyle: CSSProperties | undefined
+
+  if (!isMasonry) {
+    tileStyle = gridTileStyle(tileWidth)
+  }
 
   return (
     <div
       role="button"
-      tabIndex={0}
+      tabIndex={tabIndex}
+      aria-disabled={isDisabled}
       aria-label={selectLabel}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className="group/card relative cursor-pointer overflow-hidden rounded-2xl bg-surface outline-none select-none"
-      style={{
-        aspectRatio: GRID_TILE_ASPECT,
-        contentVisibility: 'auto',
-        containIntrinsicSize: `auto ${tileWidth}px`,
-      }}
+      className={cn(BASE_CLASSES, cursorClass, radius, SIZE_CLASSES[variant])}
+      style={tileStyle}
     >
-      {isCompleted && <SelectionCheckbox id={record.id} />}
+      {item.canSelect && <SelectionCheckbox id={item.id} label={selectionLabel(item)} />}
 
-      {isCompleted && (
-        <LazyVideo
-          id={record.id}
-          src={videoSrc(record)}
+      {isVideo && (
+        <VideoTileMedia
+          item={item}
           poster={poster}
-          posterFit="cover"
-          videoFit="cover"
-          hoverPlay
-          className="size-full"
+          isCompleted={isCompleted}
+          isMasonry={isMasonry}
+          radius={radius}
         />
       )}
-      {!isCompleted && (
-        <div className="size-full">
-          <StatusOverlay
-            record={record}
-            boxAspect={GRID_TILE_ASPECT}
-            compact={isCompact}
-            onCancel={handleCancel}
-          />
-        </div>
+      {!isVideo && (
+        <ImageTileMedia item={item} thumbSrc={poster} isCompleted={isCompleted} radius={radius} />
       )}
+
+      <HistoryTileChrome item={item} isCompleted={isCompleted} isSelecting={isSelecting} />
 
       {isSelected && (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 z-20 rounded-[inherit] border-2 border-white"
+          className={cn('pointer-events-none absolute inset-0 z-20 border-2 border-white', radius)}
         />
-      )}
-
-      {isCompleted && !isSelecting && (
-        <>
-          <CardVignette scope="card" />
-          {record.favorite && <FavoriteBadge record={record} />}
-          <CardActions record={record} className="top-3 z-20" />
-        </>
       )}
     </div>
   )

@@ -6,11 +6,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { queueDownload as QueueDownload } from '@/server/jobs/download-queue'
 import type { ContentRequest, JobSnapshot } from '@/server/providers/types'
-import type { getGeneration as GetGeneration } from '@/server/repos/generations'
+import type {
+  getGeneration as GetGeneration,
+  saveGeneration as SaveGeneration,
+} from '@/server/repos/generations'
 
 import { storedRecord } from './helpers/stored-record'
 
-const root = path.join(os.tmpdir(), `upai-provider-job-id-${process.pid}-${Date.now()}`)
+const root = path.join(os.tmpdir(), `cf-provider-job-id-${process.pid}-${Date.now()}`)
 
 process.env.STORAGE_ROOT = root
 
@@ -22,6 +25,17 @@ vi.mock('@/server/providers/registry', () => {
   return {
     getVideoProvider: () => {
       return { fetchContent }
+    },
+  }
+})
+
+vi.mock('@/server/media/ffmpeg', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@/server/media/ffmpeg')
+
+  return {
+    ...actual,
+    probeMedia: async () => {
+      return { durationSec: 1, width: 640, height: 360 }
     },
   }
 })
@@ -40,13 +54,14 @@ const JOB: JobSnapshot = {
 
 let queueDownload: typeof QueueDownload
 let getGeneration: typeof GetGeneration
+let saveGeneration: typeof SaveGeneration
 
 beforeAll(async () => {
   await fs.mkdir(root, { recursive: true })
 
   ;({ queueDownload } = await import('@/server/jobs/download-queue'))
 
-  ;({ getGeneration } = await import('@/server/repos/generations'))
+  ;({ getGeneration, saveGeneration } = await import('@/server/repos/generations'))
 })
 
 afterAll(async () => {
@@ -57,12 +72,12 @@ describe('download content', () => {
   it('fetches with the provider job id when urls is empty', async () => {
     fetchContent.mockResolvedValue(new Response(new Uint8Array([0, 0, 0, 0])))
 
-    await queueDownload(
-      storedRecord(ID, {
-        job: { id: PROVIDER_JOB_ID, submittedAt: '2026-01-01T00:00:00.000Z' },
-      }),
-      JOB,
-    )
+    const record = storedRecord(ID, {
+      job: { id: PROVIDER_JOB_ID, submittedAt: '2026-01-01T00:00:00.000Z' },
+    })
+
+    await saveGeneration(record)
+    await queueDownload(record, JOB)
 
     await vi.waitFor(
       async () => {

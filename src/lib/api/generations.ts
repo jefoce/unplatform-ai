@@ -1,20 +1,21 @@
 import { isNil } from 'lodash-es'
 
-import { HISTORY_PAGE_SIZE } from '@/core/constants'
-import { isNonEmptyString } from '@/core/guards'
-import { FILTER_PARAMS } from '@/core/history-filters'
-import type { ReferencePlan } from '@/core/media-types'
-import type { GenerationInput, GenerationRecord } from '@/core/schemas/generation-record'
-import type { UploadItem } from '@/core/schemas/upload-item'
+import type { ExportResult } from '@/core/api/export'
 import type {
-  BatchSkip,
+  BatchResult,
+  GenerationBatchBody,
   GenerationEstimate,
   GenerationListResult,
-  HistoryFilters,
-} from '@/core/types'
-import type { Dict } from '@/core/utility-types'
+} from '@/core/api/video'
+import { HISTORY_PAGE_SIZE } from '@/core/constants'
+import { FILTER_PARAMS } from '@/core/feed/history-filters'
+import { isNonEmptyString } from '@/core/guards'
+import type { ReferencePlan } from '@/core/media/media-types'
+import type { GenerationInput, GenerationRecord } from '@/core/schemas/generation-record'
+import type { UploadItem } from '@/core/schemas/upload-item'
+import type { HistoryFilters } from '@/core/types'
+import type { GenerationEstimateKey } from '@/lib/api/swr-keys'
 import { apiDelete, apiPatch, apiPost, fetcher } from '@/lib/fetcher'
-import type { GenerationEstimateKey } from '@/lib/swr-keys'
 
 import { type QueryParams, withQuery } from './query'
 
@@ -41,12 +42,7 @@ export function setFavorite(id: string, isFavorite: boolean): Promise<Generation
   return apiPatch<GenerationRecord>(`/api/generations/${id}`, { favorite: isFavorite })
 }
 
-export interface BatchResult {
-  done: string[]
-  skipped: BatchSkip[]
-}
-
-export function batchGenerations(ids: string[], body: Dict<unknown>): Promise<BatchResult> {
+export function batchGenerations(ids: string[], body: GenerationBatchBody): Promise<BatchResult> {
   return apiPost<BatchResult>('/api/generations/batch', { ...body, ids })
 }
 
@@ -58,11 +54,7 @@ interface ExportRecordParams {
 export function exportRecord(params: ExportRecordParams): Promise<void> {
   const { id, path } = params
 
-  return apiPost<void>(`/api/generations/${id}/export`, { path, overwrite: true })
-}
-
-export interface ExportBatchResult {
-  saved: string[]
+  return apiPost<void>(`/api/generations/${id}/export`, { path })
 }
 
 interface ExportBatchParams {
@@ -70,10 +62,10 @@ interface ExportBatchParams {
   dir: string
 }
 
-export function exportBatch(params: ExportBatchParams): Promise<ExportBatchResult> {
+export function exportBatch(params: ExportBatchParams): Promise<ExportResult> {
   const { ids, dir } = params
 
-  return apiPost<ExportBatchResult>('/api/generations/export-batch', { ids, dir })
+  return apiPost<ExportResult>('/api/generations/export-batch', { ids, dir })
 }
 
 export function fetchUploadsByIds(ids: string[]): Promise<UploadItem[]> {

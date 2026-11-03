@@ -3,6 +3,7 @@
 import { Folder } from 'lucide-react'
 
 import { FilterPopover } from '../filters/FilterPopover'
+import { HistoryFilterForm } from '../filters/HistoryFilterForm'
 import { countActiveFilters, useHistoryViewStore } from './view-store'
 import { ViewToggle } from './ViewToggle'
 import { ZoomSlider } from './ZoomSlider'
@@ -13,6 +14,22 @@ export function HistoryToolbar() {
     return state.filters
   })
 
+  const view = useHistoryViewStore((state) => {
+    return state.view
+  })
+
+  const setView = useHistoryViewStore((state) => {
+    return state.setView
+  })
+
+  const zoom = useHistoryViewStore((state) => {
+    return state.zoom
+  })
+
+  const setZoom = useHistoryViewStore((state) => {
+    return state.setZoom
+  })
+
   return (
     <div className="flex h-14 items-center justify-between gap-3 px-4">
       <span className="inline-flex h-8 items-center gap-1 rounded-lg border border-hover bg-glass bg-linear-[123.898deg] from-toolbar-start from-[22.606%] via-toolbar-mid via-[51.256%] to-toolbar-end to-[79.906%] px-2 py-1 text-xs/4 font-medium text-fg shadow-toolbar">
@@ -21,10 +38,12 @@ export function HistoryToolbar() {
       </span>
       <div className="flex items-center gap-3">
         <div className="flex h-9 items-center gap-2 rounded-control bg-page-2 px-1">
-          <ZoomSlider />
-          <ViewToggle />
+          <ZoomSlider zoom={zoom} onZoomChange={setZoom} />
+          <ViewToggle view={view} onViewChange={setView} />
         </div>
-        <FilterPopover activeCount={countActiveFilters(filters)} />
+        <FilterPopover activeCount={countActiveFilters(filters)}>
+          <HistoryFilterForm />
+        </FilterPopover>
       </div>
     </div>
   )

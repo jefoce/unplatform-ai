@@ -1,11 +1,14 @@
 import 'server-only'
 
+import { isNil } from 'lodash-es'
+
 import { type GenerationRecord, GenerationRecordSchema } from '@/core/schemas/generation-record'
 import { ACTIVE_STATUSES } from '@/core/types'
 
 import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { downloadPaths, DOWNLOADS_DIR } from '../paths'
+import { withLock } from '../sync/lock'
 import { jsonDirStore } from './json-dir-store'
 
 const store = jsonDirStore<GenerationRecord>({
@@ -55,6 +58,28 @@ export async function deleteGenerationFiles(id: string): Promise<void> {
   ])
 
   await store.forget(id)
+}
+
+/** Reads, patches and saves one record under its lock. */
+export async function updateGeneration(
+  id: string,
+  patch: (record: GenerationRecord) => GenerationRecord | null,
+): Promise<GenerationRecord | null> {
+  return withLock(id, async () => {
+    const current = await getGeneration(id)
+
+    if (isNil(current)) {
+      return null
+    }
+
+    const next = patch(current)
+
+    if (isNil(next)) {
+      return null
+    }
+
+    return saveGeneration(next)
+  })
 }
 
 export async function listActiveGenerations(): Promise<GenerationRecord[]> {

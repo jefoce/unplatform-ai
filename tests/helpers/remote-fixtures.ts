@@ -3,7 +3,6 @@ import fs from 'node:fs/promises'
 
 import { isNil } from 'lodash-es'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import type {
   ListedObject,
   ObjectInfo,
@@ -11,6 +10,8 @@ import type {
   PresignParams,
   PutObjectParams,
 } from '@/server/storage/types'
+
+import type { UploadItem } from '../../src/core/schemas/upload-item'
 
 export const GIB = 1024 ** 3
 

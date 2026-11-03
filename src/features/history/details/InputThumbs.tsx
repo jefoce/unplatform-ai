@@ -1,16 +1,13 @@
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-
 import { InputThumb } from './InputThumb'
-import { thumbItems } from './thumb-item'
+import type { ThumbItem } from './thumb-item'
 
 interface InputThumbsProps {
-  record: GenerationRecord
+  items: ThumbItem[]
 }
 
-/** Start/end frames and reference thumbs for one record. */
+/** Input thumbs for one record, in display order. */
 export function InputThumbs(props: InputThumbsProps) {
-  const { record } = props
-  const items = thumbItems(record)
+  const { items } = props
 
   if (items.length === 0) {
     return null

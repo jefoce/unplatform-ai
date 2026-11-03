@@ -4,7 +4,7 @@ import type { FolderItem } from '@/core/schemas/folder-item'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 
-import type { ChooseFilesParams, Platform, SavedVideos, UpdateListener } from './types'
+import type { ChooseFilesParams, ImageSaveRef, Platform, SaveResult, UpdateListener } from './types'
 import type { AppInfo, AppUpdate, InstallResult } from './update-schemas'
 
 let instance: Promise<Platform> | null = null
@@ -60,8 +60,11 @@ export const platform = {
   saveVideo: async (record: GenerationRecord): Promise<boolean> => {
     return (await impl()).saveVideo(record)
   },
-  saveVideos: async (records: GenerationRecord[]): Promise<SavedVideos> => {
+  saveVideos: async (records: GenerationRecord[]): Promise<SaveResult> => {
     return (await impl()).saveVideos(records)
+  },
+  saveImages: async (refs: ImageSaveRef[]): Promise<SaveResult> => {
+    return (await impl()).saveImages(refs)
   },
   appInfo: async (): Promise<AppInfo> => {
     return (await impl()).appInfo()

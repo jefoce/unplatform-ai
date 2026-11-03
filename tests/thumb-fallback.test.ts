@@ -18,7 +18,7 @@ const at = args[args.indexOf('-ss') + 1]
 const out = args[args.length - 1]
 fs.appendFileSync(${JSON.stringify(attemptsFile)}, at + '\\n')
 if (fs.existsSync(${JSON.stringify(failMarker)}) || at !== '0') {
-  process.stderr.write('no frame at requested position\\n')
+  process.stderr.write('no frame at requested position ' + out + '\\n')
   process.exit(1)
 }
 fs.copyFileSync(${JSON.stringify(FIXTURE_PNG)}, out)
@@ -36,7 +36,7 @@ async function readAttempts(): Promise<string[]> {
 }
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-poster-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-poster-'))
   attemptsFile = path.join(dir, 'attempts.txt')
   failMarker = path.join(dir, 'fail')
 
@@ -92,13 +92,19 @@ describe.skipIf(process.platform === 'win32')('poster fallback', () => {
 
     await fs.writeFile(failMarker, '')
 
-    await expect(
-      extractPosterFrame({
-        videoPath: FIXTURE_MP4,
-        width: 320,
-        outPath: path.join(dir, 'frame.png'),
-      }),
-    ).rejects.toThrow('ffmpeg failed')
+    const outPath = path.join(dir, 'frame.png')
+
+    const error: unknown = await extractPosterFrame({
+      videoPath: FIXTURE_MP4,
+      width: 320,
+      outPath,
+    }).catch((caught: unknown) => {
+      return caught
+    })
+
+    expect(String(error)).toContain('ffmpeg failed')
+    expect(String(error)).not.toContain(dir)
+    expect(String(error)).toContain('frame.png')
 
     expect(errorLog).toHaveBeenCalledWith(
       '[unplatform-ai] poster frame failed',

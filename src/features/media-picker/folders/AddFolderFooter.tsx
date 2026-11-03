@@ -3,7 +3,7 @@
 import { isNil } from 'lodash-es'
 import useSWR from 'swr'
 
-import type { BrowseResult } from '@/core/media-types'
+import type { BrowseResult } from '@/core/api/folders'
 import type { Dict } from '@/core/utility-types'
 import { fetchSystemCapabilities } from '@/lib/api/system'
 import { Button } from '@/ui/Button'

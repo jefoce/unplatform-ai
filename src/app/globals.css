@@ -14,9 +14,9 @@
   --color-fg: #ffffff;
   --color-fg-2: #898a8b; /* font-secondary */
   --color-fg-3: #626262; /* tertiary/inactive */
-  --color-lime: #A8FF3E; /* brand */
-  --color-lime-hi: #C6FF7A; /* generate button radial highlight */
-  --color-on-lime: #0B1205;
+  --color-accent: #a8ff3e; /* brand */
+  --color-accent-hi: #c6ff7a; /* generate button radial highlight */
+  --color-on-accent: #0b1205;
   --color-danger: #e72930; /* error */
   --color-warn: #f87171; /* soft warning red */
   --color-amber: #f5a524; /* credit warning */
@@ -49,6 +49,25 @@
   --text-sm--line-height: 1.25rem;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-grotesk: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Lane C: image workspace glass island. Start. */
+@theme {
+  --color-glass-island: #131517c7;
+  --blur-island: 20px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --color-glass-island: #131517;
+    --blur-island: 0px;
+  }
+}
+/* Lane C: image workspace glass island. End. */
+
+/* Lexical typeahead portal sits under body, above the fixed prompt bar. */
+#typeahead-menu {
+  z-index: 45;
 }
 
 @custom-variant linux (&:where([data-os='linux'] *));
@@ -104,8 +123,8 @@ body {
 @utility glow {
   background: radial-gradient(120% 70% at 50% -10%, var(--glow) 0%, transparent 60%);
 }
-@utility glow-lime {
-  --glow: rgb(209 254 23 / 0.22);
+@utility glow-accent {
+  --glow: rgb(168 255 62 / 0.22);
   animation: glow-breathe 3.2s ease-in-out infinite;
 }
 @utility glow-gray {
@@ -138,7 +157,7 @@ body {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .glow-lime,
+  .glow-accent,
   .glow-gray {
     animation: none;
   }

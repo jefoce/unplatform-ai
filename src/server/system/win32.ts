@@ -3,8 +3,8 @@ import 'server-only'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { acceptForKinds } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import { acceptForKinds } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 
 import type { SystemAdapter } from './types'
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import type { BrowseResult } from '@/core/media-types'
+import type { BrowseResult } from '@/core/api/folders'
 import { browseDirs } from '@/lib/api/folders'
 import { toastError } from '@/lib/notify'
 import { useBoolean } from '@/lib/use-boolean'

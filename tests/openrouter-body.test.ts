@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import type { GenerationInput } from '@/core/schemas/generation-record'
-import type { Dict } from '@/core/utility-types'
 import { buildRequestBody } from '@/server/providers/openrouter/body'
 import type { ResolvedMedia } from '@/server/providers/types'
+
+import { getPreset } from '../src/core/presets'
+import type { GenerationInput } from '../src/core/schemas/generation-record'
+import type { Dict } from '../src/core/utility-types'
 
 const preset = getPreset('wan-3.0')
 

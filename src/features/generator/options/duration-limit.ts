@@ -1,7 +1,7 @@
+import type { UploadsById } from '@/core/api/uploads'
 import { maxDurationFor, referenceVideoSeconds } from '@/core/duration-limits'
 import { minDuration } from '@/core/presets'
-import type { ModelPreset } from '@/core/presets/types'
-import type { UploadsById } from '@/core/schemas/upload-item'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { formatSecondsExact } from '@/lib/format'
 
 import { type GeneratorDraft, inputFromState } from '../store/store-draft'
@@ -9,7 +9,7 @@ import { type GeneratorDraft, inputFromState } from '../store/store-draft'
 interface DurationLimitParams {
   draft: GeneratorDraft
   uploadsById: UploadsById
-  preset: ModelPreset
+  preset: VideoPreset
 }
 
 /** Duration bounds and copy for the current draft and reference videos. */

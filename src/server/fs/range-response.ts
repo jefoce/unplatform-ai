@@ -8,7 +8,7 @@ import { Readable } from 'node:stream'
 import { isNil } from 'lodash-es'
 
 import { isNonEmptyString } from '@/core/guards'
-import { mimeFromExt } from '@/core/media-kinds'
+import { mimeFromExt } from '@/core/media/media-kinds'
 
 interface Range {
   start: number

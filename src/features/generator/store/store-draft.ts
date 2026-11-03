@@ -1,15 +1,10 @@
-import { DEFAULT_PRESET_ID, getPreset } from '@/core/presets'
+import { DEFAULT_VIDEO_PRESET_ID, getPreset } from '@/core/presets'
 import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-record'
 
 type PromptMap = Record<GeneratorTab, string>
 
 export interface GeneratorDraft extends Omit<GenerationInput, 'prompt'> {
   prompts: PromptMap
-}
-
-/** Active mode prompt. */
-export const promptFor = (state: Pick<GeneratorDraft, 'prompts' | 'tab'>): string => {
-  return state.prompts[state.tab]
 }
 
 /** Plain GenerationInput snapshot of the draft, without actions or upload cache. */
@@ -30,7 +25,7 @@ export function inputFromState(state: GeneratorDraft): GenerationInput {
 
 /** Default draft for the default preset. */
 export function defaults(): GeneratorDraft {
-  const preset = getPreset(DEFAULT_PRESET_ID)
+  const preset = getPreset(DEFAULT_VIDEO_PRESET_ID)
 
   return {
     presetId: preset.id,

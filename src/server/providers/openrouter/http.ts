@@ -45,6 +45,89 @@ export type VideoJobResponse = z.infer<typeof JobSchema>
 
 export type VideoJobUsage = z.infer<typeof UsageSchema>
 
+/** Bearer header when a key is set. Model lists work without a key. */
+export function optionalAuthHeaders(): Dict<string> {
+  const key = getSecret('OPENROUTER_API_KEY')
+
+  if (!isNonEmptyString(key)) {
+    return {}
+  }
+
+  return { Authorization: `Bearer ${key}` }
+}
+
+/** Endpoint listings arrive as `{ endpoints }` or the older `{ data: { endpoints } }`. */
+export function endpointsOf(payload: unknown): unknown[] | null {
+  if (!isRecord(payload)) {
+    return null
+  }
+
+  if (Array.isArray(payload.endpoints)) {
+    return payload.endpoints
+  }
+
+  if (isRecord(payload.data) && Array.isArray(payload.data.endpoints)) {
+    return payload.data.endpoints
+  }
+
+  return null
+}
+
+/** Next list page from `links.next`, `next` or `cursor`. Null when the page is last. */
+export function nextPageUrl(payload: unknown, currentUrl: string): string | null {
+  if (!isRecord(payload)) {
+    return null
+  }
+
+  const links = payload.links
+
+  if (isRecord(links) && isNonEmptyString(links.next)) {
+    return resolveUrl(links.next, currentUrl)
+  }
+
+  const next = payload.next
+
+  if (isNonEmptyString(next)) {
+    return resolveUrl(next, currentUrl)
+  }
+
+  if (isRecord(next) && isNonEmptyString(next.cursor)) {
+    return cursorUrl(currentUrl, next.cursor)
+  }
+
+  if (isNonEmptyString(payload.cursor)) {
+    return cursorUrl(currentUrl, payload.cursor)
+  }
+
+  return null
+}
+
+function resolveUrl(value: string, currentUrl: string): string | null {
+  try {
+    const url = new URL(value, currentUrl).toString()
+
+    if (url === currentUrl) {
+      return null
+    }
+
+    return url
+  } catch {
+    return null
+  }
+}
+
+function cursorUrl(currentUrl: string, cursor: string): string | null {
+  try {
+    const url = new URL(currentUrl)
+
+    url.searchParams.set('cursor', cursor)
+
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 /** First three zod issues as `path: message`. Never includes the response body. */
 export function issueSummary(error: z.ZodError): string {
   const issues = error.issues.slice(0, 3).map((issue) => {
@@ -95,7 +178,7 @@ export function headers(isJson: boolean): Dict<string> {
 
   const result: Dict<string> = {
     Authorization: `Bearer ${key}`,
-    'HTTP-Referer': 'http://localhost:3000',
+    'HTTP-Referer': 'https://github.com/jefoce/unplatform-ai',
     'X-Title': 'Unplatform AI',
   }
 

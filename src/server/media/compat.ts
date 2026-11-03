@@ -7,7 +7,7 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 
 import { FFMPEG_TIMEOUTS } from '@/core/constants'
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 
 import { isOwnedName, removeOwnedFile } from '../fs/json-file'
 import { COMPAT_DIR } from '../paths'

@@ -65,7 +65,7 @@ export function AudioReference(props: AudioReferenceProps) {
               style={{ height: `${height}%` }}
               className={cn(
                 'flex-1 rounded-full',
-                index / bars.length < played && 'bg-lime',
+                index / bars.length < played && 'bg-accent',
                 !(index / bars.length < played) && 'bg-fg-2/60',
               )}
             />

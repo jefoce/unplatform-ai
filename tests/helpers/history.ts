@@ -1,13 +1,15 @@
 import { act } from '@testing-library/react'
 
-import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
 import { useSelectionStore } from '@/features/history/selection/selection-store'
 import { getSnapshot, release } from '@/features/player/player-slots'
 
+import type { GenerationRecord, JobStatus } from '../../src/core/schemas/generation-record'
+import { type VideoGridItem, videoItem } from '../../src/lib/feed/output-items'
 import { required } from './required'
 
 export class Observer {
   observe() {}
+  unobserve() {}
   disconnect() {}
 }
 
@@ -53,6 +55,23 @@ export function record(id: string, overrides: RecordOverrides = {}): GenerationR
     output: { video: `${id}.mp4`, preview: `${id}.preview.png` },
     ...overrides,
   }
+}
+
+/** Video record fixture wrapped as a grid item. */
+export function item(id: string, overrides: RecordOverrides = {}): VideoGridItem {
+  return videoItem(record(id, overrides))
+}
+
+/** Wraps an existing record as a grid item. */
+export function itemOf(record: GenerationRecord): VideoGridItem {
+  return videoItem(record)
+}
+
+/** Wraps a record list as grid items. */
+export function items(records: GenerationRecord[]): VideoGridItem[] {
+  return records.map((entry) => {
+    return videoItem(entry)
+  })
 }
 
 export const handleNoop = () => {}

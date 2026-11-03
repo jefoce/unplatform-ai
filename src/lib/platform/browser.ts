@@ -4,14 +4,14 @@ import { DOWNLOAD_STAGGER_MS } from '@/core/constants'
 import type { FolderItem } from '@/core/schemas/folder-item'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
-import { downloadMediaUrl } from '@/lib/api/media-urls'
+import { downloadMediaUrl, downloadRefUrl } from '@/lib/api/media-urls'
 import {
   chooseFiles as chooseFilesFromServer,
   chooseFolder as chooseFolderFromServer,
   fetchSystemCapabilities,
 } from '@/lib/api/system'
 
-import type { Platform, UpdateListener } from './types'
+import type { ImageSaveRef, Platform, UpdateListener } from './types'
 import type { AppInfo, InstallResult } from './update-schemas'
 
 const RELEASE_URL = 'https://github.com/jefoce/unplatform-ai/releases/latest'
@@ -104,7 +104,19 @@ export const browserPlatform: Platform = {
       clickDownload(downloadUrl(record))
     }
 
-    return { saved: records.length }
+    return { saved: records.length, skipped: 0 }
+  },
+
+  saveImages: async (refs: ImageSaveRef[]) => {
+    for (const [index, ref] of refs.entries()) {
+      if (index > 0) {
+        await wait(DOWNLOAD_STAGGER_MS)
+      }
+
+      clickDownload(downloadRefUrl(`images/${ref.file}`))
+    }
+
+    return { saved: refs.length, skipped: 0 }
   },
 
   onFileDrop: noFileDrop,

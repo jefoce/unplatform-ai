@@ -2,15 +2,16 @@
 
 import { type KeyboardEvent, type MouseEvent, useCallback } from 'react'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { isOwnEvent } from '@/lib/events'
+import type { HistoryItem } from '@/lib/feed/output-items'
 
 interface TileActivationParams {
-  record: GenerationRecord
+  item: HistoryItem
   isSelecting: boolean
   canSelect: boolean
+  isDisabled: boolean
   select: (isShift: boolean) => void
-  onOpen: (record: GenerationRecord) => void
+  onOpen: (item: HistoryItem) => void
 }
 
 interface TileActivation {
@@ -20,10 +21,14 @@ interface TileActivation {
 
 /** Click and keyboard activation shared by grid tiles. */
 export function useTileActivation(params: TileActivationParams): TileActivation {
-  const { record, isSelecting, canSelect, select, onOpen: handleOpen } = params
+  const { item, isSelecting, canSelect, isDisabled, select, onOpen: handleOpen } = params
 
   const activate = useCallback(
     (isShift: boolean) => {
+      if (isDisabled) {
+        return
+      }
+
       if ((isShift || isSelecting) && !canSelect) {
         return
       }
@@ -31,10 +36,10 @@ export function useTileActivation(params: TileActivationParams): TileActivation 
       if (isShift || isSelecting) {
         select(isShift)
       } else {
-        handleOpen(record)
+        handleOpen(item)
       }
     },
-    [canSelect, isSelecting, select, handleOpen, record],
+    [canSelect, isDisabled, isSelecting, select, handleOpen, item],
   )
 
   const handleClick = useCallback(

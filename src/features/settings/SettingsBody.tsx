@@ -4,7 +4,7 @@ import { type ReactNode, type RefObject } from 'react'
 import { isEmpty } from 'lodash-es'
 
 import { REMOTE_MAX_GB } from '@/core/constants'
-import { STORAGE_PROVIDERS, VIDEO_PROVIDERS } from '@/core/providers/registry'
+import { PROVIDERS, STORAGE_PROVIDERS } from '@/core/providers/registry'
 import type { CreditsInfo, SecretStatus } from '@/core/types'
 import { type RemoteStatus, useRemoteStatusData } from '@/lib/api/remote'
 import { formatBytes } from '@/lib/format'
@@ -74,7 +74,7 @@ export function SettingsBody(props: SettingsBodyProps) {
 
   return (
     <>
-      {VIDEO_PROVIDERS.map((descriptor) => {
+      {PROVIDERS.map((descriptor) => {
         return (
           <SecretSection
             key={descriptor.id}

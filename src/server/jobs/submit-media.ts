@@ -2,11 +2,11 @@ import 'server-only'
 
 import { chunk, isNil, sumBy } from 'lodash-es'
 
+import type { UploadsById } from '@/core/api/uploads'
 import { MAX_REQUEST_MB, REQUEST_RESERVE_MB } from '@/core/constants'
-import type { ReferencePlan } from '@/core/media-types'
-import type { ModelPreset } from '@/core/presets/types'
+import type { ReferencePlan } from '@/core/media/media-types'
+import type { VideoPreset } from '@/core/presets/video/types'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
-import type { UploadsById } from '@/core/schemas/upload-item'
 import { base64Only } from '@/core/submit-state'
 import type { ResolvedTransport } from '@/core/transport'
 import type { Dict } from '@/core/utility-types'
@@ -41,12 +41,12 @@ interface UploadUrlsParams {
 interface BuildMediaParams {
   uploads: UploadsById
   transports: Transports
-  preset: ModelPreset
+  preset: VideoPreset
 }
 
 interface SendParams {
   record: GenerationRecord
-  preset: ModelPreset
+  preset: VideoPreset
   uploads: UploadsById
   transports: Transports
   built: BuiltMedia
@@ -99,6 +99,7 @@ export async function uploadUrls(params: UploadUrlsParams): Promise<void> {
       group.map(async (upload) => {
         const saved = await ensureRemote({
           upload,
+          signal,
           onProgress: (sent, fileTotal) => {
             sentBy.set(upload.id, Math.min(sent, fileTotal))
             report()

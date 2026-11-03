@@ -16,6 +16,13 @@ module.exports = {
       to: { path: '^src/(server|features|lib|ui|app)/' },
     },
     {
+      name: 'core-no-url-builders',
+      severity: 'error',
+      comment: 'URL builders and DOM access live in lib. Core receives plain values.',
+      from: { path: '^src/core/' },
+      to: { path: '^src/lib/(api|platform)/' },
+    },
+    {
       name: 'server-stays-server',
       severity: 'error',
       comment: 'src/server never imports UI or client helpers.',
@@ -71,6 +78,13 @@ module.exports = {
       },
     },
     {
+      name: 'shared-is-a-leaf',
+      severity: 'error',
+      comment: 'Shared primitives import lib, core and ui only.',
+      from: { path: '^src/features/shared/' },
+      to: { path: '^src/features/(?!shared/)' },
+    },
+    {
       name: 'player-is-leaf',
       severity: 'error',
       from: { path: '^src/features/player/' },
@@ -112,6 +126,32 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/features/history/' },
       to: { path: '^src/features/(studio|settings|media-picker)/' },
+    },
+    {
+      name: 'workspace-direction',
+      severity: 'error',
+      from: { path: '^src/features/workspace/' },
+      to: { path: '^src/features/(?!(workspace|generator|history|settings|shared)/)' },
+    },
+    {
+      name: 'viewers-direction',
+      severity: 'error',
+      from: { path: '^src/features/viewers/' },
+      to: { path: '^src/features/(?!(viewers|generator|preview|shared)/)' },
+    },
+    {
+      name: 'image-generator-direction',
+      severity: 'error',
+      from: { path: '^src/features/image-generator/' },
+      to: { path: '^src/features/(?!(image-generator|generator|media-picker|preview|shared)/)' },
+    },
+    {
+      name: 'media-input-direction',
+      severity: 'error',
+      from: { path: '^src/features/media-input/' },
+      to: {
+        path: '^src/features/(?!(media-input|generator|image-generator|media-picker|shared)/)',
+      },
     },
     {
       name: 'features-use-studio-file-input',

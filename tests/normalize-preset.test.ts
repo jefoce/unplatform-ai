@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeForPreset } from '@/core/normalize-input'
-import { getPreset } from '@/core/presets'
-
+import { normalizeForPreset } from '../src/core/normalize-input'
+import { getPreset } from '../src/core/presets'
 import { input, upload, uploadsOf, wan, withPreset } from './helpers/normalize-fixtures'
 
 describe('normalizeForPreset duration', () => {

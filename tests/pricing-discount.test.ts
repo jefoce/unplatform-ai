@@ -2,11 +2,16 @@ import { readFile } from 'node:fs/promises'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import { pricePerSec } from '@/core/pricing'
-import type { Dict } from '@/core/utility-types'
-import { fetchDiscount, getPricing } from '@/server/providers/openrouter/pricing'
+import { fetchDiscount } from '@/server/providers/openrouter/discount'
+import { getPricing, registerOpenRouterPricing } from '@/server/providers/openrouter/pricing'
+import { discountLabel } from '@/ui/Price'
+
+import { getPreset } from '../src/core/presets'
+import { primaryBinding } from '../src/core/presets/common/bindings'
+import { pricePerSec } from '../src/core/pricing/quote'
+import type { Dict } from '../src/core/utility-types'
+
+registerOpenRouterPricing()
 
 const WAN_SKUS = {
   duration_seconds_480p: '0.05',
@@ -80,11 +85,19 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+describe('discountLabel', () => {
+  it('hides a discount under one percent', () => {
+    expect(discountLabel(0.004)).toBeNull()
+    expect(discountLabel(0.01)).toBe('1% off')
+    expect(discountLabel(0.15)).toBe('15% off')
+  })
+})
+
 describe('fetchDiscount', () => {
   it('reads the live fraction from the captured Wan 3.0 response', async () => {
     stubEndpoints(await fixture('wan-3.0-endpoints.json'))
 
-    await expect(fetchDiscount(getPreset('wan-3.0'))).resolves.toBe(0.15)
+    await expect(fetchDiscount(getPreset('wan-3.0'), true)).resolves.toBe(0.15)
   })
 
   it('warns once and returns 0 for a malformed discount', async () => {
@@ -94,7 +107,7 @@ describe('fetchDiscount', () => {
 
     stubEndpoints(await fixture('wan-3.0-endpoints-malformed.json'))
 
-    await expect(fetchDiscount(getPreset('wan-3.0'))).resolves.toBe(0)
+    await expect(fetchDiscount(getPreset('wan-3.0'), true)).resolves.toBe(0)
 
     expect(warn).toHaveBeenCalledTimes(1)
 
@@ -117,10 +130,44 @@ describe('fetchDiscount', () => {
       }),
     )
 
-    await expect(fetchDiscount(getPreset('wan-3.0'))).resolves.toBe(0)
+    await expect(fetchDiscount(getPreset('wan-3.0'), true)).resolves.toBe(0)
 
     expect(warn).toHaveBeenCalledTimes(1)
     expect(String(warn.mock.calls[0]?.[0])).toContain('HTTP 503')
+  })
+
+  it('keeps the last discount when the endpoint returns 429', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {
+      return
+    })
+
+    stubEndpoints(await fixture('wan-3.0-endpoints.json'))
+
+    await expect(fetchDiscount(getPreset('wan-3.0'), true)).resolves.toBe(0.15)
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return new Response('rate limited', { status: 429 })
+      }),
+    )
+
+    await expect(fetchDiscount(getPreset('wan-3.0'), true)).resolves.toBe(0.15)
+  })
+
+  it('returns zero on 429 without a previous discount', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {
+      return
+    })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return new Response('rate limited', { status: 429 })
+      }),
+    )
+
+    await expect(fetchDiscount(getPreset('seedance-2.5'), true)).resolves.toBe(0)
   })
 })
 

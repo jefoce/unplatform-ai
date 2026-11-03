@@ -3,7 +3,6 @@ import { PassThrough } from 'node:stream'
 import { isNil } from 'lodash-es'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Dict } from '@/core/utility-types'
 import {
   __resetSecretsForTests,
   __setSecretsBackendForTests,
@@ -12,6 +11,8 @@ import {
   setSecrets,
 } from '@/server/secrets'
 import { BRIDGE_PREFIX, bridgeBackend, KeychainUnavailableError } from '@/server/secrets/bridge'
+
+import type { Dict } from '../src/core/utility-types'
 
 interface SentLine {
   id: number

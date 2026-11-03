@@ -9,10 +9,11 @@ import { isNil, isString } from 'lodash-es'
 
 import { FETCH_TIMEOUTS, MOCK_GENERATE_MS, MOCK_QUEUE_MS } from '@/core/constants'
 import { isNonEmptyString, isRecord } from '@/core/guards'
-import { primaryBinding } from '@/core/presets/bindings'
-import type { ModelPreset } from '@/core/presets/types'
+import { primaryBinding } from '@/core/presets/common/bindings'
+import type { VideoPreset } from '@/core/presets/video/types'
+import type { PricingInfo } from '@/core/pricing/types'
 import { asJobStatus } from '@/core/submit-state'
-import type { PricingInfo, TestResult } from '@/core/types'
+import type { TestResult } from '@/core/types'
 
 import { globalState } from '../../global-state'
 import { MOCK_REMOTE_PREFIX } from '../../local-url'
@@ -23,6 +24,7 @@ import { ProviderError } from '../provider-error'
 import type {
   ContentFallback,
   ContentRequest,
+  EndpointSignal,
   JobRef,
   JobSnapshot,
   JobUsage,
@@ -52,6 +54,7 @@ const mockState = globalState<MockState>('mock', () => {
 export function createMockProvider(): VideoProvider {
   return {
     id: 'openrouter',
+    contentHosts: [],
     isConfigured,
     submit,
     getJob,
@@ -59,12 +62,17 @@ export function createMockProvider(): VideoProvider {
     getAccount,
     getPricing,
     listModels,
+    listEndpoints,
     testConnection,
   }
 }
 
 function isConfigured(): boolean {
   return true
+}
+
+async function listEndpoints(): Promise<EndpointSignal> {
+  return { state: 'present', reason: null }
 }
 
 async function submit(params: SubmitJobParams): Promise<SubmittedJob> {
@@ -119,7 +127,7 @@ async function getAccount(): Promise<ProviderAccount> {
   }
 }
 
-async function getPricing(preset: ModelPreset): Promise<PricingInfo> {
+async function getPricing(preset: VideoPreset): Promise<PricingInfo> {
   const listSkus = { ...primaryBinding(preset).pricing.fallback }
 
   return {

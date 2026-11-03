@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getPreset } from '@/core/presets'
 import { getProviderAccount } from '@/server/providers/openrouter/account'
+import { fetchDiscount } from '@/server/providers/openrouter/discount'
 import { JobSchema, SubmitSchema } from '@/server/providers/openrouter/http'
-import { fetchDiscount, getPricing } from '@/server/providers/openrouter/pricing'
+import { getPricing, registerOpenRouterPricing } from '@/server/providers/openrouter/pricing'
 import { createOpenRouterProvider } from '@/server/providers/openrouter/provider'
 import { fetchVideoModelsResult } from '@/server/providers/openrouter/video-models'
 import { __setSecretsBackendForTests, setSecrets } from '@/server/secrets'
 
+import { getPreset } from '../src/core/presets'
 import { memoryBackend } from './helpers/secrets'
+
+registerOpenRouterPricing()
 
 const WAN = getPreset('wan-3.0')
 
@@ -171,7 +174,7 @@ describe('null fields', () => {
       }),
     )
 
-    await expect(fetchDiscount(WAN)).resolves.toBe(0)
+    await expect(fetchDiscount(WAN, true)).resolves.toBe(0)
     expect(warn).toHaveBeenCalledTimes(1)
 
     const text = String(warn.mock.calls[0]?.[0])
@@ -190,7 +193,7 @@ describe('null fields', () => {
       }),
     )
 
-    await expect(fetchDiscount(WAN)).resolves.toBe(0)
+    await expect(fetchDiscount(WAN, true)).resolves.toBe(0)
     expect(warn).toHaveBeenCalledTimes(1)
 
     const text = String(warn.mock.calls[0]?.[0])

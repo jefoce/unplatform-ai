@@ -4,8 +4,8 @@ import useSWR, { mutate } from 'swr'
 
 import { CREDITS_POLL_MS } from '@/core/constants'
 import type { CreditsInfo } from '@/core/types'
+import { CREDITS_KEY } from '@/lib/api/swr-keys'
 import { fetcher } from '@/lib/fetcher'
-import { CREDITS_KEY } from '@/lib/swr-keys'
 
 export function fetchCredits(): Promise<CreditsInfo> {
   return fetcher<CreditsInfo>(CREDITS_KEY)

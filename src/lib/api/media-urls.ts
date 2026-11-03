@@ -41,15 +41,20 @@ export function thumbUrl(params: ThumbUrlParams): string {
   return withQuery(`/api/thumbs/${encodeRef(ref)}`, { w })
 }
 
+/** Download URL for a stored media ref, forcing an attachment. */
+export function downloadRefUrl(ref: string): string {
+  const [pathRef = ref] = ref.split('?')
+
+  return `/api/media/${encodeRef(pathRef)}?download=1`
+}
+
 /** Download URL for a stored video file, optionally forcing a download. */
 export function downloadMediaUrl(file: string, isDownload = false): string {
-  const base = `/api/media/downloads/${file}`
-
   if (isDownload) {
-    return `${base}?download=1`
+    return downloadRefUrl(`downloads/${file}`)
   }
 
-  return base
+  return `/api/media/downloads/${file}`
 }
 
 export function uploadThumbUrl(id: string, width = 160): string {

@@ -3,12 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import { FolderTab } from '@/features/media-picker/folders/FolderTab'
 import type { PickerMode } from '@/features/media-picker/picker/store'
 import { MediaPreviewModal } from '@/features/preview/MediaPreviewModal'
 import { closePreview, usePreviewStore } from '@/features/preview/preview-store'
 
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { upload } from './helpers/validation-fixtures'
 
 const mocks = vi.hoisted(() => {
@@ -41,6 +41,7 @@ vi.mock('@/lib/api/media-urls', () => {
   }
 })
 
+// Revalidation is irrelevant: the picker only needs the initial list data.
 vi.mock('swr', () => {
   return {
     default: () => {
@@ -93,6 +94,9 @@ function toggleMode(onToggle: (item: UploadItem) => void): PickerMode {
   return {
     kind: 'toggle',
     useSelectedIds: () => {
+      return []
+    },
+    getSelectedIds: () => {
       return []
     },
     useUploadsById: () => {

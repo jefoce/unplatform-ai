@@ -19,4 +19,5 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - run: LIVE_CATALOG=1 pnpm vitest run tests/catalog-live.test.ts
+      - run: LIVE_CATALOG=1 WRITE_IMAGE_PRICE_FIXTURE=1 pnpm vitest run tests/catalog-live.test.ts
+      - run: git diff --exit-code tests/fixtures/image-live-prices.json

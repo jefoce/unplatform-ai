@@ -1,5 +1,45 @@
 # Decisions
 
+## 2026-11-03 - Status labels describe the work, not the internal stage
+
+Decision: one help table in `src/core/status-help.ts` owns the labels. Video `pending` shows Processing, image `saving` shows Generating, and the old `in_queue` key is gone. The README status table, pill, tooltip, notifications, window title and quit dialog use the same labels.
+
+Why: `image-run` set a record to `saving` before the provider call, so the tile said Downloading while the model was still generating. OpenRouter also kept videos in `pending` for most of a run, so In queue right after Generate read wrong.
+
+Rejected: a label map per view, and exposing internal stage names to users.
+
+## 2026-11-03 - Both pickers share one fixed width
+
+Decision: `DockedPanel` uses one `MAX_PANEL_WIDTH` (560) clamped by `EDGE_GAP` for both pickers. The image picker docks above the prompt bar, the video picker to its right, and `matchAnchorWidth` is gone.
+
+Why: a fixed 4-column grid in two widths gave different card sizes in each tab.
+
+Rejected: matching the anchor width, and a per-tab column count.
+
+## 2026-11-02 - Node and ffmpeg stay in the bundle, only the server is packed
+
+Decision: `unplatform-ai-server` (Node) and `ffmpeg` stay Tauri sidecars on every platform, and only the Next server is packed as `Resources/server.tar.zst`. `tauri.conf.json` lists both in `bundle.externalBin`; no platform config empties it. The extracted runtime folder holds the server alone, and `server.build-id` is `.next/BUILD_ID` only.
+
+Why: packing the runtime shrank the app but grew the install, because the extracted copy carried the packed binaries too. Sidecars stay in the signed bundle, and the mutable Next cache still writes into a copy without them. Measured macOS arm64 on 2026-11-02:
+
+| Part | Bytes | MiB |
+|---|---:|---:|
+| App bundle | 86,530,330 | 82.5 |
+| Extracted runtime | 46,187,444 | 44.0 |
+| Install total | 132,717,774 | 126.6 |
+| DMG | 35,749,578 | 34.1 |
+| `server.tar.zst` | 11,699,059 | 11.2 |
+
+Rejected: packing Node and ffmpeg into the archive. The app fell to 41,535,312 bytes, the server archive to 30,037,317 bytes and the DMG to 36,368,174 bytes, but the extracted runtime carried a second copy of both binaries, so the installed layout was no smaller.
+
+## 2026-10-31 - 0.4.0 ships only in jefoce/unplatform-ai
+
+Decision: 0.4.0 is a fresh install in `jefoce/unplatform-ai`. A 0.3.x install moves through the 0.3.2 bridge in the old repository. 0.4.0 carries no migration.
+
+Why: the repository rename changes the update endpoint. The old repository publishes 0.3.2 with the new endpoint, so 0.3.1 or older updates once through the bridge and then updates normally from the new repository. 0.4.0 does not read or move data from an older install.
+
+Rejected: shipping a migration in 0.4.0 for an endpoint change. An installed app cannot learn the new endpoint from a release it cannot reach.
+
 ## 2026-10-28 - R2 cap reads the bucket listing under a lock
 
 Decision: `makeRoom` counts the listed `refs/` objects when the store can list, and falls back to the tracked upload sizes. It shares one `remoteCap` lock with the put. The sweep also deletes untracked `refs/` objects older than `REMOTE_LINK_TTL_SEC`.
@@ -465,7 +505,7 @@ Directory browse failures throw typed BrowseError values with status 400 for inv
 - Tab normalization runs `inputForSubmit` on submit and server side, and history thumbs render only the record's tab.
 - Boot reconcile no longer expires by age. A job expires only on OpenRouter expired, 404, or a passed `expires_at`.
 - Local API guard requires matching Host, Origin, Sec-Fetch-Site and a JSON content type, or answers 403/415.
-- Model picker options come from `MODEL_PRESETS`, and prices use live SKU rates with a saved fallback.
+- Model picker options come from `VIDEO_PRESETS`, and prices use live SKU rates with a saved fallback.
 - Price shows in the Resolution popover, the model picker and the Generate button. Discounted prices show the struck list price and the percent off.
 - Adding a video reference clamps duration to the preset combined input plus output limit, with a toast.
 - Known literal labels in stored or pasted prompts become mention chips.

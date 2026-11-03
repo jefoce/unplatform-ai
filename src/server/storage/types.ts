@@ -24,6 +24,7 @@ export interface PutObjectParams {
   contentType: string
   sha256: string
   onProgress: ProgressCallback | null
+  signal?: AbortSignal
 }
 
 export interface PresignParams {

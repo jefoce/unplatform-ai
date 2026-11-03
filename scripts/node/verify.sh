@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=versions.env
+# shellcheck source=scripts/node/versions.env
 source "$SCRIPT_DIR/versions.env"
 
 SMOKE=0

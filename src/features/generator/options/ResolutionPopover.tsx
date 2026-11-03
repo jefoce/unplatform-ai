@@ -1,11 +1,13 @@
 'use client'
 
-import { Diamond } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 
 import { getPreset } from '@/core/presets'
-import type { Resolution } from '@/core/presets/types'
-import { pricePerSec } from '@/core/pricing'
+import type { Resolution } from '@/core/presets/video/types'
+import { pricePerSec } from '@/core/pricing/quote'
 import { useModelEntry } from '@/lib/api/models'
+import { cn } from '@/lib/cn'
+import { CHIP_TEXT_CLASSES } from '@/ui/Chip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/Popover'
 
 import { useGeneratorStore } from '../store/store'
@@ -50,9 +52,12 @@ export function ResolutionPopover() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-10 flex-1 items-center gap-1 rounded-md bg-surface px-3 text-sm font-medium text-fg hover:bg-white/6"
+          className={cn(
+            'flex h-10 flex-1 items-center gap-1 rounded-md bg-surface px-3 text-fg hover:bg-white/6',
+            CHIP_TEXT_CLASSES,
+          )}
         >
-          <Diamond size={16} />
+          <Monitor size={16} />
           {resolution}
         </button>
       </PopoverTrigger>

@@ -2,9 +2,10 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ReferencePlan } from '@/core/media-types'
 import { useImagePlan } from '@/features/generator/references/use-image-plan'
 import { apiPost } from '@/lib/fetcher'
+
+import type { ReferencePlan } from '../src/core/media/media-types'
 
 vi.mock('@/lib/fetcher', () => {
   return { apiPost: vi.fn() }

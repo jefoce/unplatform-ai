@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=versions.env
+# shellcheck source=scripts/node/versions.env
 source "$SCRIPT_DIR/versions.env"
 
 TARGET=""
@@ -89,16 +89,19 @@ for tool in curl tar make cc c++ python3 strip; do
   command -v "$tool" >/dev/null 2>&1 || fail "missing tool: $tool"
 done
 
+SUFFIX=${NODE_OUTPUT_SUFFIX:-}
+EXTRA=${NODE_CONFIGURE_EXTRA:-}
+VARIANT="$NODE_VERSION-small-icu$SUFFIX"
 CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/unplatform-ai-build/node"
-OUT=${OUT:-"$CACHE_ROOT/$NODE_VERSION-small-icu/$TARGET"}
-WORK=${NODE_BUILD_WORK:-"$CACHE_ROOT/work/$NODE_VERSION-small-icu-$TARGET"}
+OUT=${OUT:-"$CACHE_ROOT/$VARIANT/$TARGET"}
+WORK=${NODE_BUILD_WORK:-"$CACHE_ROOT/work/$VARIANT-$TARGET"}
 SRC="$WORK/src"
 SRC_DIR="$WORK/node-v$NODE_VERSION"
 PREFIX="$WORK/prefix"
 JOBS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 
 mkdir -p "$WORK" "$SRC" "$OUT"
-DEST="$OUT/unplatform-ai-server-$TARGET"
+DEST="$OUT/unplatform-ai-server-$TARGET$SUFFIX"
 
 download_verify "$NODE_SHA256" "$SRC/node-v$NODE_VERSION.tar.xz"
 
@@ -117,20 +120,32 @@ printf '[node] build %s (%s)\n' "$NODE_VERSION" "$TARGET"
 (
   cd "$SRC_DIR"
   help=$(./configure --help 2>&1)
-  for flag in --with-intl --without-npm --without-corepack; do
+  for flag in --with-intl --without-npm --without-corepack --without-amaro; do
     [[ "$help" == *"$flag"* ]] || fail "configure does not support $flag"
   done
   [[ "$help" == *"small-icu"* ]] || fail "configure does not support small-icu"
+  extra_flags=()
+  if [[ -n "$EXTRA" ]]; then
+    read -r -a extra_flags <<< "$EXTRA"
+    for flag in ${extra_flags[@]+"${extra_flags[@]}"}; do
+      [[ "$flag" == --* ]] || fail "NODE_CONFIGURE_EXTRA token must start with --: $flag"
+      [[ "$help" == *"$flag"* ]] || fail "unknown configure flag: $flag"
+    done
+  fi
   if [[ "$(uname -s)" == Darwin ]]; then
     # common.gypi hardcodes 13.5, so the user flags must win.
     export MACOSX_DEPLOYMENT_TARGET=13.0
-    export CFLAGS="-mmacosx-version-min=13.0 ${CFLAGS:-}"
-    export CXXFLAGS="-mmacosx-version-min=13.0 ${CXXFLAGS:-}"
+    export CFLAGS="-Os -mmacosx-version-min=13.0 ${CFLAGS:-}"
+    export CXXFLAGS="-Os -mmacosx-version-min=13.0 ${CXXFLAGS:-}"
     export LDFLAGS="-mmacosx-version-min=13.0 ${LDFLAGS:-}"
+  else
+    export CFLAGS="-Os ${CFLAGS:-}"
+    export CXXFLAGS="-Os ${CXXFLAGS:-}"
   fi
-  # Next 16 requires node:inspector at startup, so the custom Node keeps it.
+  # Amaro is unused by Next: 53,493,448 bytes, 51.0 MiB. Not --v8-lite-mode (+21.5% latency).
+  # Not --without-sqlite (link failure) or --without-inspector (Next 16 loads node:inspector).
   ./configure --prefix="$PREFIX" --with-intl=small-icu --without-npm \
-    --without-corepack
+    --without-corepack --without-amaro --enable-lto ${extra_flags[@]+"${extra_flags[@]}"}
   make -j"$JOBS"
 )
 

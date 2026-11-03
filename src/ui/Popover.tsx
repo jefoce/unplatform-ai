@@ -5,13 +5,11 @@ import { Popover as PopoverPrimitive } from 'radix-ui'
 
 import { cn } from '@/lib/cn'
 
+import { usePointerCloseFocus } from './use-pointer-close-focus'
+
 export const Popover = PopoverPrimitive.Root
 export const PopoverClose = PopoverPrimitive.Close
 export const PopoverTrigger = PopoverPrimitive.Trigger
-
-function handleCloseAutoFocus(event: Event): void {
-  event.preventDefault()
-}
 
 /** Floating panel anchored to a trigger. */
 export const PopoverContent = forwardRef<
@@ -19,6 +17,7 @@ export const PopoverContent = forwardRef<
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
 >(function PopoverContent(props, ref) {
   const { className, sideOffset = 8, align = 'center', ...rest } = props
+  const { handlePointerDownOutside, handleCloseAutoFocus } = usePointerCloseFocus()
 
   return (
     <PopoverPrimitive.Portal>
@@ -26,6 +25,7 @@ export const PopoverContent = forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         align={align}
+        onPointerDownOutside={handlePointerDownOutside}
         onCloseAutoFocus={handleCloseAutoFocus}
         {...rest}
         className={cn(

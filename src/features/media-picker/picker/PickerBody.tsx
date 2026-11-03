@@ -8,6 +8,7 @@ import { useBoolean } from '@/lib/use-boolean'
 
 import { AddFolderDialog } from '../folders/AddFolderDialog'
 import { useFolderBrowse } from '../folders/use-folder-browse'
+import { pickerTabList } from './picker-tab-list'
 import { PickerContent } from './PickerContent'
 import { PickerTabs } from './PickerTabs'
 import { closeMediaPicker, type PickerRequest } from './store'
@@ -55,6 +56,7 @@ export function PickerBody(props: PickerBodyProps) {
     <>
       <div className="flex h-full min-h-0 flex-col">
         <PickerTabs
+          tabs={pickerTabList(request)}
           folders={folders}
           activeTab={activeTab}
           onTabChange={handleTabChange}

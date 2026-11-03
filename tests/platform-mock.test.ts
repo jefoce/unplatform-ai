@@ -15,6 +15,7 @@ const PLATFORM_KEYS = {
   confirm: true,
   saveVideo: true,
   saveVideos: true,
+  saveImages: true,
   onFileDrop: true,
   appInfo: true,
   checkUpdate: true,

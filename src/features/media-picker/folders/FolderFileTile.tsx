@@ -3,7 +3,7 @@
 import { Film, Image as ImageIcon, Maximize2, Play } from 'lucide-react'
 import type { MouseEvent, ReactNode } from 'react'
 
-import type { FolderFile } from '@/core/media-types'
+import type { FolderFile } from '@/core/api/folders'
 import { cn } from '@/lib/cn'
 import { RetryImage } from '@/ui/RetryImage'
 import { Spinner } from '@/ui/Spinner'

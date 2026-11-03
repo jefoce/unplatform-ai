@@ -30,8 +30,18 @@ export function runScript(params: RunParams) {
   })
 }
 
+export function runNodeScript(params: RunParams) {
+  const { script, args = [], cwd = process.cwd(), env = process.env } = params
+
+  return spawnSync(process.execPath, [path.join(SCRIPTS, script), ...args], {
+    cwd,
+    env,
+    encoding: 'utf8',
+  })
+}
+
 export function tempDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'upai-ci-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-ci-'))
 
   tempDirs.push(dir)
 
@@ -91,6 +101,44 @@ mkdir -p "$out/nested/deep"
 printf tool > "$out/nested/deep/ffmpeg-x"
 printf '{}' > "$out/nested/deep/manifest.json"
 `
+
+const FAKE_GH = `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\\n' "$*" >> "$GH_LOG"
+case "$*" in
+  *"/assets"*"--paginate"*) printf '7\\n' ;;
+  *"--paginate"*) printf '17\\n' ;;
+  *"-X DELETE"*) ;;
+  *"-X POST"*"/releases"*"--jq .id"*) printf '99\\n' ;;
+  *"uploads.github.com"*)
+    for arg in "$@"; do
+      if [[ "$arg" == https://uploads.github.com* ]]; then
+        printf '%s\\n' "\${arg##*name=}"
+      fi
+    done
+    ;;
+  *) printf 'unexpected gh invocation: %s\\n' "$*" >&2; exit 1 ;;
+esac
+`
+
+export function fakeGhEnv() {
+  const root = tempDir()
+  const bin = path.join(root, 'bin')
+
+  fs.mkdirSync(bin)
+  fs.writeFileSync(path.join(bin, 'gh'), FAKE_GH, { mode: 0o755 })
+
+  const basePath = execFileSync('printenv', ['PATH'], { encoding: 'utf8' })
+
+  return {
+    root,
+    env: {
+      ...process.env,
+      PATH: `${bin}:${basePath.trim()}`,
+      GH_LOG: path.join(root, 'gh.log'),
+    },
+  }
+}
 
 export function fakeOrasEnv() {
   const root = tempDir()

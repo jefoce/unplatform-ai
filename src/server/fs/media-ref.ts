@@ -5,15 +5,15 @@ import path from 'node:path'
 
 import { isNil } from 'lodash-es'
 
-import { kindFromExt, kindFromName } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import { kindFromExt, kindFromName } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import { FoldersFileSchema } from '@/core/schemas/folder-item'
 import { UploadItemSchema } from '@/core/schemas/upload-item'
 
 import { HttpError } from '../errors'
-import { DOWNLOADS_DIR, FOLDERS_FILE, uploadPaths, UPLOADS_DIR } from '../paths'
-import { readJson } from './json-file'
-import { resolveInside, SafePathError } from './safe-path'
+import { DOWNLOADS_DIR, FOLDERS_FILE, IMAGES_DIR, uploadPaths, UPLOADS_DIR } from '../paths'
+import { isOwnedName, readJson } from './json-file'
+import { resolveInside, resolveRealInside, SafePathError } from './safe-path'
 
 class MediaRefError extends HttpError {}
 
@@ -37,6 +37,10 @@ export async function resolveMediaRef(segments: string[]): Promise<ResolvedMedia
 
   if (namespace === 'downloads') {
     return resolveDownload(rest, ref)
+  }
+
+  if (namespace === 'images') {
+    return resolveImage(rest, ref)
   }
 
   if (namespace === 'uploads') {
@@ -64,6 +68,22 @@ function resolveDownload(rest: string[], ref: string): ResolvedMediaRef {
   }
 
   return { absolutePath: inside(DOWNLOADS_DIR, name), kind, ref }
+}
+
+function resolveImage(rest: string[], ref: string): ResolvedMediaRef {
+  const [name] = rest
+
+  if (rest.length !== 1 || isNil(name) || name !== path.basename(name) || !isOwnedName(name)) {
+    throw new MediaRefError(400, `Invalid images ref: ${ref}`)
+  }
+
+  const kind = kindFromName(name)
+
+  if (isNil(kind)) {
+    throw new MediaRefError(400, `Unsupported media type: ${name}`)
+  }
+
+  return { absolutePath: inside(IMAGES_DIR, name), kind, ref }
 }
 
 async function resolveUpload(rest: string[], ref: string): Promise<ResolvedMediaRef> {
@@ -118,7 +138,17 @@ async function resolveFolder(rest: string[], ref: string): Promise<ResolvedMedia
     throw new MediaRefError(400, `Unsupported media type: ${ref}`)
   }
 
-  return { absolutePath: inside(folder.path, rel.join('/')), kind, ref }
+  const absolutePath = inside(folder.path, rel.join('/'))
+
+  try {
+    return { absolutePath: await resolveRealInside(folder.path, absolutePath), kind, ref }
+  } catch (error) {
+    if (error instanceof SafePathError) {
+      throw new MediaRefError(404, `File not found: ${ref}`)
+    }
+
+    throw error
+  }
 }
 
 function inside(root: string, rel: string): string {

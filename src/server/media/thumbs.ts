@@ -13,14 +13,14 @@ import {
   THUMBS_MAX_BYTES,
   THUMBS_TARGET_BYTES,
 } from '@/core/constants'
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 
 import { HttpError } from '../errors'
 import { isOwnedName, removeOwnedFile } from '../fs/json-file'
 import { THUMBS_DIR } from '../paths'
 import { createLimiter } from '../sync/limiter'
 import { extractPosterFrame } from './poster-frame'
-import sharp from './sharp'
+import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
 
 class ThumbUnavailableError extends HttpError {
   constructor() {
@@ -117,7 +117,7 @@ async function createThumb(params: CreateThumbParams): Promise<ThumbResult> {
 }
 
 async function renderImage(absPath: string, width: number): Promise<Buffer> {
-  return sharp(absPath)
+  return sharp(absPath, SHARP_INPUT_OPTIONS)
     .rotate()
     .resize({ width, withoutEnlargement: true })
     .webp({ quality: 78 })
@@ -137,7 +137,7 @@ async function renderVideo(params: RenderVideoParams): Promise<Buffer> {
   try {
     await extractPosterFrame({ videoPath: absPath, width, outPath: frame })
 
-    return await sharp(frame).webp({ quality: 78 }).toBuffer()
+    return await sharp(frame, SHARP_INPUT_OPTIONS).webp({ quality: 78 }).toBuffer()
   } finally {
     await fs.unlink(frame).catch(() => {})
   }

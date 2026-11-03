@@ -1,11 +1,22 @@
 import 'server-only'
 
-import type { MediaKind } from '@/core/media-types'
-import type { ModelPreset } from '@/core/presets/types'
-import type { VideoProviderId } from '@/core/providers/types'
+import type { MediaKind } from '@/core/media/media-types'
+import type { ImagePreset } from '@/core/presets/image/types'
+import type { VideoPreset } from '@/core/presets/video/types'
+import type { PricingInfo } from '@/core/pricing/types'
+import type { ProviderId } from '@/core/providers/types'
 import type { GenerationInput, JobStatus } from '@/core/schemas/generation-record'
-import type { AccountSource, PricingInfo, TestResult } from '@/core/types'
+import type { ImageGenerationInput } from '@/core/schemas/image-record'
+import type { AccountSource, TestResult } from '@/core/types'
 import type { Dict } from '@/core/utility-types'
+
+/** Whether a model endpoint listing exists for one model id. */
+export type EndpointState = 'present' | 'not_found' | 'unknown'
+
+export interface EndpointSignal {
+  state: EndpointState
+  reason: string | null
+}
 
 export interface ProviderModel {
   modelId: string
@@ -30,7 +41,7 @@ export interface ResolvedMedia {
 }
 
 export interface SubmitJobParams {
-  preset: ModelPreset
+  preset: VideoPreset
   input: GenerationInput
   media: Readonly<Dict<ResolvedMedia>>
 }
@@ -89,13 +100,71 @@ export interface AccountLookupParams {
 }
 
 export interface VideoProvider {
-  readonly id: VideoProviderId
+  readonly id: ProviderId
+
+  /** Hosts allowed for a provider-supplied content URL. Subdomains count. */
+  readonly contentHosts: readonly string[]
   isConfigured(): boolean
   submit(params: SubmitJobParams): Promise<SubmittedJob>
   getJob(job: JobRef): Promise<JobSnapshot>
   fetchContent(request: ContentRequest): Promise<Response>
   getAccount(params?: AccountLookupParams): Promise<ProviderAccount>
-  getPricing(preset: ModelPreset, isForce?: boolean): Promise<PricingInfo>
+  getPricing(preset: VideoPreset, isForce?: boolean): Promise<PricingInfo>
   listModels(): Promise<ProviderModelList>
+  listEndpoints(modelId: string): Promise<EndpointSignal>
+  testConnection(): Promise<TestResult>
+}
+
+export interface ProviderImageModel {
+  modelId: string
+  resolutions: readonly string[] | null
+  aspectRatios: readonly string[] | null
+  qualities: readonly string[] | null
+  backgrounds: readonly string[] | null
+  maxN: number | null
+  referenceMax: number | null
+  hasSeed: boolean | null
+}
+
+export interface ProviderImageModelList {
+  models: readonly ProviderImageModel[]
+  isFresh: boolean
+}
+
+/** @public */
+export interface ImageReferencePayload {
+  id: string
+  dataUrl: string
+}
+
+export interface ImageGenerateParams {
+  preset: ImagePreset
+  input: ImageGenerationInput
+  references: readonly ImageReferencePayload[]
+}
+
+interface ImageResultData {
+  b64: string
+  mediaType: string
+}
+
+interface ImageResultError {
+  error: string
+}
+
+/** @public */
+export type ImageResultItem = ImageResultData | ImageResultError
+
+export interface ImageResult {
+  items: readonly ImageResultItem[]
+  costUsd: number | null
+}
+
+export interface ImageProvider {
+  readonly id: ProviderId
+  isConfigured(): boolean
+  generate(params: ImageGenerateParams): Promise<ImageResult>
+  listModels(): Promise<ProviderImageModelList>
+  listEndpoints(modelId: string): Promise<EndpointSignal>
   testConnection(): Promise<TestResult>
 }

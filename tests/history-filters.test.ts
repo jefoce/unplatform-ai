@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyFilters, countActive, paginate, sortRecords } from '@/core/history-filters'
-
+import { applyFilters, countActive, paginate, sortRecords } from '../src/core/feed/history-filters'
 import { at, record, records } from './helpers/history-records'
 import { required } from './helpers/required'
 

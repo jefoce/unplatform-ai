@@ -3,11 +3,11 @@
 import { type KeyboardEvent } from 'react'
 
 import { isNonEmptyString } from '@/core/guards'
+import { uploadThumbUrl } from '@/lib/api/media-urls'
 import { cn } from '@/lib/cn'
 import { RetryImage } from '@/ui/RetryImage'
 import { Tooltip } from '@/ui/Tooltip'
 
-import { uploadThumb } from '../actions/record-view'
 import { openThumb, type ThumbItem } from './thumb-item'
 
 interface InputThumbProps {
@@ -63,7 +63,7 @@ export function InputThumb(props: InputThumbProps) {
         {item.missing && initialBadge}
         {!item.missing && (
           <RetryImage
-            src={uploadThumb(item.id)}
+            src={uploadThumbUrl(item.id)}
             alt=""
             loading="lazy"
             decoding="async"

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import { isNonEmptyString } from '@/core/guards'
-import { errorResponse, zodError } from '@/server/http'
+import { errorResponse, jsonResponse, zodError } from '@/server/http'
 import { addFolder } from '@/server/repos/folders'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { getSystem } from '@/server/system'
@@ -22,10 +22,10 @@ export async function POST(request: Request) {
     const path = await getSystem().chooseFolder({ prompt: PROMPT })
 
     if (!isNonEmptyString(path)) {
-      return Response.json(null, { status: 201 })
+      return jsonResponse(null, { status: 201 })
     }
 
-    return Response.json(await addFolder({ path }), { status: 201 })
+    return jsonResponse(await addFolder({ path }), { status: 201 })
   } catch (error) {
     return errorResponse(error)
   }

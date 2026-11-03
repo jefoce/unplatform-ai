@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef } from 'react'
+import { forwardRef, type MouseEvent } from 'react'
 import type { BeautifulMentionsMenuItemProps } from 'lexical-beautiful-mentions'
 import { isString } from 'lodash-es'
 
@@ -22,6 +22,8 @@ function dataSelectedValue(isSelected: boolean | undefined): true | undefined {
   return
 }
 
+/* eslint-disable jsx-a11y/role-supports-aria-props -- library passes aria-selected on menuitem */
+
 /** One typeahead row: thumb plus slot label. */
 export const ReferencePickerMenuItem = forwardRef<HTMLLIElement, BeautifulMentionsMenuItemProps>(
   function ReferencePickerMenuItem(props, ref) {
@@ -35,19 +37,31 @@ export const ReferencePickerMenuItem = forwardRef<HTMLLIElement, BeautifulMentio
     const iconKind = kind ?? 'image'
     const hasThumb = hasThumbSrc(thumbSrc)
 
+    const handleMouseDown = (event: MouseEvent<HTMLLIElement>) => {
+      props.onMouseEnter?.()
+      props.onMouseDown?.(event)
+    }
+
+    const handleMouseMove = (event: MouseEvent<HTMLLIElement>) => {
+      props.onMouseEnter?.()
+      props.onMouseMove?.(event)
+    }
+
     return (
       <li
         ref={ref}
         tabIndex={tabIndex}
         role="menuitem"
+        aria-selected={selected}
         data-selected={dataSelectedValue(selected)}
         aria-label={`Choose ${item.displayValue}`}
         onClick={props.onClick}
-        onMouseDown={props.onMouseDown}
+        onMouseDown={handleMouseDown}
         onMouseEnter={props.onMouseEnter}
+        onMouseMove={handleMouseMove}
         className={cn(
           'flex min-h-9 cursor-pointer items-center gap-2 rounded-lg p-2 text-sm font-medium text-fg hover:bg-white/5',
-          Boolean(selected) && 'bg-white/10 text-lime',
+          Boolean(selected) && 'bg-white/10 text-accent',
           className,
         )}
       >

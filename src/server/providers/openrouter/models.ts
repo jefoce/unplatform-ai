@@ -1,15 +1,15 @@
 import 'server-only'
 
-import { isEmpty } from 'lodash-es'
+import { isNil } from 'lodash-es'
 
 import type { ProviderModel, ProviderModelList } from '../types'
-import { fetchVideoModels, type VideoModel } from './video-models'
+import { fetchVideoModelsResult, type VideoModel } from './video-models'
 
 /** Live model capabilities from the shared list. */
 export async function listModels(): Promise<ProviderModelList> {
-  const models = (await fetchVideoModels()).map(toModel)
+  const { models, reason } = await fetchVideoModelsResult()
 
-  return { models, isFresh: !isEmpty(models) }
+  return { models: models.map(toModel), isFresh: isNil(reason) }
 }
 
 function toModel(model: VideoModel): ProviderModel {

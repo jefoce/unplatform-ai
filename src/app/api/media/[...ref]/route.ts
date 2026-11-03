@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { isNil } from 'lodash-es'
 
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 import { resolveMediaRef } from '@/server/fs/media-ref'
 import { streamFile } from '@/server/fs/range-response'
 import { errorResponse, jsonError, type PathRouteContext } from '@/server/http'

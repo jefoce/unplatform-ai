@@ -52,7 +52,7 @@ export function ReferenceThumbBody(props: ReferenceThumbBodyProps) {
   return (
     <div
       className={cn(
-        'absolute inset-0 overflow-hidden rounded-xl',
+        'absolute inset-0 overflow-hidden rounded-[inherit]',
         !isAudio && 'bg-surface-2 ring-1 ring-white/10 ring-inset',
       )}
     >

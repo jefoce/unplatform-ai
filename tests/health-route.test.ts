@@ -25,6 +25,14 @@ vi.mock('@/server/jobs/submit-queue', () => {
   }
 })
 
+vi.mock('@/server/jobs/image-submit-queue', () => {
+  return {
+    imageSendingCount: () => {
+      return 1
+    },
+  }
+})
+
 vi.mock('@/server/repos/generations', () => {
   return {
     listGenerations: async () => {
@@ -33,10 +41,20 @@ vi.mock('@/server/repos/generations', () => {
   }
 })
 
+const session = vi.hoisted(() => {
+  return { has: true }
+})
+
 vi.mock('@/server/session', () => {
   return {
-    sessionRequired: () => {
+    hasSession: () => {
+      return session.has
+    },
+    desktopMode: () => {
       return false
+    },
+    bootNonce: () => {
+      return 'test-nonce'
     },
   }
 })
@@ -44,6 +62,7 @@ vi.mock('@/server/session', () => {
 const HealthSchema = z
   .object({
     app: z.literal('unplatform-ai'),
+    bootNonce: z.string(),
     pid: z.number(),
     version: z.string().nullable(),
     desktop: z.boolean(),
@@ -51,6 +70,7 @@ const HealthSchema = z
     generating: z.number(),
     downloading: z.number(),
     sending: z.number(),
+    imageSending: z.number(),
     uploading: z.number(),
     grace: z.number(),
     rssMb: z.number(),
@@ -72,11 +92,14 @@ async function readHealth(): Promise<z.infer<typeof HealthSchema>> {
   const body: unknown = await response.json()
 
   expect(response.status).toBe(200)
+  expect(response.headers.get('cache-control')).toBe('no-store')
 
   return HealthSchema.parse(body)
 }
 
 afterEach(() => {
+  session.has = true
+
   if (originalVersion === undefined) {
     delete process.env.NEXT_PUBLIC_APP_VERSION
 
@@ -87,6 +110,14 @@ afterEach(() => {
 })
 
 describe('health route', () => {
+  it('names the image sending field imageSending', async () => {
+    const response = await GET(healthRequest())
+    const body: unknown = await response.json()
+
+    expect(body).toHaveProperty('imageSending', 1)
+    expect(body).not.toHaveProperty('image_sending')
+  })
+
   it('reports the inlined version when set', async () => {
     process.env.NEXT_PUBLIC_APP_VERSION = '0.3.1'
 
@@ -94,6 +125,7 @@ describe('health route', () => {
 
     expect(body.version).toBe('0.3.1')
     expect(body.generating).toBe(0)
+    expect(body.imageSending).toBe(1)
     expect(body.grace).toBe(0)
   })
 
@@ -111,5 +143,16 @@ describe('health route', () => {
     const body = await readHealth()
 
     expect(body.version).toBeNull()
+  })
+
+  it('publishes the boot nonce and omits pid and rss without a session', async () => {
+    session.has = false
+    const response = await GET(healthRequest())
+    const body: unknown = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toHaveProperty('bootNonce', 'test-nonce')
+    expect(body).not.toHaveProperty('pid')
+    expect(body).not.toHaveProperty('rssMb')
   })
 })

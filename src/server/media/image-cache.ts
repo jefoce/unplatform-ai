@@ -11,7 +11,7 @@ import {
   type FlattenColor,
   IMAGE_FORMATS,
   type ImageFormat,
-} from '@/core/media-types'
+} from '@/core/media/media-types'
 
 import { readJson, removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { UPLOADS_DIR } from '../paths'

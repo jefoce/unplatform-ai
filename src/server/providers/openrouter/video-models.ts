@@ -1,16 +1,23 @@
 import 'server-only'
 
+import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
-import { FETCH_TIMEOUTS, PRICING_FALLBACK_TTL_MS } from '@/core/constants'
+import {
+  FETCH_TIMEOUTS,
+  MODEL_LIST_MAX_PAGES,
+  PRICING_FALLBACK_TTL_MS,
+  PRICING_LIVE_TTL_MS,
+} from '@/core/constants'
 import { messageOf } from '@/core/errors'
 
 import { registerSecretsListener } from '../../secrets'
 import { createTtlCache, type TtlLoadResult } from '../../sync/ttl-cache'
-import { BASE_URL, issueSummary } from './http'
+import type { EndpointSignal } from '../types'
+import { BASE_URL, endpointsOf, issueSummary, nextPageUrl, optionalAuthHeaders } from './http'
 
 const MODELS_URL = `${BASE_URL}/api/v1/videos/models`
-const LIVE_TTL_MS = 3_600_000
+const MODEL_URL = `${BASE_URL}/api/v1/models`
 
 const VideoModelSchema = z
   .object({
@@ -28,7 +35,7 @@ const VideoModelSchema = z
 
 export type VideoModel = z.infer<typeof VideoModelSchema>
 
-const VideoModelsSchema = z.object({ data: z.array(z.unknown()) }).loose()
+const ListPageSchema = z.object({ data: z.array(z.unknown()) }).loose()
 
 /** Valid models plus the reason the list fell back to empty, if it did. */
 export interface VideoModelsResult {
@@ -38,7 +45,13 @@ export interface VideoModelsResult {
 
 const cache = createTtlCache<VideoModelsResult>({
   key: 'videoModels',
-  okTtlMs: LIVE_TTL_MS,
+  okTtlMs: PRICING_LIVE_TTL_MS,
+  failTtlMs: PRICING_FALLBACK_TTL_MS,
+})
+
+const endpointsCache = createTtlCache<EndpointSignal>({
+  key: 'videoModelEndpoints',
+  okTtlMs: PRICING_LIVE_TTL_MS,
   failTtlMs: PRICING_FALLBACK_TTL_MS,
 })
 
@@ -47,39 +60,105 @@ export async function fetchVideoModelsResult(isForce = false): Promise<VideoMode
   return cache.get('models', fetchModelsResult, isForce)
 }
 
-/** Shared `/videos/models` list. A failure caches an empty list for five minutes. */
-export async function fetchVideoModels(isForce = false): Promise<readonly VideoModel[]> {
-  const { models } = await fetchVideoModelsResult(isForce)
-
-  return models
+export async function fetchVideoEndpoints(
+  modelId: string,
+  isForce = false,
+): Promise<EndpointSignal> {
+  return endpointsCache.get(
+    modelId,
+    () => {
+      return fetchEndpointSignal(modelId)
+    },
+    isForce,
+  )
 }
 
 async function fetchModelsResult(): Promise<TtlLoadResult<VideoModelsResult>> {
   try {
-    const res = await fetch(MODELS_URL, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(FETCH_TIMEOUTS.meta),
-    })
+    const models: VideoModel[] = []
+    let skipped = 0
+    let url = MODELS_URL
+    let isComplete = false
 
-    if (!res.ok) {
-      return fallback(`HTTP ${res.status}`)
+    for (let page = 0; page < MODEL_LIST_MAX_PAGES; page += 1) {
+      const res = await fetch(url, {
+        cache: 'no-store',
+        headers: optionalAuthHeaders(),
+        signal: AbortSignal.timeout(FETCH_TIMEOUTS.meta),
+      })
+
+      if (!res.ok) {
+        return fallback(`HTTP ${res.status}`)
+      }
+
+      const parsed = ListPageSchema.safeParse(await res.json())
+
+      if (!parsed.success) {
+        return fallback(`invalid response (${issueSummary(parsed.error)})`)
+      }
+
+      const pageModels = readModels(parsed.data.data)
+
+      models.push(...pageModels.models)
+      skipped += pageModels.skipped
+
+      const next = nextPageUrl(parsed.data, url)
+
+      if (isNil(next)) {
+        isComplete = true
+        break
+      }
+
+      url = next
     }
-
-    const parsed = VideoModelsSchema.safeParse(await res.json())
-
-    if (!parsed.success) {
-      return fallback(`invalid response (${issueSummary(parsed.error)})`)
-    }
-
-    const { models, skipped } = readModels(parsed.data.data)
 
     if (skipped > 0) {
       console.warn(`[pricing] skipped ${skipped} video models with unexpected fields`)
     }
 
+    if (!isComplete) {
+      const reason = `more than ${MODEL_LIST_MAX_PAGES} pages`
+
+      console.warn(`[pricing] model list incomplete: ${reason}`)
+
+      return { value: { models, reason }, isOk: false }
+    }
+
     return { value: { models, reason: null }, isOk: true }
   } catch (error) {
     return fallback(messageOf(error))
+  }
+}
+
+async function fetchEndpointSignal(modelId: string): Promise<TtlLoadResult<EndpointSignal>> {
+  try {
+    const res = await fetch(`${MODEL_URL}/${modelId}/endpoints`, {
+      cache: 'no-store',
+      headers: optionalAuthHeaders(),
+      signal: AbortSignal.timeout(FETCH_TIMEOUTS.meta),
+    })
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        return { value: { state: 'not_found', reason: 'HTTP 404' }, isOk: false }
+      }
+
+      return { value: { state: 'unknown', reason: `HTTP ${res.status}` }, isOk: false }
+    }
+
+    const items = endpointsOf(await res.json())
+
+    if (isNil(items)) {
+      return { value: { state: 'unknown', reason: 'invalid response' }, isOk: false }
+    }
+
+    if (items.length === 0) {
+      return { value: { state: 'not_found', reason: 'no endpoints' }, isOk: false }
+    }
+
+    return { value: { state: 'present', reason: null }, isOk: true }
+  } catch (error) {
+    return { value: { state: 'unknown', reason: messageOf(error) }, isOk: false }
   }
 }
 
@@ -114,5 +193,6 @@ function fallback(reason: string): TtlLoadResult<VideoModelsResult> {
 export function registerVideoModelsSecretsListener(): void {
   registerSecretsListener('video-models', () => {
     cache.clear()
+    endpointsCache.clear()
   })
 }

@@ -3,28 +3,24 @@
 import { type MouseEvent } from 'react'
 import { Heart } from 'lucide-react'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-
-import { toggleFavorite } from './record-actions'
-
 interface FavoriteBadgeProps {
-  record: GenerationRecord
+  isFavorite: boolean
+  onToggle: () => void
 }
 
 /**
- * Idle favorite count pill, rendered only on liked cards. Hidden while hovered.
+ * Idle liked count pill, rendered only on liked cards. Hidden while hovered.
  * Pink gradient sits over the translucent black base.
  */
 export function FavoriteBadge(props: FavoriteBadgeProps) {
-  const { record } = props
-  const count = record.favorite ? 1 : 0
+  const count = props.isFavorite ? 1 : 0
 
   const handleFavorite = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    void toggleFavorite(record)
+    props.onToggle()
   }
 
-  const label = record.favorite ? 'Remove favorite' : 'Favorite'
+  const label = props.isFavorite ? 'Liked' : 'Like'
 
   return (
     <button

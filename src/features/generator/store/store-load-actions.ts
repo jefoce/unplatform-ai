@@ -4,7 +4,7 @@ import { isEqual, keyBy, omit, pick } from 'lodash-es'
 import { toast } from 'sonner'
 
 import { normalizeForPreset } from '@/core/normalize-input'
-import { DEFAULT_PRESET_ID, findPreset, getPreset } from '@/core/presets'
+import { DEFAULT_VIDEO_PRESET_ID, findPreset, getPreset } from '@/core/presets'
 import { canonicalizePrompt, referenceSlots } from '@/core/prompt-tokens'
 
 import { inputFromState } from './store-draft'
@@ -19,7 +19,7 @@ export function createLoadActions(set: GeneratorSetState, get: GeneratorGetState
     loadInput: (input, uploads) => {
       const cache = { ...get().uploadsById, ...keyBy(uploads, 'id') }
       const found = findPreset(input.presetId)
-      const preset = found ?? getPreset(DEFAULT_PRESET_ID)
+      const preset = found ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
 
       if (!found) {
         toast(`Model no longer available, switched to ${preset.title}`)
@@ -39,7 +39,7 @@ export function createLoadActions(set: GeneratorSetState, get: GeneratorGetState
     },
     normalizeLoaded: () => {
       const state = get()
-      const preset = findPreset(state.presetId) ?? getPreset(DEFAULT_PRESET_ID)
+      const preset = findPreset(state.presetId) ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
 
       const { input } = normalizeForPreset({
         input: inputFromState(state),

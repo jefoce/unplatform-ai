@@ -1,10 +1,12 @@
+import { isNil } from 'lodash-es'
+
 import type { JobStatus, RecordDownload, RecordSubmit } from './schemas/generation-record'
 
 export const STATUS_HELP_KEYS = [
   'processing',
   'uploading',
   'sending',
-  'in_queue',
+  'pending',
   'generating',
   'downloading',
   'completed',
@@ -46,9 +48,9 @@ export const STATUS_HELP: Record<StatusHelpKey, StatusHelp> = {
     charged: 'Maybe',
     quit: "If you quit, the app finishes sending first (up to a minute). If the computer crashes here, check OpenRouter's activity page before trying again.",
   },
-  in_queue: {
-    label: 'In queue',
-    what: 'OpenRouter accepted it and is waiting for the model',
+  pending: {
+    label: 'Processing',
+    what: 'OpenRouter accepted it and is starting the model',
     cancel: 'No',
     charged: 'When it finishes',
     quit: 'Yes, briefly. Reopen within a few hours.',
@@ -97,9 +99,40 @@ export const STATUS_HELP: Record<StatusHelpKey, StatusHelp> = {
   },
 }
 
+/** Image wording for the shared status help. */
+const IMAGE_HELP_OVERRIDES: Partial<Record<StatusHelpKey, Partial<StatusHelp>>> = {
+  processing: {
+    quit: 'Better not. If the app is closed for more than a minute, this image is not sent.',
+  },
+  uploading: {
+    what: 'Sending your reference files',
+  },
+  generating: {
+    what: 'The model is making your image',
+  },
+  downloading: {
+    what: 'Saving the image to your computer',
+  },
+  expired: {
+    what: 'The model took too long, or the finished image was gone before the app could save it',
+  },
+}
+
+/** One status help entry with image wording. */
+export function imageStatusHelp(key: StatusHelpKey): StatusHelp {
+  const help = STATUS_HELP[key]
+  const overrides = IMAGE_HELP_OVERRIDES[key]
+
+  if (isNil(overrides)) {
+    return help
+  }
+
+  return { ...help, ...overrides }
+}
+
 const STATUS_KEYS: Record<JobStatus, StatusHelpKey> = {
   submitting: 'processing',
-  pending: 'in_queue',
+  pending: 'pending',
   in_progress: 'generating',
   completed: 'completed',
   failed: 'failed',

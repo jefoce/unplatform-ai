@@ -4,7 +4,13 @@ import path from 'node:path'
 
 import { z } from 'zod'
 
-import { errorResponse, type IdRouteContext, jsonError, zodError } from '@/server/http'
+import {
+  errorResponse,
+  type IdRouteContext,
+  jsonError,
+  jsonResponse,
+  zodError,
+} from '@/server/http'
 import { extractBoundaryFrame } from '@/server/media/ffmpeg'
 import { downloadPaths, DOWNLOADS_DIR } from '@/server/paths'
 import { getGeneration } from '@/server/repos/generations'
@@ -65,7 +71,7 @@ export async function POST(request: Request, { params }: IdRouteContext) {
         originalName: `${record.id}-${body.data.at}-frame.png`,
       })
 
-      return Response.json(item, { status: 201 })
+      return jsonResponse(item, { status: 201 })
     } finally {
       await fs.unlink(temp).catch(() => {})
     }

@@ -12,12 +12,16 @@ const WIDE_QUERY = '(min-width: 900px)'
 const MAX_PANEL_WIDTH = 560
 const MAX_PANEL_HEIGHT = 720
 const EDGE_GAP = 16
+const SIDE_OFFSET = 8
+const TOP_GAP = EDGE_GAP + SIDE_OFFSET
 
 const PANEL_CLASSES =
   'z-50 flex flex-col overflow-hidden rounded-2xl border border-line bg-page-2/85 p-2 shadow-[0_24px_60px_-20px_var(--color-backdrop)] backdrop-blur-xl outline-none'
 
 const MODAL_CLASSES =
   'flex h-[min(720px,85vh)] max-h-none w-[min(900px,90vw)] flex-col bg-page-2 p-2 max-compact:w-[calc(100vw-16px)]'
+
+type PanelPlacement = 'right' | 'top'
 
 interface PanelSize {
   width: number
@@ -28,18 +32,35 @@ interface DockedPanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   anchor: HTMLElement | null
+
+  /** More regions that keep the panel open on pointer-down, like the references box. */
+  extraAnchors?: readonly (HTMLElement | null)[]
   fallback?: 'modal'
+  placement?: PanelPlacement
   label: string
   children: ReactNode
   className?: string
 }
 
-function measureAnchor(anchor: HTMLElement): PanelSize {
-  const rect = anchor.getBoundingClientRect()
+interface MeasureParams {
+  anchor: HTMLElement
+  placement: PanelPlacement
+}
+
+function panelHeight(params: MeasureParams, rect: DOMRect): number {
+  if (params.placement === 'top') {
+    return Math.max(0, Math.min(MAX_PANEL_HEIGHT, rect.top - TOP_GAP))
+  }
+
+  return Math.min(MAX_PANEL_HEIGHT, window.innerHeight - EDGE_GAP * 2)
+}
+
+function measureAnchor(params: MeasureParams): PanelSize {
+  const rect = params.anchor.getBoundingClientRect()
 
   return {
-    width: Math.min(MAX_PANEL_WIDTH, window.innerWidth - rect.right - EDGE_GAP),
-    height: Math.min(MAX_PANEL_HEIGHT, window.innerHeight - EDGE_GAP * 2),
+    width: Math.min(MAX_PANEL_WIDTH, window.innerWidth - EDGE_GAP * 2),
+    height: panelHeight(params, rect),
   }
 }
 
@@ -48,9 +69,28 @@ function isInsideAnchor(anchor: HTMLElement | null, target: EventTarget | null):
   return !isNil(anchor) && target instanceof Node && anchor.contains(target)
 }
 
+function isInsideAnyAnchor(
+  anchors: readonly (HTMLElement | null)[],
+  target: EventTarget | null,
+): boolean {
+  return anchors.some((anchor) => {
+    return isInsideAnchor(anchor, target)
+  })
+}
+
 /** Panel docked beside an anchor at wide widths, a centered modal below 900 px. */
 export function DockedPanel(props: DockedPanelProps) {
-  const { open: isOpen, anchor, fallback = 'modal', label, className, children } = props
+  const {
+    open: isOpen,
+    anchor,
+    extraAnchors = [],
+    fallback = 'modal',
+    placement = 'right',
+    label,
+    className,
+    children,
+  } = props
+
   const isWide = useMediaQuery(WIDE_QUERY)
   const [size, setSize] = useState<PanelSize | null>(null)
 
@@ -60,7 +100,7 @@ export function DockedPanel(props: DockedPanelProps) {
     }
 
     const update = () => {
-      setSize(measureAnchor(anchor))
+      setSize(measureAnchor({ anchor, placement }))
     }
 
     update()
@@ -69,10 +109,10 @@ export function DockedPanel(props: DockedPanelProps) {
     return () => {
       window.removeEventListener('resize', update)
     }
-  }, [anchor, isOpen, isWide])
+  }, [anchor, isOpen, isWide, placement])
 
   const handleInteractOutside = (event: Event) => {
-    if (isInsideAnchor(anchor, event.target)) {
+    if (isInsideAnyAnchor([anchor, ...extraAnchors], event.target)) {
       event.preventDefault()
     }
   }
@@ -97,9 +137,9 @@ export function DockedPanel(props: DockedPanelProps) {
       <PopoverPrimitive.Anchor virtualRef={virtualRef} />
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
-          side="right"
+          side={placement}
           align="center"
-          sideOffset={8}
+          sideOffset={SIDE_OFFSET}
           collisionPadding={8}
           className={cn(PANEL_CLASSES, className)}
           style={size ?? undefined}

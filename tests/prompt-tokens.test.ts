@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import type { MediaKind } from '@/core/media-types'
-import { getPreset } from '@/core/presets'
+import type { MediaKind } from '../src/core/media/media-types'
+import { getPreset } from '../src/core/presets'
 import {
   canonicalizePrompt,
   idForSlot,
   missingSlots,
+  normalizeMentionText,
   parsePromptParts,
   type PromptPart,
   promptSlots,
@@ -14,8 +15,8 @@ import {
   serializeParts,
   slotLabel,
   slotToken,
-} from '@/core/prompt-tokens'
-import type { Dict } from '@/core/utility-types'
+} from '../src/core/prompt-tokens'
+import type { Dict } from '../src/core/utility-types'
 
 const counts = (image = 0, video = 0, audio = 0): Record<MediaKind, number> => {
   return {
@@ -86,6 +87,24 @@ describe('parsePromptParts', () => {
 
   it('leaves legacy id tokens as text', () => {
     expect(parsePromptParts('Look at @[ref:a]', counts(1))).toEqual([text('Look at @[ref:a]')])
+  })
+
+  it('parses copied markdown mentions as slots', () => {
+    expect(parsePromptParts('@[Image 1](image_1) holds @[Video 2](video_2)', counts(1, 1))).toEqual(
+      [slot('image', 1), text(' holds '), slot('video', 2)],
+    )
+  })
+})
+
+describe('normalizeMentionText', () => {
+  it('turns copied markdown mentions into canonical text', () => {
+    expect(normalizeMentionText('@[Image 1](image_1) a cat')).toBe('@Image 1 a cat')
+  })
+
+  it('round trips a pasted video prompt through parse and serialize', () => {
+    const parts = parsePromptParts('@[Image 1](image_1) a cat', counts(1))
+
+    expect(serializeParts(parts)).toBe('@Image 1 a cat')
   })
 })
 

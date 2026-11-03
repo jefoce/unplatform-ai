@@ -3,20 +3,20 @@ import { isNil } from 'lodash-es'
 import { OPENROUTER_DESCRIPTOR } from './openrouter'
 import { R2_DESCRIPTOR } from './r2'
 import {
+  type ProviderDescriptor,
+  type ProviderId,
   type StorageProviderDescriptor,
   type StorageProviderId,
-  type VideoProviderDescriptor,
-  type VideoProviderId,
 } from './types'
 
 /** @public */
-export const VIDEO_PROVIDERS: readonly VideoProviderDescriptor[] = [OPENROUTER_DESCRIPTOR]
+export const PROVIDERS: readonly ProviderDescriptor[] = [OPENROUTER_DESCRIPTOR]
 
 /** @public */
 export const STORAGE_PROVIDERS: readonly StorageProviderDescriptor[] = [R2_DESCRIPTOR]
 
-export function videoProviderDescriptor(id: VideoProviderId): VideoProviderDescriptor {
-  const descriptor = VIDEO_PROVIDERS.find((provider) => {
+export function providerDescriptor(id: ProviderId): ProviderDescriptor {
+  const descriptor = PROVIDERS.find((provider) => {
     return provider.id === id
   })
 

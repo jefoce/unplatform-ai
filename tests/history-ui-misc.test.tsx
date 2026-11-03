@@ -8,9 +8,20 @@ import { PromptWarnings } from '@/features/generator/prompt/PromptWarnings'
 import { HistoryGrid } from '@/features/history/list/HistoryGrid'
 import { HistoryRow } from '@/features/history/list/HistoryRow'
 import { useSelectionStore } from '@/features/history/selection/selection-store'
+import { videoStatusView } from '@/features/history/status/status-view'
 import { StatusOverlay } from '@/features/history/status/StatusOverlay'
 
-import { handleNoop, ids, Observer, record, setOrder, setSelection, tile } from './helpers/history'
+import { ZOOM_DEFAULT } from '../src/core/constants'
+import {
+  handleNoop,
+  ids,
+  item,
+  Observer,
+  record,
+  setOrder,
+  setSelection,
+  tile,
+} from './helpers/history'
 import { required } from './helpers/required'
 
 const apiPost = vi.hoisted(() => {
@@ -67,7 +78,7 @@ describe('portal clicks', () => {
   it('does not open a tile from a More menu item', async () => {
     const handleOpenMock = vi.fn()
 
-    render(<HistoryGrid records={[record('a')]} onOpen={handleOpenMock} />)
+    render(<HistoryGrid items={[item('a')]} zoom={ZOOM_DEFAULT} onOpen={handleOpenMock} />)
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }), {
       button: 0,
@@ -83,7 +94,7 @@ describe('portal clicks', () => {
     setOrder(['a', 'b'])
     setSelection(['a'])
     apiDelete.mockResolvedValue(undefined)
-    render(<HistoryRow record={record('b')} />)
+    render(<HistoryRow item={item('b')} />)
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }), {
       button: 0,
@@ -104,7 +115,10 @@ describe('portal clicks', () => {
   })
 
   it('keeps heart, download and more interactive after the pointer leaves', async () => {
-    const { container } = render(<HistoryGrid records={[record('a')]} onOpen={handleNoop} />)
+    const { container } = render(
+      <HistoryGrid items={[item('a')]} zoom={ZOOM_DEFAULT} onOpen={handleNoop} />,
+    )
+
     const card = tile(container, 'a')
     const menu = within(card).getByRole('button', { name: 'More actions' })
 
@@ -114,7 +128,7 @@ describe('portal clicks', () => {
 
     const open = 'group-has-[[data-card-menu][data-state=open]]/card:pointer-events-auto'
 
-    for (const name of ['Favorite', 'Download', 'More actions']) {
+    for (const name of ['Like', 'Download', 'More actions']) {
       expect(within(card).getByRole('button', { name, hidden: true }).className).toContain(open)
     }
   })
@@ -161,10 +175,10 @@ describe('cancel fade', () => {
     const handleCancel = vi.fn()
 
     const { container, rerender } = render(
-      <StatusOverlay record={graced} onCancel={handleCancel} />,
+      <StatusOverlay view={videoStatusView(graced, handleCancel)} />,
     )
 
-    const button = screen.getByRole('button', { name: 'Cancel' })
+    const button = screen.getByRole('button', { name: /Cancel/ })
 
     expect(button.style.animationDuration).toBe('4000ms')
     expect(button.className).toContain('grace-fade')
@@ -179,8 +193,10 @@ describe('cancel fade', () => {
 
     rerender(
       <StatusOverlay
-        record={{ ...graced, submit: { stage: 'grace', notBefore: '2025-12-31T23:59:59.000Z' } }}
-        onCancel={handleCancel}
+        view={videoStatusView(
+          { ...graced, submit: { stage: 'grace', notBefore: '2025-12-31T23:59:59.000Z' } },
+          handleCancel,
+        )}
       />,
     )
 
@@ -191,11 +207,11 @@ describe('cancel fade', () => {
 
 describe('liked list row', () => {
   it('pins the heart without the count pill or a lower stack', () => {
-    const { container } = render(<HistoryRow record={record('a', { favorite: true })} />)
+    const { container } = render(<HistoryRow item={item('a', { favorite: true })} />)
     const row = required(container.firstElementChild, 'row')
     const media = required(row.firstElementChild, 'media') as HTMLElement
 
-    const hearts = within(media).getAllByRole('button', { name: 'Remove favorite' })
+    const hearts = within(media).getAllByRole('button', { name: 'Liked' })
 
     expect(hearts).toHaveLength(1)
     expect(within(media).queryByText('1')).toBeNull()

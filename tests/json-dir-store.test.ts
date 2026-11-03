@@ -13,7 +13,7 @@ const ItemSchema = z.object({ id: z.string() })
 let dir = ''
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-json-dir-store-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-json-dir-store-'))
 })
 
 afterEach(async () => {

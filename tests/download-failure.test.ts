@@ -2,19 +2,25 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { MAX_DOWNLOAD_RETRIES } from '@/core/constants'
-import { isDownloadFailure } from '@/core/download-failure'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import type { queueDownload as QueueDownload } from '@/server/jobs/download-queue'
+import type {
+  isDownloadQueued as IsDownloadQueued,
+  queueDownload as QueueDownload,
+} from '@/server/jobs/download-queue'
 import type { JobSnapshot } from '@/server/providers/types'
-import type { getGeneration as GetGeneration } from '@/server/repos/generations'
+import type {
+  getGeneration as GetGeneration,
+  saveGeneration as SaveGeneration,
+} from '@/server/repos/generations'
 
+import { MAX_DOWNLOAD_RETRIES } from '../src/core/constants'
+import { isDownloadFailure } from '../src/core/download-failure'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
 import { required } from './helpers/required'
 import { storedRecord } from './helpers/stored-record'
 
-const root = path.join(os.tmpdir(), `upai-download-failure-${process.pid}-${Date.now()}`)
+const root = path.join(os.tmpdir(), `cf-download-failure-${process.pid}-${Date.now()}`)
 
 process.env.STORAGE_ROOT = root
 
@@ -22,10 +28,43 @@ const fetchContent = vi.hoisted(() => {
   return vi.fn<() => Promise<Response>>()
 })
 
+interface PreviewModule {
+  makePreview: (params: { id: string; video: string; out: string }) => Promise<string | undefined>
+}
+
+const preview = vi.hoisted(() => {
+  return { fail: false }
+})
+
+vi.mock('@/server/media/preview', async () => {
+  const actual = await vi.importActual<PreviewModule>('@/server/media/preview')
+
+  return {
+    makePreview: async (params: { id: string; video: string; out: string }) => {
+      if (preview.fail) {
+        throw new Error('preview failed')
+      }
+
+      return actual.makePreview(params)
+    },
+  }
+})
+
 vi.mock('@/server/providers/registry', () => {
   return {
     getVideoProvider: () => {
       return { fetchContent }
+    },
+  }
+})
+
+vi.mock('@/server/media/ffmpeg', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@/server/media/ffmpeg')
+
+  return {
+    ...actual,
+    probeMedia: async () => {
+      return { durationSec: 1, width: 640, height: 360 }
     },
   }
 })
@@ -43,14 +82,20 @@ const JOB_ID = 'or-job-4242'
 const SUBMITTED_AT = '2026-01-01T00:00:00.000Z'
 
 let queueDownload: typeof QueueDownload
+let isDownloadQueued: typeof IsDownloadQueued
 let getGeneration: typeof GetGeneration
+let saveGeneration: typeof SaveGeneration
 
 beforeAll(async () => {
   await fs.mkdir(root, { recursive: true })
 
-  ;({ queueDownload } = await import('@/server/jobs/download-queue'))
+  ;({ queueDownload, isDownloadQueued } = await import('@/server/jobs/download-queue'))
 
-  ;({ getGeneration } = await import('@/server/repos/generations'))
+  ;({ getGeneration, saveGeneration } = await import('@/server/repos/generations'))
+})
+
+afterEach(() => {
+  preview.fail = false
 })
 
 afterAll(async () => {
@@ -66,6 +111,8 @@ describe('download failure flag', () => {
 
     let saved = storedRecord(id, { status: 'in_progress', job })
 
+    await saveGeneration(saved)
+
     for (let attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt += 1) {
       await queueDownload(saved, JOB)
 
@@ -75,6 +122,30 @@ describe('download failure flag', () => {
     expect(saved.status).toBe('failed')
     expect(saved.downloadFailed).toBe(true)
     expect(isDownloadFailure(saved)).toBe(true)
+  })
+
+  it('counts a failed finalize and clears the marker on the last retry', async () => {
+    const id = '66666666-6666-4666-8666-666666666666'
+    const job = { id: JOB_ID, submittedAt: SUBMITTED_AT }
+
+    fetchContent.mockResolvedValue(new Response(new Uint8Array([0, 0, 0, 0])))
+    preview.fail = true
+
+    let saved = storedRecord(id, { status: 'in_progress', job })
+
+    await saveGeneration(saved)
+
+    for (let attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt += 1) {
+      await queueDownload(saved, JOB)
+
+      saved = await waitForFailure(id)
+
+      expect(saved.download).toBeUndefined()
+    }
+
+    expect(saved.status).toBe('failed')
+    expect(saved.downloadFailed).toBe(true)
+    expect(saved.error).toContain('preview failed')
   })
 
   it('clears downloadFailed when the retry succeeds', async () => {
@@ -89,6 +160,7 @@ describe('download failure flag', () => {
       job: { id: JOB_ID, submittedAt: SUBMITTED_AT },
     })
 
+    await saveGeneration(record)
     await queueDownload(record, JOB)
 
     const saved = required(
@@ -118,7 +190,7 @@ async function waitForFailure(id: string): Promise<GenerationRecord> {
     const current = await getGeneration(id)
     const isFailed = current?.error?.startsWith('Download failed:') === true
 
-    if (current && !current.download && isFailed) {
+    if (current && !current.download && isFailed && !isDownloadQueued(id)) {
       return current
     }
 

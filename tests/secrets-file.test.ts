@@ -14,7 +14,7 @@ async function loadFileBackend() {
 }
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-secrets-file-'))
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-secrets-file-'))
   vi.stubEnv('STORAGE_ROOT', root)
 })
 

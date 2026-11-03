@@ -1,15 +1,15 @@
 'use client'
 
-import { KIND_PLURAL } from '@/core/media-kinds'
-import { MEDIA_KINDS } from '@/core/media-types'
-import type { ModelPreset } from '@/core/presets/types'
+import { KIND_PLURAL } from '@/core/media/media-kinds'
+import { MEDIA_KINDS } from '@/core/media/media-types'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { joinWords } from '@/core/text'
 import { cn } from '@/lib/cn'
 
 import { REFERENCE_ICONS } from './reference-icons'
 
 interface ReferencesEmptyProps {
-  preset: ModelPreset
+  preset: VideoPreset
   onPick: () => void
 }
 

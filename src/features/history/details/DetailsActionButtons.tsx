@@ -15,7 +15,7 @@ interface DetailsActionButtonsProps {
 /** Download and favorite buttons for a details panel record. */
 export function DetailsActionButtons(props: DetailsActionButtonsProps) {
   const { record } = props
-  const favoriteLabel = record.favorite ? 'Remove favorite' : 'Favorite'
+  const favoriteLabel = record.favorite ? 'Liked' : 'Like'
 
   return (
     <>

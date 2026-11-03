@@ -2,12 +2,14 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AspectRatio } from '@/core/presets/types'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { AspectRatioPopover } from '@/features/generator/options/AspectRatioPopover'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { DetailsPanel } from '@/features/history/details/DetailsPanel'
 import { RatioIcon } from '@/ui/RatioIcon'
+
+import type { AspectRatio } from '../src/core/presets/video/types'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { videoItem } from '../src/lib/feed/output-items'
 
 vi.mock('@/lib/fetcher', () => {
   return {
@@ -181,7 +183,7 @@ describe('field and history callers', () => {
   })
 
   it('draws the history chip icon at the record ratio', () => {
-    render(<DetailsPanel record={record('9:16')} />)
+    render(<DetailsPanel item={videoItem(record('9:16'))} />)
 
     expectRatioBox(screen.getByText('9:16'), '9:16')
   })

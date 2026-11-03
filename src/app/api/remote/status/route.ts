@@ -1,6 +1,6 @@
 import { isNil } from 'lodash-es'
 
-import { errorResponse } from '@/server/http'
+import { errorResponse, jsonResponse } from '@/server/http'
 import { listUploads } from '@/server/repos/uploads'
 import { assertLocalRequest } from '@/server/request-guard'
 import { secretsReady } from '@/server/secrets'
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     assertLocalRequest(request)
     await secretsReady()
 
-    return Response.json({
+    return jsonResponse({
       configured: !isNil(getObjectStore()),
       mock: Boolean(process.env.REMOTE_MOCK?.trim()),
       storedBytes: trackedRemoteBytes(await listUploads()),

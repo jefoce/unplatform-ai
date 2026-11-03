@@ -1,9 +1,9 @@
 import { cn } from '@/lib/cn'
 
 const TONE_CLASSES = {
-  lime: 'border-t-lime',
+  accent: 'border-t-accent',
   muted: 'border-t-white/50',
-  onAccent: 'border-on-lime/20 border-t-on-lime',
+  onAccent: 'border-on-accent/20 border-t-on-accent',
 } as const
 
 interface SpinnerProps {
@@ -14,7 +14,7 @@ interface SpinnerProps {
 
 /** Small rotating loading indicator. */
 export function Spinner(props: SpinnerProps) {
-  const { size = 18, className, tone = 'lime' } = props
+  const { size = 18, className, tone = 'accent' } = props
 
   return (
     <span

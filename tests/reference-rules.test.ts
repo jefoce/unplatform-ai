@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import { addBlockReason, referenceRoom } from '@/features/generator/reference-rules'
+import {
+  REFERENCE_ALREADY_ATTACHED,
+  REFERENCE_LIMIT_REACHED,
+  REFERENCE_ONLY_IMAGES,
+  referenceBlockReason,
+  referenceRoom,
+} from '@/features/generator/reference-rules'
 
+import { getPreset } from '../src/core/presets'
 import { upload, uploadsOf } from './helpers/validation-fixtures'
 
 const preset = getPreset('wan-3.0')
@@ -33,38 +39,30 @@ describe('referenceRoom', () => {
   })
 })
 
-describe('addBlockReason', () => {
+describe('referenceBlockReason', () => {
   it('names a kind the model does not take', () => {
-    const noImage = { ...preset, references: { ...preset.references, image: 0 } }
-
-    expect(
-      addBlockReason({
-        kind: 'image',
-        room: referenceRoom({ preset: noImage, references: [], uploadsById: uploads }),
-        preset: noImage,
-      }),
-    ).toBe('This model does not take image references')
+    expect(referenceBlockReason({ kind: 'image', max: 0, room: 0 })).toBe(
+      'This model does not take image references',
+    )
   })
 
   it('reports a full kind', () => {
-    const oneAudio = { ...preset, references: { ...preset.references, audio: 1 } }
+    expect(referenceBlockReason({ kind: 'audio', max: 1, room: 0 })).toBe(REFERENCE_LIMIT_REACHED)
+  })
 
-    expect(
-      addBlockReason({
-        kind: 'audio',
-        room: referenceRoom({ preset: oneAudio, references: [audio.id], uploadsById: uploads }),
-        preset: oneAudio,
-      }),
-    ).toBe('Reference limit reached')
+  it('reports an attached reference', () => {
+    expect(referenceBlockReason({ kind: 'image', max: 1, room: 1, isAttached: true })).toBe(
+      REFERENCE_ALREADY_ATTACHED,
+    )
+  })
+
+  it('keeps the image picker wording for a foreign kind', () => {
+    expect(referenceBlockReason({ kind: 'video', max: 0, room: 0, isImageOnly: true })).toBe(
+      REFERENCE_ONLY_IMAGES,
+    )
   })
 
   it('is null when the kind has room', () => {
-    expect(
-      addBlockReason({
-        kind: 'image',
-        room: referenceRoom({ preset, references: [], uploadsById: uploads }),
-        preset,
-      }),
-    ).toBeNull()
+    expect(referenceBlockReason({ kind: 'image', max: 1, room: 1 })).toBeNull()
   })
 })

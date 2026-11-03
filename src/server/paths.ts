@@ -25,7 +25,11 @@ const LOGS_DIR = path.join(STORAGE_ROOT, 'logs')
 
 export const LOCK_FILE = path.join(STORAGE_ROOT, 'server.lock')
 export const DOWNLOADS_DIR = path.join(STORAGE_ROOT, 'downloads')
+export const IMAGES_DIR = path.join(STORAGE_ROOT, 'images')
 export const UPLOADS_DIR = path.join(STORAGE_ROOT, 'uploads')
+
+/** Scratch files for uploads and probes. Never served. */
+export const STORAGE_TMP_DIR = path.join(STORAGE_ROOT, 'tmp')
 const DATA_DIR = path.join(STORAGE_ROOT, 'data')
 
 export const THUMBS_DIR = path.join(STORAGE_ROOT, '.cache', 'thumbs')
@@ -49,8 +53,18 @@ export async function ensureDirs(): Promise<void> {
   await fs.chmod(STORAGE_ROOT, 0o700)
 
   await Promise.all(
-    [DOWNLOADS_DIR, UPLOADS_DIR, DATA_DIR, THUMBS_DIR, COMPAT_DIR, LOGS_DIR].map((dir) => {
-      return fs.mkdir(dir, { recursive: true, mode: 0o700 })
+    [
+      DOWNLOADS_DIR,
+      IMAGES_DIR,
+      UPLOADS_DIR,
+      DATA_DIR,
+      THUMBS_DIR,
+      COMPAT_DIR,
+      LOGS_DIR,
+      STORAGE_TMP_DIR,
+    ].map(async (dir) => {
+      await fs.mkdir(dir, { recursive: true, mode: 0o700 })
+      await fs.chmod(dir, 0o700)
     }),
   )
 }
@@ -72,6 +86,28 @@ export function uploadPaths(id: string, ext: string): UploadPaths {
   return { media: `${base}${ext}`, json: `${base}.json` }
 }
 
+export function imageRecordPath(id: string): string {
+  return path.join(IMAGES_DIR, `${id}.json`)
+}
+
+interface ImageFileParams {
+  id: string
+  index: number
+  ext: string
+}
+
+export function imageOutputPath(params: ImageFileParams): string {
+  const { id, index, ext } = params
+
+  return path.join(IMAGES_DIR, `${id}-${index}${ext}`)
+}
+
+export function imageTempPath(params: ImageFileParams): string {
+  const { id, index, ext } = params
+
+  return path.join(IMAGES_DIR, `${id}-${index}.tmp-${ext}`)
+}
+
 interface CleanupResult {
   removed: number
 }
@@ -80,12 +116,14 @@ interface CleanupResult {
 export async function cleanupStale(): Promise<CleanupResult> {
   const cutoff = Date.now() - UPLOAD_CLEANUP_MS
 
-  const [downloads, uploads] = await Promise.all([
+  const [downloads, images, uploads, temps] = await Promise.all([
     removeStale(DOWNLOADS_DIR, cutoff),
+    removeStale(IMAGES_DIR, cutoff),
     removeStale(UPLOADS_DIR, cutoff),
+    removeStale(STORAGE_TMP_DIR, cutoff),
   ])
 
-  return { removed: downloads + uploads }
+  return { removed: downloads + images + uploads + temps }
 }
 
 async function removeStale(dir: string, cutoff: number): Promise<number> {

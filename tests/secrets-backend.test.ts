@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SECRET_NAMES } from '@/core/secret-names'
+import { SECRET_NAMES } from '../src/core/secret-names'
 
 const keychainBackendMock = vi.hoisted(() => {
   return vi.fn(async () => {
@@ -35,7 +35,7 @@ async function loadSecrets() {
 }
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-secrets-backend-'))
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-secrets-backend-'))
   vi.stubEnv('STORAGE_ROOT', root)
   vi.stubEnv('APP_TOKEN', '')
   vi.stubEnv('NODE_ENV', 'test')
@@ -81,7 +81,7 @@ describe('secrets backend selection', () => {
 
     await fs.writeFile(
       path.join(root, 'secrets.json'),
-      JSON.stringify({ OPENROUTER_API_KEY: 'sk-or-test' }),
+      JSON.stringify({ OPENROUTER_API_KEY: 'sk-or-v1-test' }),
       { mode: 0o600 },
     )
 
@@ -98,7 +98,7 @@ describe('secrets backend selection', () => {
 
     expect(secrets.secretStatus().backend).toBe('file')
 
-    await secrets.setSecrets({ OPENROUTER_API_KEY: 'sk-or-test' })
+    await secrets.setSecrets({ OPENROUTER_API_KEY: 'sk-or-v1-test' })
 
     const stats = await fs.stat(path.join(root, 'secrets.json'))
 

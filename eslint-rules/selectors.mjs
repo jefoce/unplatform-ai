@@ -1,4 +1,5 @@
-const PRESET_IDS = /^(wan-3\.0|wan-3\.0-prime|seedance-2\.0|seedance-2\.5)$/
+export const PRESET_IDS =
+  /^(wan-3\.0|wan-3\.0-prime|seedance-2\.0|seedance-2\.5|gemini-2\.5-flash-image|gemini-3-pro-image|gemini-3\.1-flash-image|gemini-3\.1-flash-lite-image|gemini-nano-banana-2\.1|seedream-5-0-flash|seedream-5-0-lite|seedream-5-0-pro|gpt-image-2|gpt-image-2\.5-flare|gpt-image-2\.5-sunburst|flux-3-image-klein)$/
 
 export const restrict = (...groups) => ['error', ...groups.flat()]
 

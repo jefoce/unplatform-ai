@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { posterSrc } from '@/features/history/actions/record-view'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { posterSrc } from '../src/lib/feed/output-items'
 
 const record = {
   output: { video: 'clip.mp4', preview: 'clip.preview.png' },

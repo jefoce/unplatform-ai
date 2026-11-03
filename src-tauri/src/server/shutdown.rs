@@ -1,5 +1,6 @@
 use super::{
     boot::{self, Health},
+    shutdown_waits::{DOWNLOAD_WAIT_MS, IMAGE_WAIT_MS, WORK_WAIT_MS},
     RuntimeInfo, State, SHUTDOWN_TIMEOUT,
 };
 use crate::settings;
@@ -13,14 +14,19 @@ use tauri_plugin_dialog::{
     DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
 };
 
-const SENDING_WAIT: Duration = Duration::from_secs(65);
-const SEND_POLL: Duration = Duration::from_millis(250);
+// Generated from src/core/constants.ts by scripts/shutdown-waits.mjs.
+const IMAGE_WORK_WAIT: Duration = Duration::from_millis(IMAGE_WAIT_MS);
+const DOWNLOAD_WORK_WAIT: Duration = Duration::from_millis(DOWNLOAD_WAIT_MS);
+// Quitting waits for the slowest case, never less than the image waves.
+const WORK_WAIT: Duration = Duration::from_millis(WORK_WAIT_MS);
+const WORK_POLL: Duration = Duration::from_millis(250);
 
 #[derive(Default)]
 pub(crate) struct Pending {
     generating: u32,
     downloading: u32,
     sending: u32,
+    image_sending: u32,
     uploading: u32,
     grace: u32,
 }
@@ -34,17 +40,42 @@ impl Pending {
             generating: health.generating,
             downloading: health.downloading,
             sending: health.sending,
+            image_sending: health.image_sending,
             uploading: health.uploading,
             grace: health.grace,
         }
     }
 
     pub(crate) fn busy(&self) -> bool {
-        self.generating + self.downloading + self.sending + self.uploading + self.grace > 0
+        self.generating
+            + self.downloading
+            + self.sending
+            + self.image_sending
+            + self.uploading
+            + self.grace
+            > 0
     }
 
-    pub(crate) fn is_sending(&self) -> bool {
-        self.sending > 0
+    pub(crate) fn needs_wait(&self) -> bool {
+        self.sending + self.image_sending + self.downloading > 0
+    }
+
+    /// A confirmed quit waits only for sends. Downloads resume next launch.
+    pub(crate) fn needs_send_wait(&self) -> bool {
+        self.sending + self.image_sending > 0
+    }
+
+    fn has_videos(&self) -> bool {
+        self.generating + self.downloading + self.sending + self.uploading + self.grace > 0
+    }
+}
+
+/// Dialog title that names the kinds still running.
+fn quit_title(pending: &Pending) -> &'static str {
+    match (pending.has_videos(), pending.image_sending > 0) {
+        (true, true) => "Videos and images still in progress",
+        (false, true) => "Images still in progress",
+        _ => "Videos still in progress",
     }
 }
 
@@ -72,13 +103,13 @@ pub fn shutdown_then_exit(app: &AppHandle<Wry>, api: tauri::ExitRequestApi) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let pending = pending_work(&app).await;
-        if pending.busy() && !confirm_quit(&app, &pending, "Videos still in progress").await {
+        if pending.busy() && !confirm_quit(&app, &pending, quit_title(&pending)).await {
             app.state::<State>()
                 .shutting_down
                 .store(false, Ordering::SeqCst);
             return;
         }
-        shutdown(&app, pending.sending > 0).await;
+        shutdown(&app, pending.needs_send_wait()).await;
     });
 }
 
@@ -91,18 +122,20 @@ pub fn emergency_cleanup(app: &AppHandle<Wry>) {
     state.shutting_down.store(true, Ordering::SeqCst);
 
     let runtime = state.runtime.lock().unwrap().clone();
-    let sending = runtime
+    let waiting = runtime
         .as_ref()
         .and_then(|runtime| boot::health(runtime.port))
-        .is_some_and(|health| health.sending > 0);
+        .is_some_and(|health| {
+            health.sending + health.image_sending + health.downloading > 0
+        });
 
     if let Some(runtime) = runtime {
         request_shutdown(&runtime, Duration::from_secs(2));
     }
 
     let deadline = Instant::now()
-        + if sending {
-            SENDING_WAIT
+        + if waiting {
+            WORK_WAIT
         } else {
             Duration::from_millis(1200)
         };
@@ -163,8 +196,13 @@ fn guard_text(pending: &Pending) -> String {
         ),
         group(
             pending.sending,
-            "1 video is being sent right now. The app finishes sending before it quits (up to a minute).",
-            "{} videos are being sent right now. The app finishes sending before it quits (up to a minute).",
+            "1 video is being sent right now. The app finishes sending before it quits (up to five minutes).",
+            "{} videos are being sent right now. The app finishes sending before it quits (up to five minutes).",
+        ),
+        group(
+            pending.image_sending,
+            "1 image request is still generating. If you quit now, it may be charged and lost.",
+            "{} image requests are still generating. If you quit now, they may be charged and lost.",
         ),
         group(
             pending.uploading,
@@ -196,16 +234,16 @@ fn group(count: u32, one: &str, many: &str) -> Option<String> {
 }
 
 /// Stops the sidecar and marks the app as exiting, without exiting the process.
-pub(crate) async fn stop_server(app: &AppHandle<Wry>, wait_sending: bool) {
+pub(crate) async fn stop_server(app: &AppHandle<Wry>, wait_work: bool) {
     app.state::<State>()
         .shutting_down
         .store(true, Ordering::SeqCst);
     let state = app.state::<State>();
     let runtime = state.runtime.lock().unwrap().clone();
 
-    if wait_sending {
+    if wait_work {
         if let Some(window) = app.get_webview_window("main") {
-            let _ = window.set_title("Unplatform AI (finishing sending...)");
+            let _ = window.set_title("Unplatform AI (finishing work...)");
         }
     }
 
@@ -217,33 +255,35 @@ pub(crate) async fn stop_server(app: &AppHandle<Wry>, wait_sending: bool) {
     }
 
     let mut deadline = Instant::now()
-        + if wait_sending {
-            SENDING_WAIT
+        + if wait_work {
+            WORK_WAIT
         } else {
             SHUTDOWN_TIMEOUT
         };
-    let mut watching_sending = wait_sending;
+    let mut watching_work = wait_work;
     loop {
         if state.child.lock().unwrap().is_none() || Instant::now() >= deadline {
             break;
         }
-        if watching_sending {
+        if watching_work {
             let port = runtime.as_ref().map(|runtime| runtime.port);
-            let still_sending = match port {
+            let still_working = match port {
                 Some(port) => tauri::async_runtime::spawn_blocking(move || boot::health(port))
                     .await
                     .ok()
                     .flatten()
-                    .is_some_and(|health| health.sending > 0),
+                    .is_some_and(|health| {
+                        health.sending + health.image_sending + health.downloading > 0
+                    }),
                 None => false,
             };
-            if !still_sending {
-                watching_sending = false;
+            if !still_working {
+                watching_work = false;
                 deadline = deadline.min(Instant::now() + SHUTDOWN_TIMEOUT);
             }
         }
-        let pause = if wait_sending {
-            SEND_POLL
+        let pause = if wait_work {
+            WORK_POLL
         } else {
             Duration::from_millis(100)
         };
@@ -259,15 +299,82 @@ pub(crate) async fn stop_server(app: &AppHandle<Wry>, wait_sending: bool) {
     state.exiting.store(true, Ordering::SeqCst);
 }
 
-/// Stops the sidecar, then exits. The quit path keeps its sending wait.
-async fn shutdown(app: &AppHandle<Wry>, wait_sending: bool) {
-    stop_server(app, wait_sending).await;
+/// Stops the sidecar, then exits. The quit path keeps its work wait.
+async fn shutdown(app: &AppHandle<Wry>, wait_work: bool) {
+    stop_server(app, wait_work).await;
     app.exit(0);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{guard_text, Pending};
+    use super::{guard_text, Pending, DOWNLOAD_WORK_WAIT, IMAGE_WORK_WAIT, WORK_WAIT};
+    use crate::server::boot::Health;
+    use serde_json::json;
+
+    fn health_with_image_sending() -> Health {
+        let fixture = json!({
+            "app": "unplatform-ai",
+            "pid": 4242,
+            "version": "0.4.0",
+            "desktop": true,
+            "ready": true,
+            "generating": 0,
+            "downloading": 0,
+            "sending": 0,
+            "imageSending": 1,
+            "uploading": 0,
+            "grace": 0,
+            "rssMb": 120
+        });
+        serde_json::from_value(fixture).expect("parse health")
+    }
+
+    fn health_with_download() -> Health {
+        let mut health = health_with_image_sending();
+        health.image_sending = 0;
+        health.downloading = 1;
+        health
+    }
+
+    #[test]
+    fn work_wait_covers_image_and_download_waits() {
+        assert!(WORK_WAIT >= IMAGE_WORK_WAIT);
+        assert!(WORK_WAIT >= DOWNLOAD_WORK_WAIT);
+    }
+
+    #[test]
+    fn parses_image_sending_from_camel_case() {
+        assert_eq!(health_with_image_sending().image_sending, 1);
+    }
+
+    #[test]
+    fn image_sending_keeps_the_quit_guard_waiting() {
+        let pending = Pending::from_health(Some(health_with_image_sending()));
+        assert!(pending.busy());
+        assert!(pending.needs_wait());
+    }
+
+    #[test]
+    fn downloading_keeps_the_quit_guard_waiting() {
+        let pending = Pending::from_health(Some(health_with_download()));
+        assert!(pending.busy());
+        assert!(pending.needs_wait());
+    }
+
+    #[test]
+    fn download_only_does_not_need_a_send_wait() {
+        let pending = Pending::from_health(Some(health_with_download()));
+        assert!(!pending.needs_send_wait());
+    }
+
+    #[test]
+    fn video_sending_keeps_the_quit_path_waiting() {
+        let mut health = health_with_download();
+        health.sending = 1;
+
+        let pending = Pending::from_health(Some(health));
+        assert!(pending.needs_send_wait());
+    }
 
     #[test]
     fn counts_each_group_once() {
@@ -290,11 +397,47 @@ mod tests {
     }
 
     #[test]
+    fn image_sending_warns_about_the_charge() {
+        let text = guard_text(&Pending {
+            image_sending: 1,
+            ..Pending::default()
+        });
+        assert!(text.contains("1 image request is still generating"));
+        assert!(!text.contains("video"));
+    }
+
+    #[test]
     fn uploading_says_nothing_was_charged() {
         let text = guard_text(&Pending {
             uploading: 1,
             ..Pending::default()
         });
         assert!(text.contains("nothing was charged"));
+    }
+
+    #[test]
+    fn quit_title_names_the_pending_kinds() {
+        assert_eq!(
+            super::quit_title(&Pending {
+                generating: 1,
+                ..Pending::default()
+            }),
+            "Videos still in progress"
+        );
+        assert_eq!(
+            super::quit_title(&Pending {
+                image_sending: 1,
+                ..Pending::default()
+            }),
+            "Images still in progress"
+        );
+        assert_eq!(
+            super::quit_title(&Pending {
+                generating: 1,
+                image_sending: 1,
+                ..Pending::default()
+            }),
+            "Videos and images still in progress"
+        );
     }
 }

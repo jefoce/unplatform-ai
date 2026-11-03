@@ -1,39 +1,35 @@
 import 'server-only'
 
 import { isEmpty, isNil } from 'lodash-es'
-import { z } from 'zod'
 
-import { FETCH_TIMEOUTS, PRICING_FALLBACK_TTL_MS } from '@/core/constants'
-import { messageOf } from '@/core/errors'
-import { primaryBinding } from '@/core/presets/bindings'
-import type { ModelPreset } from '@/core/presets/types'
-import type { PricingInfo } from '@/core/types'
+import { PRICING_FALLBACK_TTL_MS, PRICING_LIVE_TTL_MS } from '@/core/constants'
+import { primaryBinding } from '@/core/presets/common/bindings'
+import type { VideoPreset } from '@/core/presets/video/types'
+import { type PricingInfo, type SkuTable } from '@/core/pricing/types'
 import type { Dict } from '@/core/utility-types'
 
+import {
+  fallbackPricing,
+  type LivePricing,
+  type LivePricingParams,
+  loadLivePricing,
+  registerLivePricing,
+} from '../../pricing/live'
 import { registerSecretsListener } from '../../secrets'
 import { createTtlCache, type TtlLoadResult } from '../../sync/ttl-cache'
-import { issueSummary } from './http'
+import { clearDiscountCache, fetchDiscountById } from './discount'
+import { fetchImageEndpoints } from './images-models'
 import { fetchVideoModelsResult } from './video-models'
-
-const API_URL = 'https://openrouter.ai/api/v1'
-const LIVE_TTL_MS = 3_600_000
-
-const EndpointPricingSchema = z.object({ discount: z.number() }).loose()
-
-const EndpointSchema = z.object({ pricing: EndpointPricingSchema.nullish() }).loose()
-
-const EndpointsDataSchema = z.object({ endpoints: z.array(EndpointSchema) }).loose()
-
-const EndpointsSchema = z.object({ data: EndpointsDataSchema }).loose()
+import { warnFallback } from './warn'
 
 const cache = createTtlCache<PricingInfo>({
   key: 'pricing',
-  okTtlMs: LIVE_TTL_MS,
+  okTtlMs: PRICING_LIVE_TTL_MS,
   failTtlMs: PRICING_FALLBACK_TTL_MS,
 })
 
 /** List and discounted rates. Live results cache for an hour, fallback for five minutes. */
-export async function getPricing(preset: ModelPreset, isForce = false): Promise<PricingInfo> {
+export async function getPricing(preset: VideoPreset, isForce = false): Promise<PricingInfo> {
   return cache.get(
     preset.id,
     () => {
@@ -44,35 +40,49 @@ export async function getPricing(preset: ModelPreset, isForce = false): Promise<
 }
 
 async function loadPricing(
-  preset: ModelPreset,
+  preset: VideoPreset,
   isForce: boolean,
 ): Promise<TtlLoadResult<PricingInfo>> {
-  const info = await fetchPricing(preset, isForce)
+  const binding = primaryBinding(preset)
 
-  return { value: info, isOk: info.source === 'live' }
-}
-
-function fallback(preset: ModelPreset): PricingInfo {
-  const listSkus = { ...primaryBinding(preset).pricing.fallback }
+  const live = await loadLivePricing({
+    provider: binding.provider,
+    kind: 'video',
+    modelId: binding.modelId,
+    fallback: binding.pricing.fallback,
+    presetId: preset.id,
+    isForce,
+  })
 
   return {
-    skus: { ...listSkus },
-    listSkus,
-    discount: 0,
-    source: 'fallback',
-    fetchedAt: new Date().toISOString(),
+    value: {
+      skus: live.skus,
+      listSkus: live.listSkus,
+      discount: live.discountPct,
+      source: live.source,
+      fetchedAt: new Date().toISOString(),
+    },
+    isOk: live.source === 'live',
   }
 }
 
-/** A broken endpoints call keeps the live list rates at discount 0. */
-async function fetchPricing(preset: ModelPreset, isForce: boolean): Promise<PricingInfo> {
+/** Wires the OpenRouter video and image pricing adapters once per process. */
+export function registerOpenRouterPricing(): void {
+  registerLivePricing({ provider: 'openrouter', kind: 'video', loader: loadVideoPricing })
+  registerLivePricing({ provider: 'openrouter', kind: 'image', loader: loadImagePricing })
+}
+
+async function loadVideoPricing(params: LivePricingParams): Promise<LivePricing> {
+  const { modelId, fallback, presetId, isForce } = params
+  const label = presetId ?? modelId
+
   const [listSkus, discount] = await Promise.all([
-    fetchListSkus(preset, isForce),
-    fetchDiscount(preset),
+    fetchListSkus({ modelId, label, isForce }),
+    fetchDiscountById({ modelId, label, isForce }),
   ])
 
-  if (!listSkus) {
-    return fallback(preset)
+  if (isNil(listSkus)) {
+    return fallbackPricing(fallback)
   }
 
   let skus = { ...listSkus }
@@ -81,21 +91,76 @@ async function fetchPricing(preset: ModelPreset, isForce: boolean): Promise<Pric
     skus = applyDiscount(listSkus, discount)
   }
 
-  return {
-    skus,
-    listSkus: { ...listSkus },
-    discount,
-    source: 'live',
-    fetchedAt: new Date().toISOString(),
-  }
+  return { skus, listSkus: { ...listSkus }, discountPct: discount, source: 'live' }
 }
 
-async function fetchListSkus(preset: ModelPreset, isForce: boolean): Promise<Dict<number> | null> {
-  const { modelId } = primaryBinding(preset)
+/** Endpoint lines collapse to one key. The highest rate wins, err high. */
+async function loadImagePricing(params: LivePricingParams): Promise<LivePricing> {
+  const { modelId, fallback, isForce } = params
+  const endpoints = await fetchImageEndpoints(modelId, isForce)
+
+  if (isEmpty(endpoints)) {
+    return fallbackPricing(fallback)
+  }
+
+  const rates = new Map<string, number[]>()
+
+  for (const endpoint of endpoints) {
+    for (const line of endpoint.lines) {
+      const variant = line.variant?.toLowerCase() ?? 'base'
+      const key = `${line.billable}_${variant}_${line.unit}`
+      const values = rates.get(key) ?? []
+
+      values.push(line.costUsd)
+      rates.set(key, values)
+    }
+  }
+
+  const skus: Dict<number> = {}
+
+  for (const [key, values] of rates) {
+    skus[key] = Math.max(...values)
+    logSpread({ modelId, key, values })
+  }
+
+  return { skus, listSkus: { ...skus }, discountPct: 0, source: 'live' }
+}
+
+interface SpreadParams {
+  modelId: string
+  key: string
+  values: readonly number[]
+}
+
+function logSpread(params: SpreadParams): void {
+  const { modelId, key, values } = params
+
+  if (process.env.NODE_ENV !== 'development' || values.length < 2) {
+    return
+  }
+
+  const low = Math.min(...values)
+  const high = Math.max(...values)
+
+  if (low === high) {
+    return
+  }
+
+  console.warn(`[pricing] image spread ${modelId} ${key}: ${String(low)}-${String(high)}`)
+}
+
+interface ListSkusParams {
+  modelId: string
+  label: string
+  isForce?: boolean
+}
+
+async function fetchListSkus(params: ListSkusParams): Promise<Dict<number> | null> {
+  const { modelId, label, isForce } = params
   const { models, reason } = await fetchVideoModelsResult(isForce)
 
   if (!isNil(reason)) {
-    warnFallback({ preset, modelId, reason, kind: 'list' })
+    warnFallback({ label, modelId, reason, kind: 'list' })
 
     return null
   }
@@ -105,7 +170,7 @@ async function fetchListSkus(preset: ModelPreset, isForce: boolean): Promise<Dic
   })
 
   if (isNil(model)) {
-    warnFallback({ preset, modelId, reason: 'model missing from the list', kind: 'list' })
+    warnFallback({ label, modelId, reason: 'model missing from the list', kind: 'list' })
 
     return null
   }
@@ -122,84 +187,13 @@ async function fetchListSkus(preset: ModelPreset, isForce: boolean): Promise<Dic
     ? 'invalid pricing_skus (empty)'
     : 'invalid pricing_skus (no finite numbers)'
 
-  warnFallback({ preset, modelId, reason: skusReason, kind: 'list' })
+  warnFallback({ label, modelId, reason: skusReason, kind: 'list' })
 
   return null
 }
 
-/** Reads the live fraction. One warning per fallback, never the URL or headers. */
-export async function fetchDiscount(preset: ModelPreset): Promise<number> {
-  const { modelId } = primaryBinding(preset)
-
-  try {
-    const res = await fetch(`${API_URL}/models/${modelId}/endpoints`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(FETCH_TIMEOUTS.meta),
-    })
-
-    if (!res.ok) {
-      warnFallback({ preset, modelId, reason: `HTTP ${res.status}`, kind: 'discount' })
-
-      return 0
-    }
-
-    const parsed = EndpointsSchema.safeParse(await res.json())
-
-    if (!parsed.success) {
-      const reason = `invalid response (${issueSummary(parsed.error)})`
-
-      warnFallback({ preset, modelId, reason, kind: 'discount' })
-
-      return 0
-    }
-
-    // Reads the first endpoint. Each model has one provider today, add per-endpoint pricing before a second provider.
-    const pricing = parsed.data.data.endpoints[0]?.pricing
-
-    if (isNil(pricing)) {
-      warnFallback({ preset, modelId, reason: 'no pricing block', kind: 'discount' })
-
-      return 0
-    }
-
-    const raw = pricing.discount
-
-    if (raw < 0 || raw > 1) {
-      warnFallback({
-        preset,
-        modelId,
-        reason: `discount ${String(raw)} out of range`,
-        kind: 'discount',
-      })
-
-      return 0
-    }
-
-    return raw
-  } catch (error) {
-    warnFallback({ preset, modelId, reason: messageOf(error), kind: 'discount' })
-
-    return 0
-  }
-}
-
-type PricingFallbackKind = 'discount' | 'list'
-
-interface PricingWarningParams {
-  preset: ModelPreset
-  modelId: string
-  reason: string
-  kind: PricingFallbackKind
-}
-
-function warnFallback(params: PricingWarningParams): void {
-  const { preset, modelId, reason, kind } = params
-
-  console.warn(`[pricing] ${preset.id} (${modelId}) ${kind} fallback: ${reason}`)
-}
-
 /** Keeps six significant digits so sub-cent token rates keep their precision. */
-function applyDiscount(listSkus: Dict<number>, discount: number): Dict<number> {
+function applyDiscount(listSkus: SkuTable, discount: number): Dict<number> {
   const skus: Dict<number> = {}
 
   for (const [key, value] of Object.entries(listSkus)) {
@@ -236,5 +230,6 @@ function readSkus(skus: Dict<unknown> | undefined): Dict<number> | null {
 export function registerPricingSecretsListener(): void {
   registerSecretsListener('pricing', () => {
     cache.clear()
+    clearDiscountCache()
   })
 }

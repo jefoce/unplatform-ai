@@ -1,6 +1,6 @@
 [package]
 name = "unplatform-ai"
-version = "0.3.1"
+version = "0.4.0"
 description = "Unplatform AI desktop shell"
 authors = ["jefoce"]
 edition = "2021"
@@ -30,6 +30,8 @@ getrandom = "0.2.17"
 dirs = "5.0.1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 time = { version = "0.3.55", features = ["formatting"] }
+tar = "0.4"
+zstd = "0.14"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.5"

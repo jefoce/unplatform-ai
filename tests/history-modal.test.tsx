@@ -2,11 +2,11 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { useHistoryViewerStore } from '@/features/history/list/history-viewer-store'
 import { HistoryModal } from '@/features/history/list/HistoryModal'
+import { useHistoryViewerStore } from '@/features/shared/history-viewer-store'
 
-import { handleNoop, Observer, record, releaseAllSlots } from './helpers/history'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { handleNoop, itemOf, Observer, record, releaseAllSlots } from './helpers/history'
 import { required } from './helpers/required'
 
 vi.mock('@/lib/fetcher', () => {
@@ -58,7 +58,7 @@ function modal(params: ModalParams) {
 
   return (
     <HistoryModal
-      record={selectedRecord}
+      item={selectedRecord === null ? null : itemOf(selectedRecord)}
       viewOrder={viewOrder}
       hasMore={hasMore}
       isLoadingMore={false}
@@ -123,7 +123,7 @@ describe('HistoryModal player aspect', () => {
 
     const box = screen.getByRole('dialog').querySelector<HTMLElement>('[style*="aspect-ratio"]')
 
-    expect(box?.style.aspectRatio).toBe('1920/1080')
+    expect(box?.style.aspectRatio).toBe(`${String(1920 / 1080)} / 1`)
   })
 
   it('falls back to the selected ratio when the output has no size', () => {
@@ -139,7 +139,7 @@ describe('HistoryModal player aspect', () => {
 
     const box = screen.getByRole('dialog').querySelector<HTMLElement>('[style*="aspect-ratio"]')
 
-    expect(box?.style.aspectRatio).toBe('9/16')
+    expect(box?.style.aspectRatio).toBe(`${String(9 / 16)} / 1`)
   })
 })
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { STATUS_HELP, statusHelpKey, statusHelpText } from '@/core/status-help'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { STATUS_HELP, statusHelpKey, statusHelpText } from '../src/core/status-help'
 
 type StatusInput = Pick<GenerationRecord, 'status' | 'submit' | 'download'>
 
@@ -29,7 +29,7 @@ describe('status help', () => {
       'downloading',
     )
 
-    expect(statusHelpKey(state({ status: 'pending' }))).toBe('in_queue')
+    expect(statusHelpKey(state({ status: 'pending' }))).toBe('pending')
     expect(statusHelpKey(state({ status: 'in_progress' }))).toBe('generating')
     expect(statusHelpKey(state({ status: 'completed' }))).toBe('completed')
     expect(statusHelpKey(state({ status: 'failed' }))).toBe('failed')

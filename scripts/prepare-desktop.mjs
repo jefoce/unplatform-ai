@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { pipeline } from 'node:stream/promises'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const MIB = 1024 * 1024
 
@@ -12,6 +13,9 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const TAURI_DIR = path.join(ROOT, 'src-tauri')
 const BINARIES_DIR = path.join(TAURI_DIR, 'binaries')
 const RESOURCES_DIR = path.join(TAURI_DIR, 'resources', 'server')
+const BUNDLE_DIR = path.join(TAURI_DIR, 'resources', 'server-archive')
+const SERVER_ARCHIVE = path.join(BUNDLE_DIR, 'server.tar.zst')
+const SERVER_BUILD_ID = path.join(BUNDLE_DIR, 'server.build-id')
 const LICENSES_DIR = path.join(ROOT, 'licenses')
 const RESOURCES_LICENSES = path.join(TAURI_DIR, 'resources', 'licenses')
 const CACHE_DIR = path.join(os.homedir(), '.cache', 'unplatform-ai-build')
@@ -233,12 +237,7 @@ async function copyServerResources() {
     if (base.startsWith('.env')) return false
     const [top] = path.relative(standalone, source).split(path.sep)
     if (excluded.has(top)) return false
-    return !(
-      top.endsWith('.md') ||
-      top === 'project.txt' ||
-      top === 'app-icon.png' ||
-      top.endsWith('.tsbuildinfo')
-    )
+    return !(top.endsWith('.md') || top === 'project.txt' || top.endsWith('.tsbuildinfo'))
   }
 
   await fs.rm(RESOURCES_DIR, { recursive: true, force: true })
@@ -343,6 +342,81 @@ async function signMachOFiles(platform) {
   }
 
   console.log(`[prepare-desktop] signed ${count} Mach-O file(s)`)
+}
+
+/** Resolves the exit code of a spawned process. */
+function exitCode(child) {
+  return new Promise((resolve, reject) => {
+    child.once('close', resolve)
+    child.once('error', reject)
+  })
+}
+
+/** Packs the staged server as a zstd tar archive and writes its build id. */
+async function packServer() {
+  const temp = `${SERVER_ARCHIVE}.tmp`
+  await fs.mkdir(BUNDLE_DIR, { recursive: true })
+  const tar = spawn('tar', ['-cf', '-', '-C', RESOURCES_DIR, '.'], {
+    stdio: ['ignore', 'pipe', 'inherit'],
+    // macOS tar otherwise writes an AppleDouble `._` file for every entry.
+    env: { ...process.env, COPYFILE_DISABLE: '1' },
+  })
+  const zstd = spawn('zstd', ['-19', '-T0', '-q', '-f', '-o', temp], {
+    stdio: ['pipe', 'inherit', 'inherit'],
+  })
+  const tarDone = exitCode(tar)
+  const zstdDone = exitCode(zstd)
+
+  try {
+    await pipeline(tar.stdout, zstd.stdin)
+    const [tarCode, zstdCode] = await Promise.all([tarDone, zstdDone])
+    if (tarCode !== 0) fail(`tar exited with ${tarCode} while packing the server`)
+    if (zstdCode !== 0) fail(`zstd exited with ${zstdCode} while packing the server`)
+    await fs.rename(temp, SERVER_ARCHIVE)
+  } catch (error) {
+    await Promise.allSettled([tarDone, zstdDone])
+    await fs.rm(temp, { force: true })
+    throw error
+  }
+
+  const buildId = await fs
+    .readFile(path.join(RESOURCES_DIR, '.next', 'BUILD_ID'), 'utf8')
+    .then((text) => text.trim())
+    .catch(() => '')
+  if (!buildId) fail('Missing .next/BUILD_ID in the staged server')
+  await fs.writeFile(SERVER_BUILD_ID, `${buildId}\n`)
+
+  const { size } = await fs.stat(SERVER_ARCHIVE)
+  console.log(
+    `[prepare-desktop] packed ${path.basename(SERVER_ARCHIVE)} ${describeSize(size)} (${buildId})`,
+  )
+  return size
+}
+
+/** Extracts the archive and checks every signed native file on macOS. */
+async function verifyPackedServer(platform) {
+  if (!platform.name.startsWith('darwin')) return
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'unplatform-ai-server-'))
+
+  try {
+    execFileSync('tar', ['--zstd', '-xf', SERVER_ARCHIVE, '-C', dir], { stdio: 'inherit' })
+
+    let count = 0
+
+    for await (const entry of await fs.readdir(dir, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue
+      if (!entry.name.endsWith('.node') && !entry.name.endsWith('.dylib')) continue
+      const file = path.join(entry.parentPath ?? entry.path, entry.name)
+
+      execFileSync('codesign', ['-v', file], { stdio: 'pipe' })
+      count++
+    }
+
+    console.log(`[prepare-desktop] verified ${count} signed native file(s) after extraction`)
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
 }
 
 /** Fails with the exact module that cannot resolve from the staged tree. */
@@ -468,6 +542,43 @@ async function pruneOptionalDir(label, target) {
   return { count: 1, bytes }
 }
 
+async function pruneOptionalFile(label, target) {
+  const stat = await fs.stat(target).catch(() => null)
+  if (!stat?.isFile()) return { count: 0, bytes: 0 }
+  await fs.rm(target, { force: true })
+  console.log(`[prepare-desktop] pruned ${label}: ${describeSize(stat.size)}`)
+  return { count: 1, bytes: stat.size }
+}
+
+/** Removes native packages for other platforms if tracing pulled them in. */
+async function pruneOtherPlatforms(platform) {
+  const keep = new Set(
+    [...nativePackages(platform), `@img/sharp-libvips-${platform.name}`].map((name) => {
+      return name.split('/')[1]
+    }),
+  )
+  const removed = { count: 0, bytes: 0 }
+
+  for (const scope of ['@img', '@napi-rs']) {
+    const dir = path.join(RESOURCES_DIR, 'node_modules', scope)
+    for (const entry of await fs.readdir(dir, { withFileTypes: true }).catch(() => [])) {
+      if (!entry.isDirectory()) continue
+      if (!/^(sharp|keyring)-/.test(entry.name) || keep.has(entry.name)) continue
+      const target = path.join(dir, entry.name)
+      removed.bytes += await pathSize(target)
+      removed.count += 1
+      await fs.rm(target, { recursive: true, force: true })
+    }
+  }
+
+  if (removed.count) {
+    console.log(
+      `[prepare-desktop] pruned other platforms: ${removed.count} packages, ${describeSize(removed.bytes)}`,
+    )
+  }
+  return removed
+}
+
 const LICENSE_DOC = /^(?:license|licence|notice|copying|copyright|authors)\b/i
 
 const RUNTIME_ROOT = new Set([
@@ -513,7 +624,7 @@ async function customFfmpeg(platform, triple) {
   const explicit = process.env.FFMPEG_BINARY?.trim()
   if (explicit) return { path: path.resolve(explicit), origin: 'FFMPEG_BINARY' }
 
-  const profile = process.env.FFMPEG_PROFILE?.trim() || 'full'
+  const profile = process.env.FFMPEG_PROFILE?.trim() || 'minimal'
   const version = await ffmpegVersion()
   const extension = platform.windows ? '.exe' : ''
   const cached = path.join(
@@ -560,6 +671,36 @@ function verifyFfmpeg(binary, allowNonfree) {
   )
 }
 
+/** Ad-hoc signs a staged sidecar in place. */
+function signSidecar(target) {
+  execFileSync('codesign', ['--force', '--sign', '-', target], { stdio: 'pipe' })
+  console.log(`[prepare-desktop] sidecar signed ${path.basename(target)}`)
+}
+
+/**
+ * Copies a sidecar through a temp file so the target gets a fresh inode,
+ * then signs it on macOS and runs the optional verify step.
+ */
+async function stageSidecar(params) {
+  const { source, target, platform, sign = signSidecar, verify } = params
+  const temp = `${target}.tmp-${process.pid}`
+
+  await fs.copyFile(source, temp)
+
+  try {
+    await fs.chmod(temp, 0o755)
+    await fs.rename(temp, target)
+
+    if (platform.name.startsWith('darwin')) await sign(target)
+
+    if (verify) return verify(target)
+
+    return target
+  } finally {
+    await fs.rm(temp, { force: true })
+  }
+}
+
 /** Copies the custom or ffmpeg-static fallback binary into the sidecar slot. */
 async function copyFfmpeg(platform, triple) {
   if (process.env.CI && !process.env.FFMPEG_BINARY?.trim()) {
@@ -585,9 +726,20 @@ async function copyFfmpeg(platform, triple) {
     fail(`Missing ffmpeg binary: ${source}`)
   }
   const target = path.join(BINARIES_DIR, `ffmpeg-${triple}${platform.windows ? '.exe' : ''}`)
-  await fs.copyFile(source, target)
-  if (!platform.windows) await fs.chmod(target, 0o755)
-  return { target, source, custom: Boolean(custom), origin: custom?.origin ?? 'ffmpeg-static' }
+  const license = await stageSidecar({
+    source,
+    target,
+    platform,
+    verify: (staged) => verifyFfmpeg(staged, !custom),
+  })
+  if (custom) verifyCustomFfmpeg(target)
+  return {
+    target,
+    source,
+    custom: Boolean(custom),
+    origin: custom?.origin ?? 'ffmpeg-static',
+    license,
+  }
 }
 
 /** True when the release workflow already staged this exact target. */
@@ -597,7 +749,13 @@ async function preparedTarget(triple, serverBinary, platform) {
   if (marker.trim() !== triple) return false
 
   const ffmpeg = path.join(BINARIES_DIR, `ffmpeg-${triple}${platform.windows ? '.exe' : ''}`)
-  const files = [serverBinary, ffmpeg, path.join(RESOURCES_DIR, 'server.js')]
+  const files = [
+    serverBinary,
+    ffmpeg,
+    path.join(RESOURCES_DIR, 'server.js'),
+    SERVER_ARCHIVE,
+    SERVER_BUILD_ID,
+  ]
   for (const file of files) {
     const exists = await fs.access(file).then(
       () => true,
@@ -639,9 +797,10 @@ async function main() {
   const removed = { count: 0, bytes: 0 }
   const groups = [
     ['source maps', (name) => name.endsWith('.map')],
-    ['type declarations', (name) => name.endsWith('.d.ts')],
+    ['type declarations', (name) => /\.d\.[cm]?ts$/.test(name)],
     ['docs', (name) => name.endsWith('.md') && !LICENSE_DOC.test(name)],
     ['build traces', (name) => name.endsWith('.nft.json') || name === '.DS_Store'],
+    ['build metadata', (name) => name.endsWith('.tsbuildinfo')],
   ]
   for (const [label, match] of groups) {
     const group = await pruneGroup(label, match)
@@ -661,7 +820,17 @@ async function main() {
       () => false,
     )
     if (!isPresent) continue
-    const pruned = await pruneDirs(root, (name) => name === 'test' || name === '__tests__')
+    const pruned = await pruneDirs(
+      root,
+      (name) =>
+        name === 'test' ||
+        name === 'tests' ||
+        name === '__tests__' ||
+        name === 'docs' ||
+        name === 'examples' ||
+        name === 'benchmark' ||
+        name === 'benchmarks',
+    )
     testDirs.count += pruned.count
     testDirs.bytes += pruned.bytes
   }
@@ -673,15 +842,38 @@ async function main() {
   removed.count += testDirs.count
   removed.bytes += testDirs.bytes
 
-  const ogPaths = [
-    path.join(RESOURCES_DIR, 'node_modules', 'next', 'dist', 'compiled', '@vercel', 'og'),
-    path.join(RESOURCES_DIR, 'next', 'dist', 'compiled', '@vercel', 'og'),
+  const unusedNext = [
+    [
+      'unused @vercel/og image code',
+      path.join('node_modules', 'next', 'dist', 'compiled', '@vercel', 'og'),
+    ],
+    ['unused edge runtime', path.join('node_modules', 'next', 'dist', 'compiled', 'edge-runtime')],
+    ['unused MSW test code', path.join('node_modules', 'next', 'dist', 'compiled', '@mswjs')],
+    ['unused tar build code', path.join('node_modules', 'next', 'dist', 'compiled', 'tar')],
+    [
+      'unused experimental runtime',
+      path.join(
+        'node_modules',
+        'next',
+        'dist',
+        'compiled',
+        'next-server',
+        'app-page-turbo-experimental.runtime.prod.js',
+      ),
+    ],
   ]
-  for (const target of ogPaths) {
-    const pruned = await pruneOptionalDir('unused @vercel/og image code', target)
+  for (const [label, relative] of unusedNext) {
+    const target = path.join(RESOURCES_DIR, relative)
+    const pruned = relative.endsWith('.js')
+      ? await pruneOptionalFile(label, target)
+      : await pruneOptionalDir(label, target)
     removed.count += pruned.count
     removed.bytes += pruned.bytes
   }
+
+  const otherPlatforms = await pruneOtherPlatforms(platform)
+  removed.count += otherPlatforms.count
+  removed.bytes += otherPlatforms.bytes
 
   await pruneRuntimeRoot(RESOURCES_DIR, removed)
   console.log(
@@ -690,32 +882,36 @@ async function main() {
 
   const version = await nodeVersion()
   const node = await nodeBinary(platform, triple, version)
-  await fs.copyFile(node.path, serverBinary)
-  if (!platform.windows) await fs.chmod(serverBinary, 0o755)
+  await stageSidecar({ source: node.path, target: serverBinary, platform })
   console.log(`[prepare-desktop] node ${version} ${node.origin} copied`)
 
   const ffmpeg = await copyFfmpeg(platform, triple)
-  const license = verifyFfmpeg(ffmpeg.target, !ffmpeg.custom)
-  if (ffmpeg.custom) verifyCustomFfmpeg(ffmpeg.target)
+  const license = ffmpeg.license
   const ffmpegSize = await pathSize(ffmpeg.target)
   console.log(
     `[prepare-desktop] ffmpeg ${ffmpeg.origin} ${ffmpeg.source} (${describeSize(ffmpegSize)}, licenses ${license})`,
   )
 
   await checkNative(serverBinary, platform)
+  const archiveSize = await packServer()
+  await verifyPackedServer(platform)
 
   await fs.mkdir(path.dirname(PREPARED_TARGET), { recursive: true })
   await fs.writeFile(PREPARED_TARGET, `${triple}\n`)
 
   const [resources, nodeSize] = await Promise.all([pathSize(RESOURCES_DIR), pathSize(serverBinary)])
   console.log(
-    `[prepare-desktop] server ${describeSize(resources)}, node ${describeSize(nodeSize)}, ffmpeg ${describeSize(ffmpegSize)}`,
+    `[prepare-desktop] server ${describeSize(resources)}, archive ${describeSize(archiveSize)}, node ${describeSize(nodeSize)}, ffmpeg ${describeSize(ffmpegSize)}`,
   )
 }
 
-try {
-  await main()
-} catch (error) {
-  console.error(`[prepare-desktop] ${error.message}`)
-  process.exit(1)
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    await main()
+  } catch (error) {
+    console.error(`[prepare-desktop] ${error.message}`)
+    process.exit(1)
+  }
 }
+
+export { stageSidecar }

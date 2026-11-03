@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_PRESET_ID, findPreset, getPreset, MODEL_PRESETS } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/types'
-import { skuKey } from '@/core/pricing'
+import { DEFAULT_VIDEO_PRESET_ID, findPreset, getPreset, VIDEO_PRESETS } from '../src/core/presets'
+import { primaryBinding } from '../src/core/presets/common/bindings'
+import { ASPECT_RATIOS, RESOLUTIONS } from '../src/core/presets/video/types'
+import { skuKey } from '../src/core/pricing/sku'
 
-describe('MODEL_PRESETS', () => {
+describe('VIDEO_PRESETS', () => {
   it('ships Wan and Seedance presets in order', () => {
     expect(
-      MODEL_PRESETS.map((preset) => {
+      VIDEO_PRESETS.map((preset) => {
         return preset.id
       }),
     ).toEqual(['wan-3.0', 'wan-3.0-prime', 'seedance-2.0', 'seedance-2.5'])
 
-    expect(DEFAULT_PRESET_ID).toBe('wan-3.0')
+    expect(DEFAULT_VIDEO_PRESET_ID).toBe('wan-3.0')
   })
 
   it('shares every Wan setting except identity and pricing', () => {
@@ -58,11 +58,9 @@ describe('MODEL_PRESETS', () => {
   it('builds Wan per-second keys from the resolution', () => {
     const pricing = primaryBinding(getPreset('wan-3.0')).pricing
 
-    if (pricing.kind !== 'perSecond') {
+    if (pricing.formula !== 'perSecond') {
       throw new Error('Wan must be per-second')
     }
-
-    expect(pricing.unit).toBe('usd')
 
     expect(skuKey(pricing, { resolution: '1080p', audio: true, hasVideoInput: false })).toBe(
       'duration_seconds_1080p',
@@ -135,7 +133,7 @@ describe('preset pricing', () => {
   it('uses video-token pricing for Seedance', () => {
     const pricing = primaryBinding(getPreset('seedance-2.0')).pricing
 
-    if (pricing.kind !== 'videoTokens') {
+    if (pricing.formula !== 'videoTokens') {
       throw new Error('Seedance must use tokens')
     }
 
@@ -171,6 +169,6 @@ describe('findPreset', () => {
   })
 
   it('getPreset falls back to the default for display', () => {
-    expect(getPreset('nope').id).toBe(DEFAULT_PRESET_ID)
+    expect(getPreset('nope').id).toBe(DEFAULT_VIDEO_PRESET_ID)
   })
 })

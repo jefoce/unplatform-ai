@@ -7,7 +7,18 @@ import { HistoryGrid } from '@/features/history/list/HistoryGrid'
 import { useSelectionStore } from '@/features/history/selection/selection-store'
 import { SelectionBar } from '@/features/history/selection/SelectionBar'
 
-import { handleNoop, ids, Observer, record, setOrder, setSelection, tile } from './helpers/history'
+import { ZOOM_DEFAULT } from '../src/core/constants'
+import {
+  handleNoop,
+  ids,
+  item,
+  items,
+  Observer,
+  record,
+  setOrder,
+  setSelection,
+  tile,
+} from './helpers/history'
 import { required } from './helpers/required'
 
 const apiPost = vi.hoisted(() => {
@@ -45,7 +56,6 @@ vi.mock('sonner', () => {
 })
 
 const RAW_ERROR = 'Provider said no.'
-const MIXED_TITLE = 'Only finished videos can be downloaded or liked.'
 
 beforeEach(() => {
   vi.stubGlobal('IntersectionObserver', Observer)
@@ -74,7 +84,10 @@ describe('selectable cards', () => {
     ]
 
     setOrder(['done', 'bad', 'cancelled', 'expired'])
-    const { container } = render(<HistoryGrid records={records} onOpen={handleNoop} />)
+
+    const { container } = render(
+      <HistoryGrid items={items(records)} zoom={ZOOM_DEFAULT} onOpen={handleNoop} />,
+    )
 
     expect(screen.getAllByRole('checkbox')).toHaveLength(4)
     expect(container.querySelector('#history-item-active [role="checkbox"]')).toBeNull()
@@ -84,7 +97,10 @@ describe('selectable cards', () => {
     const records = [record('a'), record('b', { status: 'in_progress' })]
 
     setOrder(['a'])
-    const { container } = render(<HistoryGrid records={records} onOpen={handleNoop} />)
+
+    const { container } = render(
+      <HistoryGrid items={items(records)} zoom={ZOOM_DEFAULT} onOpen={handleNoop} />,
+    )
 
     act(() => {
       return fireEvent.click(screen.getByRole('checkbox'))
@@ -100,7 +116,10 @@ describe('selectable cards', () => {
     const records = [record('a'), record('b', { status: 'in_progress' }), record('c')]
 
     setOrder(['a', 'c'])
-    const { container } = render(<HistoryGrid records={records} onOpen={handleNoop} />)
+
+    const { container } = render(
+      <HistoryGrid items={items(records)} zoom={ZOOM_DEFAULT} onOpen={handleNoop} />,
+    )
 
     act(() => {
       return fireEvent.click(
@@ -129,14 +148,15 @@ describe('failed pill corner', () => {
 
     const { container } = render(
       <HistoryGrid
-        records={[record('f', { status: 'failed', error: RAW_ERROR })]}
+        items={[item('f', { status: 'failed', error: RAW_ERROR })]}
+        zoom={ZOOM_DEFAULT}
         onOpen={handleNoop}
       />,
     )
 
     const wrapper = required(screen.getByRole('checkbox').parentElement, 'checkbox wrapper')
 
-    expect(wrapper.className).toContain('z-30')
+    expect(wrapper.className).toContain('z-40')
     expect(wrapper.className).toContain('left-3')
     expect(wrapper.className).toContain('top-3')
 
@@ -154,10 +174,11 @@ describe('failed pill corner', () => {
   it('shows the new hints and no Reuse with button for real-person errors', () => {
     render(
       <HistoryGrid
-        records={[
-          record('img', { status: 'failed', error: REAL_PERSON_IMAGE }),
-          record('vid', { status: 'failed', error: REAL_PERSON_VIDEO }),
+        items={[
+          item('img', { status: 'failed', error: REAL_PERSON_IMAGE }),
+          item('vid', { status: 'failed', error: REAL_PERSON_VIDEO }),
         ]}
+        zoom={ZOOM_DEFAULT}
         onOpen={handleNoop}
       />,
     )
@@ -168,7 +189,13 @@ describe('failed pill corner', () => {
   })
 
   it('keeps the pill and hides the checkbox on an active card', () => {
-    render(<HistoryGrid records={[record('g', { status: 'in_progress' })]} onOpen={handleNoop} />)
+    render(
+      <HistoryGrid
+        items={[item('g', { status: 'in_progress' })]}
+        zoom={ZOOM_DEFAULT}
+        onOpen={handleNoop}
+      />,
+    )
 
     expect(screen.getByText('Generating')).not.toBeNull()
     expect(screen.queryByRole('checkbox')).toBeNull()
@@ -177,7 +204,7 @@ describe('failed pill corner', () => {
 
 describe('failed details panel', () => {
   it('shows Reuse and Details without the red error box', () => {
-    render(<DetailsPanel record={record('f', { status: 'failed', error: RAW_ERROR })} />)
+    render(<DetailsPanel item={item('f', { status: 'failed', error: RAW_ERROR })} />)
 
     expect(screen.getByRole('button', { name: 'Reuse' })).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Details' })).not.toBeNull()
@@ -186,7 +213,7 @@ describe('failed details panel', () => {
   })
 
   it('opens the raw monospace text plus Copy from Details', async () => {
-    render(<DetailsPanel record={record('f', { status: 'failed', error: RAW_ERROR })} />)
+    render(<DetailsPanel item={item('f', { status: 'failed', error: RAW_ERROR })} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
 
@@ -201,7 +228,7 @@ describe('failed details panel', () => {
 
 describe('details panel', () => {
   it('shows cost and total time for the row and the modal', () => {
-    render(<DetailsPanel record={record('v')} />)
+    render(<DetailsPanel item={item('v')} />)
 
     expect(screen.getByText('Seedance')).not.toBeNull()
     expect(screen.getByText('$0.00')).not.toBeNull()
@@ -210,22 +237,20 @@ describe('details panel', () => {
 })
 
 describe('mixed selection bar', () => {
-  it('disables download and like, keeps delete working for both', async () => {
+  it('downloads the finished items, has no like, keeps delete working for both', async () => {
     const records = [record('a'), record('b', { status: 'failed', error: RAW_ERROR })]
 
     setOrder(['a', 'b'])
     setSelection(['a', 'b'])
     apiPost.mockResolvedValue({ done: ['a', 'b'], skipped: [] })
-    render(<SelectionBar records={records} />)
+    render(<SelectionBar items={items(records)} />)
 
-    const download = screen.getByRole('button', { name: 'Download' })
-    const like = screen.getByRole('button', { name: 'Like selected videos' })
+    const download = screen.getByRole('button', { name: 'Download 1' })
     const remove = screen.getByRole('button', { name: 'Delete selected videos' })
 
-    expect((download as HTMLButtonElement).disabled).toBe(true)
-    expect((like as HTMLButtonElement).disabled).toBe(true)
-    expect(download.getAttribute('title')).toBe(MIXED_TITLE)
-    expect(like.getAttribute('title')).toBe(MIXED_TITLE)
+    expect(screen.queryByRole('button', { name: /Like selected/ })).toBeNull()
+    expect((download as HTMLButtonElement).disabled).toBe(false)
+    expect(download.getAttribute('title')).toBeNull()
     expect((remove as HTMLButtonElement).disabled).toBe(false)
 
     fireEvent.click(remove)

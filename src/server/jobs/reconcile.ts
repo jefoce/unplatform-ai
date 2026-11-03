@@ -7,6 +7,7 @@ import { isStaleGrace } from '@/core/submit-state'
 
 import { getGeneration, listGenerations, saveGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
+import { resumeMarkedDownloads } from './download-resume'
 import { isSubmitOwned, resumeGraceSubmits } from './submit-queue'
 
 export const GRACE_EXPIRED_TEXT = 'Not started: the app was closed before it was sent'
@@ -16,7 +17,7 @@ const INTERRUPT_TEXT = {
   sending: INTERRUPT_SENDING_TEXT,
 } as const
 
-/** Cancels stale grace records, resumes fresh ones, fails orphaned submits. */
+/** Cancels stale grace records, resumes fresh ones, fails orphaned submits, reloads downloads. */
 export async function reconcile(): Promise<void> {
   for (const record of await listGenerations()) {
     if (!isStaleGrace(record)) {
@@ -65,6 +66,8 @@ export async function reconcile(): Promise<void> {
       })
     })
   }
+
+  await resumeMarkedDownloads()
 }
 
 /** True when a submit has no live owner in this process. */

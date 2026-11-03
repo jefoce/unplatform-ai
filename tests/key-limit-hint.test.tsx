@@ -2,8 +2,9 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { CreditsInfo } from '@/core/types'
 import { KeyLimitHint } from '@/features/settings/KeyLimitHint'
+
+import type { CreditsInfo } from '../src/core/types'
 
 const HINT =
   "This key has no spend limit. Set one on OpenRouter, so a leaked key can't cost more than you allow."
@@ -16,6 +17,7 @@ function credits(overrides: Partial<CreditsInfo>): CreditsInfo {
     usageDaily: null,
     usageMonthly: null,
     localSpent: 0,
+    localSpentUnknown: 0,
     source: 'key',
     fetchedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,

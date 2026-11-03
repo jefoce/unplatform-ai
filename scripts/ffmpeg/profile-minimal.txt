@@ -15,10 +15,10 @@
 --disable-everything
 --enable-protocol=file,pipe
 --enable-demuxer=mov,matroska,mp3,wav,aac,ogg,flac,image2,png_pipe,jpeg_pipe,webp_pipe
---enable-decoder=h264,hevc,vp8,vp9,aac,mp3,mp3float,opus,vorbis,flac,pcm_s16le,pcm_s24le,pcm_f32le,png,mjpeg,webp,wrapped_avframe
+--enable-decoder=h264,hevc,av1,vp8,vp9,prores,dnxhd,mpeg4,aac,alac,mp3,mp3float,ac3,eac3,opus,vorbis,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,pcm_u8,png,mjpeg,webp,wrapped_avframe
 --enable-encoder=libx264,aac,png,mjpeg,wrapped_avframe
 --enable-muxer=mp4,mov,ipod,image2,null
---enable-parser=h264,hevc,vp8,vp9,aac,mpegaudio,opus,vorbis,flac,png,mjpeg,webp
+--enable-parser=h264,hevc,av1,vp8,vp9,mpeg4video,dnxhd,aac,mpegaudio,opus,vorbis,flac,png,mjpeg,webp
 --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,aac_adtstoasc,extract_extradata,vp9_superframe_split
 --enable-filter=scale,format,null,anull,aformat,aresample,trim,atrim,setpts,asetpts,copy,acopy,testsrc2,sine,color,split,drawbox,overlay,transpose,hflip,vflip,fps
 --enable-indev=lavfi

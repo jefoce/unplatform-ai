@@ -5,11 +5,11 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import type * as UploadRecord from '@/server/repos/upload-record'
 import type * as Uploads from '@/server/services/uploads'
 import { hashFile } from '@/server/storage/hash'
 
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { required } from './helpers/required'
 
 interface HashModule {

@@ -1,24 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { MODEL_STATUSES } from '@/core/catalog'
-import { FLATTEN_COLORS, IMAGE_FORMATS, MEDIA_KINDS } from '@/core/media-types'
-import {
-  PRESET_FAMILIES,
-  PRESET_ICONS,
-  RESOLVED_TRANSPORTS,
-  TRANSPORTS,
-} from '@/core/presets/types'
-import { GENERATOR_TABS, JOB_STATUSES, PRICE_SOURCES } from '@/core/schemas/generation-record'
-import { STATUS_HELP_KEYS } from '@/core/status-help'
+import { HISTORY_VIEWS } from '@/features/history/list/view-store'
+import { INSTALL_KINDS, UPDATE_PHASES } from '@/lib/platform/update-schemas'
+
+import { MODEL_STATUSES } from '../src/core/catalog'
+import { FLATTEN_COLORS, IMAGE_FORMATS, MEDIA_KINDS } from '../src/core/media/media-types'
+import { PRESET_ICONS } from '../src/core/presets/common/icon'
+import { RESOLVED_TRANSPORTS, TRANSPORTS } from '../src/core/presets/common/transport'
+import { VIDEO_FAMILIES } from '../src/core/presets/video/types'
+import { GENERATOR_TABS, JOB_STATUSES, PRICE_SOURCES } from '../src/core/schemas/generation-record'
+import { STATUS_HELP_KEYS } from '../src/core/status-help'
 import {
   ACCOUNT_SOURCES,
   AUDIO_FILTERS,
   HISTORY_MODES,
   SECRET_SOURCES,
   STATUS_FILTERS,
-} from '@/core/types'
-import { HISTORY_VIEWS } from '@/features/history/list/view-store'
-import { INSTALL_KINDS, UPDATE_PHASES } from '@/lib/platform/update-schemas'
+} from '../src/core/types'
 
 describe('shared value lists', () => {
   it('keeps the accepted values', () => {
@@ -36,7 +34,7 @@ describe('shared value lists', () => {
       SECRET_SOURCES,
       RESOLVED_TRANSPORTS,
       TRANSPORTS,
-      PRESET_FAMILIES,
+      VIDEO_FAMILIES,
       PRESET_ICONS,
       MODEL_STATUSES,
       STATUS_HELP_KEYS,
@@ -65,14 +63,14 @@ describe('shared value lists', () => {
       SECRET_SOURCES: ['env', 'keychain', 'file'],
       RESOLVED_TRANSPORTS: ['base64', 'url'],
       TRANSPORTS: ['base64', 'url', 'auto'],
-      PRESET_FAMILIES: ['wan', 'seedance'],
+      VIDEO_FAMILIES: ['wan', 'seedance'],
       PRESET_ICONS: ['sparkles', 'audio-lines'],
       MODEL_STATUSES: ['available', 'unverified', 'missing', 'no_provider'],
       STATUS_HELP_KEYS: [
         'processing',
         'uploading',
         'sending',
-        'in_queue',
+        'pending',
         'generating',
         'downloading',
         'completed',
@@ -82,7 +80,7 @@ describe('shared value lists', () => {
       ],
       INSTALL_KINDS: ['macos', 'windows', 'appimage', 'linux-package', 'browser'],
       UPDATE_PHASES: ['downloading', 'installing'],
-      HISTORY_VIEWS: ['list', 'grid'],
+      HISTORY_VIEWS: ['list', 'grid', 'masonry'],
     })
   })
 })

@@ -2,57 +2,52 @@ import type { NextConfig } from 'next'
 
 import packageJson from './package.json'
 
-/**
- * CSP for the app page. Next bootstrap styles and the OS_SCRIPT inline script
- * need 'unsafe-inline'. Tauri 2 IPC needs `ipc:` and `http://ipc.localhost`,
- * which Tauri cannot add itself because it owns no CSP in tauri.conf.json.
- * Dev needs 'unsafe-eval' for React 19 tooling, production does not.
- */
-function buildAppCsp(isEvalAllowed: boolean): string {
-  const scriptSrc = isEvalAllowed
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline'"
-
-  return [
-    "default-src 'self'",
-    "connect-src 'self' ipc: http://ipc.localhost",
-    "img-src 'self' data: blob:",
-    "media-src 'self' blob:",
-    "style-src 'self' 'unsafe-inline'",
-    scriptSrc,
-    "font-src 'self'",
-    "frame-ancestors 'none'",
-  ].join('; ')
-}
-
-export const APP_CSP = buildAppCsp(false)
-export const APP_CSP_DEV = buildAppCsp(true)
-
 const nextConfig: NextConfig = {
   output: 'standalone',
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
   serverExternalPackages: ['sharp', '@napi-rs/keyring'],
+  outputFileTracingExcludes: {
+    '*': [
+      '**/*.map',
+      '**/*.d.ts',
+      '**/*.d.mts',
+      '**/*.d.cts',
+      '**/node_modules/@img/sharp-linux-*/**',
+      '**/node_modules/@img/sharp-win32-*/**',
+      '**/node_modules/@img/sharp-darwin-x64/**',
+      '**/node_modules/@napi-rs/keyring-linux-*/**',
+      '**/node_modules/@napi-rs/keyring-win32-*/**',
+      '**/node_modules/next/dist/compiled/@vercel/og/**',
+      '**/node_modules/next/dist/compiled/edge-runtime/**',
+      '**/node_modules/next/dist/compiled/@mswjs/**',
+      '**/node_modules/next/dist/compiled/tar/**',
+      '**/node_modules/next/dist/compiled/next-server/*experimental*',
+      '**/node_modules/**/test/**',
+      '**/node_modules/**/tests/**',
+      '**/node_modules/**/__tests__/**',
+      '**/node_modules/**/docs/**',
+      '**/node_modules/**/examples/**',
+      '**/node_modules/**/benchmark/**',
+      '**/node_modules/**/benchmarks/**',
+    ],
+  },
   async headers() {
     const common = [
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'no-referrer' },
       { key: 'X-Frame-Options', value: 'DENY' },
-      { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
     ]
-
-    const appCsp = process.env.NODE_ENV === 'production' ? APP_CSP : APP_CSP_DEV
 
     return [
       { source: '/:path*', headers: common },
       {
-        source: '/',
-        headers: [{ key: 'Content-Security-Policy', value: appCsp }],
-      },
-      {
         source: '/api/:path*',
-        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+        headers: [
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+        ],
       },
     ]
   },

@@ -2,10 +2,10 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import type { ActionKey, PreviewActions } from '@/features/preview/preview-store'
 import { PreviewFooter } from '@/features/preview/PreviewFooter'
 
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { upload } from './helpers/validation-fixtures'
 
 const item = upload('clip', 'video')

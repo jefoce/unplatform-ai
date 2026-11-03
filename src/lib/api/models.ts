@@ -3,8 +3,8 @@
 import useSWR, { mutate } from 'swr'
 
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
+import { MODELS_KEY } from '@/lib/api/swr-keys'
 import { fetcher } from '@/lib/fetcher'
-import { MODELS_KEY } from '@/lib/swr-keys'
 
 function fetchModelCatalog(): Promise<ModelCatalog> {
   return fetcher<ModelCatalog>(MODELS_KEY)

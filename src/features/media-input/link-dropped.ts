@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 
-import { acceptFiles, type KindExtensions } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import { acceptFiles, type KindExtensions } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { linkPaths } from '@/lib/platform/link-paths'
 

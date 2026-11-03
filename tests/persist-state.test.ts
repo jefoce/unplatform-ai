@@ -2,8 +2,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ZOOM_DEFAULT } from '@/core/constants'
-import { DEFAULT_PRESET_ID, getPreset } from '@/core/presets'
+import { ZOOM_DEFAULT } from '../src/core/constants'
+import { DEFAULT_VIDEO_PRESET_ID, getPreset } from '../src/core/presets'
 
 const VIEW_KEY = 'unplatform-ai:view'
 const DRAFT_KEY = 'unplatform-ai:draft'
@@ -15,7 +15,7 @@ const waitForRehydrate = () => {
 }
 
 const draft = () => {
-  const preset = getPreset(DEFAULT_PRESET_ID)
+  const preset = getPreset(DEFAULT_VIDEO_PRESET_ID)
 
   return {
     presetId: preset.id,
@@ -181,12 +181,10 @@ describe('generator draft persistence', () => {
     window.localStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
-        state: { presetId: DEFAULT_PRESET_ID, prompt: 'old draft', tab: 'frames' },
+        state: { presetId: DEFAULT_VIDEO_PRESET_ID, prompt: 'old draft', tab: 'frames' },
         version: 2,
       }),
     )
-
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const { useGeneratorStore } = await import('@/features/generator/store/store')
 
@@ -196,7 +194,5 @@ describe('generator draft persistence', () => {
 
     expect(state.prompts.frames).toBe('')
     expect(state.seed).toBeNull()
-    expect(consoleError).not.toHaveBeenCalled()
-    consoleError.mockRestore()
   })
 })

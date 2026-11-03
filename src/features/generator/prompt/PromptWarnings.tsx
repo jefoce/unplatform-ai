@@ -5,7 +5,8 @@ import { TriangleAlert } from 'lucide-react'
 
 import type { RefSlot } from '@/core/prompt-tokens'
 import type { Dict } from '@/core/utility-types'
-import type { ValidationIssue } from '@/core/validation-types'
+import type { ValidationIssue } from '@/core/validation/common'
+import { cn } from '@/lib/cn'
 import { useBoolean } from '@/lib/use-boolean'
 import { Chip } from '@/ui/Chip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/Popover'
@@ -14,6 +15,7 @@ import { PromptWarningRow } from './PromptWarningRow'
 
 interface PromptWarningsProps {
   warnings: ValidationIssue[]
+  className?: string
   onFocus?: (slot: RefSlot, occurrence: number) => void
 }
 
@@ -46,7 +48,7 @@ export function PromptWarnings(props: PromptWarningsProps) {
         <Chip
           variant="warning"
           aria-label={`${warnings.length} prompt warnings`}
-          className="ml-auto"
+          className={cn('ml-auto', props.className)}
         >
           <TriangleAlert size={14} aria-hidden />
           {warnings.length}

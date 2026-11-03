@@ -76,7 +76,7 @@ export function MediaTileAudio(props: MediaTileAudioProps) {
               style={{ height: `${height}%` }}
               className={cn(
                 'min-w-px flex-1 rounded-full',
-                index / audioBars.length < played && 'bg-lime',
+                index / audioBars.length < played && 'bg-accent',
                 !(index / audioBars.length < played) && 'bg-fg-2/50',
               )}
             />

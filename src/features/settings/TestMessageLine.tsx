@@ -1,7 +1,7 @@
 import type { TestMessage, TestTone } from './use-secrets'
 
 const MESSAGE_TONES = {
-  ok: 'text-lime',
+  ok: 'text-accent',
   error: 'text-danger',
   info: 'text-fg-2',
 } satisfies Record<TestTone, string>

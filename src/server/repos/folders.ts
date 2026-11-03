@@ -7,14 +7,15 @@ import path from 'node:path'
 
 import { isNil, orderBy } from 'lodash-es'
 
+import type { FolderDir, FolderFile, FolderListing } from '@/core/api/folders'
 import { isNonEmptyString } from '@/core/guards'
-import { kindFromName } from '@/core/media-kinds'
-import type { FolderDir, FolderFile, FolderListing, MediaKind } from '@/core/media-types'
+import { kindFromName } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import { type FolderItem, FoldersFileSchema } from '@/core/schemas/folder-item'
 
 import { HttpError } from '../errors'
-import { readJson, writeJsonAtomic } from '../fs/json-file'
-import { isInside, resolveInside, SafePathError } from '../fs/safe-path'
+import { readJson, readJsonStrict, writeJsonAtomic } from '../fs/json-file'
+import { isInside, resolveInside, resolveRealInside, SafePathError } from '../fs/safe-path'
 import { FOLDERS_FILE } from '../paths'
 import { withLock } from '../sync/lock'
 
@@ -28,6 +29,15 @@ export async function listFolders(): Promise<FolderItem[]> {
   }
 
   return orderBy(folders, ['addedAt'], ['asc'])
+}
+
+/** Missing means no folders yet. A present but unreadable file must not be overwritten. */
+async function readFoldersForWrite(): Promise<FolderItem[]> {
+  const folders = await readJsonStrict(FOLDERS_FILE, FoldersFileSchema).catch(() => {
+    throw new FolderError(500, 'Could not read the folders file')
+  })
+
+  return folders ?? []
 }
 
 export async function getFolder(id: string): Promise<FolderItem | null> {
@@ -86,7 +96,7 @@ export async function addFolder(params: AddFolderParams): Promise<FolderItem> {
   }
 
   return withLock('folders', async () => {
-    const folders = await listFolders()
+    const folders = await readFoldersForWrite()
 
     for (const folder of folders) {
       const existing = await fs.realpath(folder.path).catch(() => {
@@ -142,7 +152,7 @@ export async function listFolderFiles(params: ListFolderFilesParams): Promise<Fo
     throw new FolderError(404, `Folder not found: ${folderId}`)
   }
 
-  const current = resolveSub(folder.path, sub ?? '')
+  const current = await resolveSub(folder.path, sub ?? '')
   const entries = await readDirectory(current)
 
   const visible = entries.filter((entry) => {
@@ -175,7 +185,15 @@ export async function listFolderFiles(params: ListFolderFilesParams): Promise<Fo
       continue
     }
 
-    const file = await toFileEntry({ full, name: entry.name, rel, kinds })
+    const real = await fs.realpath(full).catch(() => {
+      return null
+    })
+
+    if (isNil(real) || !isInside(rootReal, real)) {
+      continue
+    }
+
+    const file = await toFileEntry({ full: real, name: entry.name, rel, kinds })
 
     if (file) {
       files.push(file)
@@ -295,12 +313,16 @@ async function toFileEntry(params: FileEntryParams): Promise<FolderFile | null> 
   return { name, rel, kind, sizeBytes: stats.size, mtimeMs: stats.mtimeMs }
 }
 
-function resolveSub(root: string, sub: string): string {
+async function resolveSub(root: string, sub: string): Promise<string> {
   try {
-    return resolveInside(root, sub)
+    return await resolveRealInside(root, resolveInside(root, sub))
   } catch (error) {
     if (error instanceof SafePathError) {
       throw new FolderError(400, error.message)
+    }
+
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new FolderError(404, 'Path not found')
     }
 
     throw error

@@ -1,9 +1,11 @@
 import { Ratio } from 'lucide-react'
 
-import type { AspectChoice } from '@/core/presets/types'
+import { parseAspect } from '@/core/media/geometry'
+import type { ImageAspectChoice } from '@/core/presets/image/types'
+import type { AspectChoice } from '@/core/presets/video/types'
 
 interface RatioIconProps {
-  ratio: AspectChoice
+  ratio: AspectChoice | ImageAspectChoice
   size?: number
 }
 
@@ -15,7 +17,8 @@ export function RatioIcon(props: RatioIconProps) {
     return <Ratio size={size} aria-hidden />
   }
 
-  const [width = 1, height = 1] = ratio.split(':').map(Number)
+  const sides = parseAspect(ratio) ?? [1, 1]
+  const [width, height] = sides
   const scale = size / Math.max(width, height)
 
   return (

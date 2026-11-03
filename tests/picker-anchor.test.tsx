@@ -1,13 +1,23 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FrameSlots } from '@/features/generator/frames/FrameSlots'
 import { ReferencesBox } from '@/features/generator/references/ReferencesBox'
 import { useGeneratorStore } from '@/features/generator/store/store'
+import { openReferencePicker } from '@/features/image-generator/image-picker'
+import { ImageReferences } from '@/features/image-generator/ImageReferences'
+import { useImageGeneratorStore } from '@/features/image-generator/store'
+import { pickerAnchor, registerPickerAnchor } from '@/features/media-picker/picker/anchors'
 import { MediaPicker } from '@/features/media-picker/picker/MediaPicker'
-import { closeMediaPicker, useMediaPickerStore } from '@/features/media-picker/picker/store'
+import {
+  closeMediaPicker,
+  openMediaPicker,
+  type PickerPickMode,
+  useMediaPickerStore,
+} from '@/features/media-picker/picker/store'
 
 import { required } from './helpers/required'
 import { upload, uploadsOf } from './helpers/validation-fixtures'
@@ -182,5 +192,95 @@ describe('picker anchor region', () => {
     expect(current?.id).not.toBe(startRequest?.id)
     expect(current?.openerKey).toBe('frame:end')
     expect(current?.anchor).toBe(container)
+  })
+})
+
+function pickMode(): PickerPickMode {
+  return { kind: 'pick', onPick: vi.fn() }
+}
+
+function AnchorHarness(props: { anchorKey: string; children?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const element = ref.current
+
+    if (isNil(element)) {
+      return
+    }
+
+    return registerPickerAnchor(props.anchorKey, element)
+  }, [props.anchorKey])
+
+  return <div ref={ref}>{props.children}</div>
+}
+
+async function openAtAnchor(key: string): Promise<void> {
+  await act(async () => {
+    openMediaPicker({
+      openerKey: `test:${key}`,
+      kinds: ['image'],
+      anchor: pickerAnchor(key),
+      mode: pickMode(),
+    })
+  })
+
+  await settlePicker()
+}
+
+function removeReferenceButton(): HTMLElement {
+  return screen.getByRole('button', { name: 'Remove Image 1' })
+}
+
+describe('picker keeps open while removing a reference', () => {
+  it('keeps the picker open when the references box sits outside the opener', async () => {
+    render(
+      <>
+        <AnchorHarness anchorKey="generator" />
+        <ReferencesBox />
+        <MediaPicker />
+      </>,
+    )
+
+    await openAtAnchor('generator')
+
+    const id = requestId()
+    const remove = removeReferenceButton()
+
+    fireEvent.pointerDown(remove, { button: 0 })
+    fireEvent.click(remove)
+
+    expect(requestId()).toBe(id)
+  })
+
+  it('keeps the picker open in the image prompt bar', async () => {
+    useImageGeneratorStore.setState({
+      presetId: 'gemini-3.1-flash-image',
+      references: [image.id],
+      uploadsById: uploadsOf(image),
+    })
+
+    render(
+      <>
+        <AnchorHarness anchorKey="image-prompt">
+          <ImageReferences />
+        </AnchorHarness>
+        <MediaPicker />
+      </>,
+    )
+
+    await act(async () => {
+      openReferencePicker()
+    })
+
+    await settlePicker()
+
+    const id = requestId()
+    const remove = screen.getByRole('button', { name: 'Remove image-1.png' })
+
+    fireEvent.pointerDown(remove, { button: 0 })
+    fireEvent.click(remove)
+
+    expect(requestId()).toBe(id)
   })
 })

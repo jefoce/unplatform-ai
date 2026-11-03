@@ -3,7 +3,7 @@
 import { isNil } from 'lodash-es'
 import { Play } from 'lucide-react'
 
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 import { formatSecondsExact } from '@/lib/format'
 import { RetryImage } from '@/ui/RetryImage'
 

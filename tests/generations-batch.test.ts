@@ -5,12 +5,14 @@ import path from 'node:path'
 
 import { beforeAll, describe, expect, it } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { batchGenerations } from '@/lib/api/generations'
 
-const root = await mkdtemp(path.join(os.tmpdir(), 'upai-batch-'))
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+
+const root = await mkdtemp(path.join(os.tmpdir(), 'cf-batch-'))
 
 process.env.STORAGE_ROOT = root
-delete process.env.APP_TOKEN
+process.env.APP_TOKEN = 'c'.repeat(64)
 
 const { POST } = await import('@/app/api/generations/batch/route')
 
@@ -68,6 +70,7 @@ const batchRequest = (body: unknown): Request => {
     headers: {
       host: '127.0.0.1:3000',
       'content-type': 'application/json',
+      cookie: `upai_session=${process.env.APP_TOKEN}`,
       'sec-fetch-site': 'same-origin',
     },
     body: JSON.stringify(body),
@@ -155,5 +158,16 @@ describe('POST /api/generations/batch', () => {
     const response = await POST(batchRequest({ action: 'favorite', ids: [id] }))
 
     expect(response.status).toBe(400)
+  })
+})
+
+const sendFavoriteWithoutValue = () => {
+  // @ts-expect-error favorite must carry a value
+  void batchGenerations(['id'], { action: 'favorite' })
+}
+
+describe('generation batch body type', () => {
+  it('rejects a favorite action without a value at compile time', () => {
+    expect(sendFavoriteWithoutValue).toBeTypeOf('function')
   })
 })

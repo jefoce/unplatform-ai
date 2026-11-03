@@ -18,7 +18,7 @@ function chipClass(params: ChipClassParams): string {
   }
 
   if (value === duration) {
-    return `${base} bg-lime/15 text-lime`
+    return `${base} bg-accent/15 text-accent`
   }
 
   return `${base} bg-white/5 text-fg-2 hover:text-fg`

@@ -4,10 +4,12 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { isNil } from 'lodash-es'
 import type { ZodType } from 'zod'
 
 import { globalState } from '../global-state'
 import { STORAGE_ROOT } from '../paths'
+import { commitFile } from './atomic-file'
 import { isInside } from './safe-path'
 
 const warnings = globalState<Set<string>>('jsonWarnings', () => {
@@ -72,6 +74,34 @@ export async function readJson<T>(file: string, schema: ZodType<T>): Promise<T |
   return null
 }
 
+/** Missing returns null. A present file that cannot be read or parsed throws. */
+export async function readJsonStrict<T>(file: string, schema: ZodType<T>): Promise<T | null> {
+  const isMissing = await fs.stat(file).then(
+    () => {
+      return false
+    },
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') {
+        return true
+      }
+
+      throw error
+    },
+  )
+
+  if (isMissing) {
+    return null
+  }
+
+  const value = await readJson(file, schema)
+
+  if (isNil(value)) {
+    throw new Error(`Unreadable json: ${file}`)
+  }
+
+  return value
+}
+
 interface WriteJsonAtomicOptions {
   mode?: number
 }
@@ -90,7 +120,7 @@ export async function writeJsonAtomic(params: WriteJsonAtomicParams): Promise<vo
   const mode = opts.mode ?? 0o644
 
   await fs.writeFile(temp, JSON.stringify(data, null, 2), { encoding: 'utf8', mode })
-  await fs.rename(temp, file)
+  await commitFile({ temp, target: file })
 }
 
 export async function removeFile(file: string): Promise<void> {

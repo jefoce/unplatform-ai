@@ -60,8 +60,9 @@ function Harness(props: UseWindowFileInputParams) {
 function renderHarness(
   onFiles: UseWindowFileInputParams['onFiles'],
   onPaths: UseWindowFileInputParams['onPaths'] = vi.fn(),
+  workspace: UseWindowFileInputParams['workspace'] = 'video',
 ): void {
-  render(<Harness onFiles={onFiles} onPaths={onPaths} />)
+  render(<Harness onFiles={onFiles} onPaths={onPaths} workspace={workspace} />)
 }
 
 async function flushDropSetup(): Promise<void> {
@@ -91,6 +92,9 @@ function toggleMode(): PickerToggleMode {
   return {
     kind: 'toggle',
     useSelectedIds: () => {
+      return []
+    },
+    getSelectedIds: () => {
       return []
     },
     useUploadsById: () => {
@@ -205,7 +209,7 @@ describe('useWindowFileInput paste', () => {
 
     render(
       <>
-        <Harness onFiles={onFiles} onPaths={vi.fn()} />
+        <Harness onFiles={onFiles} onPaths={vi.fn()} workspace="video" />
         <textarea aria-label="prompt" />
       </>,
     )
@@ -260,6 +264,13 @@ describe('useWindowFileInput hint', () => {
     })
 
     expect(hint()).toBe('as start frame')
+  })
+
+  it('offers references on the image workspace', () => {
+    useGeneratorStore.setState({ tab: 'frames' })
+    renderHarness(vi.fn(), vi.fn(), 'image')
+
+    expect(hint()).toBe('as reference')
   })
 
   it('follows the open picker mode', () => {

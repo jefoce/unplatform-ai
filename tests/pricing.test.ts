@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import type { ModelPreset, PricingRule, Resolution } from '@/core/presets/types'
-import { estimatePrice, formatRate, type PriceContext, pricePerSec } from '@/core/pricing'
+import { getPreset } from '../src/core/presets'
+import { primaryBinding } from '../src/core/presets/common/bindings'
+import type { Resolution, VideoPreset } from '../src/core/presets/video/types'
+import { formatRate } from '../src/core/pricing/format'
+import { type PriceContext, pricePerSec, quoteWithFallback } from '../src/core/pricing/quote'
+import type { PricingConfig } from '../src/core/pricing/types'
 
 const wan = getPreset('wan-3.0')
 const prime = getPreset('wan-3.0-prime')
@@ -20,7 +22,7 @@ const ctx = (resolution: Resolution, overrides: Partial<PriceContext> = {}): Pri
   }
 }
 
-const withPricing = (pricing: PricingRule, overrides: Partial<ModelPreset> = {}): ModelPreset => {
+const withPricing = (pricing: PricingConfig, overrides: Partial<VideoPreset> = {}): VideoPreset => {
   return {
     ...wan,
     ...overrides,
@@ -41,26 +43,9 @@ describe('pricePerSec Wan', () => {
     expect(pricePerSec({ preset: prime, ctx: ctx('1080p') })).toBe(0.28)
   })
 
-  it('divides cents by 100', () => {
-    const pricing: PricingRule = {
-      kind: 'perSecond',
-      unit: 'cents',
-      skuRules: [{ when: {}, key: 'per_sec' }],
-      tiers: {},
-      fallback: { per_sec: 30 },
-      minBillableSec: 0,
-      referenceVideoFactor: 0,
-    }
-
-    expect(pricePerSec({ preset: withPricing(pricing), ctx: ctx('720p', { audio: false }) })).toBe(
-      0.3,
-    )
-  })
-
   it('passes audio only when the preset supports it', () => {
-    const pricing: PricingRule = {
-      kind: 'perSecond',
-      unit: 'usd',
+    const pricing: PricingConfig = {
+      formula: 'perSecond',
       skuRules: [
         { when: { audio: true }, key: 'with_audio' },
         { when: {}, key: 'without_audio' },
@@ -89,9 +74,8 @@ describe('pricePerSec Wan', () => {
   it('returns null for missing or non-finite keys', () => {
     expect(pricePerSec({ preset: wan, ctx: ctx('768p') })).toBeNull()
 
-    const pricing: PricingRule = {
-      kind: 'perSecond',
-      unit: 'usd',
+    const pricing: PricingConfig = {
+      formula: 'perSecond',
       skuRules: [{ when: {}, key: 'x' }],
       tiers: {},
       fallback: { x: Number.NaN },
@@ -145,11 +129,23 @@ describe('pricePerSec Seedance', () => {
   })
 })
 
-describe('estimatePrice', () => {
+function videoQuote(
+  preset: VideoPreset,
+  context: PriceContext,
+  duration: number,
+  referenceSeconds: number,
+) {
+  return quoteWithFallback({
+    preset,
+    binding: primaryBinding(preset),
+    ctx: { kind: 'video', ...context, duration, referenceSeconds },
+  })
+}
+
+describe('video quote with references', () => {
   it('bills output only when the reference video factor is zero', () => {
-    const pricing: PricingRule = {
-      kind: 'perSecond',
-      unit: 'usd',
+    const pricing: PricingConfig = {
+      formula: 'perSecond',
       skuRules: [{ when: {}, key: 'per_sec' }],
       tiers: {},
       fallback: { per_sec: 0.2 },
@@ -157,48 +153,29 @@ describe('estimatePrice', () => {
       referenceVideoFactor: 0,
     }
 
-    const result = estimatePrice({
-      preset: withPricing(pricing),
-      ctx: ctx('1080p'),
-      duration: 5,
-      referenceSeconds: 10,
-    })
+    const preset = withPricing(pricing)
+    const result = videoQuote(preset, ctx('1080p'), 5, 10)
 
-    expect(result?.seconds).toBe(5)
-    expect(result?.pricePerSec).toBe(0.2)
-    expect(result?.estimatedUsd).toBeCloseTo(1, 6)
+    expect(result?.perUnit).toBe(0.2)
+    expect(result?.total).toBeCloseTo(1, 6)
   })
 
   it('adds reference video seconds for Wan per-second billing', () => {
-    const result = estimatePrice({
-      preset: wan,
-      ctx: ctx('1080p'),
-      duration: 5,
-      referenceSeconds: 10,
-    })
+    const result = videoQuote(wan, ctx('1080p'), 5, 10)
 
-    expect(result?.seconds).toBe(15)
-    expect(result?.pricePerSec).toBe(0.2)
-    expect(result?.estimatedUsd).toBeCloseTo(3, 6)
+    expect(result?.perUnit).toBe(0.2)
+    expect(result?.total).toBeCloseTo(3, 6)
   })
 
   it('bills Seedance tokens over output plus reference seconds', () => {
-    const result = estimatePrice({
-      preset: seedance,
-      ctx: ctx('720p', { hasVideoInput: true }),
-      duration: 5,
-      referenceSeconds: 3,
-    })
+    const result = videoQuote(seedance, ctx('720p', { hasVideoInput: true }), 5, 3)
 
-    expect(result?.seconds).toBe(8)
-    expect(result?.pricePerSec).toBeCloseTo(0.09288, 6)
-    expect(result?.estimatedUsd).toBeCloseTo(0.74304, 6)
+    expect(result?.perUnit).toBeCloseTo(0.09288, 6)
+    expect(result?.total).toBeCloseTo(0.74304, 6)
   })
 
   it('returns null when the SKU is missing', () => {
-    expect(
-      estimatePrice({ preset: wan, ctx: ctx('768p'), duration: 5, referenceSeconds: 0 }),
-    ).toBeNull()
+    expect(videoQuote(wan, ctx('768p'), 5, 0)).toBeNull()
   })
 })
 

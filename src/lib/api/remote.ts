@@ -2,8 +2,8 @@
 
 import useSWR, { mutate } from 'swr'
 
+import { REMOTE_STATUS_KEY } from '@/lib/api/swr-keys'
 import { fetcher } from '@/lib/fetcher'
-import { REMOTE_STATUS_KEY } from '@/lib/swr-keys'
 
 export interface RemoteStatus {
   configured: boolean

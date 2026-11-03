@@ -1,13 +1,13 @@
 import 'server-only'
 
 import { FLATTEN_BACKGROUND, FLATTEN_LIGHT, FLATTEN_LUMINANCE } from '@/core/constants'
-import type { FlattenColor } from '@/core/media-types'
+import type { FlattenColor } from '@/core/media/media-types'
 
-import sharp from './sharp'
+import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
 
 /** Average of opaque pixels that touch transparency, at 256 px preview. */
 export async function flattenColor(source: string): Promise<FlattenColor> {
-  const { data, info } = await sharp(source, { pages: 1 })
+  const { data, info } = await sharp(source, { ...SHARP_INPUT_OPTIONS, pages: 1 })
     .rotate()
     .resize({ width: 256, height: 256, fit: 'inside', withoutEnlargement: true })
     .ensureAlpha()

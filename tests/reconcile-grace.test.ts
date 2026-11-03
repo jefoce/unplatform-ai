@@ -4,17 +4,16 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { GRACE_STALE_MS } from '@/core/constants'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { isStaleGrace } from '@/core/submit-state'
-
+import { GRACE_STALE_MS } from '../src/core/constants'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { isStaleGrace } from '../src/core/submit-state'
 import { storedRecord } from './helpers/stored-record'
 
 const NOW = Date.parse('2026-01-01T00:00:00.000Z')
 let root = ''
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-grace-'))
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-grace-'))
 })
 
 afterEach(async () => {
