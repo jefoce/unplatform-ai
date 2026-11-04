@@ -2,8 +2,9 @@
 import { cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Dict } from '@/core/utility-types'
 import { usePointerBlur } from '@/lib/use-pointer-blur'
+
+import type { Dict } from '../src/core/utility-types'
 
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

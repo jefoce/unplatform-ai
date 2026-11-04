@@ -17,7 +17,13 @@ async function loadLock() {
 async function writeLock(pid: number): Promise<void> {
   await fs.writeFile(
     lockFile,
-    JSON.stringify({ pid, port: 3000, desktop: false, startedAt: new Date().toISOString() }),
+    JSON.stringify({
+      pid,
+      port: 3000,
+      desktop: false,
+      startedAt: new Date().toISOString(),
+      bootNonce: 'owner-nonce',
+    }),
   )
 }
 
@@ -33,7 +39,7 @@ const lockExists = (): Promise<boolean> => {
 }
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-lock-release-'))
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-lock-release-'))
   lockFile = path.join(root, 'server.lock')
 })
 

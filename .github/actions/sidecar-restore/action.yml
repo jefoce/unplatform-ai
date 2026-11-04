@@ -12,7 +12,7 @@ inputs:
     description: Runner image that built the sidecar
     required: true
   profile:
-    description: Sidecar profile, full for ffmpeg
+    description: Sidecar profile, minimal for ffmpeg
     required: false
     default: ''
   force:
@@ -68,7 +68,7 @@ runs:
           exit 0
         fi
         bin=$(bash .github/scripts/sidecar-binary.sh "$NAME" "$TARGET")
-        found=$(bash .github/scripts/ghcr-pull.sh "ghcr.io/jefoce/unplatform-ai-sidecars:$KEY" ghcr-cache "$bin" manifest.json)
+        found=$(bash .github/scripts/ghcr-pull.sh "ghcr.io/${{ github.repository_owner }}/unplatform-ai-sidecars:$KEY" ghcr-cache "$bin" manifest.json)
         echo "found=$found" >> "$GITHUB_OUTPUT"
     - name: Use sidecar from GHCR
       if: steps.pull.outputs.found == 'true'
@@ -81,6 +81,8 @@ runs:
         out="$NAME-out"
         bin=$(bash .github/scripts/sidecar-binary.sh "$NAME" "$TARGET")
         node .github/scripts/sidecar-manifest.mjs verify "ghcr-cache/$bin" ghcr-cache/manifest.json
+        built_by=$(node -e "const m = JSON.parse(require('node:fs').readFileSync('ghcr-cache/manifest.json', 'utf8')); process.stdout.write(m.builtBy || 'unknown')")
+        echo "[sidecar] restored $NAME built-by $built_by"
         mkdir -p "$out"
         cp "ghcr-cache/$bin" ghcr-cache/manifest.json "$out/"
         if [[ -f ghcr-cache/buildconf.txt ]]; then

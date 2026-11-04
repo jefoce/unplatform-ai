@@ -1,10 +1,7 @@
 import { isFunction, isNil } from 'lodash-es'
 
-import type { PresetFamily } from '../presets/types'
 import { APP_RULES } from './app'
-import { SEEDANCE_RULES } from './seedance'
 import type { FriendlyError, HttpRule, HttpRuleTable, Rule } from './types'
-import { WAN_RULES } from './wan'
 
 function matches(rule: Rule, raw: string): boolean {
   if (isFunction(rule.match)) {
@@ -38,14 +35,9 @@ function resolve(rule: Rule | HttpRule, raw: string): FriendlyError {
   return { title, hint, kind: rule.kind, retry: rule.retry ?? false, raw }
 }
 
-const FAMILY_RULES: Record<PresetFamily, readonly Rule[]> = {
-  seedance: SEEDANCE_RULES,
-  wan: WAN_RULES,
-}
-
 interface FriendlyErrorParams {
   raw: string
-  family: PresetFamily | null
+  rules: readonly Rule[]
   httpCode?: number
   httpRules: HttpRuleTable | null
 }
@@ -55,15 +47,10 @@ interface FriendlyErrorParams {
  * Family rules run first, then app rules, then HTTP codes. First match wins.
  */
 export function friendlyError(params: FriendlyErrorParams): FriendlyError {
-  const { raw, family, httpCode, httpRules } = params
-  let familyRules: readonly Rule[] = []
-
-  if (!isNil(family)) {
-    familyRules = FAMILY_RULES[family]
-  }
+  const { raw, rules, httpCode, httpRules } = params
 
   const rule =
-    familyRules.find((candidate) => {
+    rules.find((candidate) => {
       return matches(candidate, raw)
     }) ??
     APP_RULES.find((candidate) => {

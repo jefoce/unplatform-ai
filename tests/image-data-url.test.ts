@@ -6,12 +6,12 @@ import { isNil } from 'lodash-es'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import type { ModelPreset } from '@/core/presets/types'
-import { WAN_30 } from '@/core/presets/wan/wan-3.0'
-import type { UploadItem } from '@/core/schemas/upload-item'
 import type { encodeImages as EncodeImages } from '@/server/media/image-data-url'
 import type { removeUpload as RemoveUpload } from '@/server/services/uploads'
 
+import type { VideoPreset } from '../src/core/presets/video/types'
+import { WAN_30 } from '../src/core/presets/video/wan/wan-3.0'
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { required } from './helpers/required'
 
 const ROOT = path.join(process.cwd(), '.cache', `image-data-url-test-${process.pid}`)
@@ -22,7 +22,7 @@ process.env.STORAGE_ROOT = ROOT
 const MB = 1024 * 1024
 const BUDGET = 64 * MB
 
-const ALPHA_PRESET: ModelPreset = {
+const ALPHA_PRESET: VideoPreset = {
   ...WAN_30,
   referenceLimits: {
     ...WAN_30.referenceLimits,

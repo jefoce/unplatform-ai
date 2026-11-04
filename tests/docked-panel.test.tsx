@@ -40,17 +40,24 @@ const ANCHOR_RECT = {
 interface HarnessProps {
   onOpenChange: (isOpen: boolean) => void
   isAnchored?: boolean
+  hasExtraAnchor?: boolean
+  placement?: 'right' | 'top'
 }
 
 function Harness(props: HarnessProps) {
-  const { onOpenChange, isAnchored = true } = props
+  const { onOpenChange, isAnchored = true, hasExtraAnchor = false, placement } = props
+
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const [extraAnchor, setExtraAnchor] = useState<HTMLElement | null>(null)
 
   return (
     <>
       <aside>
         <button ref={setAnchor} type="button">
           Generate
+        </button>
+        <button ref={setExtraAnchor} type="button">
+          References
         </button>
         <button type="button">Panel</button>
       </aside>
@@ -59,6 +66,8 @@ function Harness(props: HarnessProps) {
         open
         onOpenChange={onOpenChange}
         anchor={isAnchored ? anchor : null}
+        extraAnchors={hasExtraAnchor ? [extraAnchor] : []}
+        placement={placement}
         label="Choose media"
       >
         <p>Picker body</p>
@@ -67,10 +76,10 @@ function Harness(props: HarnessProps) {
   )
 }
 
-function renderPanel() {
+function renderPanel(options: Partial<HarnessProps> = {}) {
   const onOpenChange = vi.fn()
 
-  render(<Harness onOpenChange={onOpenChange} />)
+  render(<Harness onOpenChange={onOpenChange} {...options} />)
 
   return { onOpenChange }
 }
@@ -99,14 +108,14 @@ afterEach(() => {
 describe('DockedPanel wide branch', () => {
   it('docks beside the opener at wide widths with a fixed height', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(ANCHOR_RECT)
-    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(800)
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1280)
     vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(1000)
     renderPanel()
 
     const dialog = screen.getByRole('dialog')
 
     await waitFor(() => {
-      expect(dialog.style.width).toBe('184px')
+      expect(dialog.style.width).toBe('560px')
     })
 
     expect(dialog.style.height).toBe('720px')
@@ -164,6 +173,17 @@ describe('DockedPanel wide branch', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
+  it('stays open when the pointer goes down inside a second anchor', async () => {
+    const { onOpenChange } = renderPanel({ hasExtraAnchor: true })
+
+    await settleDismissableLayer()
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'References' }), { button: 0 })
+    fireEvent.click(screen.getByRole('button', { name: 'References' }))
+    await settleDismissableLayer()
+
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
   it('closes on a pointerdown inside the panel but outside the opener', async () => {
     const { onOpenChange } = renderPanel()
 
@@ -186,6 +206,30 @@ describe('DockedPanel wide branch', () => {
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
+  })
+})
+
+describe('DockedPanel top placement', () => {
+  it('docks above the opener at the panel width', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      ...ANCHOR_RECT,
+      width: 320,
+      top: 500,
+      right: 320,
+    })
+
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1000)
+    renderPanel({ placement: 'top' })
+
+    const dialog = screen.getByRole('dialog')
+
+    await waitFor(() => {
+      expect(dialog.style.width).toBe('560px')
+    })
+
+    expect(dialog.style.height).toBe('476px')
+    expect(dialog.getAttribute('data-side')).toBe('top')
+    expect(dialog.getAttribute('data-align')).toBe('center')
   })
 })
 

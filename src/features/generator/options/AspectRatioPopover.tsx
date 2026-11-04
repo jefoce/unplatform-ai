@@ -1,7 +1,9 @@
 'use client'
 
 import { getPreset } from '@/core/presets'
-import type { AspectChoice } from '@/core/presets/types'
+import type { AspectChoice } from '@/core/presets/video/types'
+import { cn } from '@/lib/cn'
+import { CHIP_TEXT_CLASSES } from '@/ui/Chip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/Popover'
 import { RatioIcon } from '@/ui/RatioIcon'
 
@@ -60,7 +62,10 @@ export function AspectRatioPopover() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-10 flex-1 items-center gap-1 rounded-md bg-surface px-3 text-sm font-medium text-fg hover:bg-white/6"
+          className={cn(
+            'flex h-10 flex-1 items-center gap-1 rounded-md bg-surface px-3 text-fg hover:bg-white/6',
+            CHIP_TEXT_CLASSES,
+          )}
         >
           <RatioIcon ratio={aspectRatio} size={16} />
           {label}

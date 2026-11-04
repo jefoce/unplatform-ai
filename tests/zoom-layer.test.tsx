@@ -124,6 +124,21 @@ function stubPointerCapture(node: HTMLElement): void {
   Object.assign(node, { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn() })
 }
 
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      resolve()
+    })
+  })
+}
+
+/** Waits past the wheel quiet window so the batched commit lands. */
+function waitWheelCommit(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 150)
+  })
+}
+
 interface HarnessProps {
   onNext: () => void
 }
@@ -146,12 +161,15 @@ function Harness(props: HarnessProps) {
 }
 
 describe('ZoomLayer wheel and double click', () => {
-  it('zooms with the wheel and updates the percent', () => {
+  it('zooms with the wheel and updates the percent', async () => {
     renderLayer()
 
     expect(percent()).toBe('100%')
 
-    fireEvent.wheel(rootOf(boxOf()), { deltaY: -100, clientX: 0, clientY: 0 })
+    await act(async () => {
+      fireEvent.wheel(rootOf(boxOf()), { deltaY: -100, clientX: 0, clientY: 0 })
+      await waitWheelCommit()
+    })
 
     expect(percent()).toBe('110%')
   })
@@ -292,23 +310,23 @@ describe('ZoomLayer pan', () => {
     fireEvent.pointerMove(root, { pointerId: 1, clientX: 450, clientY: 330 })
     fireEvent.pointerUp(root, { pointerId: 1, clientX: 450, clientY: 330 })
 
-    expect(wrapperOf(box).style.transform).toBe('translate(-200px, -157.5px) scale(2.25)')
+    expect(wrapperOf(box).style.transform).toBe('translate3d(-200px, -157.5px, 0) scale(2.25)')
 
     fireEvent.pointerDown(root, { button: 0, pointerId: 2, clientX: 400, clientY: 300 })
     fireEvent.pointerMove(root, { pointerId: 2, clientX: -2000, clientY: 300 })
     fireEvent.pointerUp(root, { pointerId: 2, clientX: -2000, clientY: 300 })
 
-    expect(wrapperOf(box).style.transform).toBe('translate(-300px, -157.5px) scale(2.25)')
+    expect(wrapperOf(box).style.transform).toBe('translate3d(-300px, -157.5px, 0) scale(2.25)')
 
     fireEvent.keyDown(document.body, { key: '0' })
     fireEvent.pointerDown(root, { button: 0, pointerId: 3, clientX: 400, clientY: 300 })
     fireEvent.pointerMove(root, { pointerId: 3, clientX: 700, clientY: 500 })
     fireEvent.pointerUp(root, { pointerId: 3, clientX: 700, clientY: 500 })
 
-    expect(wrapperOf(box).style.transform).toBe('translate(0px, 0px) scale(1)')
+    expect(wrapperOf(box).style.transform).toBe('translate3d(0px, 0px, 0) scale(1)')
   })
 
-  it('pans a photo after a double-click zoom to 2x', () => {
+  it('pans a photo after a double-click zoom to 2x', async () => {
     renderLayer()
     const box = boxOf()
     const root = rootOf(box)
@@ -324,9 +342,44 @@ describe('ZoomLayer pan', () => {
     const before = wrapper.style.transform
 
     fireEvent.pointerDown(root, { button: 0, pointerId: 1, clientX: 400, clientY: 300 })
-    fireEvent.pointerMove(root, { pointerId: 1, clientX: 440, clientY: 320 })
+
+    await act(async () => {
+      fireEvent.pointerMove(root, { pointerId: 1, clientX: 440, clientY: 320 })
+      await nextFrame()
+    })
 
     expect(wrapper.style.transform).not.toBe(before)
+  })
+
+  it('ignores the wheel while panning and zooms again after release', async () => {
+    renderLayer()
+    const box = boxOf()
+    const root = rootOf(box)
+
+    sizeBigLayer(box)
+    resize()
+    stubPointerCapture(root)
+
+    fireEvent.doubleClick(root, { clientX: 400, clientY: 300 })
+    expect(percent()).toBe('200%')
+
+    fireEvent.pointerDown(root, { button: 0, pointerId: 1, clientX: 400, clientY: 300 })
+
+    await act(async () => {
+      fireEvent.wheel(root, { deltaY: -100, clientX: 400, clientY: 300 })
+      await waitWheelCommit()
+    })
+
+    expect(percent()).toBe('200%')
+
+    fireEvent.pointerUp(root, { pointerId: 1, clientX: 400, clientY: 300 })
+
+    await act(async () => {
+      fireEvent.wheel(root, { deltaY: -100, clientX: 400, clientY: 300 })
+      await waitWheelCommit()
+    })
+
+    expect(percent()).toBe('220%')
   })
 })
 

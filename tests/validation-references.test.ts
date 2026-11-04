@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import { validateInput } from '@/core/validation'
-import type { ValidationIssue } from '@/core/validation-types'
-
+import { getPreset } from '../src/core/presets'
+import { validateInput } from '../src/core/validation/video'
 import { input, preset, upload, uploadsOf } from './helpers/validation-fixtures'
 
 describe('validateInput reference counts', () => {
@@ -214,19 +212,16 @@ describe('validateInput reference durations', () => {
 })
 
 describe('validateInput reference slots and files', () => {
-  it('warns when a slot has no matching reference', () => {
+  it('rejects a slot with no matching reference', () => {
     const result = validateInput({
       input: input({ prompt: 'Use @Image 3 and Image 3', references: ['i1', 'i2'] }),
       uploads: uploadsOf(upload('i1', 'image'), upload('i2', 'image')),
       preset,
     })
 
-    expect(result.ok).toBe(true)
-    expect(result.errors).toEqual([])
-
-    expect(result.warnings).toEqual<ValidationIssue[]>([
-      { type: 'missing-slot', slot: { kind: 'image', n: 3 }, attached: 2 },
-    ])
+    expect(result.ok).toBe(false)
+    expect(result.errors).toContain('@Image 3 is not attached (2 images)')
+    expect(result.warnings).toEqual([])
   })
 
   it('does not warn when the literal label matches a reference', () => {
@@ -239,19 +234,16 @@ describe('validateInput reference slots and files', () => {
     expect(result.warnings).toEqual([])
   })
 
-  it('warns instead of failing for a slot past the attached references', () => {
+  it('rejects a slot past the attached references', () => {
     const result = validateInput({
       input: input({ prompt: 'Look at @Image 2', references: ['ref'] }),
       uploads: uploadsOf(upload('ref', 'image')),
       preset,
     })
 
-    expect(result.ok).toBe(true)
-    expect(result.errors).toEqual([])
-
-    expect(result.warnings).toEqual<ValidationIssue[]>([
-      { type: 'missing-slot', slot: { kind: 'image', n: 2 }, attached: 1 },
-    ])
+    expect(result.ok).toBe(false)
+    expect(result.errors).toContain('@Image 2 is not attached (1 images)')
+    expect(result.warnings).toEqual([])
   })
 
   it('rejects a referenced upload that does not exist', () => {

@@ -3,8 +3,8 @@
 import { isNil } from 'lodash-es'
 import { Check } from 'lucide-react'
 
-import { aspectAllowed } from '@/core/output-size'
-import type { AspectChoice, ModelPreset, Resolution } from '@/core/presets/types'
+import { aspectAllowed } from '@/core/media/output-size'
+import type { AspectChoice, Resolution, VideoPreset } from '@/core/presets/video/types'
 import { cn } from '@/lib/cn'
 import { PopoverClose } from '@/ui/Popover'
 import { RatioIcon } from '@/ui/RatioIcon'
@@ -13,13 +13,13 @@ import { Tooltip } from '@/ui/Tooltip'
 interface AspectOptionProps {
   option: AspectChoice
   selected: AspectChoice
-  preset: ModelPreset
+  preset: VideoPreset
   resolution: Resolution
   onSelect: (option: AspectChoice) => void
 }
 
 /** Resolutions that hold the option, empty when it fits everywhere. */
-function unavailableFor(option: AspectChoice, preset: ModelPreset): Resolution[] {
+function unavailableFor(option: AspectChoice, preset: VideoPreset): Resolution[] {
   if (option === 'auto') {
     return []
   }
@@ -61,7 +61,7 @@ export function AspectOption(props: AspectOptionProps) {
             className={cn(
               'flex min-h-9 w-full items-center gap-2 rounded-lg p-2 text-sm font-medium',
               !isAllowed && 'cursor-not-allowed opacity-40',
-              option === selected && 'text-lime',
+              option === selected && 'text-accent',
               !(option === selected) && 'text-fg',
               isAllowed && option !== selected && 'hover:bg-white/5',
             )}

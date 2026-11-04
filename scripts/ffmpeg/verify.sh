@@ -139,7 +139,7 @@ ENCODERS=$("$BIN" -hide_banner -encoders 2>&1)
 require_names encoders "$ENCODERS" libx264 aac png mjpeg
 
 DECODERS=$("$BIN" -hide_banner -decoders 2>&1)
-require_names decoders "$DECODERS" h264 hevc vp8 vp9 aac mp3 opus vorbis png mjpeg webp
+require_names decoders "$DECODERS" h264 hevc av1 vp8 vp9 prores dnxhd mpeg4 aac alac mp3 ac3 eac3 opus vorbis png mjpeg webp pcm_u8 pcm_s32le pcm_f64le
 
 FILTERS=$("$BIN" -hide_banner -filters 2>&1)
 require_names filters "$FILTERS" scale testsrc2 sine color drawbox overlay transpose
@@ -161,24 +161,40 @@ nonempty() {
   [[ -s "$1" ]] || fail "empty output: $1"
 }
 
-run -i "$FIXTURES/sample.webm" -c:v libx264 -pix_fmt yuv420p -c:a aac \
-  -movflags +faststart -y "$TMP/compat.mp4"
-nonempty "$TMP/compat.mp4"
+# One case per accepted container: probe, frame and compat.
+for source in sample.mp4 sample.mov sample.webm; do
+  probe=$("$BIN" -hide_banner -i "$FIXTURES/$source" 2>&1 || true)
+  grep -q 'Duration:' <<< "$probe" || fail "probe found no duration for $source"
+  grep -Eq '[0-9]+x[0-9]+' <<< "$probe" || fail "probe found no dimensions for $source"
 
-for source in sample.ogg sample.opus sample.mp3 sample.wav; do
-  run -i "$FIXTURES/$source" -vn -c:a aac -y "$TMP/$source.m4a"
-  nonempty "$TMP/$source.m4a"
+  run -ss 0.5 -i "$FIXTURES/$source" -frames:v 1 -vf scale=320:-2 -y "$TMP/$source.frame.png"
+  nonempty "$TMP/$source.frame.png"
+
+  run -i "$FIXTURES/$source" -c:v libx264 -pix_fmt yuv420p -c:a aac \
+    -movflags +faststart -y "$TMP/$source.compat.mp4"
+  nonempty "$TMP/$source.compat.mp4"
 done
 
-run -ss 0.5 -i "$FIXTURES/sample.mp4" -frames:v 1 -vf scale=320:-2 -y "$TMP/frame.png"
-nonempty "$TMP/frame.png"
+# Audio inputs convert to the webview-safe m4a.
+for source in sample.mp3 sample.wav sample.m4a sample.aac sample.ogg sample.opus; do
+  probe=$("$BIN" -hide_banner -i "$FIXTURES/$source" 2>&1 || true)
+  grep -q 'Audio:' <<< "$probe" || fail "probe found no audio stream for $source"
+
+  run -i "$FIXTURES/$source" -vn -c:a aac -y "$TMP/$source.compat.m4a"
+  nonempty "$TMP/$source.compat.m4a"
+done
+
+# Image inputs go through sharp in the app. ffmpeg still decodes them for frames.
+for source in sample.jpg sample.png sample.webp; do
+  probe=$("$BIN" -hide_banner -i "$FIXTURES/$source" 2>&1 || true)
+  grep -Eq '[0-9]+x[0-9]+' <<< "$probe" || fail "probe found no dimensions for $source"
+
+  run -i "$FIXTURES/$source" -frames:v 1 -y "$TMP/$source.frame.png"
+  nonempty "$TMP/$source.frame.png"
+done
 
 run -sseof -1 -i "$FIXTURES/sample.mp4" -update 1 -q:v 1 -y "$TMP/last.jpg"
 nonempty "$TMP/last.jpg"
-
-PROBE=$("$BIN" -hide_banner -i "$FIXTURES/sample.mov" 2>&1 || true)
-grep -q 'Duration:' <<< "$PROBE" || fail "probe found no duration"
-grep -Eq '[0-9]+x[0-9]+' <<< "$PROBE" || fail "probe found no dimensions"
 
 run -f lavfi -i testsrc2=size=640x360:rate=24 -f lavfi -i sine=frequency=440 \
   -t 2 -shortest -pix_fmt yuv420p -y "$TMP/mock.mp4"

@@ -1,3 +1,5 @@
+import 'server-only'
+
 import type { SecretName } from '@/core/secret-names'
 import type { SecretSource } from '@/core/types'
 

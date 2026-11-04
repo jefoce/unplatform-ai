@@ -43,6 +43,10 @@ function kindFor(error: OpenRouterError): ProviderErrorKind {
     return 'no_key'
   }
 
+  if (code === 'charged_unknown') {
+    return 'charged_unknown'
+  }
+
   if (status === 403) {
     if (MODERATION_PATTERN.test(message)) {
       return 'content'

@@ -36,6 +36,7 @@ export function FolderTabButton(props: FolderTabButtonProps) {
     <div className="group relative shrink-0">
       <button
         type="button"
+        aria-pressed={isActive}
         className={cn(tabClass(isActive), 'max-w-40 pr-8')}
         onClick={handleSelect}
       >
@@ -46,7 +47,7 @@ export function FolderTabButton(props: FolderTabButtonProps) {
         aria-label={`Disconnect ${folder.name}`}
         onClick={handleDisconnect}
         className={cn(
-          'absolute top-1/2 right-1 -translate-y-1/2 rounded-sm p-1 opacity-0 transition group-hover:opacity-100',
+          'absolute top-1/2 right-1 -translate-y-1/2 rounded-sm p-1 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100',
           iconClass,
         )}
       >

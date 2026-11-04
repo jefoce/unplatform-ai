@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { isNil } from 'lodash-es'
+import { isNil, isString } from 'lodash-es'
 
 import { isDownloadFailure } from '@/core/download-failure'
 import { isNonEmptyString } from '@/core/guards'
@@ -8,10 +8,12 @@ import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { canCancelInGrace } from '@/core/submit-state'
 import { ACTIVE_STATUSES } from '@/core/types'
 
+import { exists } from '../fs/stat'
+import { downloadPaths } from '../paths'
 import type { JobSnapshot } from '../providers/types'
 import { deleteGenerationFiles, getGeneration, saveGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
-import { queueDownload } from './download-queue'
+import { isDownloadQueued, queueDownload } from './download-queue'
 import { cancelScheduledSubmit } from './submit-queue'
 
 export type DeleteResult = 'deleted' | 'not_found' | 'active'
@@ -32,13 +34,21 @@ export function setFavorite(id: string, isFavorite: boolean): Promise<Generation
   })
 }
 
-/** Deletes a record, active jobs are refused unless still in the grace window. */
+/** Deletes a record, active jobs and downloads are refused unless still in grace. */
 export function deleteGeneration(id: string): Promise<DeleteResult> {
+  if (isDownloadQueued(id)) {
+    return Promise.resolve('active')
+  }
+
   return withLock(id, async () => {
     const record = await getGeneration(id)
 
     if (!record) {
       return 'not_found'
+    }
+
+    if (isDownloadQueued(id) || !isNil(record.download)) {
+      return 'active'
     }
 
     if (ACTIVE_STATUSES.includes(record.status) && !canCancelInGrace(record)) {
@@ -60,51 +70,81 @@ function isJobExpired(expiresAt: number | undefined): boolean {
   return !isNil(expiresAt) && Date.now() > expiresAt
 }
 
-/** Re-queues the provider copy of a failed record, never a paid resubmit. */
-export function retryDownload(id: string): Promise<RetryDownloadResult> {
-  return withLock(id, async () => {
+/** A failed copy or a job dropped by the age cutoff can still be fetched again. */
+function isRetryableStatus(record: GenerationRecord): boolean {
+  const isCandidate = record.status === 'failed' || record.status === 'expired'
+
+  return isCandidate && isNil(record.output)
+}
+
+/** Reason the record cannot be retried, or null. A committed video needs no provider. */
+function retryBlocked(record: GenerationRecord, hasVideo: boolean): RetryDownloadResult | null {
+  if (record.status === 'failed' && !isDownloadFailure(record)) {
+    return 'not_download_failure'
+  }
+
+  if (hasVideo) {
+    return null
+  }
+
+  if (!isNonEmptyString(record.job?.id)) {
+    return 'no_job'
+  }
+
+  if (isJobExpired(record.job.expiresAt)) {
+    return 'expired'
+  }
+
+  return null
+}
+
+/** Re-queues the provider copy of a failed or expired record, never a paid resubmit. */
+export async function retryDownload(id: string): Promise<RetryDownloadResult> {
+  const queued = await withLock(id, async () => {
     const record = await getGeneration(id)
 
     if (!record) {
       return 'not_found'
     }
 
-    if (record.status !== 'failed' || !isNil(record.output)) {
+    if (!isRetryableStatus(record)) {
       return 'not_failed'
     }
 
-    if (!isDownloadFailure(record)) {
-      return 'not_download_failure'
+    const hasVideo = await exists(downloadPaths(record.id).video)
+    const blocked = retryBlocked(record, hasVideo)
+
+    if (!isNil(blocked)) {
+      return blocked
     }
 
-    if (!isNonEmptyString(record.job?.id)) {
-      return 'no_job'
-    }
-
-    const { expiresAt } = record.job
-
-    if (isJobExpired(expiresAt)) {
-      return 'expired'
-    }
+    const expiresAt = record.job?.expiresAt
 
     const saved = await saveGeneration({
       ...record,
       status: 'in_progress',
       error: undefined,
+      errorStatus: undefined,
       download: undefined,
     })
 
     const job: JobSnapshot = {
       status: 'completed',
-      generationId: record.job.generationId ?? null,
+      generationId: record.job?.generationId ?? null,
       expiresAt: expiresAt ?? null,
       urls: null,
       usage: null,
       error: null,
     }
 
-    await queueDownload(saved, job)
-
-    return 'queued'
+    return { saved, job }
   })
+
+  if (isString(queued)) {
+    return queued
+  }
+
+  await queueDownload(queued.saved, queued.job)
+
+  return 'queued'
 }

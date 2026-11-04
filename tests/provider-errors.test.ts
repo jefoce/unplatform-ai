@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { friendlyError } from '@/core/provider-errors'
-import { OPENROUTER_DESCRIPTOR } from '@/core/providers/openrouter'
+import { SEEDANCE_ERRORS } from '../src/core/presets/video/seedance/errors'
+import { WAN_ERRORS } from '../src/core/presets/video/wan/errors'
+import { friendlyError } from '../src/core/provider-errors'
+import { OPENROUTER_DESCRIPTOR } from '../src/core/providers/openrouter'
 
 const HTTP_RULES = OPENROUTER_DESCRIPTOR.httpRules
 
@@ -91,7 +93,7 @@ describe('friendlyError Seedance', () => {
     for (const prefix of ['', 'Seedance 2.5: ']) {
       const raw = `${prefix}${REAL_PERSON}`
 
-      expect(friendlyError({ httpRules: HTTP_RULES, raw, family: 'seedance' })).toEqual({
+      expect(friendlyError({ httpRules: HTTP_RULES, raw, rules: SEEDANCE_ERRORS })).toEqual({
         title: 'Seedance blocks images that look like real people, even AI-made ones.',
         hint: 'Use a different image, or choose another model.',
         kind: 'real_person',
@@ -103,7 +105,7 @@ describe('friendlyError Seedance', () => {
 
   it('translates the real Seedance video string without naming another model', () => {
     expect(
-      friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON_VIDEO, family: 'seedance' }),
+      friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON_VIDEO, rules: SEEDANCE_ERRORS }),
     ).toEqual({
       title: 'Seedance blocks videos that show real people.',
       hint: 'Use a different video, or choose another model.',
@@ -115,20 +117,20 @@ describe('friendlyError Seedance', () => {
 
   it('matches specific codes before their parent code', () => {
     expect(
-      friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON, family: 'seedance' }).kind,
+      friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON, rules: SEEDANCE_ERRORS }).kind,
     ).toBe('real_person')
 
     expect(
       friendlyError({
         httpRules: HTTP_RULES,
         raw: 'InputImageSensitiveContentDetected: The request failed.',
-        family: 'seedance',
+        rules: SEEDANCE_ERRORS,
       }).kind,
     ).toBe('content')
   })
 
   it('keeps Seedance and Wan families isolated', () => {
-    expect(friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON, family: 'wan' }).kind).toBe(
+    expect(friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON, rules: WAN_ERRORS }).kind).toBe(
       'unknown',
     )
 
@@ -136,7 +138,7 @@ describe('friendlyError Seedance', () => {
       friendlyError({
         httpRules: HTTP_RULES,
         raw: 'DataInspectionFailed: Output data may contain inappropriate content.',
-        family: 'seedance',
+        rules: SEEDANCE_ERRORS,
       }).kind,
     ).toBe('unknown')
 
@@ -144,7 +146,7 @@ describe('friendlyError Seedance', () => {
       friendlyError({
         httpRules: HTTP_RULES,
         raw: 'DataInspectionFailed: bad input',
-        family: 'wan',
+        rules: WAN_ERRORS,
       }).kind,
     ).toBe('content')
   })
@@ -152,7 +154,7 @@ describe('friendlyError Seedance', () => {
   it('returns the unknown fallback with the raw hint', () => {
     const raw = 'Something odd happened at the provider'
 
-    expect(friendlyError({ httpRules: HTTP_RULES, raw, family: 'seedance' })).toEqual({
+    expect(friendlyError({ httpRules: HTTP_RULES, raw, rules: SEEDANCE_ERRORS })).toEqual({
       title: 'Generation failed',
       hint: raw,
       kind: 'unknown',
@@ -163,7 +165,11 @@ describe('friendlyError Seedance', () => {
 
   it('maps Seedance control codes', () => {
     for (const row of CONTROL_ROWS) {
-      const friendly = friendlyError({ httpRules: HTTP_RULES, raw: row.raw, family: 'seedance' })
+      const friendly = friendlyError({
+        httpRules: HTTP_RULES,
+        raw: row.raw,
+        rules: SEEDANCE_ERRORS,
+      })
 
       expect(friendly.title, row.raw).toBe(row.title)
       expect(friendly.kind, row.raw).toBe(row.kind)

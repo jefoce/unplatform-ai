@@ -1,13 +1,13 @@
 'use client'
 
-import type { ModelPreset } from '@/core/presets/types'
+import type { VideoPreset } from '@/core/presets/video/types'
 
 import { useGeneratorStore } from '../store/store'
 import { useReferencePlan } from './use-reference-plan'
 import { useReferencesDnd } from './use-references-dnd'
 
 /** Store selectors, drag state and plan values for the reference grid. */
-export function useReferencesGrid(preset: ModelPreset) {
+export function useReferencesGrid(preset: VideoPreset) {
   const references = useGeneratorStore((state) => {
     return state.references
   })

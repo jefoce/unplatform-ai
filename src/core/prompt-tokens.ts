@@ -1,9 +1,10 @@
 import { isNil } from 'lodash-es'
 
 import { isNonEmptyString } from './guards'
-import { KIND_TITLE } from './media-kinds'
-import type { MediaKind, MediaKindCounts } from './media-types'
-import type { ModelPreset } from './presets/types'
+import { KIND_TITLE } from './media/media-kinds'
+import type { MediaKind, MediaKindCounts } from './media/media-types'
+import type { ImagePreset } from './presets/image/types'
+import type { VideoPreset } from './presets/video/types'
 import type { Dict } from './utility-types'
 
 export interface RefSlot {
@@ -40,8 +41,15 @@ export const slotToken = (slot: RefSlot): string => {
 
 const CANONICAL = /@(Image|Video|Audio) (\d{1,2})(?!\d)/g
 
+const MARKDOWN_MENTION = /@\[((?:Image|Video|Audio) \d{1,2})\]\([^)]*\)/g
+
+/** Copied video mentions arrive as markdown: @[Image 1](image_1) -> @Image 1. */
+export function normalizeMentionText(text: string): string {
+  return text.replaceAll(MARKDOWN_MENTION, '@$1')
+}
+
 const LOOSE =
-  /@(image|img|video|audio)\s?(\d{1,2})(?!\d)|\[(image|img|video|audio)\s?(\d{1,2})\]|\b(Image|Video|Audio)\s(\d{1,2})(?!\d)/gi
+  /@(image|img|video|audio)\s?(\d{1,2})(?!\d)|\[(image|img|video|audio)\s?(\d{1,2})\]|\b(Image|Video|Audio)\s(\d{1,2})(?!\d)|@\[(image|img|video|audio)\s?(\d{1,2})\]\([^)]*\)/gi
 
 export interface ReferenceSlotsResult {
   counts: MediaKindCounts
@@ -117,18 +125,25 @@ interface LooseMatch {
 }
 
 function readLooseMatch(match: RegExpExecArray): LooseMatch | null {
-  const [, atKind, atNum, bracketKind, bracketNum, bareKind, bareNum] = match
-  const word = atKind ?? bracketKind ?? bareKind
-  const rawNumber = atNum ?? bracketNum ?? bareNum
+  const [, atKind, atNum, bracketKind, bracketNum, bareKind, bareNum, markdownKind, markdownNum] =
+    match
+
+  const word = [atKind, bracketKind, markdownKind, bareKind].find(isNonEmptyString)
+
+  const rawNumber = [atNum, bracketNum, markdownNum, bareNum].find((value) => {
+    return !isNil(value)
+  })
 
   if (!isNonEmptyString(word) || isNil(rawNumber)) {
     return null
   }
 
+  const isBare = [atKind, bracketKind, markdownKind].every(isNil)
+
   return {
     word,
     rawNumber,
-    isBare: isNil(atKind) && isNil(bracketKind),
+    isBare,
     isCapitalized: /^[A-Z]/.test(bareKind ?? ''),
   }
 }
@@ -207,7 +222,7 @@ export function missingSlots(prompt: string, counts: MediaKindCounts): RefSlot[]
 }
 
 /** API text: "@Image 1" -> preset.refLabel ("Image 1", "@Image 1", ...). */
-export function renderPromptForApi(prompt: string, preset: ModelPreset): string {
+export function renderPromptForApi(prompt: string, preset: VideoPreset | ImagePreset): string {
   // eslint-disable-next-line @typescript-eslint/max-params -- fixed signature (String.replace)
   return prompt.replaceAll(CANONICAL, (_whole, kind: string, n: string) => {
     return preset.refLabel.replace('{Kind}', kind).replace('{n}', n)

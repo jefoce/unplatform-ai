@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.4.0 - 2026-11-03
+
+The Image workspace, the Unplatform AI name and icon, and one pricing engine for images and videos.
+
+### Added
+
+- Image workspace: Image tab, masonry and grid views, floating prompt bar, image picker, favorites.
+- Image models from Gemini, OpenAI, Seedream and FLUX, with the resolution, aspect, quality, background and seed controls each model supports.
+- Images use the same history actions, viewer, references and batch selection as videos.
+- The prompt and references stay after Generate, with a Clear button and Undo.
+- Failed items can be selected and deleted in both tabs, with batch and single image download.
+- Image job notifications appear on either tab.
+- Model availability is checked against OpenRouter, and an unavailable model is blocked with the reason.
+- Live image prices from OpenRouter.
+
+### Changed
+
+- Unplatform AI is the new name, icon and color.
+- One pricing engine covers images and videos.
+- Only the active feed page polls, and the grid renders the visible window.
+- The image tab is full width, and the top bar fades while scrolling.
+- History thumbnails and video posters are sharper.
+- Zoomed photos pan smoothly on the GPU, and the wheel no longer zooms while you drag.
+- The viewer shows the cached thumbnail first, then fades in the full image.
+- Animations stay on when the system asks for reduced motion.
+- Linux: panels and pills are solid, and the viewer backdrop is blurred on the server, so scrolling and playback render smoothly.
+- Linux: the `.deb` and `.rpm` are the recommended packages, for faster rendering and hardware video decoding. The AppImage is the portable fallback.
+- The app is smaller: the macOS download is about 34 MiB, measured.
+- Browser mode needs the link printed at startup.
+- Existing installs: 0.3.x gets the 0.3.2 update, which moves your history, settings and key, then 0.4.0 arrives from the new release page. If you install 0.4.0 by hand without 0.3.2, re-enter your key in Settings.
+
+### Fixed
+
+- Image seeds, references and supported parameters survive reuse and model switches.
+- A failed image save no longer hides the outputs that did save.
+- A batch export reports the files it had to skip.
+- A favorite no longer flips back while a poll is in flight.
+- Credits refresh after each job, when the window regains focus, and when you press Refresh.
+- Credits include image spend.
+- Status labels match the work.
+- Cancel stays beside the status pill on one row, even in narrow tiles.
+- Card actions hide again after you pick a menu item with the mouse.
+- A failed poster no longer fails the video, and a fresh poster keeps retrying for a short time.
+- The image picker matches the prompt bar width.
+- Hover-only card and player controls stay reachable with the keyboard.
+- On Windows, a file briefly locked by another program is retried on read, save, rename and cleanup, so downloads and thumbnails stop failing.
+- Linux starts without waiting for the video decoder probe.
+- Windows builds include the libvips notices.
+- The updater plugin is past its zip security advisories.
+
 ## 0.3.1 - 2026-10-29
 
 Fewer lost paid videos, a real R2 cap, and thumbnails that recover.
@@ -11,7 +61,7 @@ Fewer lost paid videos, a real R2 cap, and thumbnails that recover.
 
 ### Changed
 
-- The R2 cap counts everything in the bucket and removes leftover files the app no longer uses, so it stays under 10 GB.
+- The R2 cap counts everything in the bucket and removes leftover files the app no longer uses, so it stays under 8 GB.
 - The app only ever deletes its own files inside its storage folder.
 
 ### Fixed

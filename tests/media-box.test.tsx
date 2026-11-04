@@ -10,7 +10,7 @@ afterEach(() => {
   cleanup()
 })
 
-function box(aspect: string): HTMLElement {
+function box(aspect: number): HTMLElement {
   const { container } = render(
     <MediaBox aspect={aspect}>
       <div />
@@ -21,31 +21,36 @@ function box(aspect: string): HTMLElement {
 }
 
 describe('MediaBox', () => {
-  // jsdom folds the ratio calc into a single container unit.
   it('sizes a square box to the smaller stage side', () => {
-    const element = box('1/1')
+    const element = box(1)
 
     expect(element.style.width).toBe('min(100cqw, 100cqh)')
-    expect(element.style.aspectRatio).toBe('1/1')
+    expect(element.style.aspectRatio).toBe('1 / 1')
     expect(element.style.height).toBe('auto')
   })
 
   it('sizes a wide aspect from the stage height', () => {
-    const element = box('2/1')
+    const element = box(2)
 
     expect(element.style.width).toBe('min(100cqw, 200cqh)')
     expect(element.classList.contains('w-full')).toBe(false)
   })
 
   it('sizes a tall aspect from the stage width', () => {
-    const element = box('1/2')
+    const element = box(0.5)
 
     expect(element.style.width).toBe('min(100cqw, 50cqh)')
     expect(element.classList.contains('h-full')).toBe(false)
   })
 
+  it('keeps the numeric ratio of a photo aspect', () => {
+    const element = box(1920 / 1080)
+
+    expect(element.style.aspectRatio).toBe(`${String(1920 / 1080)} / 1`)
+  })
+
   it('clips the media inside a rounded, bounded box', () => {
-    const element = box('1920/1080')
+    const element = box(1920 / 1080)
 
     expect(element.className).toContain('rounded-xl')
     expect(element.className).toContain('overflow-hidden')

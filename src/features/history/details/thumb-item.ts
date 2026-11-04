@@ -8,6 +8,7 @@ import type {
   InputSnapshot,
   SnapshotItem,
 } from '@/core/schemas/generation-record'
+import type { ImageRecord } from '@/core/schemas/image-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { openPreview } from '@/features/preview/preview-store'
 import { fetchUploads } from '@/lib/api/uploads'
@@ -108,6 +109,27 @@ export function thumbItems(record: GenerationRecord): ThumbItem[] {
   }
 
   return items
+}
+
+/** Reference thumbs for an image record, in reference order. */
+export function imageReferenceThumbItems(record: ImageRecord): ThumbItem[] {
+  const snapshot = record.inputsSnapshot
+  const byId = snapshot ?? {}
+
+  const { slots } = referenceSlots(record.input.references, (id) => {
+    return byId[id]?.kind ?? 'image'
+  })
+
+  return record.input.references.map((id, index) => {
+    const label = slotLabel(slots.get(id) ?? { kind: 'image', n: index + 1 })
+
+    // Records written before snapshots existed keep their old thumbs.
+    if (isNil(snapshot)) {
+      return { id, label, name: 'Reference', missing: false }
+    }
+
+    return thumbItem({ snapshot, id, label })
+  })
 }
 
 export interface OpenThumbParams {

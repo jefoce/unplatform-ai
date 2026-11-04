@@ -2,7 +2,7 @@
 
 import { Film, Image as ImageIcon } from 'lucide-react'
 
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 
 interface MediaTileBrokenPreviewProps {
   kind: MediaKind

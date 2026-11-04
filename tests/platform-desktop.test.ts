@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { messageOf } from '@/core/errors'
 import { desktopPlatform } from '@/lib/platform/desktop'
 
-const { invokeMock } = vi.hoisted(() => {
-  return { invokeMock: vi.fn() }
+import { messageOf } from '../src/core/errors'
+import { record } from './helpers/history'
+
+const mocks = vi.hoisted(() => {
+  return { exportBatch: vi.fn(), exportImageBatch: vi.fn(), invoke: vi.fn(), open: vi.fn() }
 })
 
 vi.mock('@tauri-apps/api/core', () => {
@@ -12,7 +14,7 @@ vi.mock('@tauri-apps/api/core', () => {
     onmessage: ((message: unknown) => void) | null = null
   }
 
-  return { Channel, invoke: invokeMock }
+  return { Channel, invoke: mocks.invoke }
 })
 
 vi.mock('@tauri-apps/api/webview', () => {
@@ -20,7 +22,7 @@ vi.mock('@tauri-apps/api/webview', () => {
 })
 
 vi.mock('@tauri-apps/plugin-dialog', () => {
-  return { ask: vi.fn(), open: vi.fn(), save: vi.fn() }
+  return { ask: vi.fn(), open: mocks.open, save: vi.fn() }
 })
 
 vi.mock('@tauri-apps/plugin-notification', () => {
@@ -36,12 +38,16 @@ vi.mock('@/lib/api/folders', () => {
 })
 
 vi.mock('@/lib/api/generations', () => {
-  return { exportBatch: vi.fn(), exportRecord: vi.fn() }
+  return { exportBatch: mocks.exportBatch, exportRecord: vi.fn() }
+})
+
+vi.mock('@/lib/api/images', () => {
+  return { exportImageBatch: mocks.exportImageBatch }
 })
 
 describe('desktop update install', () => {
   it('keeps the string reason from a rejected invoke', async () => {
-    invokeMock.mockRejectedValue('signature verification failed')
+    mocks.invoke.mockRejectedValue('signature verification failed')
 
     const error = await desktopPlatform
       .installUpdate(() => {})
@@ -51,5 +57,77 @@ describe('desktop update install', () => {
 
     expect(error).toBeInstanceOf(Error)
     expect(messageOf(error)).toBe('signature verification failed')
+  })
+})
+
+describe('desktop batch export', () => {
+  it('counts the files the route skipped', async () => {
+    mocks.invoke.mockResolvedValue('/tmp/videos')
+
+    mocks.exportBatch.mockResolvedValue({
+      saved: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+      skipped: [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', reason: 'not_ready' }],
+    })
+
+    const result = await desktopPlatform.saveVideos([
+      record('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      record('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+    ])
+
+    expect(mocks.invoke).toHaveBeenCalledWith('choose_export_folder', { uses: 1 })
+    expect(result).toEqual({ saved: 1, skipped: 1, folder: '/tmp/videos' })
+  })
+
+  it('stops when the folder dialog is canceled', async () => {
+    mocks.invoke.mockResolvedValue(null)
+
+    const result = await desktopPlatform.saveVideos([
+      record('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+    ])
+
+    expect(result).toEqual({ saved: 0, skipped: 0 })
+    expect(mocks.exportBatch).not.toHaveBeenCalled()
+  })
+})
+
+describe('desktop image export', () => {
+  it('counts the images the route skipped', async () => {
+    mocks.invoke.mockResolvedValue('/tmp/images')
+
+    mocks.exportImageBatch.mockResolvedValue({
+      saved: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+      skipped: [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', reason: 'not_ready' }],
+    })
+
+    const result = await desktopPlatform.saveImages([
+      {
+        recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        file: 'a.png',
+      },
+      {
+        recordId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        outputId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        file: 'b.png',
+      },
+    ])
+
+    expect(mocks.invoke).toHaveBeenCalledWith('choose_export_folder', { uses: 1 })
+
+    expect(mocks.exportImageBatch).toHaveBeenCalledWith({
+      outputs: [
+        {
+          recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        },
+        {
+          recordId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          outputId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        },
+      ],
+      dir: '/tmp/images',
+    })
+
+    expect(result).toEqual({ saved: 1, skipped: 1, folder: '/tmp/images' })
   })
 })

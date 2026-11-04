@@ -1,0 +1,54 @@
+{
+  "google/gemini-nano-banana-2.1": {
+    "output_image_base_token": 0.00003
+  },
+  "google/gemini-3.1-flash-lite-image": {
+    "output_image_base_token": 0.00003
+  },
+  "google/gemini-3.1-flash-image": {
+    "output_image_base_token": 0.000066
+  },
+  "google/gemini-3-pro-image": {
+    "input_image_base_token": 0.000002,
+    "output_image_base_token": 0.00012
+  },
+  "google/gemini-2.5-flash-image": {
+    "input_image_base_token": 0.0000003,
+    "output_image_base_token": 0.00003
+  },
+  "bytedance-seed/seedream-5-0-flash": {
+    "input_image_base_image": 0,
+    "output_image_base_image": 0.018
+  },
+  "bytedance-seed/seedream-5-0-lite": {
+    "input_image_base_image": 0,
+    "output_image_base_image": 0.035
+  },
+  "bytedance-seed/seedream-5-0-pro": {
+    "input_image_base_image": 0.003,
+    "output_image_base_image": 0.045,
+    "output_image_high_resolution_image": 0.09
+  },
+  "openai/gpt-image-2.5-sunburst": {
+    "input_image_base_token": 0.000008,
+    "input_text_base_token": 0.000005,
+    "output_image_base_token": 0.00003
+  },
+  "openai/gpt-image-2.5-flare": {
+    "input_image_base_token": 0.000008,
+    "input_text_base_token": 0.000005,
+    "output_image_base_token": 0.00003
+  },
+  "openai/gpt-image-2": {
+    "input_image_base_token": 0.000008,
+    "input_text_base_token": 0.000005,
+    "output_image_base_token": 0.00003
+  },
+  "black-forest-labs/flux-3-image-klein": {
+    "output_image_768_image": 0.008,
+    "output_image_1k_image": 0.009,
+    "output_image_1.5k_image": 0.011,
+    "output_image_2k_image": 0.014,
+    "output_image_4k_image": 0.036
+  }
+}

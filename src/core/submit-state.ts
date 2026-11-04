@@ -1,17 +1,18 @@
 import { isNil } from 'lodash-es'
 
+import type { UploadsById } from './api/uploads'
 import { GRACE_STALE_MS } from './constants'
 import { isNonEmptyString, isOneOf } from './guards'
-import { primaryBinding } from './presets/bindings'
-import type { ModelPreset } from './presets/types'
+import { primaryBinding } from './presets/common/bindings'
+import type { VideoPreset } from './presets/video/types'
 import {
   type GenerationInput,
   type GenerationRecord,
   type InputSnapshot,
   JOB_STATUSES,
   type JobStatus,
+  type RecordSubmit,
 } from './schemas/generation-record'
-import type { UploadsById } from './schemas/upload-item'
 import { type ResolvedTransport, resolveTransport } from './transport'
 import type { Dict } from './utility-types'
 
@@ -35,10 +36,12 @@ export function graceDelayMs(notBefore: string | undefined, now = Date.now()): n
 }
 
 /** True when a grace record waited longer than GRACE_STALE_MS past notBefore. */
-export function isStaleGrace(
-  record: Pick<GenerationRecord, 'status' | 'submit'>,
-  now = Date.now(),
-): boolean {
+interface StaleGraceRecord {
+  status: string
+  submit?: RecordSubmit
+}
+
+export function isStaleGrace(record: StaleGraceRecord, now = Date.now()): boolean {
   if (record.status !== 'submitting' || record.submit?.stage !== 'grace') {
     return false
   }
@@ -74,7 +77,7 @@ export function inputIds(input: GenerationInput): string[] {
 
 interface TransportsForParams {
   uploads: UploadsById
-  preset: ModelPreset
+  preset: VideoPreset
   remoteConfigured: boolean
 }
 

@@ -1,14 +1,13 @@
 'use client'
 
-import { isNil, omit } from 'lodash-es'
+import { omit } from 'lodash-es'
 import { z } from 'zod'
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
 import { normalizeForPreset } from '@/core/normalize-input'
-import { DEFAULT_PRESET_ID, findPreset, getPreset } from '@/core/presets'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/types'
+import { DEFAULT_VIDEO_PRESET_ID, findPreset, getPreset } from '@/core/presets'
+import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { FrameSlotsSchema, GENERATOR_TABS } from '@/core/schemas/generation-record'
+import { createDraftStore } from '@/lib/create-draft-store'
 
 import { createGeneratorState } from './store-actions'
 import { inputFromState } from './store-draft'
@@ -29,52 +28,31 @@ const DraftSchema = z.object({
   seed: z.number().nullable(),
 })
 
-/** Normalizes the restored draft to the preset once persistence finishes. */
-function rehydrate(state?: GeneratorState): void {
-  if (isNil(state)) {
-    return
-  }
+/** Reapplies the preset rules to a restored draft. */
+function normalizeDraft(state: GeneratorState): Partial<GeneratorState> {
+  const preset = findPreset(state.presetId) ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
 
-  queueMicrotask(() => {
-    const current = useGeneratorStore.getState()
-    const preset = findPreset(current.presetId) ?? getPreset(DEFAULT_PRESET_ID)
-
-    const { input } = normalizeForPreset({
-      input: inputFromState(current),
-      preset,
-      uploads: current.uploadsById,
-    })
-
-    const { prompt, ...rest } = input
-
-    useGeneratorStore.setState({
-      ...rest,
-      prompts: { ...current.prompts, [input.tab]: prompt },
-    })
+  const { input } = normalizeForPreset({
+    input: inputFromState(state),
+    preset,
+    uploads: state.uploadsById,
   })
+
+  const { prompt, ...rest } = input
+
+  return {
+    ...rest,
+    prompts: { ...state.prompts, [input.tab]: prompt },
+  }
 }
 
-export const useGeneratorStore = create<GeneratorState>()(
-  persist(createGeneratorState, {
-    name: 'unplatform-ai:draft',
-    version: 3,
-    partialize: (state) => {
-      return omit(state, ['uploadsById', 'activeCount'])
-    },
-    merge: (persisted, current) => {
-      const parsed = DraftSchema.safeParse(persisted)
-
-      if (!parsed.success) {
-        return current
-      }
-
-      return { ...current, ...parsed.data }
-    },
-    migrate: (persisted) => {
-      return persisted
-    },
-    onRehydrateStorage: () => {
-      return rehydrate
-    },
-  }),
-)
+export const useGeneratorStore = createDraftStore<GeneratorState, z.infer<typeof DraftSchema>>({
+  name: 'unplatform-ai:draft',
+  version: 3,
+  schema: DraftSchema,
+  create: createGeneratorState,
+  partialize: (state) => {
+    return omit(state, ['uploadsById', 'activeCount'])
+  },
+  normalize: normalizeDraft,
+})

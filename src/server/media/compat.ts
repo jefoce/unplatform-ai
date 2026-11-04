@@ -7,8 +7,9 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 
 import { FFMPEG_TIMEOUTS } from '@/core/constants'
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 
+import { retryOnWindowsLock } from '../fs/atomic-file'
 import { isOwnedName, removeOwnedFile } from '../fs/json-file'
 import { COMPAT_DIR } from '../paths'
 import { createLimiter } from '../sync/limiter'
@@ -256,7 +257,10 @@ async function convert(params: ConvertParams): Promise<void> {
 
   try {
     await runFfmpeg({ args, timeoutMs })
-    await fs.rename(temp, filePath)
+
+    await retryOnWindowsLock(() => {
+      return fs.rename(temp, filePath)
+    })
   } catch (error) {
     await fs.unlink(temp).catch(() => {})
 

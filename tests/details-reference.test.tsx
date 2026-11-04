@@ -3,10 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DetailsPanel } from '@/features/history/details/DetailsPanel'
-import { useHistoryViewerStore } from '@/features/history/list/history-viewer-store'
 import { closePreview, openPreview, usePreviewStore } from '@/features/preview/preview-store'
+import { useHistoryViewerStore } from '@/features/shared/history-viewer-store'
 
-import { Observer, record } from './helpers/history'
+import { itemOf, Observer, record } from './helpers/history'
 import { upload } from './helpers/validation-fixtures'
 
 const rerunRecord = vi.hoisted(() => {
@@ -65,7 +65,7 @@ describe('details actions', () => {
   it('closes the preview and the history viewer when Reuse loads the draft', async () => {
     openPreview({ items: [linkedVideo], index: 0 })
     useHistoryViewerStore.getState().open(RECORD_ID)
-    render(<DetailsPanel record={record(RECORD_ID)} />)
+    render(<DetailsPanel item={itemOf(record(RECORD_ID))} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
 

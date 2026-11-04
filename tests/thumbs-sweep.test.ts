@@ -4,8 +4,9 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { THUMB_UNUSED_DAYS } from '@/core/constants'
 import type { sweepThumbs as SweepThumbs } from '@/server/media/thumbs'
+
+import { THUMB_UNUSED_DAYS } from '../src/core/constants'
 
 vi.mock('server-only', () => {
   return {}

@@ -3,21 +3,28 @@
 import { useState } from 'react'
 import { isNil } from 'lodash-es'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { RecordKind } from '@/core/feed/grid-item'
+import { type HistoryItem, isImageItem } from '@/lib/feed/output-items'
 import { toastError } from '@/lib/notify'
 
-import { confirmDelete, deleteSelected, downloadSelected, likeSelected } from './selection-actions'
+import {
+  confirmDelete,
+  deleteSelected,
+  downloadSelected,
+  isDownloadable,
+} from './selection-actions'
 import { useSelectionStore } from './selection-store'
 import { SelectionToolbar } from './SelectionToolbar'
+import { useSelectedItems } from './use-selected-items'
 import { useSelectionEscape } from './use-selection-escape'
 
 interface SelectionBarProps {
-  records: GenerationRecord[]
+  items: HistoryItem[]
 }
 
 /** Selection state and batch handlers for the floating toolbar. */
 export function SelectionBar(props: SelectionBarProps) {
-  const { records } = props
+  const { items } = props
 
   const ids = useSelectionStore((state) => {
     return state.ids
@@ -27,62 +34,35 @@ export function SelectionBar(props: SelectionBarProps) {
     return state.clear
   })
 
-  const [busy, setBusy] = useState<'like' | 'delete' | 'download' | null>(null)
+  const [busy, setBusy] = useState<'delete' | 'download' | null>(null)
 
-  const selected = records.filter((record) => {
-    return ids.has(record.id)
-  })
-
+  const { selectedItems, byId } = useSelectedItems(items, ids)
   const isActive = ids.size > 0
 
   useSelectionEscape(clearSelection)
 
-  const byId = new Map(
-    records.map((record) => {
-      return [record.id, record]
-    }),
-  )
-
   const stack = [...ids].slice(-3).reverse()
+  const isImageSelection = selectedItems.length > 0 && selectedItems.every(isImageItem)
+  const kind: RecordKind = isImageSelection ? 'image' : 'video'
 
-  const isAllCompleted =
-    selected.length > 0 &&
-    selected.every((record) => {
-      return record.status === 'completed'
-    })
-
-  const isAllLiked = selected.every((record) => {
-    return record.favorite
-  })
+  const completedCount = selectedItems.filter(isDownloadable).length
 
   const handleDownload = async () => {
-    if (!isAllCompleted) {
+    if (completedCount === 0) {
       return
     }
 
     setBusy('download')
 
     try {
-      await downloadSelected(selected)
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const handleLike = async () => {
-    setBusy('like')
-
-    try {
-      await likeSelected(selected, !isAllLiked)
-    } catch (error) {
-      toastError(error)
+      await downloadSelected(selectedItems)
     } finally {
       setBusy(null)
     }
   }
 
   const handleDelete = async () => {
-    const isConfirmed = await confirmDelete(selected)
+    const isConfirmed = await confirmDelete(selectedItems)
 
     if (!isConfirmed) {
       return
@@ -91,7 +71,7 @@ export function SelectionBar(props: SelectionBarProps) {
     setBusy('delete')
 
     try {
-      await deleteSelected(selected)
+      await deleteSelected(selectedItems)
       clearSelection()
     } catch (error) {
       toastError(error)
@@ -104,13 +84,12 @@ export function SelectionBar(props: SelectionBarProps) {
     <SelectionToolbar
       isActive={isActive}
       count={ids.size}
+      kind={kind}
       stack={stack}
       byId={byId}
-      isAllCompleted={isAllCompleted}
-      isAllLiked={isAllLiked}
+      completedCount={completedCount}
       isBusy={!isNil(busy)}
       onDownload={handleDownload}
-      onLike={handleLike}
       onDelete={handleDelete}
       onClear={clearSelection}
     />

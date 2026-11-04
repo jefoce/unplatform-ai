@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-import { MEDIA_KINDS } from '@/core/media-types'
-import { errorResponse, zodError } from '@/server/http'
+import { MEDIA_KINDS } from '@/core/media/media-types'
+import { errorResponse, jsonResponse, zodError } from '@/server/http'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { createLinkUpload } from '@/server/services/uploads'
 import { getSystem } from '@/server/system'
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       }),
     )
 
-    return Response.json(items, { status: 201 })
+    return jsonResponse(items, { status: 201 })
   } catch (error) {
     return errorResponse(error)
   }

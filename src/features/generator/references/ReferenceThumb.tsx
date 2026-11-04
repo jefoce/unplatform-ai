@@ -17,6 +17,8 @@ interface ReferenceThumbProps {
   missing?: boolean
   lifted?: boolean
   note?: string
+  compact?: boolean
+  isUploadsLoading?: boolean
   onOpenPreview?: () => void
   onRemove: () => void
 }
@@ -24,10 +26,12 @@ interface ReferenceThumbProps {
 interface ThumbStateParams {
   upload?: UploadItem
   isMarkedMissing?: boolean
+  isUploadsLoading?: boolean
   hasPreview: boolean
 }
 
 interface ThumbState {
+  isPending: boolean
   isMissing: boolean
   isBroken: boolean
   isAudio: boolean
@@ -68,6 +72,7 @@ interface ThumbTextParams {
   isAudio: boolean
   isLifted: boolean
   isOpenable: boolean
+  isCompact: boolean
 }
 
 interface ThumbText {
@@ -79,15 +84,40 @@ interface ThumbText {
   isPreviewShown: boolean
 }
 
+interface ThumbTileParams {
+  isAudio: boolean
+  isLifted: boolean
+  isCompact: boolean
+}
+
+function thumbTileClass(params: ThumbTileParams): string {
+  const { isAudio, isLifted, isCompact } = params
+
+  if (isCompact) {
+    return cn(
+      'group relative size-16 cursor-grab rounded-md active:cursor-grabbing',
+      isLifted && 'cursor-grabbing shadow-2xl',
+    )
+  }
+
+  return cn(
+    'group relative cursor-grab rounded-xl active:cursor-grabbing',
+    isAudio && 'col-span-2 aspect-[2.12/1]',
+    !isAudio && 'aspect-square',
+    isLifted && 'cursor-grabbing shadow-2xl',
+  )
+}
+
 function thumbState(params: ThumbStateParams): ThumbState {
-  const { upload, isMarkedMissing, hasPreview } = params
+  const { upload, isMarkedMissing, isUploadsLoading, hasPreview } = params
   const isAudio = upload?.kind === 'audio'
   const isVideo = upload?.kind === 'video'
+  const isPending = isUploadsLoading === true && isNil(upload)
   const isMissing = isMarkedMissing === true || upload?.missing === true
   const isBroken = !upload || isMissing
   const isOpenable = Boolean(upload && !isBroken && !isAudio && hasPreview)
 
-  return { isMissing, isBroken, isAudio, isVideo, isOpenable }
+  return { isPending, isMissing, isBroken, isAudio, isVideo, isOpenable }
 }
 
 function thumbTitle(params: ThumbTitleParams): string {
@@ -155,18 +185,14 @@ function thumbContent(title: string, note?: string): string {
 }
 
 function thumbText(params: ThumbTextParams): ThumbText {
-  const { upload, label, note, isBroken, isMissing, isAudio, isLifted, isOpenable } = params
+  const { upload, label, note, isBroken, isMissing, isAudio, isLifted, isOpenable, isCompact } =
+    params
+
   const name = upload?.originalName ?? label ?? 'reference'
   const title = thumbTitle({ name, label, isBroken, isMissing })
   const overlayClass = thumbOverlay({ isBroken, isLifted })
   const content = thumbContent(title, note)
-
-  const tileClass = cn(
-    'group relative cursor-grab rounded-xl active:cursor-grabbing',
-    isAudio && 'col-span-2 aspect-[2.12/1]',
-    !isAudio && 'aspect-square',
-    isLifted && 'cursor-grabbing shadow-2xl',
-  )
+  const tileClass = thumbTileClass({ isAudio, isLifted, isCompact })
 
   return {
     name,
@@ -180,11 +206,20 @@ function thumbText(params: ThumbTextParams): ThumbText {
 
 /** One reference tile with preview and remove. Sorting lives in the wrapper. */
 export function ReferenceThumb(props: ReferenceThumbProps) {
-  const { upload, label, missing: isMarkedMissing, lifted: isLifted = false, note } = props
+  const {
+    upload,
+    label,
+    missing: isMarkedMissing,
+    lifted: isLifted = false,
+    note,
+    compact: isCompact = false,
+    isUploadsLoading,
+  } = props
 
-  const { isMissing, isBroken, isAudio, isVideo, isOpenable } = thumbState({
+  const { isPending, isMissing, isBroken, isAudio, isVideo, isOpenable } = thumbState({
     upload,
     isMarkedMissing,
+    isUploadsLoading,
     hasPreview: !isNil(props.onOpenPreview),
   })
 
@@ -199,9 +234,22 @@ export function ReferenceThumb(props: ReferenceThumbProps) {
     isAudio,
     isLifted,
     isOpenable,
+    isCompact,
   })
 
   const audioUpload = isAudio ? upload : undefined
+
+  if (isPending) {
+    return (
+      <div className={tileClass}>
+        <span
+          data-reference-skeleton
+          aria-hidden
+          className="absolute inset-0 block animate-pulse rounded-[inherit] bg-surface-2"
+        />
+      </div>
+    )
+  }
 
   return (
     <Tooltip content={content}>

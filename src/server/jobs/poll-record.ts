@@ -5,18 +5,17 @@ import { isNil } from 'lodash-es'
 import { MAX_JOB_AGE_MIN } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 import type { GenerationRecord, JobStatus, RecordJob } from '@/core/schemas/generation-record'
+import { ACTIVE_STATUSES, TERMINAL_STATUSES } from '@/core/types'
 
 import { ProviderError, type ProviderErrorKind } from '../providers/provider-error'
 import { getVideoProvider } from '../providers/registry'
 import type { JobSnapshot } from '../providers/types'
-import { saveGeneration } from '../repos/generations'
+import { updateGeneration } from '../repos/generations'
 import { queueDownload } from './download-queue'
-
-const FINAL: JobStatus[] = ['completed', 'failed', 'cancelled', 'expired']
 
 const RETRY_KINDS: readonly ProviderErrorKind[] = ['timeout', 'rate_limit', 'server']
 
-/** Fetches the latest job, updates the record and hands completed work to the download queue. */
+/** Fetches the latest job, then merges it under the record lock. */
 export async function processRecord(record: GenerationRecord): Promise<void> {
   const current = record.job
 
@@ -24,30 +23,44 @@ export async function processRecord(record: GenerationRecord): Promise<void> {
     return
   }
 
-  const job = await pollJob({ record, current })
+  let job = await pollJob({ record, current })
 
   if (!job) {
     return
   }
 
+  if (isAgedOut(record, job.status)) {
+    job = await pollJob({ record, current })
+
+    if (!job) {
+      return
+    }
+
+    if (isAgedOut(record, job.status)) {
+      await updateGeneration(record.id, (latest) => {
+        if (!ACTIVE_STATUSES.includes(latest.status)) {
+          return null
+        }
+
+        return { ...latest, status: 'expired', error: 'Job expired' }
+      })
+
+      return
+    }
+  }
+
   const status = job.status
-
-  if (isAgedOut(record, status)) {
-    await saveGeneration({ ...record, status: 'expired', error: 'Job expired' })
-
-    return
-  }
-
   const now = new Date().toISOString()
-  const prepared = prepareNext({ record, current, job, status, now })
 
-  if (!FINAL.includes(status)) {
-    await saveGeneration(prepared.next)
+  if (!TERMINAL_STATUSES.includes(status)) {
+    await updateGeneration(record.id, (latest) => {
+      return mergeJob({ record: latest, job, status, now })
+    })
 
     return
   }
 
-  await finishFinal({ record: prepared.next, status, jobFields: prepared.jobFields, job, now })
+  await finishFinal({ id: record.id, status, job, now })
 }
 
 interface PollJobParams {
@@ -73,21 +86,21 @@ async function pollJob(params: PollJobParams): Promise<JobSnapshot | null> {
   }
 }
 
-interface PrepareNextParams {
+interface MergeJobParams {
   record: GenerationRecord
-  current: RecordJob
   job: JobSnapshot
   status: JobStatus
   now: string
 }
 
-interface PreparedRecord {
-  next: GenerationRecord
-  jobFields: RecordJob
-}
+/** Applies one poll result to the freshest record. Null when it is no longer active. */
+function mergeJob(params: MergeJobParams): GenerationRecord | null {
+  const { record, job, status, now } = params
+  const current = record.job
 
-function prepareNext(params: PrepareNextParams): PreparedRecord {
-  const { record, current, job, status, now } = params
+  if (!ACTIVE_STATUSES.includes(record.status) || isNil(current)) {
+    return null
+  }
 
   const jobFields = {
     ...current,
@@ -100,18 +113,18 @@ function prepareNext(params: PrepareNextParams): PreparedRecord {
   }
 
   const error = status === 'failed' ? record.error : undefined
+  const errorStatus = status === 'failed' ? record.errorStatus : undefined
 
-  const next = applyUsageCost({
+  return applyUsageCost({
     record: {
       ...record,
       status,
       job: jobFields,
       error,
+      errorStatus,
     },
     job,
   })
-
-  return { next, jobFields }
 }
 
 interface ApplyUsageCostParams {
@@ -141,30 +154,40 @@ function applyUsageCost(params: ApplyUsageCostParams): GenerationRecord {
 }
 
 interface FinishFinalParams {
-  record: GenerationRecord
+  id: string
   status: JobStatus
-  jobFields: RecordJob
   job: JobSnapshot
   now: string
 }
 
 async function finishFinal(params: FinishFinalParams): Promise<void> {
-  const { record, status, jobFields, job, now } = params
+  const { id, status, job, now } = params
 
-  const next = {
-    ...record,
-    job: { ...jobFields, completedAt: jobFields.completedAt ?? now },
+  const saved = await updateGeneration(id, (latest) => {
+    const merged = mergeJob({ record: latest, job, status, now })
+
+    if (isNil(merged) || isNil(merged.job)) {
+      return null
+    }
+
+    const next = {
+      ...merged,
+      job: { ...merged.job, completedAt: merged.job.completedAt ?? now },
+    }
+
+    if (status === 'completed') {
+      // The download queue owns the record until the poster and output exist.
+      return { ...next, status: 'in_progress', download: { startedAt: now } }
+    }
+
+    const fallback = status === 'expired' ? 'Job expired' : `Job ${status}`
+
+    return { ...finalizeCost(next, job), error: job.error ?? fallback }
+  })
+
+  if (!isNil(saved) && status === 'completed') {
+    await queueDownload(saved, job)
   }
-
-  if (status === 'completed') {
-    await queueDownload(next, job)
-
-    return
-  }
-
-  const fallback = status === 'expired' ? 'Job expired' : `Job ${status}`
-
-  await saveGeneration({ ...finalizeCost(next, job), error: job.error ?? fallback })
 }
 
 function finalizeCost(record: GenerationRecord, job: JobSnapshot): GenerationRecord {
@@ -182,7 +205,13 @@ async function handleJobError(record: GenerationRecord, error: unknown): Promise
   }
 
   if (error.kind === 'not_found') {
-    await saveGeneration({ ...record, status: 'failed', error: error.storedMessage })
+    await updateGeneration(record.id, (latest) => {
+      if (!ACTIVE_STATUSES.includes(latest.status)) {
+        return null
+      }
+
+      return { ...latest, status: 'failed', error: error.storedMessage, errorStatus: error.status }
+    })
 
     return true
   }
@@ -190,9 +219,13 @@ async function handleJobError(record: GenerationRecord, error: unknown): Promise
   if (error.kind === 'auth' || error.kind === 'no_key') {
     const text = `${error.storedMessage}: ${error.message}`
 
-    if (record.error !== text) {
-      await saveGeneration({ ...record, error: text })
-    }
+    await updateGeneration(record.id, (latest) => {
+      if (latest.error === text) {
+        return null
+      }
+
+      return { ...latest, error: text, errorStatus: error.status }
+    })
 
     return true
   }

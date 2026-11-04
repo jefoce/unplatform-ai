@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { isNil } from 'lodash-es'
 
 import { messageOf } from '@/core/errors'
 import type { UploadItem } from '@/core/schemas/upload-item'
@@ -34,6 +35,9 @@ interface RunUploadParams {
 
 async function runUpload(params: RunUploadParams): Promise<void> {
   const { entry, controllers, setItems, onUploaded, onError } = params
+
+  controllers.current.get(entry.id)?.abort()
+
   const controller = new AbortController()
 
   controllers.current.set(entry.id, controller)
@@ -97,8 +101,34 @@ async function runUpload(params: RunUploadParams): Promise<void> {
 
     patch({ error: messageOf(error) })
   } finally {
-    controllers.current.delete(entry.id)
+    if (controllers.current.get(entry.id) === controller) {
+      controllers.current.delete(entry.id)
+    }
   }
+}
+
+/** Queues one upload, skipping it when its row was cancelled before the chain reached it. */
+interface ChainUploadParams {
+  entry: UploadProgressItem
+  chain: RefObject<Promise<void>>
+  cancelled: RefObject<Set<string>>
+  run: (entry: UploadProgressItem) => Promise<void>
+}
+
+function chainUpload(params: ChainUploadParams): void {
+  const { entry, chain, cancelled, run } = params
+
+  chain.current = chain.current.then(() => {
+    if (cancelled.current.has(entry.id)) {
+      cancelled.current.delete(entry.id)
+
+      return
+    }
+
+    return run(entry).finally(() => {
+      cancelled.current.delete(entry.id)
+    })
+  })
 }
 
 /** Copies queued files one by one and tracks per-file progress. */
@@ -109,6 +139,8 @@ export function useUploadQueue(
   const [items, setItems] = useState<UploadProgressItem[]>([])
   const nextId = useRef(0)
   const controllers = useRef(new Map<string, AbortController>())
+  const cancelled = useRef(new Set<string>())
+  const chain = useRef<Promise<void>>(Promise.resolve())
 
   const run = useCallback(
     (entry: UploadProgressItem) => {
@@ -132,7 +164,7 @@ export function useUploadQueue(
       })
 
       for (const entry of entries) {
-        void run(entry)
+        chainUpload({ entry, chain, cancelled, run })
       }
     },
     [run],
@@ -152,6 +184,10 @@ export function useUploadQueue(
   )
 
   const dismiss = useCallback((id: string) => {
+    cancelled.current.add(id)
+    controllers.current.get(id)?.abort()
+    controllers.current.delete(id)
+
     setItems((previous) => {
       return previous.filter((item) => {
         return item.id !== id
@@ -160,13 +196,19 @@ export function useUploadQueue(
   }, [])
 
   const clear = useCallback(() => {
+    for (const item of items) {
+      if (isNil(item.error)) {
+        cancelled.current.add(item.id)
+      }
+    }
+
     for (const controller of controllers.current.values()) {
       controller.abort()
     }
 
     controllers.current.clear()
     setItems([])
-  }, [])
+  }, [items])
 
   useEffect(() => {
     const active = controllers.current

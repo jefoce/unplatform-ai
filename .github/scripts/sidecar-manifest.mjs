@@ -8,11 +8,20 @@ function sha256(file) {
   return createHash('sha256').update(readFileSync(file)).digest('hex')
 }
 
+function optionalFields() {
+  const fields = {}
+
+  if (process.env.SIDECAR_BUILT_BY) fields.builtBy = process.env.SIDECAR_BUILT_BY
+
+  return fields
+}
+
 if (mode === 'write') {
   const [binary, out, name, target, version, profile] = args
   const manifest = { name, target, version, sha256: sha256(binary) }
 
   if (profile) manifest.profile = profile
+  Object.assign(manifest, optionalFields())
 
   writeFileSync(out, `${JSON.stringify(manifest, null, 2)}\n`)
 } else if (mode === 'verify') {

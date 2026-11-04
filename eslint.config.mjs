@@ -33,6 +33,49 @@ const localPlugin = {
   },
 }
 
+// A raw record write skips the record lock unless the caller already holds it.
+const SAVE_WRITE_PATTERN = {
+  group: [
+    '@/server/repos/generations',
+    '@/server/repos/images',
+    '**/repos/generations',
+    '**/repos/images',
+  ],
+  importNames: ['saveGeneration', 'saveImage'],
+  message: 'Write through updateGeneration/updateImage so the read and save share the lock.',
+}
+
+const restrictedImports = (patterns = []) => {
+  return [
+    'error',
+    {
+      paths: [
+        { name: 'lodash', message: 'Use lodash-es named imports.' },
+        { name: 'next/image', message: 'Posters and thumbs use <img>. See AGENTS.md.' },
+      ],
+      patterns: [
+        { group: ['@tauri-apps/*'], message: 'Only src/lib/platform/desktop.ts imports Tauri.' },
+        ...patterns,
+      ],
+    },
+  ]
+}
+
+// Fresh records and callers that already hold withLock may write their own record.
+const SAVE_WRITE_FILES = [
+  'src/server/repos/**/*.ts',
+  'src/server/services/create-generation.ts',
+  'src/server/services/image-create.ts',
+  'src/server/services/image-actions.ts',
+  'src/server/jobs/download-queue.ts',
+  'src/server/jobs/generation-actions.ts',
+  'src/server/jobs/image-record.ts',
+  'src/server/jobs/image-run.ts',
+  'src/server/jobs/reconcile.ts',
+  'src/server/jobs/run-submit.ts',
+  'src/server/jobs/submit-record.ts',
+]
+
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -79,24 +122,7 @@ export default defineConfig([
       'import/newline-after-import': 'error',
       'import/no-duplicates': ['error', { 'prefer-inline': true }],
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
-      'no-restricted-imports': [
-        'error',
-        {
-          paths: [
-            { name: 'lodash', message: 'Use lodash-es named imports.' },
-            {
-              name: 'next/image',
-              message: 'Posters and thumbs use <img>. See AGENTS.md.',
-            },
-          ],
-          patterns: [
-            {
-              group: ['@tauri-apps/*'],
-              message: 'Only src/lib/platform/desktop.ts imports Tauri.',
-            },
-          ],
-        },
-      ],
+      'no-restricted-imports': restrictedImports(),
 
       // Layers and cycles live in .dependency-cruiser.cjs
 
@@ -300,6 +326,20 @@ export default defineConfig([
         SERVER_SELECTORS,
         TYPE_SELECTORS,
       ),
+    },
+  },
+  {
+    // Raw record writes live in the repos and the callers that already hold the lock.
+    files: ['src/server/**/*.ts'],
+    ignores: ['src/server/repos/**/*.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports([SAVE_WRITE_PATTERN]),
+    },
+  },
+  {
+    files: SAVE_WRITE_FILES,
+    rules: {
+      'no-restricted-imports': restrictedImports(),
     },
   },
   {

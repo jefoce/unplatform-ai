@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { posterSrc } from '@/features/history/actions/record-view'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { posterSrc } from '../src/lib/feed/output-items'
 
 const record = {
   output: { video: 'clip.mp4', preview: 'clip.preview.png' },
@@ -14,10 +14,12 @@ describe('posterSrc', () => {
     expect(posterSrc(record, 640)).toContain('w=640')
     expect(posterSrc(record, 900)).toContain('w=960')
     expect(posterSrc(record, 1280)).toContain('w=1280')
+    expect(posterSrc(record, 1281)).toContain('w=1600')
+    expect(posterSrc(record, 1600)).toContain('w=1600')
   })
 
   it('caps at the last bucket', () => {
-    expect(posterSrc(record, 1281)).toContain('w=1920')
+    expect(posterSrc(record, 1601)).toContain('w=1920')
     expect(posterSrc(record, 9999)).toContain('w=1920')
   })
 

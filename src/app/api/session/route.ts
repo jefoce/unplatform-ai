@@ -1,28 +1,35 @@
-import { errorResponse, jsonError } from '@/server/http'
-import { assertLocalRequest } from '@/server/request-guard'
-import { SESSION_COOKIE, sessionRequired, tokenMatches } from '@/server/session'
+import { z } from 'zod'
+
+import { errorResponse, jsonError, zodError } from '@/server/http'
+import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
+import { SESSION_COOKIE, tokenMatches } from '@/server/session'
 
 export const dynamic = 'force-dynamic'
 
-export function GET(request: Request) {
+const BodySchema = z.object({ token: z.string().min(1) })
+
+/**
+ * Sets a host-only, HttpOnly, SameSite=Strict cookie.
+ * Secure is omitted because the desktop origin is plain http on 127.0.0.1.
+ */
+export async function POST(request: Request) {
   try {
     assertLocalRequest(request, { session: false })
 
-    if (!sessionRequired()) {
-      return Response.redirect(new URL('/', request.url), 303)
+    const body = BodySchema.safeParse(await readJsonBody(request))
+
+    if (!body.success) {
+      return zodError(body.error)
     }
 
-    const token = new URL(request.url).searchParams.get('t')
-
-    if (!tokenMatches(token)) {
+    if (!tokenMatches(body.data.token)) {
       return jsonError({ status: 401, error: 'Bad session token' })
     }
 
     return new Response(null, {
-      status: 303,
+      status: 204,
       headers: {
-        Location: '/',
-        'Set-Cookie': `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/`,
+        'Set-Cookie': `${SESSION_COOKIE}=${body.data.token}; HttpOnly; SameSite=Strict; Path=/`,
       },
     })
   } catch (error) {

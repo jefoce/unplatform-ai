@@ -2,7 +2,7 @@
 
 import { isNil } from 'lodash-es'
 
-import type { KindExtensions } from '@/core/media-kinds'
+import type { KindExtensions } from '@/core/media/media-kinds'
 import { type RefSlot, slotLabel } from '@/core/prompt-tokens'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { pickerAnchor } from '@/features/media-picker/picker/anchors'
@@ -18,6 +18,7 @@ interface ReferenceItemProps {
   label?: string
   note?: string
   isLifted?: boolean
+  isUploadsLoading?: boolean
   previewUploads: UploadItem[]
   slots: Map<string, RefSlot>
   extensions?: KindExtensions
@@ -39,7 +40,8 @@ function referenceLabel(slots: Map<string, RefSlot>, item: UploadItem): string |
 
 /** One reference cell with preview, replace and remove handlers. */
 export function ReferenceItem(props: ReferenceItemProps) {
-  const { id, upload, label, note, isLifted, previewUploads, slots, extensions } = props
+  const { id, upload, label, note, isLifted, isUploadsLoading, previewUploads, slots, extensions } =
+    props
 
   const handleInsert = (item: UploadItem): void => {
     const slot = slots.get(item.id)
@@ -102,6 +104,7 @@ export function ReferenceItem(props: ReferenceItemProps) {
         upload={upload}
         label={label}
         note={note}
+        isUploadsLoading={isUploadsLoading}
         onOpenPreview={handleOpenPreview}
         onRemove={handleRemove}
         lifted
@@ -115,6 +118,7 @@ export function ReferenceItem(props: ReferenceItemProps) {
       upload={upload}
       label={label}
       note={note}
+      isUploadsLoading={isUploadsLoading}
       onOpenPreview={handleOpenPreview}
       onRemove={handleRemove}
     />

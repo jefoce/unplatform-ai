@@ -3,7 +3,7 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { IMAGE_MAX_SIDE_PX } from '@/core/constants'
-import type { FlattenColor } from '@/core/media-types'
+import type { FlattenColor } from '@/core/media/media-types'
 import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { uploadPaths } from '../paths'
@@ -18,7 +18,7 @@ import {
   writeCache,
   writeOpaque,
 } from './image-cache'
-import sharp from './sharp'
+import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
 
 export interface EncodeStepParams {
   upload: UploadItem
@@ -85,7 +85,7 @@ async function encodeUncached(params: EncodeStepParams): Promise<EncodedImage> {
     flattened = await flattenColor(source)
   }
 
-  let pipeline = sharp(source, { pages: 1 })
+  let pipeline = sharp(source, { ...SHARP_INPUT_OPTIONS, pages: 1 })
     .rotate()
     .toColorspace('srgb')
     .withIccProfile('srgb')
@@ -148,13 +148,13 @@ async function opacityFor(upload: UploadItem, source: string): Promise<boolean> 
 
 /** No alpha channel means opaque, so only alpha images pay for a full decode. */
 async function statsOpaque(source: string): Promise<boolean> {
-  const meta = await sharp(source).metadata()
+  const meta = await sharp(source, SHARP_INPUT_OPTIONS).metadata()
 
   if (!meta.hasAlpha) {
     return true
   }
 
-  return (await sharp(source, { pages: 1 }).stats()).isOpaque
+  return (await sharp(source, { ...SHARP_INPUT_OPTIONS, pages: 1 }).stats()).isOpaque
 }
 
 const base64Bytes = (bytes: number): number => {

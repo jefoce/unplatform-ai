@@ -13,6 +13,9 @@ export interface HistoryNavParams {
   close: () => void
 }
 
+/** Navigation result, named so the modal media can take it as a prop. */
+export type HistoryNav = ReturnType<typeof useHistoryNav>
+
 /** Record position in the view order, paging and delete recovery. */
 export function useHistoryNav(params: HistoryNavParams) {
   const { selectedId, viewOrder, hasMore, isLoadingMore, navigate, onLoadMore, close } = params

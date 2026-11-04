@@ -52,7 +52,7 @@ export function ReferenceThumbBody(props: ReferenceThumbBodyProps) {
   return (
     <div
       className={cn(
-        'absolute inset-0 overflow-hidden rounded-xl',
+        'absolute inset-0 overflow-hidden rounded-[inherit]',
         !isAudio && 'bg-surface-2 ring-1 ring-white/10 ring-inset',
       )}
     >
@@ -86,8 +86,8 @@ export function ReferenceThumbBody(props: ReferenceThumbBodyProps) {
       )}
 
       {isPreviewShown && (
-        <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-          <span className="flex size-7 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm">
+        <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100">
+          <span className="flex size-7 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm linux:bg-solid-overlay">
             <Maximize2 size={12} aria-hidden />
           </span>
         </span>

@@ -13,7 +13,7 @@ let dir = ''
 let file = ''
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-json-file-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-json-file-'))
   file = path.join(dir, 'bad.json')
 })
 

@@ -10,7 +10,7 @@ export function GlowLayers(props: GlowLayersProps) {
 
   return (
     <>
-      {(['lime', 'gray', 'red'] as const).map((name) => {
+      {(['accent', 'gray', 'red'] as const).map((name) => {
         const opacity = tone === name ? 1 : 0
 
         return (

@@ -16,7 +16,7 @@ Two run modes, one server:
 | Mode | Start | Session token | Parent |
 |---|---|---|---|
 | Browser | `pnpm dev` / `pnpm start` | none | none |
-| Desktop | Tauri spawns the Node sidecar | `APP_TOKEN` cookie | Tauri exits the sidecar via `PARENT_PID` watch |
+| Desktop | Tauri spawns the Node sidecar | `APP_TOKEN_FILE` 0600 JSON file, deleted after boot | Tauri exits the sidecar via `PARENT_PID` watch |
 
 Updates run in the Rust shell. It reads `latest.json` from the GitHub release over HTTPS, checks the downloaded installer against the embedded public key, and installs only a version newer than the running one.
 
@@ -28,22 +28,27 @@ Updates run in the Rust shell. It reads `latest.json` from the GitHub release ov
 | `src/core/presets` | One file per model under its family folder. `family.ts` holds what the family shares. |
 | `src/core/providers` | Provider descriptors for video and storage: ids, secret fields, links, HTTP rules. |
 | `src/core/schemas` | Zod schemas for stored JSON: records, uploads, folders. |
-| `src/core/provider-errors` | Error types, family tables, app rules and HTTP codes behind one `friendlyError`. |
+| `src/core/provider-errors` | Error types, app rules and HTTP codes behind one `friendlyError`. Family rules live with their preset. |
 | `src/core/types.ts` | Shared API shapes: records, uploads, folders, pricing, secrets, capabilities. |
 | `src/core/catalog.ts` | Catalog entry, model status and catalog shapes shared by the client and the server. |
+| `src/core/pricing` | Price formulas, quote composition and SKU rules for images and videos. |
+| `src/core/media` | Shared media kinds, output sizes and formatting rules. |
+| `src/core/feed` | Sorting, filtering, pagination and layout shared by the history and picker feeds. |
+| `src/core/api` | Request and response schemas shared by the image routes and the client. |
 | `src/core/utility-types.ts` | Shared utility types `Dict` and `HasId`. |
 | `src/server` | IO: boot, route helpers, jobs, services, repos, providers, storage, secrets, media, config. |
 | `src/server/boot.ts` | Composition root. Lock, secrets, queue wiring, poller, parent watch, ffmpeg. |
 | `src/server/config` | `isMockMode`, the app-wide dev switch shared by the provider and storage registries. |
-| `src/server/jobs` | `submit-queue`, `run-submit`, `submit-media`, `submit-record`, `poller`, `download-queue`, `reconcile`. |
-| `src/server/services` | Orchestration for routes and jobs: `credits`, `model-catalog`, `remote-inputs`, `remote-cap`, `upload-probe`, `uploads`, `connection-test`, `create-generation`, `estimate-generation`. |
+| `src/server/jobs` | `submit-queue`, `run-submit`, `submit-media`, `submit-record`, `poller`, `download-queue`, `reconcile`, plus `image-submit-queue`, `image-run`, `image-calls`, `image-reconcile`, `image-outputs` and `image-record`. |
+| `src/server/services` | Orchestration for routes and jobs: `credits`, `model-catalog`, `remote-inputs`, `remote-cap`, `upload-probe`, `uploads`, `connection-test`, `create-generation`, `estimate-generation`, plus `image-create`, `image-actions` and `image-files`. |
 | `src/server/providers` | `VideoProvider` interface, registry, OpenRouter adapter, mock adapter, `ProviderError` kinds. |
 | `src/server/storage` | `ObjectStore` interface, registry, generic S3 store, R2 config, mock store, hashing. |
-| `src/server/repos` | `generations`, `uploads`, `folders`, `json-dir-store`. |
+| `src/server/repos` | `generations`, `images`, `uploads`, `folders`, `json-dir-store`. |
 | `src/server/sync` | `withLock`, the per-key serialization primitive, `createLimiter` for per-key caps, and `ttl-cache`, the `globalState` TTL cache. |
 | `src/server/media` | `image-data-url`, `image-encode`, `to-data-url`, `thumbs`, `compat`, `ffmpeg`. |
-| `src/features` | UI grouped by feature: generator, history, media picker, preview, settings, player, studio, updates. |
+| `src/features` | UI grouped by feature: generator, image generator, history, media picker, preview, settings, player, studio, updates. |
 | `src/features/generator` | `panel`, `store`, `references`, `frames`, `prompt`, `options`, `model`, `credits`, `generate`. |
+| `src/features/image-generator` | `panel`, `store`, `prompt`, `references`, `controls`, `submit`. |
 | `src/features/history` | `list`, `details`, `status`, `filters`, `selection`, `actions`. |
 | `src/features/media-picker` | `picker`, `uploads`, `folders`, `tiles`. |
 | `src/ui` | Primitives (button, modal, popover, tabs, slider, tooltip). |
@@ -111,13 +116,15 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 
 | File | Meaning | Writer |
 |---|---|---|
-| `server.lock` | PID, port, mode, start time | instance lock |
+| `server.lock` | PID, port, mode, start time and boot nonce | instance lock |
 | `desktop.json` | Desktop port, window bounds, close hint, `auto_check_updates` and `last_update_check`, written under one lock | Tauri shell |
 | `secrets.json` | 0600 fallback when no OS keychain exists | file secret backend |
 | `logs/server.log` | Sidecar log | Node server and Rust supervisor |
-| `runtime/<version>/` | Writable copy of the bundled Next server | Tauri shell on first launch |
+| `runtime/<version>/` | Extracted copy of the bundled Next server archive | Tauri shell on first launch |
 
-Desktop runs the sidecar from `runtime/<version>`, so Next cache writes never touch the signed bundle. The copy holds a `.upai-build` stamp naming the bundled build. A missing or different stamp restages the copy, and the stamp is written last. Older versions are removed after a successful boot.
+Desktop runs the sidecar from `runtime/<version>`, so Next cache writes never touch the signed bundle. First launch streams `Resources/server.tar.zst` into a `.staging-<pid>` folder, rejects paths and symlinks that leave the target, then renames the folder into place. The copy holds a `.upai-build` stamp copied from `Resources/server.build-id`. A missing or different stamp restages the copy, and the stamp is written last. A damaged archive removes the staging folder and shows a fatal error instead of leaving a half runtime. Older versions are removed after a successful boot.
+
+The archive carries only the server. Every platform keeps `unplatform-ai-server` and `ffmpeg` as bundle sidecars beside the app binary, so the shell always spawns the sidecar and points `FFMPEG_PATH` at the bundled ffmpeg. The stamp is the server build id, compared whole. A version bump uses a new folder, and a same-version rebuild restages when `.next/BUILD_ID` changes.
 
 ## 4. Generation lifecycle
 
@@ -143,6 +150,20 @@ submitting/grace -> submitting/uploading -> submitting/sending
 | download -> `completed` | download queue | record id | file and output fields are written together |
 
 `completed` is saved only after the mp4 exists. Download failures return the record to `in_progress` and retry up to `MAX_DOWNLOAD_RETRIES`.
+
+User-facing labels come from `src/core/status-help.ts`:
+
+| Label | Video state | Image state |
+|---|---|---|
+| Processing | `submitting/grace`, or `pending` | `submitting/grace` |
+| Uploading | `submitting/uploading` | `submitting/uploading` |
+| Sending | `submitting/sending` | `submitting/sending` |
+| Generating | `in_progress` | `saving` or `in_progress` |
+| Downloading | `download` set | none, the write is immediate |
+| Completed | `completed` | `completed` |
+| Failed | `failed` | `failed` or `partial` |
+| Expired | `expired` | `expired` |
+| Cancelled | `cancelled` | `cancelled` |
 
 ## 5. Prompts and slots
 
@@ -178,13 +199,17 @@ If a provider rejects base64 input, submit retries once with all media as URLs. 
 | Seedance 2.0 | 4-15 s | 480p, 720p, 1080p, 4K | 9 / 3 / 3 | video |
 | Seedance 2.5 | 4-30 s | 480p, 720p | 30 / 10 / 10 | video |
 
-Each model holds `bindings` in priority order. A binding is `provider`, `modelId`, `pricing` and `transport` per media kind. The first binding whose provider is configured wins. A record stores the chosen provider and model id at submit time, so polling and download keep using that provider after settings change.
+Image presets live under `src/core/presets/image`, one file per family and one file per model. They define resolutions or a fixed size, aspect ratios, quality and background controls, reference limits, seed support and pricing. `IMAGE_PRESETS` in `image/index.ts` is the picker order and the source of the image model table in the README.
 
-Pricing is serializable data. `skuRules` is an ordered list. Each rule has `when` conditions (`hasVideoInput`, `audio`, `hasTier`) and a `key` where `{resolution}` and `{tier}` are replaced. The first matching rule wins. `tiers` maps a resolution to its SKU suffix, for example `1080p` to `_1080p`. `fallback` holds a list rate for every key the rules can produce.
+Each model holds `bindings` in priority order. A binding is `provider`, `modelId` and `pricing`, plus `transport` per media kind for video. The first binding whose provider is configured wins. A record stores the chosen provider and model id at submit time, so polling and download keep using that provider after settings change.
 
-`/api/models` returns one catalog entry per preset. `available` means the provider lists the model. `unverified` means the model list cannot be read. `missing` means the list lacks the model. `no_provider` means no binding has a configured key. The catalog controls picker availability and price only. It never narrows preset capabilities at runtime.
+Model data is shared, adapters are not. `src/core/providers/registry.ts` holds descriptors only. `src/server/providers/registry.ts` hard-codes the video factories and takes image factories through `registerImageProvider` at boot, so mock selection stays in the composition root.
 
-Live pricing keeps list and effective rates. `getPricing` fetches `/api/v1/videos/models` for SKUs and `/api/v1/models/{author}/{slug}/endpoints` for the live `pricing.discount` in parallel, then applies `effective = list * (1 - discount)`. At the time of writing Wan 3.0 reports 0.15 while Prime and Seedance report 0. A failed endpoints call keeps live list rates at discount 0. Mock and fallback modes always use list prices. The Quality popover shows the struck list rate and the effective rate, plus a `% off` hint when a discount exists. No HTML scraping.
+Pricing is serializable data under `src/core/pricing`. A binding's `pricing` holds a `formula` (`perSecond`, `videoTokens`, `perImage`, `imageTokens`, `megapixel`), ordered `skuRules`, a `fallback` SKU table and optional token facts. Each rule has `when` conditions (`resolution`, `quality`, `aspect`, `hasVideoInput`, `audio`, `hasTier`) and a `key` where `{resolution}`, `{quality}`, `{aspect}` and `{tier}` are replaced. The first matching rule wins. `tiers` maps a resolution to its SKU suffix, for example `1080p` to `_1080p`. `tokens` holds model token counts, which are preset facts, not provider data. `quote({ preset, binding, ctx, skus })` returns the per-unit and total price for either kind. An image estimate multiplies the quoted image price by the requested count, then adds the reference token cost for token-priced models.
+
+`/api/models` returns one catalog entry per preset. `available` means the provider lists the model. `missing` means the model is absent from the list and the endpoint listing answers 404 or has no endpoints. `unverified` means the model list cannot be read, or the model is absent but the endpoint listing is present or unknown. `no_provider` means no binding has a configured key. Availability is the model list plus the endpoint listing, never capability drift. The catalog controls picker availability and price only. It never narrows preset capabilities at runtime.
+
+Live pricing goes through the adapter registry in `src/server/pricing/live.ts`. `registerLivePricing(provider, kind, loader)` wires one loader per provider and kind. OpenRouter video reads `/api/v1/videos/models` for SKUs and `/api/v1/models/{author}/{slug}/endpoints` for the live `pricing.discount`, then applies `effective = list * (1 - discount)`. OpenRouter image reads each `/api/v1/images/models/{id}/endpoints`, maps lines to `${billable}_${variant ?? 'base'}_${unit}` and keeps the highest rate per key. A new provider adds an adapter and presets, never an engine change. Estimates and create store `priceSource: 'live' | 'fallback'`. Mock and fallback modes always use list prices. The Quality popover shows the struck list rate and the effective rate, plus a `% off` hint when a discount exists. No HTML scraping.
 
 `minDuration` raises the selectable floor to `minBillableSec` when it is higher. The shortest selectable duration is 5 s on Wan and 4 s on Seedance. Wan presets bill at least 5 s, so a 2 s request costs 5 × the effective rate. `usage.cost` is the truth, and stored `pricePerSec` stays the raw rate.
 
@@ -192,7 +217,7 @@ Adding a model:
 
 1. Read `/api/v1/videos/models` and the provider page for reference kinds and formats.
 2. Add or reuse a family file under `src/core/presets/<family>/`. A model file holds only what differs from the family.
-3. Add the preset to `MODEL_PRESETS` in `index.ts`, including pricing SKUs and fallbacks.
+3. Add the preset to `VIDEO_PRESETS` in `index.ts`, including pricing SKUs and fallbacks.
 4. Run `pnpm vitest run tests/presets-contract.test.ts`.
 5. Make one cheap real generation and record the result in the preset comment.
 6. Update the models table above.
@@ -201,6 +226,7 @@ Adding a model:
 
 | Gate | Limit | Purpose |
 |---|---|---|
+| Active generations | 4 per kind | `MAX_ACTIVE_JOBS` for video and `IMAGE_MAX_ACTIVE` for image, each checked and inserted under one lock per kind |
 | `withLock(key)` | 1 per key | Record, `upload:<id>`, `folders`, `secrets`, `compat:<hash>` |
 | Submit queue | 2 active | Upload and send jobs |
 | Poller | 3 parallel | OpenRouter status reads |
@@ -209,7 +235,7 @@ Adding a model:
 | `imageEncodeQueue` | 2 active | Image re-encode at upload |
 | `compatQueue` | 2 active | Webview-safe copies |
 
-The media caps use `createLimiter` (`src/server/sync/limiter.ts`). `globalState` keeps one singleton per process even when Next loads a module twice. `server.lock` prevents two servers from sharing one data folder. A live owner makes the new process exit with code 75, a stale lock is replaced.
+The media caps use `createLimiter` (`src/server/sync/limiter.ts`). `globalState` keeps one singleton per process even when Next loads a module twice. `server.lock` prevents two servers from sharing one data folder. Health returns the boot nonce publicly, and a live owner with the same nonce makes the new process exit with code 75. A stale lock is replaced.
 
 Update checks run 15 s after launch, then every 12 h while auto-check is on (`UPDATE_CHECK_DELAY_MS`, `UPDATE_CHECK_INTERVAL_MS`). The toast and Settings share one install action, which keeps the downloaded bytes for a retry after cancel.
 
@@ -219,7 +245,7 @@ Lookup order per key: environment variable, then the OS keychain or desktop brid
 
 Desktop uses a bridge to the Rust shell over newline-delimited JSON on stdin/stdout. Node never calls the keychain in desktop mode. The webview never receives key values, only status with the last four characters.
 
-Browser mode has no session token. Desktop sets `APP_TOKEN`, opens `/api/session?t=<token>`, and the page gets an HttpOnly `SameSite=Strict` cookie. `assertLocalRequest` enforces host, origin, `sec-fetch-site`, JSON content type and the session. Health and session routes opt out of the session check.
+Desktop writes one 0600 JSON file with the session token, the parent secret and the boot nonce, passes its path in `APP_TOKEN_FILE`, and the server reads and deletes it at boot. Browser mode mints a token at boot and prints `http://127.0.0.1:<port>/session#t=<token>` once. Writes without a session return 401 in every mode. Only the parent secret can register a save-dialog path. The shell then opens `/session#t=<token>`. The fragment never reaches the server: the page POSTs the token to `/api/session`, gets an HttpOnly `SameSite=Strict` cookie, and replaces the URL with `/`. `assertLocalRequest` enforces host, origin, `sec-fetch-site`, JSON content type and the session. Health and session routes opt out of the session check.
 
 ## 10. Platform layer
 
@@ -239,33 +265,111 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `MAX_ACTIVE_JOBS` | 4 | Active generations allowed at once |
-| `MAX_REQUEST_MB` | 64 | Total encoded request cap |
-| `MAX_INLINE_MEDIA_MB` | 50 | Per-file inline media cap |
-| `MAX_IDS` | 100 | Ids accepted in one history ids filter or reference plan |
-| `SUBMIT_GRACE_MS` | 10000 | Cancel window before upload starts |
-| `GRACE_STALE_MS` | 60000 | Grace older than this at boot is cancelled, not sent |
-| `SHUTDOWN_SEND_WAIT_MS` | 60000 | Shutdown wait for an in-flight send |
-| `POLL_INTERVAL_MS` | 8000 | Job polling interval |
-| `HISTORY_POLL_MS` | 4000 | History refresh interval |
+| `AUTOPLAY_DELAY_MS` | 500 | Pause before a viewer autoplays |
+| `BLUR_SATURATION` | 1.5 | Saturation applied to the pre-blurred stage backdrop |
+| `BLUR_SIGMA` | 8 | Gaussian sigma of the pre-blurred stage backdrop |
+| `BLUR_WIDTH` | 96 | Pre-blurred stage backdrop width |
+| `CREDITS_FOCUS_STALE_MS` | 30000 | Focus refresh when the last credits fetch is older |
 | `CREDITS_POLL_MS` | 60000 | Credit balance refresh interval |
-| `UPDATE_CHECK_DELAY_MS` | 15000 | Delay before the first automatic update check |
-| `UPDATE_CHECK_INTERVAL_MS` | 43200000 | Automatic update check interval |
-| `MAX_JOB_AGE_MIN` | 360 | Age after which active jobs expire |
-| `MAX_DOWNLOAD_RETRIES` | 5 | Download attempts before failing |
+| `CREDITS_SETTLE_MS` | 15000 | Follow-up credits refresh after a job finishes |
+| `CREDITS_SETTLE_WINDOW_MS` | 120000 | Window for a newly seen settled record to trigger a refresh |
+| `CREDIT_DANGER_USD` | 0.5 | Balance that shows the danger color |
+| `CREDIT_WARN_USD` | 2 | Balance that shows the warning color |
+| `DETAILS_MIN_WIDTH` | 240 | Minimum details panel width |
+| `DOCKED_PANEL_EDGE_GAP` | 16 | Gap between a docked panel and the viewport edges |
+| `DOCKED_PANEL_WIDTH` | 560 | Default docked panel width, the video picker size |
+| `DOWNLOAD_STAGGER_MS` | 300 | Delay between batch download starts |
+| `EXPORT_TOKEN_TTL_MS` | 600000 | Window to use a save-dialog path |
 | `FETCH_TIMEOUTS.submit` | 300000 | Submit request timeout |
 | `FETCH_TIMEOUTS.poll` | 30000 | Poll request timeout |
 | `FETCH_TIMEOUTS.content` | 600000 | Video download timeout |
 | `FETCH_TIMEOUTS.meta` | 15000 | Metadata and test timeout |
-| `REMOTE_LINK_TTL_SEC` | 7200 | Presigned R2 link lifetime and orphan sweep cutoff |
-| `REMOTE_UNUSED_DAYS` | 30 | R2 retention after last use |
+| `FFMPEG_TIMEOUTS.probe` | 15000 | Probe timeout |
+| `FFMPEG_TIMEOUTS.frame` | 30000 | Frame extraction timeout |
+| `FFMPEG_TIMEOUTS.compatBase` | 30000 | Base compat transcode timeout |
+| `FFMPEG_TIMEOUTS.compatPerSec` | 10000 | Extra compat time per second |
+| `FFMPEG_TIMEOUTS.compatMax` | 600000 | Compat transcode cap |
+| `FFMPEG_TIMEOUTS.mock` | 60000 | Mock ffmpeg timeout |
+| `FLATTEN_LUMINANCE` | 0.6 | Luminance threshold for flattening transparency |
+| `GRACE_STALE_MS` | 60000 | Grace older than this at boot is cancelled, not sent |
+| `HIDDEN_POLL_MS` | 15000 | Slower history tick while the page is hidden |
+| `HISTORY_BATCH_MAX` | 200 | Records in one batch action |
+| `HISTORY_GRID_GAP` | 12 | History grid gap |
+| `HISTORY_MAX_PAGE_SIZE` | 50 | Maximum history page size |
+| `HISTORY_PAGE_SIZE` | 20 | Default history page size |
+| `HISTORY_POLL_MS` | 4000 | History refresh interval |
+| `HISTORY_SCROLL_DELAY_MS` | 300 | Delay before restoring the scroll position |
+| `IMAGE_COUNT_MAX` | 4 | Images requested in one image generation |
+| `IMAGE_GRID_GAP` | 4 | Image grid gap |
+| `IMAGE_MAX_ENCODED_MB` | 8 | App cap per encoded image |
+| `IMAGE_MAX_SIDE_PX` | 4096 | Long side cap for reference images |
+| `IMAGE_OUTPUT_MAX_BYTES` | 50331648 | Largest image output accepted per image in one response |
+| `IMAGE_REFERENCE_MAX` | 16 | References on one image generation |
+| `IMAGE_REFERENCE_MAX_MB` | 5 | Reference image size cap |
+| `IMAGE_REFERENCE_MAX_SIDE_PX` | 2048 | Reference image side cap |
+| `IMAGE_ROW_MAX_HEIGHT` | 640 | Masonry row height cap |
+| `IMAGE_ROW_OVERSCAN` | 2 | Masonry rows rendered outside the viewport |
+| `IMAGE_SUBMIT_PARALLEL` | 2 | Image submit calls running at once |
+| `LOCK_BOOT_GRACE_MS` | 60000 | Live owner with a younger lock is still starting |
+| `LOW_RES_MIN_PX` | 300 | Low-resolution threshold |
+| `MAX_ACTIVE_JOBS` | 4 | Active video generations allowed at once |
+| `IMAGE_MAX_ACTIVE` | 4 | Active image generations allowed at once, counted apart from video |
+| `MAX_DOWNLOAD_RETRIES` | 5 | Download attempts before failing |
+| `MAX_FAVORITE_EPOCHS` | 1000 | Favorite ids kept so a slow poll cannot revert a recent pick |
+| `MAX_IDS` | 100 | Ids accepted in one history ids filter or reference plan |
+| `MAX_IMAGE_PIXELS` | 50000000 | Decode cap for user images |
+| `MAX_INLINE_MEDIA_MB` | 50 | Per-file inline media cap |
+| `MAX_JOB_AGE_MIN` | 360 | Age after which active jobs expire |
+| `MAX_PROVIDER_B64_CHARS` | 89478486 | Base64 image cap before decode |
+| `MAX_JSON_BODY_BYTES` | 1048576 | One JSON request body |
+| `MAX_REQUEST_MB` | 64 | Total encoded request cap |
+| `MAX_UPLOAD_BYTES` | 67108864 | Multipart request cap |
+| `MAX_UPLOAD_FILES` | 20 | Files accepted in one multipart upload |
+| `MODEL_CATALOG_TTL_MS` | 60000 | Model catalog cache lifetime |
+| `MODEL_LIST_MAX_PAGES` | 20 | Model list pages followed before the list is incomplete |
+| `MOCK_GENERATE_MS` | 6000 | Mock generation duration |
+| `MOCK_QUEUE_MS` | 3000 | Mock queue duration |
+| `POLL_INTERVAL_MS` | 8000 | Job polling interval |
+| `POLL_PARALLEL` | 3 | Parallel status polls |
+| `PREVIEW_AT_SEC` | 0.5 | Preview frame time |
+| `PREVIEW_GRACE_MS` | 30000 | How long a finished video may keep polling for its poster |
+| `PREVIEW_MAX_WIDTH` | 1920 | Preview frame max width |
+| `PREVIEW_QUALITY` | 90 | Preview WebP quality |
+| `PREVIEW_WIDTH` | 640 | Default poster request width |
+| `PRICE_DEBOUNCE_MS` | 500 | Price and estimate debounce |
+| `PRICING_FALLBACK_TTL_MS` | 300000 | Fallback price cache lifetime |
+| `PRICING_LIVE_TTL_MS` | 3600000 | Live price and discount cache lifetime |
+| `PROVIDER_RAW_MAX_CHARS` | 500 | Raw provider text kept per failure |
 | `REMOTE_FREE_GB` | 10 | Cloudflare free R2 storage |
+| `REMOTE_LINK_TTL_SEC` | 7200 | Presigned R2 link lifetime and orphan sweep cutoff |
 | `REMOTE_MAX_GB` | 8 | R2 storage cap from the listed `refs/` objects, evicts older keys before a put |
-| `UPLOAD_CLEANUP_MS` | 3600000 | Age before stale temp files are deleted |
-| `THUMB_WIDTH` | 320 | Thumbnail width |
-| `PREVIEW_WIDTH` | 640 | Preview frame width |
+| `REMOTE_MOCK_MBPS` | 20 | Mock R2 speed |
+| `REMOTE_REFRESH_DAYS` | 25 | Refresh before the R2 lifecycle rule |
+| `REMOTE_UNUSED_DAYS` | 30 | R2 retention after last use |
+| `REQUEST_RESERVE_MB` | 1 | Space kept for the JSON body and prompt |
+| `ROW_MIN_HEIGHT` | 280 | Minimum list row height |
 | `SEED_MAX` | 2147483647 | Maximum seed value |
-| `MODEL_PRESETS` | see [presets/index.ts](../src/core/presets/index.ts) | Per-model duration, resolution, reference, prompt and size caps |
+| `SHUTDOWN_DOWNLOAD_WAIT_MS` | 630000 | Shutdown wait for a download |
+| `SHUTDOWN_EXIT_DELAY_MS` | 100 | Delay between shutdown steps |
+| `SHUTDOWN_IMAGE_WAIT_MS` | 1220000 | Shutdown wait for every queued image record's waves |
+| `SHUTDOWN_SEND_WAIT_MS` | 305000 | Shutdown wait for an in-flight send (submit timeout plus margin) |
+| `SUBMIT_GRACE_MS` | 10000 | Cancel window before upload starts |
+| `SUBMIT_QUEUE_CONCURRENCY` | 2 | Records one submit queue runs at once |
+| `SUBMIT_YIELD_MS` | 50 | Yield between submit queue steps |
+| `THUMBS_MAX_BYTES` | 1073741824 | Thumb cache cap |
+| `THUMBS_TARGET_BYTES` | 838860800 | Thumb cache trim target |
+| `THUMB_ENCODER_VERSION` | 1 | Thumb encoder version in the cache key |
+| `THUMB_TOUCH_MS` | 86400000 | Thumb mtime refresh interval |
+| `THUMB_UNUSED_DAYS` | 30 | Thumb cache retention |
+| `THUMB_WIDTH` | 320 | Thumbnail width |
+| `UPDATE_CHECK_DELAY_MS` | 15000 | Delay before the first automatic update check |
+| `UPDATE_CHECK_INTERVAL_MS` | 43200000 | Automatic update check interval |
+| `UPLOAD_CLEANUP_MS` | 3600000 | Age before stale temp files are deleted |
+| `ZOOM_DEFAULT` | 5 | Default zoom step |
+| `ZOOM_MAX` | 5 | Maximum zoom step |
+| `ZOOM_MIN` | 0 | Minimum zoom step |
+| `ZOOM_STEPS` | 6 | Number of zoom steps |
+| `VIDEO_PRESETS` | see [presets/index.ts](../src/core/presets/index.ts) | Per-model duration, resolution, reference, prompt and size caps |
 
 ## 12. Edge cases
 
@@ -293,4 +397,4 @@ Routes throw `HttpError` with a status and a short message. `errorResponse` turn
 
 Job errors are stored on the record as `error`, never thrown to the UI after the request ended. Secrets and presigned URLs are never logged.
 
-`core/provider-errors/` turns the stored text into a plain title and hint at render time. Family tables for Wan and Seedance run first, then app errors, then OpenRouter HTTP codes. First match wins, specific codes before parent codes, and a family table never matches the other family. Raw text stays on the record, the failed card and status overlay show the plain text, and Details exposes the raw text with Copy. Records written before a table change pick up the new text without migration.
+`core/provider-errors/` turns the stored text into a plain title and hint at render time. Each preset file exports its family `errors` rules under `src/core/presets/{video,image}/<family>/errors.ts`. Those rules run first, then app errors, then the provider HTTP codes. First match wins, specific codes before parent codes, and a family table never matches the other family. Raw text stays on the record, the failed card and status overlay show the plain text, and Details exposes the raw text with Copy. Records written before a table change pick up the new text without migration.

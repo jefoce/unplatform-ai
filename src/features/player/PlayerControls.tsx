@@ -13,14 +13,14 @@ const CONTROL_BUTTON_CLASSES =
 
 const SEEK_CLASSES = [
   'h-4 w-full cursor-pointer appearance-none bg-transparent',
-  '[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[linear-gradient(to_right,var(--color-lime)_var(--progress),rgba(255,255,255,0.24)_var(--progress))]',
+  '[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[linear-gradient(to_right,var(--color-accent)_var(--progress),rgba(255,255,255,0.24)_var(--progress))]',
   '[&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:[margin-top:-3px]',
-  '[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[linear-gradient(to_right,var(--color-lime)_var(--progress),rgba(255,255,255,0.24)_var(--progress))]',
+  '[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[linear-gradient(to_right,var(--color-accent)_var(--progress),rgba(255,255,255,0.24)_var(--progress))]',
   '[&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white',
 ].join(' ')
 
 const HOVER_REVEAL_CLASSES =
-  'pointer-events-none opacity-0 group-hover/player:pointer-events-auto group-hover/player:opacity-100 group-has-[:focus-visible]/player:pointer-events-auto group-has-[:focus-visible]/player:opacity-100'
+  'pointer-events-none opacity-0 group-hover/player:pointer-events-auto group-hover/player:opacity-100 group-has-[:focus-visible]/player:pointer-events-auto group-has-[:focus-visible]/player:opacity-100 has-focus-visible:pointer-events-auto has-focus-visible:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100'
 
 interface PlayerControlsProps {
   video: VideoApi

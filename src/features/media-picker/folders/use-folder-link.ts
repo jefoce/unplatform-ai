@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { isNil } from 'lodash-es'
 
+import type { UploadsById } from '@/core/api/uploads'
 import { folderFileUpload } from '@/core/folder-match'
-import type { UploadsById } from '@/core/schemas/upload-item'
 import { linkFolderFile } from '@/lib/api/uploads'
 import { toastError } from '@/lib/notify'
 import { useAsyncAction } from '@/lib/use-async-action'

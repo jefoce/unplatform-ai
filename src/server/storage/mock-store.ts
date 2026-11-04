@@ -56,7 +56,7 @@ export function createMockStore(): ObjectStore {
     },
 
     async put(params: PutObjectParams): Promise<ObjectInfo> {
-      const { key, file, sha256, onProgress } = params
+      const { key, file, sha256, onProgress, signal } = params
       const target = objectPath(key)
 
       try {
@@ -66,6 +66,7 @@ export function createMockStore(): ObjectStore {
           mbps,
           mode,
           onProgress: onProgress ?? undefined,
+          signal,
         })
 
         const meta: MockMeta = { size, serverSha256: sha256 }
@@ -189,6 +190,7 @@ interface CopyThrottledParams {
   mbps: number
   mode: 'ok' | 'fail'
   onProgress?: (sent: number, total: number) => void
+  signal?: AbortSignal
 }
 
 interface CopyThrottledResult {
@@ -196,7 +198,7 @@ interface CopyThrottledResult {
 }
 
 async function copyThrottled(params: CopyThrottledParams): Promise<CopyThrottledResult> {
-  const { source, target, mbps, mode, onProgress } = params
+  const { source, target, mbps, mode, onProgress, signal } = params
 
   await fs.mkdir(path.dirname(target), { recursive: true })
   const { size } = await fs.stat(source)
@@ -207,6 +209,8 @@ async function copyThrottled(params: CopyThrottledParams): Promise<CopyThrottled
 
   try {
     for await (const chunk of reader) {
+      signal?.throwIfAborted()
+
       if (!writer.write(chunk)) {
         await once(writer, 'drain')
       }

@@ -9,10 +9,9 @@ import { sweepCompatFiles } from '../media/compat'
 import { assertFfmpeg } from '../media/ffmpeg'
 import { sweepThumbs } from '../media/thumbs'
 import { cleanupStale, ensureDirs } from '../paths'
-import { getGeneration, listActiveGenerations, saveGeneration } from '../repos/generations'
+import { getGeneration, listActiveGenerations, updateGeneration } from '../repos/generations'
 import { secretsReady } from '../secrets'
 import { sweepRemote } from '../services/remote-inputs'
-import { withLock } from '../sync/lock'
 import { isDownloadQueued, stopDownloads } from './download-queue'
 import { processRecord } from './poll-record'
 import { interruptText, needsInterruptFail, reconcile } from './reconcile'
@@ -26,7 +25,7 @@ interface PollerState {
   running: boolean
   started: boolean
   booted: boolean
-  stopped: boolean
+  closed: boolean
 }
 
 const state = globalState<PollerState>('poller', () => {
@@ -37,18 +36,17 @@ const state = globalState<PollerState>('poller', () => {
     running: false,
     started: false,
     booted: false,
-    stopped: false,
+    closed: false,
   }
 })
 
-/** Starts the singleton poller. Safe to call many times. */
+/** Starts the singleton poller. A stopped poller never starts again. */
 export function startPoller(): void {
-  if (state.started) {
+  if (state.started || state.closed) {
     return
   }
 
   state.started = true
-  state.stopped = false
 
   void boot().catch((error) => {
     state.started = false
@@ -63,7 +61,7 @@ export function isBooted(): boolean {
 
 /** Stops poll, sweep and download intake. Safe to call many times. */
 export function stopPoller(): void {
-  state.stopped = true
+  state.closed = true
   state.started = false
   state.booted = false
 
@@ -91,7 +89,7 @@ async function boot(): Promise<void> {
   assertFfmpeg()
   await reconcile()
 
-  if (state.stopped) {
+  if (state.closed) {
     return
   }
 
@@ -181,9 +179,7 @@ async function tick(): Promise<void> {
 
       await Promise.all(
         chunk.map((record) => {
-          return withLock(record.id, () => {
-            return processById(record.id)
-          }).catch((error) => {
+          return processById(record.id).catch((error) => {
             console.error(`[unplatform-ai] poll failed for ${record.id}`, error)
           })
         }),
@@ -196,8 +192,8 @@ async function tick(): Promise<void> {
   }
 }
 
-/** Re-reads inside the lock so a concurrent favorite update is not overwritten. */
-async function processById(id: string): Promise<void> {
+/** Re-checks the fresh record inside the lock, so a stale snapshot never overwrites a job. */
+export async function processById(id: string): Promise<void> {
   const record = await getGeneration(id)
 
   if (!record || !ACTIVE_STATUSES.includes(record.status)) {
@@ -209,14 +205,18 @@ async function processById(id: string): Promise<void> {
   }
 
   if (!isNonEmptyString(record.job?.id)) {
-    if (needsInterruptFail(record)) {
-      await saveGeneration({
-        ...record,
+    await updateGeneration(id, (latest) => {
+      if (!needsInterruptFail(latest)) {
+        return null
+      }
+
+      return {
+        ...latest,
         status: 'failed',
-        error: interruptText(record),
+        error: interruptText(latest),
         submit: undefined,
-      })
-    }
+      }
+    })
 
     return
   }

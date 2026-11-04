@@ -53,16 +53,26 @@ async function loadAccount(
   previous: ProviderAccount | undefined,
 ): Promise<TtlLoadResult<ProviderAccount>> {
   try {
-    return { value: await loadCredits(), isOk: true }
+    const loaded = await loadCredits(previous)
+
+    logAccount(loaded.account)
+
+    return { value: loaded.account, isOk: loaded.isOk }
   } catch (error) {
-    return {
-      value: withError(previous, messageOf(error, 'Credits request failed')),
-      isOk: false,
-    }
+    const account = withError(previous, messageOf(error, 'Credits request failed'))
+
+    logAccount(account)
+
+    return { value: account, isOk: false }
   }
 }
 
-async function loadCredits(): Promise<ProviderAccount> {
+interface LoadedAccount {
+  account: ProviderAccount
+  isOk: boolean
+}
+
+async function loadCredits(previous: ProviderAccount | undefined): Promise<LoadedAccount> {
   await secretsReady()
   const fetchedAt = new Date().toISOString()
   const key = getSecret('OPENROUTER_API_KEY')
@@ -87,19 +97,30 @@ async function loadCredits(): Promise<ProviderAccount> {
   const managementKey = getSecret('OPENROUTER_MANAGEMENT_KEY')
 
   if (!isNonEmptyString(managementKey)) {
-    return info
+    return { account: info, isOk: true }
   }
 
   try {
     const credits = await fetchCredits(managementKey)
 
     return {
-      ...info,
-      balance: credits.total_credits - credits.total_usage,
-      source: 'management',
+      account: {
+        ...info,
+        balance: credits.total_credits - credits.total_usage,
+        source: 'management',
+      },
+      isOk: true,
     }
   } catch (error) {
-    return { ...info, error: messageOf(error, 'Credits request failed') }
+    // Keep the last good balance, but do not cache the failure.
+    return {
+      account: {
+        ...info,
+        balance: previous?.balance ?? null,
+        error: messageOf(error, 'Credits request failed'),
+      },
+      isOk: false,
+    }
   }
 }
 
@@ -135,6 +156,17 @@ async function getJson(url: string, key: string): Promise<unknown> {
   }
 
   return res.json()
+}
+
+function logAccount(account: ProviderAccount): void {
+  console.log(
+    `[credits] account ${JSON.stringify({
+      source: account.source,
+      balance: account.balance,
+      keyLimitRemaining: account.keyLimitRemaining,
+      fetchedAt: account.fetchedAt,
+    })}`,
+  )
 }
 
 function withError(last: ProviderAccount | undefined, message: string): ProviderAccount {

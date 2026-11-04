@@ -5,7 +5,7 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
+import type { UploadItem } from '../src/core/schemas/upload-item'
 
 vi.mock('server-only', () => {
   return {}

@@ -9,8 +9,8 @@ import path from 'node:path'
 import { isEmpty, isNil } from 'lodash-es'
 
 import { FFMPEG_TIMEOUTS, PREVIEW_WIDTH } from '@/core/constants'
-import type { PixelSize } from '@/core/geometry'
 import { isNonEmptyString } from '@/core/guards'
+import type { PixelSize } from '@/core/media/geometry'
 
 const MAX_BUFFER = 16 * 1024 * 1024
 
@@ -146,6 +146,17 @@ interface RunFfmpegParams {
   timeoutMs: number
 }
 
+/** Replaces absolute paths in provider stderr with their basename. */
+function scrubPaths(text: string): string {
+  return text.replaceAll(/(?:[A-Za-z]:[\\/]|\/)[^\s:'"]+/g, (match) => {
+    if (match.includes('\\')) {
+      return path.win32.basename(match)
+    }
+
+    return path.basename(match)
+  })
+}
+
 export async function runFfmpeg(params: RunFfmpegParams): Promise<void> {
   const { args, timeoutMs } = params
 
@@ -155,7 +166,7 @@ export async function runFfmpeg(params: RunFfmpegParams): Promise<void> {
   })
 
   if (error) {
-    throw new Error(`ffmpeg failed: ${stderr.slice(-2000)}`)
+    throw new Error(`ffmpeg failed: ${scrubPaths(stderr).slice(-2000)}`)
   }
 }
 

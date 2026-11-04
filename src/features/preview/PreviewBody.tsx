@@ -1,14 +1,14 @@
 'use client'
 
 import { type SyntheticEvent, useState } from 'react'
-import { isNil, isString } from 'lodash-es'
+import { isNil } from 'lodash-es'
 import { AlertTriangle } from 'lucide-react'
 
 import { LazyVideo } from '@/features/player/LazyVideo'
 import type { SeekKeys } from '@/features/player/use-player-input'
 import { mediaUrl, thumbUrl } from '@/lib/api/media-urls'
-import { cn } from '@/lib/cn'
 import { MediaBox } from '@/ui/MediaBox'
+import { MediaImage } from '@/ui/MediaImage'
 import { ZoomLayer } from '@/ui/ZoomLayer'
 
 import type { PreviewItem } from './preview-store'
@@ -23,29 +23,29 @@ interface PreviewBodyProps {
 
 interface LoadedSize {
   src: string
-  aspect: string
+  aspect: number
 }
 
 /** Ratio of the decoded pixels, the truth over stored or EXIF-rotated sizes. */
-function naturalAspectOf(image: HTMLImageElement): string | undefined {
+function naturalAspectOf(image: HTMLImageElement): number | undefined {
   const { naturalWidth, naturalHeight } = image
 
   if (naturalWidth > 0 && naturalHeight > 0) {
-    return `${naturalWidth}/${naturalHeight}`
+    return naturalWidth / naturalHeight
   }
 
   return undefined
 }
 
-/** Upload size when both sides are positive, else `16/9`. */
-function itemAspect(item: PreviewItem): string {
+/** Upload size when both sides are positive, else 16 / 9. */
+function itemAspect(item: PreviewItem): number {
   const { width, height } = item
 
   if (!isNil(width) && !isNil(height) && width > 0 && height > 0) {
-    return `${width}/${height}`
+    return width / height
   }
 
-  return '16/9'
+  return 16 / 9
 }
 
 /** Full-size video, audio or image for the current preview item. */
@@ -55,7 +55,7 @@ export function PreviewBody(props: PreviewBodyProps) {
 
   if (!item || item.missing === true) {
     return (
-      <MediaBox aspect="16/9">
+      <MediaBox aspect={16 / 9}>
         <div className="flex size-full flex-col items-center justify-center gap-2 text-sm text-danger">
           <AlertTriangle size={24} aria-hidden />
           File missing
@@ -88,15 +88,13 @@ export function PreviewBody(props: PreviewBodyProps) {
     return <PreviewAudio item={item} src={src} />
   }
 
-  const isLoaded = loadedSize?.src === src
-  const naturalAspect = isLoaded ? loadedSize.aspect : undefined
+  const naturalAspect = loadedSize?.src === src ? loadedSize.aspect : undefined
   const aspect = naturalAspect ?? itemAspect(item)
-  const imageFade = { 'opacity-0': !isLoaded, 'opacity-100': isLoaded }
 
   const handleImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
     const aspect = naturalAspectOf(event.currentTarget)
 
-    if (isString(aspect)) {
+    if (!isNil(aspect)) {
       setLoadedSize({ src, aspect })
     }
   }
@@ -104,15 +102,11 @@ export function PreviewBody(props: PreviewBodyProps) {
   return (
     <ZoomLayer resetKey={item.id}>
       <MediaBox aspect={aspect}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- full original, not a thumb */}
-        <img
+        <MediaImage
           src={src}
+          thumbSrc={thumbUrl({ ref })}
           alt={item.originalName}
-          draggable={false}
-          className={cn(
-            'size-full rounded-[inherit] object-contain transition-opacity duration-150',
-            imageFade,
-          )}
+          fit="contain"
           onLoad={handleImageLoad}
         />
       </MediaBox>

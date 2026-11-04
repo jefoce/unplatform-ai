@@ -2,14 +2,15 @@
 
 import { isEmpty } from 'lodash-es'
 
-import type { KindExtensions } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import type { KindExtensions } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import type { RefSlot } from '@/core/prompt-tokens'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import type { PreviewActions } from '@/features/preview/preview-store'
 
 import { ChooseDiskTile } from '../folders/ChooseDiskTile'
 import { MediaRow } from '../tiles/MediaRow'
+import { PICKER_GRID_CLASSES, PICKER_GRID_STYLE } from '../tiles/tile-classes'
 import { UploadingRow } from './UploadingRow'
 import type { UploadProgressItem } from './UploadProgressTile'
 import { UploadTile } from './UploadTile'
@@ -43,7 +44,7 @@ export function UploadsGrid(props: UploadsGridProps) {
 
   return (
     <div className="min-h-0 flex-1 scrollbar-gutter-stable overflow-y-auto overscroll-contain">
-      <div className="grid grid-cols-4 content-start gap-3 p-3">
+      <div className={PICKER_GRID_CLASSES} style={PICKER_GRID_STYLE}>
         {uploading.map((entry) => {
           return (
             <UploadingRow

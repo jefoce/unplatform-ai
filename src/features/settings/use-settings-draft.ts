@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { isEmpty, isNull, isUndefined } from 'lodash-es'
 import { toast } from 'sonner'
 
-import { STORAGE_PROVIDERS, VIDEO_PROVIDERS } from '@/core/providers/registry'
+import { PROVIDERS, STORAGE_PROVIDERS } from '@/core/providers/registry'
 import type { StorageProviderId } from '@/core/providers/types'
 import { secretError, type SecretName } from '@/core/secret-names'
 import type { SecretStatus } from '@/core/types'
@@ -118,7 +118,7 @@ function getDraftFlags(params: DraftFlagsParams): DraftFlags {
   })
 
   const sectionReady = Object.fromEntries(
-    [...VIDEO_PROVIDERS, ...STORAGE_PROVIDERS].map((descriptor) => {
+    [...PROVIDERS, ...STORAGE_PROVIDERS].map((descriptor) => {
       return [
         descriptor.id,
         isMock === true ||

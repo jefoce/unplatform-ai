@@ -4,7 +4,7 @@ import { isNil } from 'lodash-es'
 
 import type { SecretName } from '@/core/secret-names'
 
-import { sessionRequired } from '../session'
+import { desktopMode } from '../session'
 import { bridgeBackend, KeychainUnavailableError } from './bridge'
 import { fileBackend } from './file'
 import { keychainBackend } from './keychain'
@@ -36,7 +36,7 @@ export async function pickBackend(): Promise<SecretBackend> {
     return fileBackend()
   }
 
-  if (sessionRequired()) {
+  if (desktopMode()) {
     return bridgeBackend()
   }
 

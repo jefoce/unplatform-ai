@@ -33,7 +33,7 @@ export function Switch(props: SwitchProps) {
         onCheckedChange={props.onCheckedChange}
         disabled={isDisabled}
         aria-label={ariaLabel}
-        className="relative h-4 w-7 shrink-0 rounded-full bg-white/15 transition disabled:opacity-40 data-[state=checked]:bg-lime"
+        className="relative h-4 w-7 shrink-0 rounded-full bg-white/15 transition disabled:opacity-40 data-[state=checked]:bg-accent"
       >
         <SwitchPrimitive.Thumb className="block size-3 translate-x-0.5 rounded-full bg-white transition data-[state=checked]:translate-x-3.5" />
       </SwitchPrimitive.Root>

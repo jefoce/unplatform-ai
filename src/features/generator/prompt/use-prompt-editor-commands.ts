@@ -12,12 +12,20 @@ import {
   PASTE_COMMAND,
 } from 'lexical'
 
-import { useGeneratorStore } from '../store/store'
-import { slotCounts } from '../store/store-helpers'
+import type { MediaKindCounts } from '@/core/media/media-types'
+
 import { $convertLiteralMentions, $nodesFromText } from './prompt-convert'
 
+interface PasteParams {
+  editor: LexicalEditor
+  event: Event
+  isReferences: boolean
+  counts: MediaKindCounts
+}
+
 /** Pastes plain text as slot chips on the References tab. */
-function handlePaste(editor: LexicalEditor, event: Event): boolean {
+function handlePaste(params: PasteParams): boolean {
+  const { editor, event, isReferences, counts } = params
   const data = (event as ClipboardEvent).clipboardData
 
   if (!data || data.files.length > 0) {
@@ -30,12 +38,11 @@ function handlePaste(editor: LexicalEditor, event: Event): boolean {
 
   const text = data.getData('text/plain')
 
-  if (text === '' || useGeneratorStore.getState().tab !== 'references') {
+  if (text === '' || !isReferences) {
     return false
   }
 
   event.preventDefault()
-  const counts = slotCounts(useGeneratorStore.getState())
 
   editor.update(() => {
     const selection = $getSelection()
@@ -50,8 +57,17 @@ function handlePaste(editor: LexicalEditor, event: Event): boolean {
   return true
 }
 
+interface PromptEditorCommandsParams {
+  editor: LexicalEditor
+  onSubmit: () => void
+  isReferences: boolean
+  counts: MediaKindCounts
+}
+
 /** Editor commands: submit shortcut, paste handling and blur conversion. */
-export function usePromptEditorCommands(editor: LexicalEditor, onSubmit: () => void) {
+export function usePromptEditorCommands(params: PromptEditorCommandsParams) {
+  const { editor, onSubmit, isReferences, counts } = params
+
   useEffect(() => {
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
@@ -73,25 +89,27 @@ export function usePromptEditorCommands(editor: LexicalEditor, onSubmit: () => v
     return editor.registerCommand(
       PASTE_COMMAND,
       (event) => {
-        return handlePaste(editor, event)
+        return handlePaste({ editor, event, isReferences, counts })
       },
       COMMAND_PRIORITY_HIGH,
     )
-  }, [editor])
+  }, [editor, isReferences, counts])
 
   useEffect(() => {
     return editor.registerCommand(
       BLUR_COMMAND,
       () => {
-        const counts = slotCounts(useGeneratorStore.getState())
+        if (!isReferences) {
+          return false
+        }
 
         editor.update(() => {
-          $convertLiteralMentions(counts)
+          $convertLiteralMentions(counts, isReferences)
         })
 
         return false
       },
       COMMAND_PRIORITY_LOW,
     )
-  }, [editor])
+  }, [editor, isReferences, counts])
 }

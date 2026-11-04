@@ -1,6 +1,6 @@
 import { Channel, invoke, type InvokeArgs } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { ask, open, save } from '@tauri-apps/plugin-dialog'
+import { ask, open } from '@tauri-apps/plugin-dialog'
 import {
   isPermissionGranted,
   requestPermission,
@@ -10,16 +10,17 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { chunk, isNil } from 'lodash-es'
 
 import { HISTORY_BATCH_MAX } from '@/core/constants'
-import { promptSlug } from '@/core/file-names'
-import { extensionsForKinds } from '@/core/media-kinds'
+import { promptSlug } from '@/core/media/file-names'
+import { extensionsForKinds } from '@/core/media/media-kinds'
 import type { FolderItem } from '@/core/schemas/folder-item'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { createFolder } from '@/lib/api/folders'
 import { exportBatch, exportRecord } from '@/lib/api/generations'
+import { exportImageBatch } from '@/lib/api/images'
 
 import { linkPaths } from './link-paths'
-import type { Platform, UpdateListener } from './types'
+import type { ImageSaveRef, Platform, UpdateListener } from './types'
 import {
   AppInfoSchema,
   type InstallResult,
@@ -102,9 +103,8 @@ export const desktopPlatform: Platform = {
   },
 
   saveVideo: async (record: GenerationRecord) => {
-    const target = await save({
-      defaultPath: `${promptSlug(record)}.mp4`,
-      filters: [{ name: 'Video', extensions: ['mp4'] }],
+    const target = await invokeChecked<string | null>('choose_export_path', {
+      defaultName: `${promptSlug(record)}.mp4`,
     })
 
     if (isNil(target)) {
@@ -117,22 +117,20 @@ export const desktopPlatform: Platform = {
   },
 
   saveVideos: async (records: GenerationRecord[]) => {
-    const count = records.length
-    const suffix = count === 1 ? '' : 's'
+    const parts = chunk(records, HISTORY_BATCH_MAX)
 
-    const dir = await open({
-      directory: true,
-      multiple: false,
-      title: `Choose a folder for ${count} video${suffix}`,
+    const dir = await invokeChecked<string | null>('choose_export_folder', {
+      uses: parts.length,
     })
 
-    if (isNil(dir) || Array.isArray(dir)) {
-      return { saved: 0 }
+    if (isNil(dir)) {
+      return { saved: 0, skipped: 0 }
     }
 
     let saved = 0
+    let skipped = 0
 
-    for (const part of chunk(records, HISTORY_BATCH_MAX)) {
+    for (const part of parts) {
       const result = await exportBatch({
         ids: part.map((record) => {
           return record.id
@@ -141,9 +139,39 @@ export const desktopPlatform: Platform = {
       })
 
       saved += result.saved.length
+      skipped += result.skipped.length
     }
 
-    return { saved, folder: dir }
+    return { saved, skipped, folder: dir }
+  },
+
+  saveImages: async (refs: ImageSaveRef[]) => {
+    const parts = chunk(refs, HISTORY_BATCH_MAX)
+
+    const dir = await invokeChecked<string | null>('choose_export_folder', {
+      uses: parts.length,
+    })
+
+    if (isNil(dir)) {
+      return { saved: 0, skipped: 0 }
+    }
+
+    let saved = 0
+    let skipped = 0
+
+    for (const part of parts) {
+      const result = await exportImageBatch({
+        outputs: part.map((ref) => {
+          return { recordId: ref.recordId, outputId: ref.outputId }
+        }),
+        dir,
+      })
+
+      saved += result.saved.length
+      skipped += result.skipped.length
+    }
+
+    return { saved, skipped, folder: dir }
   },
 
   onFileDrop: async (handler) => {

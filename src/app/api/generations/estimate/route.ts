@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 import { findPreset } from '@/core/presets'
-import { buildPriceInputSchema } from '@/core/validation'
-import { errorResponse, jsonError, zodError } from '@/server/http'
+import { buildPriceInputSchema } from '@/core/validation/video'
+import { errorResponse, jsonError, jsonResponse, zodError } from '@/server/http'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { estimateGeneration, loadPriceDraft } from '@/server/services/estimate-generation'
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
     const draft = await loadPriceDraft(input.data)
 
-    return Response.json(await estimateGeneration(draft))
+    return jsonResponse(await estimateGeneration(draft))
   } catch (error) {
     return errorResponse(error)
   }

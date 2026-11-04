@@ -1,17 +1,17 @@
 import 'server-only'
 
-import { MODEL_PRESETS } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import type { ModelPreset } from '@/core/presets/types'
+import { VIDEO_PRESETS } from '@/core/presets'
+import { primaryBinding } from '@/core/presets/common/bindings'
+import type { VideoPreset } from '@/core/presets/video/types'
 
 import type { ProviderModel, ProviderModelList } from '../types'
 
 /** Static capabilities for the four presets, no provider call. */
 export async function listModels(): Promise<ProviderModelList> {
-  return { models: MODEL_PRESETS.map(staticModel), isFresh: true }
+  return { models: VIDEO_PRESETS.map(staticModel), isFresh: true }
 }
 
-function staticModel(preset: ModelPreset): ProviderModel {
+function staticModel(preset: VideoPreset): ProviderModel {
   return {
     modelId: primaryBinding(preset).modelId,
     durations: preset.duration.options ?? allDurations(preset),
@@ -23,7 +23,7 @@ function staticModel(preset: ModelPreset): ProviderModel {
   }
 }
 
-function allDurations(preset: ModelPreset): number[] {
+function allDurations(preset: VideoPreset): number[] {
   const { min, max } = preset.duration
 
   return Array.from({ length: max - min + 1 }, (_, index) => {
@@ -31,7 +31,7 @@ function allDurations(preset: ModelPreset): number[] {
   })
 }
 
-function frameImages(preset: ModelPreset): readonly string[] | null {
+function frameImages(preset: VideoPreset): readonly string[] | null {
   if (!preset.frames.start) {
     return null
   }

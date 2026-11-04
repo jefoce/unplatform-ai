@@ -1,13 +1,14 @@
 import { isNil } from 'lodash-es'
 
 import { appVersion } from '@/core/app-version'
-import { errorResponse } from '@/server/http'
+import { errorResponse, jsonResponse } from '@/server/http'
 import { downloadQueueIds } from '@/server/jobs/download-queue'
+import { imageSendingCount } from '@/server/jobs/image-submit-queue'
 import { isBooted } from '@/server/jobs/poller'
 import { sendingCount } from '@/server/jobs/submit-queue'
 import { listGenerations } from '@/server/repos/generations'
 import { assertLocalRequest } from '@/server/request-guard'
-import { sessionRequired } from '@/server/session'
+import { bootNonce, desktopMode, hasSession } from '@/server/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
     const downloadingIds = new Set(
       records
         .filter((record) => {
-          return record.status === 'in_progress' && !isNil(record.download)
+          return !isNil(record.download)
         })
         .map((record) => {
           return record.id
@@ -44,17 +45,27 @@ export async function GET(request: Request) {
       downloadingIds.add(id)
     }
 
-    return Response.json({
+    const body = {
       app: 'unplatform-ai',
-      pid: process.pid,
       version: appVersion(),
-      desktop: sessionRequired(),
+      bootNonce: bootNonce(),
+      desktop: desktopMode(),
       ready: isBooted(),
       generating,
       downloading: downloadingIds.size,
       sending: sendingCount(),
+      imageSending: imageSendingCount(),
       uploading,
       grace,
+    }
+
+    if (!hasSession(request)) {
+      return jsonResponse(body)
+    }
+
+    return jsonResponse({
+      ...body,
+      pid: process.pid,
       rssMb: Math.round(process.memoryUsage().rss / 1048576),
     })
   } catch (error) {

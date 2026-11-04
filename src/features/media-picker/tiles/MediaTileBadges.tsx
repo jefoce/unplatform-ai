@@ -29,7 +29,7 @@ export function MediaTileBadges(props: MediaTileBadgesProps) {
       )}
 
       {isSelected && !isNil(slotNumber) && (
-        <span className="pointer-events-none absolute bottom-1.5 left-1.5 z-20 flex size-5 items-center justify-center rounded-full bg-lime text-xxs font-semibold text-on-lime">
+        <span className="pointer-events-none absolute bottom-1.5 left-1.5 z-20 flex size-5 items-center justify-center rounded-full bg-accent text-xxs font-semibold text-on-accent">
           {slotNumber}
         </span>
       )}

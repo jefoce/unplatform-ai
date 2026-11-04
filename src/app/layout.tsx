@@ -2,10 +2,13 @@ import './globals.css'
 
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
+import { headers } from 'next/headers'
 import { Toaster } from 'sonner'
 
-const OS_SCRIPT =
-  "document.documentElement.dataset.os = /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) ? 'linux' : 'other'"
+const OS_SCRIPT = `document.documentElement.dataset.os = /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) ? 'linux' : 'other'
+addEventListener('securitypolicyviolation', (event) => {
+  console.error('[unplatform-ai] CSP violation', event.violatedDirective, event.blockedURI)
+})`
 
 const inter = localFont({
   src: './fonts/inter-latin-100-900.woff2',
@@ -31,8 +34,9 @@ interface RootLayoutProps {
   children: React.ReactNode
 }
 
-export default function RootLayout(props: RootLayoutProps) {
+export default async function RootLayout(props: RootLayoutProps) {
   const { children } = props
+  const nonce = (await headers()).get('x-nonce') ?? undefined
 
   return (
     <html
@@ -41,7 +45,7 @@ export default function RootLayout(props: RootLayoutProps) {
       className={`${inter.variable} ${grotesk.variable} font-sans antialiased`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: OS_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: OS_SCRIPT }} />
       </head>
       <body>
         {children}

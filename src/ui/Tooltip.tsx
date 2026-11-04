@@ -17,7 +17,7 @@ interface TooltipProps {
 export function Tooltip(props: TooltipProps) {
   const { content, children, side = 'top', disabled: isDisabled, className } = props
 
-  if (!Boolean(content) || isDisabled === true) {
+  if (isDisabled === true) {
     return <>{children}</>
   }
 
@@ -25,18 +25,20 @@ export function Tooltip(props: TooltipProps) {
     <TooltipPrimitive.Provider delayDuration={200}>
       <TooltipPrimitive.Root>
         <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
-        <TooltipPrimitive.Portal>
-          <TooltipPrimitive.Content
-            side={side}
-            sideOffset={6}
-            className={cn(
-              'z-50 max-w-70 rounded-lg bg-page-2/90 px-2 py-1 text-xs/4 font-medium text-fg shadow-lg ring-1 ring-white/5 backdrop-blur-md',
-              className,
-            )}
-          >
-            {content}
-          </TooltipPrimitive.Content>
-        </TooltipPrimitive.Portal>
+        {Boolean(content) && (
+          <TooltipPrimitive.Portal>
+            <TooltipPrimitive.Content
+              side={side}
+              sideOffset={6}
+              className={cn(
+                'z-50 max-w-70 rounded-lg bg-page-2/90 px-2 py-1 text-xs/4 font-medium text-fg shadow-lg ring-1 ring-white/5 backdrop-blur-md linux:bg-page-2',
+                className,
+              )}
+            >
+              {content}
+            </TooltipPrimitive.Content>
+          </TooltipPrimitive.Portal>
+        )}
       </TooltipPrimitive.Root>
     </TooltipPrimitive.Provider>
   )

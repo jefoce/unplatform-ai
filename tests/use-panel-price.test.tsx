@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationEstimate } from '@/core/types'
+import type { GenerationEstimate } from '@/core/api/video'
 import { usePanelPrice } from '@/features/generator/generate/use-panel-price'
 
 const mocks = vi.hoisted(() => {
@@ -25,6 +25,7 @@ const estimate: GenerationEstimate = {
   pricePerSec: 0.1,
   priceSource: 'mock',
   discount: 0.25,
+  referenceSeconds: 0,
 }
 
 const createCache = () => {

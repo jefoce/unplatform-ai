@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { maxDurationFor } from '@/core/duration-limits'
-import { getPreset, minDuration } from '@/core/presets'
-import { issueText } from '@/core/validation'
-
+import { maxDurationFor } from '../src/core/duration-limits'
+import { getPreset, minDuration } from '../src/core/presets'
+import { issueText } from '../src/core/validation/common'
 import { input, preset, upload, uploadsOf } from './helpers/validation-fixtures'
 
 describe('maxDurationFor', () => {

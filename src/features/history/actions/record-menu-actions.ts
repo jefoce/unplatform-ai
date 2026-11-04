@@ -3,17 +3,17 @@ import { toast } from 'sonner'
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { canCancelInGrace } from '@/core/submit-state'
+import { cancelGeneration } from '@/features/generator/generate/cancel-generation'
 import {
   applyRecordToGenerator,
   captureFrameAt,
   linkRecordReference,
 } from '@/features/generator/record-input'
+import { REFERENCE_LIMIT_REACHED } from '@/features/generator/reference-rules'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { revealGeneration } from '@/lib/api/generations'
+import { canonicalPrompt } from '@/lib/feed/output-items'
 import { copyText, toastError } from '@/lib/notify'
-
-import { cancelGeneration } from './record-actions'
-import { plainPrompt } from './record-view'
 
 /** Grabs the first or last frame of a finished video and arms it as the start frame. */
 export async function captureFrame(
@@ -41,7 +41,7 @@ export async function addReference(record: GenerationRecord): Promise<boolean> {
     if (isAdded) {
       toast.success('Added as reference')
     } else {
-      toast.error('Reference limit reached')
+      toast.error(REFERENCE_LIMIT_REACHED)
     }
 
     return isAdded
@@ -67,7 +67,7 @@ export async function applyRecordInput(record: GenerationRecord): Promise<boolea
 }
 
 export async function copyPrompt(record: GenerationRecord): Promise<void> {
-  await copyText(plainPrompt(record), 'Prompt copied')
+  await copyText(canonicalPrompt(record), 'Prompt copied')
 }
 
 export async function copySeed(record: GenerationRecord): Promise<void> {

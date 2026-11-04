@@ -3,8 +3,8 @@
 import { isNil } from 'lodash-es'
 import { Check } from 'lucide-react'
 
-import type { Resolution } from '@/core/presets/types'
-import { formatRate } from '@/core/pricing'
+import type { Resolution } from '@/core/presets/video/types'
+import { formatRate } from '@/core/pricing/format'
 import { cn } from '@/lib/cn'
 import { PopoverClose } from '@/ui/Popover'
 import { Price } from '@/ui/Price'
@@ -34,7 +34,7 @@ export function ResolutionOption(props: ResolutionOptionProps) {
         onClick={handleSelect}
         className={cn(
           'flex min-h-9 w-full items-center gap-2 rounded-lg p-2 text-sm font-medium',
-          isSelected && 'text-lime',
+          isSelected && 'text-accent',
           !isSelected && 'text-fg hover:bg-white/5',
         )}
       >
@@ -52,7 +52,7 @@ export function ResolutionOption(props: ResolutionOptionProps) {
           )}
         </span>
         <span className="flex size-3.5 shrink-0 items-center justify-center">
-          <Check size={14} className={cn('text-lime', !isSelected && 'invisible')} />
+          <Check size={14} className={cn('text-accent', !isSelected && 'invisible')} />
         </span>
       </button>
     </PopoverClose>

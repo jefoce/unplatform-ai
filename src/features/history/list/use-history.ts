@@ -1,28 +1,44 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo } from 'react'
+import { isNil } from 'lodash-es'
 import useSWRInfinite from 'swr/infinite'
 
+import type { GenerationListResult } from '@/core/api/video'
+import { countActive } from '@/core/feed/history-filters'
 import { isNonEmptyString } from '@/core/guards'
-import { countActive } from '@/core/history-filters'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
-import type { GenerationListResult } from '@/core/types'
 import { fetchGenerationPage, generationPageKey } from '@/lib/api/generations'
-import { registerHistoryRefresh } from '@/lib/swr-keys'
+import { refreshHistoryFeeds, registerHistoryFeed } from '@/lib/history-feed-refresh'
 
-import { loadedRecords, revalidateHistory } from './history-pages'
+import { loadedRecords } from './history-pages'
 import { useHistoryPoll } from './use-history-poll'
 import { useHistoryViewStore } from './view-store'
 
-interface HistoryResult {
+export interface HistoryResult {
   records: GenerationRecord[]
   activeCount: number
   nextCursor: string | null
   isLoading: boolean
   isValidating: boolean
   hasMore: boolean
+  error: unknown
   loadMore: () => void
+  retry: () => Promise<unknown>
   mutateHistory: () => Promise<unknown>
+}
+
+export const HistoryContext = createContext<HistoryResult | null>(null)
+
+/** History feed shared by the watcher and the visible section. */
+export function useHistoryFeed(): HistoryResult {
+  const history = useContext(HistoryContext)
+
+  if (isNil(history)) {
+    throw new Error('HistorySection needs the JobWatcher provider')
+  }
+
+  return history
 }
 
 export function useHistory(): HistoryResult {
@@ -30,7 +46,7 @@ export function useHistory(): HistoryResult {
     return state.filters
   })
 
-  const { data, isLoading, isValidating, size, setSize, mutate } =
+  const { data, error, isLoading, isValidating, size, setSize, mutate } =
     useSWRInfinite<GenerationListResult>(
       (index: number, previous: GenerationListResult | null) => {
         return generationPageKey({ filters, index, previous })
@@ -44,11 +60,7 @@ export function useHistory(): HistoryResult {
     )
 
   useEffect(() => {
-    registerHistoryRefresh(mutate)
-
-    return () => {
-      registerHistoryRefresh(null)
-    }
+    return registerHistoryFeed(mutate)
   }, [mutate])
 
   const records = useMemo(() => {
@@ -76,7 +88,11 @@ export function useHistory(): HistoryResult {
     isLoading,
     isValidating,
     hasMore: Boolean(nextCursor),
+    error,
     loadMore,
-    mutateHistory: revalidateHistory,
+    retry: () => {
+      return mutate()
+    },
+    mutateHistory: refreshHistoryFeeds,
   }
 }

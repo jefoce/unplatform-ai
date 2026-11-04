@@ -4,11 +4,19 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import type { queueDownload as QueueDownload } from '@/server/jobs/download-queue'
-import type { getGeneration as GetGeneration } from '@/server/repos/generations'
+import type {
+  isDownloadQueued as IsDownloadQueued,
+  queueDownload as QueueDownload,
+} from '@/server/jobs/download-queue'
+import type {
+  getGeneration as GetGeneration,
+  saveGeneration as SaveGeneration,
+} from '@/server/repos/generations'
 
-const root = path.join(os.tmpdir(), `upai-disk-full-${process.pid}-${Date.now()}`)
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { waitFor } from './helpers/wait-for'
+
+const root = path.join(os.tmpdir(), `cf-disk-full-${process.pid}-${Date.now()}`)
 
 process.env.STORAGE_ROOT = root
 
@@ -36,14 +44,21 @@ const JOB = {
 const ID = '22222222-2222-4222-8222-222222222222'
 
 let queueDownload: typeof QueueDownload
+let isDownloadQueued: typeof IsDownloadQueued
 let getGeneration: typeof GetGeneration
+let saveGeneration: typeof SaveGeneration
 
 beforeAll(async () => {
   await fs.mkdir(root, { recursive: true })
 
-  ;({ queueDownload } = await import('@/server/jobs/download-queue'))
+  // Cold-start module loading stays out of the first test.
+  await import('sharp')
 
-  ;({ getGeneration } = await import('@/server/repos/generations'))
+  await import('@/server/media/ffmpeg')
+
+  ;({ queueDownload, isDownloadQueued } = await import('@/server/jobs/download-queue'))
+
+  ;({ getGeneration, saveGeneration } = await import('@/server/repos/generations'))
 })
 
 afterAll(async () => {
@@ -52,9 +67,18 @@ afterAll(async () => {
 
 describe('download on a full disk', () => {
   it('keeps the record retryable and waits 60 s before the next try', async () => {
+    const startedAt = Date.now()
+
+    console.log(`[download-disk-full] start ${startedAt}`)
+
     fetchVideoContent.mockResolvedValue(diskFullResponse())
 
-    await queueDownload(makeRecord(), JOB)
+    const record = makeRecord()
+
+    await saveGeneration(record)
+    await queueDownload(record, JOB)
+
+    console.log(`[download-disk-full] queueDownload resolved +${Date.now() - startedAt} ms`)
 
     const saved = await waitFor(async () => {
       const record = await getGeneration(ID)
@@ -62,10 +86,16 @@ describe('download on a full disk', () => {
       return record?.error?.startsWith('Disk is full') === true ? record : null
     })
 
+    console.log(`[download-disk-full] record settled +${Date.now() - startedAt} ms`)
+
     expect(saved.status).toBe('in_progress')
     expect(saved.download).toBeUndefined()
     expect(saved.error).toBe('Disk is full. Free some space, the download retries every minute.')
     expect(fetchVideoContent).toHaveBeenCalledTimes(1)
+
+    await waitFor(async () => {
+      return isDownloadQueued(ID) ? null : true
+    })
 
     await queueDownload(saved, JOB)
     expect(fetchVideoContent).toHaveBeenCalledTimes(1)
@@ -92,24 +122,6 @@ function diskFullResponse(): Response {
   })
 
   return new Response(stream, { status: 200 })
-}
-
-async function waitFor<T>(read: () => Promise<T | null>, timeoutMs = 2000): Promise<T> {
-  const deadline = Date.now() + timeoutMs
-
-  while (Date.now() < deadline) {
-    const value = await read()
-
-    if (value) {
-      return value
-    }
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20)
-    })
-  }
-
-  throw new Error('Timed out waiting for the saved record')
 }
 
 function makeRecord(): GenerationRecord {

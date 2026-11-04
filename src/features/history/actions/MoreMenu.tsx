@@ -1,110 +1,145 @@
 'use client'
 
-import { MoreHorizontal } from 'lucide-react'
+import { isNil } from 'lodash-es'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 
 import { getPreset } from '@/core/presets'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { cn } from '@/lib/cn'
+import {
+  type HistoryItem,
+  type ImageGridItem,
+  isVideoItem,
+  type VideoGridItem,
+} from '@/lib/feed/output-items'
+import { revealLabel } from '@/lib/platform/reveal-label'
 import { useBoolean } from '@/lib/use-boolean'
 
+import { ROUND_BUTTON_CLASSES } from './card-action-styles'
 import { DeleteConfirm } from './DeleteConfirm'
+import { menuEntries } from './menu-entries'
+import { MenuTrigger } from './MenuTrigger'
 import { MoreMenuContent } from './MoreMenuContent'
-import {
-  addReference,
-  cancelInGrace,
-  captureFrame,
-  copyPrompt,
-  copySeed,
-  revealRecord,
-} from './record-menu-actions'
+import { cancelInGrace } from './record-menu-actions'
+import { regenerateItem } from './regenerate-actions'
+import { imageRegenerateDescription, videoRegenerateDescription } from './regenerate-confirm'
+import { RegenerateDialog } from './RegenerateDialog'
+import { deleteMenuItem, useMoreMenuActions } from './use-more-menu-actions'
 
-const ROUND_BUTTON_CLASSES =
-  'inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70'
+function triggerClassOf(variant: 'overlay' | 'panel'): string {
+  if (variant === 'panel') {
+    return 'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-fg-2 transition hover:bg-hover'
+  }
+
+  return ROUND_BUTTON_CLASSES
+}
 
 interface MoreMenuProps {
-  record: GenerationRecord
+  item: HistoryItem
   onDeleted?: () => void
   className?: string
   variant?: 'overlay' | 'panel'
 }
 
-/** Record actions: frame capture, reference copy, clipboard, reveal, delete. */
-export function MoreMenu(props: MoreMenuProps) {
-  const { record, className, variant = 'overlay' } = props
-  const confirmDialog = useBoolean()
-  const isCompleted = record.status === 'completed'
-  const hasFullVideoRefs = getPreset(record.preset.id).references.video === 0
+interface DeleteCopy {
+  label: string
+  title: string
+  description: string
+}
 
-  const handleCaptureLast = () => {
-    return void captureFrame(record, 'last')
+function regenerateDescription(video: VideoGridItem | null, image: ImageGridItem | null): string {
+  if (video) {
+    return videoRegenerateDescription(video.source)
   }
 
-  const handleCaptureFirst = () => {
-    return void captureFrame(record, 'first')
+  if (image) {
+    return imageRegenerateDescription(image)
   }
 
-  const handleAddReference = () => {
-    return void addReference(record)
-  }
+  return ''
+}
 
-  const handleCopyPrompt = () => {
-    return void copyPrompt(record)
-  }
-
-  const handleCopySeed = () => {
-    return void copySeed(record)
-  }
-
-  const handleReveal = () => {
-    return void revealRecord(record)
-  }
-
-  const handleConfirmOpenChange = (isOpen: boolean): void => {
-    confirmDialog.set(isOpen)
-  }
-
-  const handleRemove = () => {
-    if (!cancelInGrace(record)) {
-      confirmDialog.on()
+function deleteCopy(isVideo: boolean): DeleteCopy {
+  if (isVideo) {
+    return {
+      label: 'Delete video',
+      title: 'Delete video?',
+      description: 'Delete this video and its files? This cannot be undone.',
     }
   }
 
-  const triggerClass =
-    variant === 'panel'
-      ? 'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-fg-2 transition hover:bg-hover'
-      : ROUND_BUTTON_CLASSES
+  return {
+    label: 'Delete image',
+    title: 'Delete image?',
+    description: 'Delete this image? The file is removed from your computer.',
+  }
+}
+
+/** Record actions: frame capture, reference copy, clipboard, reveal, delete. */
+export function MoreMenu(props: MoreMenuProps) {
+  const { item, className, variant = 'overlay' } = props
+  const confirmDialog = useBoolean()
+  const regenerateDialog = useBoolean()
+  const isVideo = isVideoItem(item)
+  const video = isVideo ? item : null
+  const image = isVideo ? null : item
+  const isCompleted = video ? video.status === 'completed' : image?.output?.status === 'saved'
+  const hasFullVideoRefs = !isNil(video) && getPreset(video.source.preset.id).references.video === 0
+
+  const handleRemove = () => {
+    if (video && cancelInGrace(video.source)) {
+      return
+    }
+
+    confirmDialog.on()
+  }
+
+  const actions = useMoreMenuActions({
+    video,
+    image,
+    onRegenerate: regenerateDialog.on,
+    onRemove: handleRemove,
+  })
+
+  const entries = menuEntries({
+    isVideo: !isNil(video),
+    isCompleted,
+    hasFullVideoRefs,
+    revealLabel: revealLabel(),
+    actions,
+  })
+
+  const handleDelete = async () => {
+    await deleteMenuItem({ video, image })
+  }
+
+  const handleRegenerateConfirm = async () => {
+    await regenerateItem(item)
+  }
+
+  const triggerClass = triggerClassOf(variant)
+  const copy = deleteCopy(!isNil(video))
+  const description = regenerateDescription(video, image)
 
   return (
     <>
       <DropdownMenuPrimitive.Root>
-        <DropdownMenuPrimitive.Trigger asChild>
-          <button
-            type="button"
-            aria-label="More actions"
-            data-card-menu
-            className={cn(triggerClass, className)}
-          >
-            <MoreHorizontal size={16} aria-hidden />
-          </button>
-        </DropdownMenuPrimitive.Trigger>
-        <MoreMenuContent
-          isCompleted={isCompleted}
-          hasFullVideoRefs={hasFullVideoRefs}
-          onCaptureLast={handleCaptureLast}
-          onCaptureFirst={handleCaptureFirst}
-          onAddReference={handleAddReference}
-          onCopyPrompt={handleCopyPrompt}
-          onCopySeed={handleCopySeed}
-          onReveal={handleReveal}
-          onRemove={handleRemove}
-        />
+        <MenuTrigger className={cn(triggerClass, className)} />
+        <MoreMenuContent entries={entries} />
       </DropdownMenuPrimitive.Root>
       <DeleteConfirm
-        record={record}
         open={confirmDialog.value}
-        onOpenChange={handleConfirmOpenChange}
+        onOpenChange={confirmDialog.set}
+        label={copy.label}
+        title={copy.title}
+        description={copy.description}
+        onConfirm={handleDelete}
         onDeleted={props.onDeleted}
+      />
+      <RegenerateDialog
+        open={regenerateDialog.value}
+        onOpenChange={regenerateDialog.set}
+        description={description}
+        onConfirm={handleRegenerateConfirm}
       />
     </>
   )

@@ -3,8 +3,8 @@ import 'server-only'
 import { sumBy } from 'lodash-es'
 
 import { IMAGE_MAX_ENCODED_MB, IMAGE_STEPS } from '@/core/constants'
-import type { ReferencePlan } from '@/core/media-types'
-import type { ModelPreset, ReferenceLimits } from '@/core/presets/types'
+import type { ReferencePlan } from '@/core/media/media-types'
+import type { ReferenceLimits, ReferencePreset } from '@/core/presets/common/reference-limits'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import type { Dict } from '@/core/utility-types'
 
@@ -14,7 +14,7 @@ import { encodeAtStep, sideFor } from './image-encode'
 
 export interface EncodeImagesParams {
   uploads: UploadItem[]
-  preset: ModelPreset
+  preset: ReferencePreset
   budgetBytes: number
   baseBytes?: number
 }

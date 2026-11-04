@@ -6,9 +6,10 @@ import { isNil } from 'lodash-es'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { WAN_30 } from '@/core/presets/wan/wan-3.0'
-import type { UploadItem } from '@/core/schemas/upload-item'
 import type { encodeImages as EncodeImages } from '@/server/media/image-data-url'
+
+import { WAN_30 } from '../src/core/presets/video/wan/wan-3.0'
+import type { UploadItem } from '../src/core/schemas/upload-item'
 
 const gauge = vi.hoisted(() => {
   return {

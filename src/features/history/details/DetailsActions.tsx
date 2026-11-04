@@ -6,6 +6,7 @@ import { Trash2 } from 'lucide-react'
 import type { FriendlyError } from '@/core/provider-errors/types'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { closeViewers } from '@/features/viewers/close-viewers'
+import { videoItem } from '@/lib/feed/output-items'
 import { formatDate } from '@/lib/format'
 import { useAsyncAction } from '@/lib/use-async-action'
 import { useBoolean } from '@/lib/use-boolean'
@@ -13,7 +14,12 @@ import { Button } from '@/ui/Button'
 
 import { DeleteConfirm } from '../actions/DeleteConfirm'
 import { MoreMenu } from '../actions/MoreMenu'
-import { rerunRecord, saveRecordVideo, toggleFavorite } from '../actions/record-actions'
+import {
+  deleteRecord,
+  rerunRecord,
+  saveRecordVideo,
+  toggleFavorite,
+} from '../actions/record-actions'
 import { recordError } from '../actions/record-view'
 import { ErrorDetailsPopover } from '../status/ErrorDetailsPopover'
 import { totalTime } from './details-info'
@@ -74,6 +80,10 @@ export function DetailsActions(props: DetailsActionsProps) {
   const isFailed = record.status === 'failed'
   const timeNow = isActive ? now : undefined
 
+  const handleDelete = async () => {
+    await deleteRecord(record)
+  }
+
   return (
     <>
       <div className="relative mt-auto h-6 shrink-0">
@@ -113,7 +123,7 @@ export function DetailsActions(props: DetailsActionsProps) {
           )}
           {!isFailed && (
             <MoreMenu
-              record={record}
+              item={videoItem(record)}
               onDeleted={props.onDeleted}
               variant="panel"
               className="ml-auto h-6 w-7.5 rounded-lg border-0"
@@ -122,9 +132,12 @@ export function DetailsActions(props: DetailsActionsProps) {
         </div>
       </div>
       <DeleteConfirm
-        record={record}
         open={confirmDialog.value}
         onOpenChange={confirmDialog.set}
+        label="Delete video"
+        title="Delete video?"
+        description="Delete this video and its files? This cannot be undone."
+        onConfirm={handleDelete}
         onDeleted={props.onDeleted}
       />
     </>

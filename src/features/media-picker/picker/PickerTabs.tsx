@@ -5,9 +5,11 @@ import { Plus, X } from 'lucide-react'
 import type { FolderItem } from '@/core/schemas/folder-item'
 
 import { FolderTabButton } from '../folders/FolderTabButton'
-import { tabClass } from './tab-class'
+import type { PickerTabItem } from './picker-tab-list'
+import { PickerStaticTab } from './PickerStaticTab'
 
 export interface PickerTabsProps {
+  tabs: PickerTabItem[]
   folders: FolderItem[]
   activeTab: string
   onTabChange: (tab: string) => void
@@ -18,22 +20,22 @@ export interface PickerTabsProps {
 
 /** Scrollable pill tabs for uploads and connected folders. */
 export function PickerTabs(props: PickerTabsProps) {
-  const { folders, activeTab } = props
-
-  const handleUploadsTab = () => {
-    props.onTabChange('uploads')
-  }
+  const { tabs, folders, activeTab } = props
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-2 rounded-xl bg-page-2/60 px-2 backdrop-blur-xl linux:bg-page-2">
       <div className="flex flex-1 scrollbar-none items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-        <button
-          type="button"
-          className={tabClass(activeTab === 'uploads')}
-          onClick={handleUploadsTab}
-        >
-          Uploads
-        </button>
+        {tabs.map((tab) => {
+          return (
+            <PickerStaticTab
+              key={tab.value}
+              value={tab.value}
+              label={tab.label}
+              isActive={activeTab === tab.value}
+              onTabChange={props.onTabChange}
+            />
+          )
+        })}
 
         {folders.map((folder) => {
           return (

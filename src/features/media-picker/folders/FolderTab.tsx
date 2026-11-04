@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 
-import { extensionAllowed, extWithDot, type KindExtensions } from '@/core/media-kinds'
-import type { FolderFile, MediaKind } from '@/core/media-types'
-import type { UploadsById } from '@/core/schemas/upload-item'
+import type { FolderFile } from '@/core/api/folders'
+import type { UploadsById } from '@/core/api/uploads'
+import { extensionAllowed, extWithDot, type KindExtensions } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import { openPreview } from '@/features/preview/preview-store'
 import { fetchFolderFiles } from '@/lib/api/folders'
 import { useLatest } from '@/lib/use-latest'

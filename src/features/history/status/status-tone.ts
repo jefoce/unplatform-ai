@@ -6,12 +6,12 @@ import type { FriendlyError } from '@/core/provider-errors/types'
 import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
 import { STATUS_HELP, statusHelpKey } from '@/core/status-help'
 
-export type Tone = 'lime' | 'gray' | 'red'
+export type Tone = 'accent' | 'gray' | 'red'
 
 const TONES: Record<JobStatus, Tone> = {
   submitting: 'gray',
   pending: 'gray',
-  in_progress: 'lime',
+  in_progress: 'accent',
   completed: 'gray',
   failed: 'red',
   cancelled: 'red',
@@ -19,21 +19,24 @@ const TONES: Record<JobStatus, Tone> = {
 }
 
 export const TONE_TEXT: Record<Tone, string> = {
-  lime: 'text-lime',
+  accent: 'text-accent',
   gray: 'text-fg-2',
   red: 'text-danger',
 }
 
 export const GLOW_CLASSES = {
-  lime: 'glow glow-lime',
+  accent: 'glow glow-accent',
   gray: 'glow glow-gray',
   red: 'glow glow-red',
 } satisfies Record<Tone, string>
 
 export const PILL_CLASSES =
-  'inline-flex h-9 max-w-full shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-line px-3 text-sm font-semibold shadow-[inset_0_0_0_1px_var(--color-line)] backdrop-blur-sm'
+  'inline-flex h-8 max-w-full items-center gap-0 whitespace-nowrap rounded-full bg-line px-2 text-xs font-semibold shadow-[inset_0_0_0_1px_var(--color-line)] backdrop-blur-sm linux:bg-solid-pill @min-[240px]:h-9 @min-[240px]:gap-2 @min-[240px]:px-3 @min-[240px]:text-sm'
 
-export const PILL_COMPACT_CLASSES = 'h-7 gap-1.5 px-2 text-xs'
+/** Visually hidden but measurable, and read by screen readers. */
+export const PILL_LABEL_CLASSES = 'sr-only @max-[239px]:sr-only'
+
+export const PILL_LABEL_SHOWN_CLASSES = 'not-sr-only min-w-0 truncate'
 
 const CANCELLED_TEXT = 'Not sent, not charged.'
 
@@ -82,32 +85,16 @@ export function isGraceRecord(record: GenerationRecord): boolean {
   return record.status === 'submitting' && record.submit?.stage === 'grace'
 }
 
-interface GraceCancelVisibleParams {
-  record: GenerationRecord
-  remainingMs: number
-  onCancel?: () => void
-}
-
-/** Grace records keep the cancel pill only while time remains. */
-export function isGraceCancelVisible(params: GraceCancelVisibleParams): boolean {
-  const { record, remainingMs, onCancel } = params
-
-  if (!isGraceRecord(record)) {
-    return false
-  }
-
-  return remainingMs > 0 && !isNil(onCancel)
-}
-
-/** Failed copy that failed on download, still has a provider job and has not expired. */
+/** Failed copy or dropped job, still with a provider job and an unexpired link. */
 export function isDownloadRetryable(record: GenerationRecord): boolean {
   const expiresAt = record.job?.expiresAt
+  const isRetryable = record.status === 'failed' || record.status === 'expired'
 
-  if (record.status !== 'failed' || !isNil(record.output)) {
+  if (!isRetryable || !isNil(record.output)) {
     return false
   }
 
-  if (!isDownloadFailure(record)) {
+  if (record.status === 'failed' && !isDownloadFailure(record)) {
     return false
   }
 

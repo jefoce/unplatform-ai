@@ -4,7 +4,7 @@ import { isNil } from 'lodash-es'
 import type { ZodError } from 'zod'
 
 import { isNonEmptyString } from '@/core/guards'
-import { MEDIA_KINDS, type MediaKind } from '@/core/media-types'
+import { MEDIA_KINDS, type MediaKind } from '@/core/media/media-types'
 
 import { HttpError, ValidationError } from './errors'
 import { ProviderError } from './providers/provider-error'
@@ -39,15 +39,24 @@ interface JsonErrorParams {
   details?: string[]
 }
 
+/** JSON response for API data. Never stored by a browser or proxy. */
+export function jsonResponse(data: unknown, init?: ResponseInit): Response {
+  const response = Response.json(data, init)
+
+  response.headers.set('Cache-Control', 'no-store')
+
+  return response
+}
+
 /** Builds a JSON error response, omitting empty details. */
 export function jsonError(params: JsonErrorParams): Response {
   const { status, error, details } = params
 
   if (!isNil(details) && details.length > 0) {
-    return Response.json({ error, details }, { status })
+    return jsonResponse({ error, details }, { status })
   }
 
-  return Response.json({ error }, { status })
+  return jsonResponse({ error }, { status })
 }
 
 /** Maps known server errors to responses. Unknown errors are logged, never exposed. */

@@ -11,8 +11,9 @@ import {
   type FlattenColor,
   IMAGE_FORMATS,
   type ImageFormat,
-} from '@/core/media-types'
+} from '@/core/media/media-types'
 
+import { renameOrKeepExisting } from '../fs/atomic-file'
 import { readJson, removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { UPLOADS_DIR } from '../paths'
 
@@ -116,7 +117,7 @@ export async function writeCache(params: WriteCacheParams): Promise<void> {
 
   await fs.mkdir(UPLOADS_DIR, { recursive: true })
   await fs.writeFile(temp, data)
-  await fs.rename(temp, file)
+  await renameOrKeepExisting(temp, file)
   await writeJsonAtomic({ file: `${stem}.json`, data: record })
 }
 

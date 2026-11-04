@@ -4,9 +4,9 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SECRET_NAMES } from '@/core/secret-names'
 import { onSecretsChange } from '@/server/secrets'
 
+import { SECRET_NAMES } from '../src/core/secret-names'
 import { memoryBackend, setup } from './helpers/secrets'
 
 const originalPlatform = process.platform
@@ -14,7 +14,7 @@ const originalPlatform = process.platform
 let root = ''
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-secrets-'))
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-secrets-'))
   vi.stubEnv('STORAGE_ROOT', root)
 
   for (const name of SECRET_NAMES) {
@@ -155,7 +155,7 @@ describe('secrets backend', () => {
   it('ignores stored values that fail the per-key schema', async () => {
     await fs.writeFile(
       path.join(root, 'secrets.json'),
-      JSON.stringify({ R2_ACCOUNT_ID: 'invalid-hex', R2_BUCKET: 'bucket' }),
+      JSON.stringify({ R2_ACCOUNT_ID: 'nothex', R2_BUCKET: 'bucket' }),
       { mode: 0o600 },
     )
 

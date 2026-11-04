@@ -1,5 +1,5 @@
 import type { SystemCapabilities } from '@/core/types'
-import { errorResponse } from '@/server/http'
+import { errorResponse, jsonResponse } from '@/server/http'
 import { assertLocalRequest } from '@/server/request-guard'
 import { getSystem } from '@/server/system'
 
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       platform: process.platform,
     }
 
-    return Response.json(result)
+    return jsonResponse(result)
   } catch (error) {
     return errorResponse(error)
   }

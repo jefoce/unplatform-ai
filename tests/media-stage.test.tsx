@@ -27,8 +27,10 @@ describe('MediaStage', () => {
 
     expect(image?.getAttribute('alt')).toBe('')
     expect(image?.getAttribute('aria-hidden')).toBe('true')
-    expect(image?.className).toContain('blur-3xl')
+    expect(image?.className).toContain('scale-110')
     expect(image?.className).toContain('object-cover')
+    expect(image?.className).toContain('opacity-70')
+    expect(image?.className).not.toContain('blur')
   })
 
   it('renders the same gradient for the same seed', () => {

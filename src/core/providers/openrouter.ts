@@ -1,4 +1,4 @@
-import { GUIDE_BASE, type VideoProviderDescriptor } from './types'
+import { GUIDE_BASE, type ProviderDescriptor } from './types'
 
 export const OPENROUTER_CREDITS_URL = 'https://openrouter.ai/settings/credits'
 
@@ -74,4 +74,4 @@ export const OPENROUTER_DESCRIPTOR = {
       retry: true,
     },
   },
-} satisfies VideoProviderDescriptor
+} satisfies ProviderDescriptor

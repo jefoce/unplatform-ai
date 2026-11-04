@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { isNil } from 'lodash-es'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { FolderFile } from '@/core/media-types'
+import type { FolderFile } from '@/core/api/folders'
 import { FolderGrid } from '@/features/media-picker/folders/FolderGrid'
 import type { PickerMode } from '@/features/media-picker/picker/store'
 

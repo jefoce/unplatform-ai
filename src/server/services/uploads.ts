@@ -2,25 +2,24 @@ import 'server-only'
 
 import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 
-import { isNil, isString } from 'lodash-es'
+import { isNil } from 'lodash-es'
 
+import { type UploadsById } from '@/core/api/uploads'
 import { isNonEmptyString } from '@/core/guards'
-import { extWithDot, mimeFromExt } from '@/core/media-kinds'
+import { extWithDot, mimeFromExt } from '@/core/media/media-kinds'
 import type { GenerationInput } from '@/core/schemas/generation-record'
-import { type LinkMode, type UploadItem, type UploadsById } from '@/core/schemas/upload-item'
+import { type LinkMode, type UploadItem } from '@/core/schemas/upload-item'
 import { inputIds } from '@/core/submit-state'
 
 import { UploadError } from '../errors'
 import { removeFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
-import { resolveInside, SafePathError } from '../fs/safe-path'
 import { removeEncoded } from '../media/image-cache'
-import { downloadPaths, uploadPaths } from '../paths'
-import { getFolder } from '../repos/folders'
+import { downloadPaths, STORAGE_TMP_DIR, uploadPaths } from '../paths'
 import { getGeneration, listActiveGenerations } from '../repos/generations'
+import { listImages } from '../repos/images'
 import { listUploadRecords, loadUploadRecord, rememberUpload } from '../repos/upload-record'
 import { deleteUploadFiles, getUpload, saveFileUpload } from '../repos/uploads'
 import { getObjectStore } from '../storage/registry'
@@ -33,7 +32,9 @@ import {
   rememberUpload as rememberUploadSize,
   runWithHashLock,
 } from './upload-hash'
+import { isUploadBusy } from './upload-in-use'
 import { assertSupported, probe } from './upload-probe'
+import { findLinkedUpload, resolveUploadTarget } from './upload-target'
 
 interface CreateFileUploadParams {
   bytes: Uint8Array
@@ -61,9 +62,10 @@ export async function createFileUpload(params: CreateFileUploadParams): Promise<
       return existing
     }
 
-    const temp = path.join(os.tmpdir(), `upload-probe-${randomUUID()}${ext}`)
+    const temp = path.join(STORAGE_TMP_DIR, `upload-probe-${randomUUID()}${ext}`)
 
-    await fs.writeFile(temp, bytes)
+    await fs.mkdir(STORAGE_TMP_DIR, { recursive: true, mode: 0o700 })
+    await fs.writeFile(temp, bytes, { mode: 0o600 })
 
     try {
       const meta = await probe(temp, kind)
@@ -80,9 +82,9 @@ export async function createFileUpload(params: CreateFileUploadParams): Promise<
 
 /** Links a disk file, falling back to hard link then copy, or reuses an existing link. */
 export async function createLinkUpload(params: LinkUploadParams): Promise<UploadItem> {
-  const requested = await resolveRequested(params)
+  const requested = await resolveUploadTarget(params)
 
-  const stats = await fs.stat(requested).catch(() => {
+  const stats = await fs.stat(requested.path).catch(() => {
     return null
   })
 
@@ -94,7 +96,7 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
     throw new UploadError(400, 'Not a file')
   }
 
-  const ext = extWithDot(path.basename(requested))
+  const ext = extWithDot(path.basename(requested.path))
   const kind = assertSupported(ext)
   const mime = mimeFromExt(ext)
 
@@ -102,8 +104,8 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
     throw new UploadError(400, `Unsupported file type: ${ext}`)
   }
 
-  const target = await fs.realpath(requested)
-  const existing = await findLink(target)
+  const target = requested.real
+  const existing = await findLinkedUpload(target)
 
   if (existing) {
     return { ...existing, missing: false }
@@ -131,7 +133,7 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
       kind,
       mime,
       ext,
-      originalName: path.basename(requested),
+      originalName: path.basename(requested.path),
       target,
       linkMode,
       sizeBytes: size,
@@ -202,13 +204,10 @@ export async function removeUpload(id: string): Promise<void> {
 
   await withLock(`upload:${id}`, async () => {
     const record = await loadUploadRecord(id)
-    const active = await listActiveGenerations()
+    const generations = await listActiveGenerations()
+    const images = await listImages()
 
-    if (
-      active.some((entry) => {
-        return inputIds(entry.input).includes(id)
-      })
-    ) {
+    if (isUploadBusy({ id, generations, images })) {
       throw new UploadError(409, 'Used by a running generation')
     }
 
@@ -231,34 +230,6 @@ export async function removeUpload(id: string): Promise<void> {
   })
 }
 
-async function resolveRequested(params: LinkUploadParams): Promise<string> {
-  const { absPath, folderId, relPath } = params
-
-  if (isNonEmptyString(folderId) && isString(relPath)) {
-    const folder = await getFolder(folderId)
-
-    if (!folder) {
-      throw new UploadError(404, `Folder not found: ${folderId}`)
-    }
-
-    try {
-      return resolveInside(folder.path, relPath)
-    } catch (error) {
-      if (error instanceof SafePathError) {
-        throw new UploadError(400, error.message)
-      }
-
-      throw error
-    }
-  }
-
-  if (!path.isAbsolute(absPath)) {
-    throw new UploadError(400, 'Path must be absolute')
-  }
-
-  return absPath
-}
-
 /** Symlink first, then hard link, then copy. Windows often denies symlinks. */
 async function linkOrCopy(target: string, media: string): Promise<LinkMode> {
   try {
@@ -278,26 +249,6 @@ async function linkOrCopy(target: string, media: string): Promise<LinkMode> {
 
     return 'copy'
   }
-}
-
-async function findLink(target: string): Promise<UploadItem | null> {
-  const records = await listUploadRecords()
-
-  for (const record of records) {
-    if (record.source !== 'link' || !isNonEmptyString(record.target)) {
-      continue
-    }
-
-    const real = await fs.realpath(record.target).catch(() => {
-      return null
-    })
-
-    if (real === target) {
-      return record
-    }
-  }
-
-  return null
 }
 
 async function sharesRemote(item: UploadItem): Promise<boolean> {

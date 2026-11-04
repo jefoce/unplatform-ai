@@ -3,9 +3,10 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { isNonEmptyString } from '@/core/guards'
-import type { MediaKind } from '@/core/media-types'
-import { activeBinding } from '@/core/presets/bindings'
-import type { ModelPreset, ProviderBinding } from '@/core/presets/types'
+import type { MediaKind } from '@/core/media/media-types'
+import type { ProviderBinding } from '@/core/presets/common/binding'
+import { activeBinding } from '@/core/presets/common/bindings'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { renderPromptForApi } from '@/core/prompt-tokens'
 import type { GenerationInput } from '@/core/schemas/generation-record'
 import type { Dict } from '@/core/utility-types'
@@ -22,7 +23,7 @@ interface OpenRouterImageUrl {
   url: string
 }
 
-interface OpenRouterImagePart {
+export interface OpenRouterImagePart {
   type: 'image_url'
   image_url: OpenRouterImageUrl
 }
@@ -80,7 +81,7 @@ const referencePart = (media: MediaPayload): OpenRouterReferencePart => {
 
 interface BuildRequestBodyParams {
   input: GenerationInput
-  preset: ModelPreset
+  preset: VideoPreset
   media: Dict<MediaPayload>
 }
 

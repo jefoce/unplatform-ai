@@ -5,9 +5,9 @@ import type { SecretName } from '../secret-names'
 export const GUIDE_BASE = 'https://github.com/jefoce/unplatform-ai/blob/HEAD/docs/user'
 
 /** @public */
-export const VIDEO_PROVIDER_IDS = ['openrouter'] as const
+export const PROVIDER_IDS = ['openrouter'] as const
 
-export type VideoProviderId = (typeof VIDEO_PROVIDER_IDS)[number]
+export type ProviderId = (typeof PROVIDER_IDS)[number]
 
 /** @public */
 export const STORAGE_PROVIDER_IDS = ['r2'] as const
@@ -29,8 +29,8 @@ export interface ProviderLink {
   url: string
 }
 
-export interface VideoProviderDescriptor {
-  id: VideoProviderId
+export interface ProviderDescriptor {
+  id: ProviderId
   label: string
   fields: readonly ProviderSecretField[]
   requiredSecrets: readonly SecretName[]

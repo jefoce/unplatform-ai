@@ -13,6 +13,8 @@ interface SortableReferenceProps {
   upload?: UploadItem
   label?: string
   note?: string
+  className?: string
+  isUploadsLoading?: boolean
   onOpenPreview?: () => void
   onRemove: () => void
 }
@@ -34,7 +36,8 @@ export function SortableReference(props: SortableReferenceProps) {
       className={cn(
         isAudio && 'col-span-2 aspect-[2.12/1]',
         !isAudio && 'aspect-square',
-        isDragging && 'rounded-xl opacity-30 outline-1 outline-lime/60 outline-dashed',
+        props.className,
+        isDragging && 'rounded-xl opacity-30 outline-1 outline-accent/60 outline-dashed',
       )}
       {...attributes}
       {...listeners}
@@ -43,6 +46,7 @@ export function SortableReference(props: SortableReferenceProps) {
         upload={upload}
         label={label}
         note={note}
+        isUploadsLoading={props.isUploadsLoading}
         onOpenPreview={props.onOpenPreview}
         onRemove={props.onRemove}
       />

@@ -1,46 +1,53 @@
 'use client'
 
-import { Download, Heart, Trash2, X } from 'lucide-react'
+import { Download, Trash2, X } from 'lucide-react'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { RecordKind } from '@/core/feed/grid-item'
 import { cn } from '@/lib/cn'
+import type { HistoryItem } from '@/lib/feed/output-items'
+import { Tooltip } from '@/ui/Tooltip'
 
 import { SelectionStack } from './SelectionStack'
 
 const ACTION_BUTTON_CLASSES =
   'inline-flex h-10 items-center justify-center rounded-xl bg-white/5 text-sm font-medium text-fg transition-colors hover:bg-white/10 disabled:pointer-events-none disabled:opacity-40'
 
-const MIXED_TITLE = 'Only finished videos can be downloaded or liked.'
+const NOUN = {
+  image: 'images',
+  video: 'videos',
+} satisfies Record<RecordKind, string>
 
 interface SelectionToolbarProps {
   isActive: boolean
   count: number
+  kind: RecordKind
   stack: string[]
-  byId: Map<string, GenerationRecord>
-  isAllCompleted: boolean
-  isAllLiked: boolean
+  byId: Map<string, HistoryItem>
+  completedCount: number
   isBusy: boolean
   onDownload: () => void
-  onLike: () => void
   onDelete: () => void
   onClear: () => void
 }
 
 /** Floating batch actions for the current selection. */
 export function SelectionToolbar(props: SelectionToolbarProps) {
-  const { isActive, count, stack, byId, isAllCompleted, isAllLiked, isBusy } = props
+  const { isActive, count, kind, stack, byId, completedCount, isBusy } = props
 
-  const likeLabel = isAllLiked ? 'Unlike selected videos' : 'Like selected videos'
-  const downloadTitle = isAllCompleted ? 'Download selected videos' : MIXED_TITLE
-  const likeTitle = isAllCompleted ? likeLabel : MIXED_TITLE
+  const noun = NOUN[kind]
+  const canDownload = completedCount > 0
+
+  const downloadTitle = canDownload
+    ? `Download ${completedCount} selected ${noun}`
+    : 'Nothing finished to download'
 
   return (
     <div
       role="toolbar"
-      aria-label="Selected videos"
-      aria-hidden={!isActive}
+      aria-label={`Selected ${noun}`}
+      inert={!isActive}
       className={cn(
-        'absolute bottom-6 left-1/2 z-40 flex h-14 -translate-x-1/2 items-center gap-1.5 rounded-2xl border border-line-strong bg-surface-2/95 p-2 shadow-selection backdrop-blur-sm transition duration-150 ease-out motion-reduce:transition-none',
+        'absolute bottom-6 left-1/2 z-40 flex h-14 -translate-x-1/2 items-center gap-1.5 rounded-2xl border border-line-strong bg-surface-2/95 p-2 shadow-selection backdrop-blur-sm transition duration-150 ease-out linux:bg-surface-2',
         isActive && 'translate-y-0 opacity-100',
         !isActive && 'translate-y-2 opacity-0',
         !isActive && 'pointer-events-none',
@@ -55,35 +62,27 @@ export function SelectionToolbar(props: SelectionToolbarProps) {
         {count} selected
       </span>
 
-      <button
-        type="button"
-        className={cn(ACTION_BUTTON_CLASSES, 'gap-1.5 px-3.5')}
-        disabled={!isAllCompleted || isBusy}
-        onClick={props.onDownload}
-        title={downloadTitle}
-      >
-        <Download size={15} aria-hidden />
-        Download
-      </button>
-
-      <button
-        type="button"
-        className={cn(ACTION_BUTTON_CLASSES, 'w-10')}
-        disabled={!isAllCompleted || isBusy}
-        onClick={props.onLike}
-        aria-label={likeLabel}
-        title={likeTitle}
-      >
-        <Heart size={15} className={cn(isAllLiked && 'fill-current text-favorite')} aria-hidden />
-      </button>
+      <Tooltip content={downloadTitle}>
+        <span className="inline-flex">
+          <button
+            type="button"
+            className={cn(ACTION_BUTTON_CLASSES, 'gap-1.5 px-3.5')}
+            disabled={!canDownload || isBusy}
+            onClick={props.onDownload}
+          >
+            <Download size={15} aria-hidden />
+            Download {completedCount}
+          </button>
+        </span>
+      </Tooltip>
 
       <button
         type="button"
         className={cn(ACTION_BUTTON_CLASSES, 'w-10')}
         disabled={isBusy}
         onClick={props.onDelete}
-        aria-label="Delete selected videos"
-        title="Delete selected videos"
+        aria-label={`Delete selected ${noun}`}
+        title={`Delete selected ${noun}`}
       >
         <Trash2 size={15} aria-hidden />
       </button>

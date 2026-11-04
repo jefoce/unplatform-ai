@@ -7,7 +7,7 @@ import { maxDurationFor } from '@/core/duration-limits'
 import { isNonEmptyString } from '@/core/guards'
 import { clampDuration, normalizeForPreset } from '@/core/normalize-input'
 import { findPreset, getPreset } from '@/core/presets'
-import type { ModelPreset } from '@/core/presets/types'
+import type { VideoPreset } from '@/core/presets/video/types'
 import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-record'
 
 import { inputFromState } from './store-draft'
@@ -27,13 +27,13 @@ type DraftActions = Pick<
 
 interface NormalizedDraftParams {
   state: GeneratorState
-  preset: ModelPreset
+  preset: VideoPreset
   overrides?: Partial<GenerationInput>
 }
 
 interface NextTabStateParams {
   state: GeneratorState
-  preset: ModelPreset
+  preset: VideoPreset
   tab: GeneratorTab
 }
 

@@ -5,9 +5,10 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Dict } from '@/core/utility-types'
 import { mediaUrl } from '@/lib/api/media-urls'
 import { __resetCanPlayCache, canPlay } from '@/lib/media-support'
+
+import type { Dict } from '../src/core/utility-types'
 
 function stubDocument(supported: Dict<string>): void {
   vi.stubGlobal('document', {
@@ -77,7 +78,7 @@ describe('getCompatMedia', () => {
   let root = ''
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-compat-'))
+    root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-compat-'))
     vi.stubEnv('STORAGE_ROOT', root)
     vi.resetModules()
   })

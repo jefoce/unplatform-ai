@@ -1,4 +1,4 @@
-import { errorResponse } from '@/server/http'
+import { errorResponse, jsonResponse } from '@/server/http'
 import { assertLocalRequest } from '@/server/request-guard'
 import { reloadSecrets, secretStatus } from '@/server/secrets'
 
@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     assertLocalRequest(request)
     await reloadSecrets()
 
-    return Response.json(secretStatus())
+    return jsonResponse(secretStatus())
   } catch (error) {
     return errorResponse(error)
   }

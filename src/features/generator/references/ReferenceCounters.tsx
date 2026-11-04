@@ -3,8 +3,8 @@
 import { isNil } from 'lodash-es'
 import { Minimize2 } from 'lucide-react'
 
-import { MEDIA_KINDS, type MediaKindCounts, type ReferencePlan } from '@/core/media-types'
-import type { ModelPreset } from '@/core/presets/types'
+import { MEDIA_KINDS, type MediaKindCounts, type ReferencePlan } from '@/core/media/media-types'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { cn } from '@/lib/cn'
 import { Tooltip } from '@/ui/Tooltip'
 
@@ -12,7 +12,7 @@ import { REFERENCE_ICONS } from './reference-icons'
 
 interface ReferenceCountersProps {
   counts: MediaKindCounts
-  preset: ModelPreset
+  preset: VideoPreset
   plan: ReferencePlan | null
 }
 

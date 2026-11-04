@@ -1,5 +1,5 @@
-import type { VideoProviderId } from './providers/types'
-import type { PricingInfo } from './types'
+import type { PricingInfo } from './pricing/types'
+import type { ProviderId } from './providers/types'
 
 export const MODEL_STATUSES = ['available', 'unverified', 'missing', 'no_provider'] as const
 
@@ -8,7 +8,7 @@ export type ModelStatus = (typeof MODEL_STATUSES)[number]
 export interface CatalogEntry {
   modelId: string
   presetId: string
-  provider: VideoProviderId | null
+  provider: ProviderId | null
   status: ModelStatus
   reason: string | null
   pricing: PricingInfo | null

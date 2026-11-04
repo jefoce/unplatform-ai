@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { inputForSubmit } from '@/core/normalize-input'
-
+import { inputForSubmit } from '../src/core/normalize-input'
 import { input } from './helpers/normalize-fixtures'
 
 describe('inputForSubmit', () => {

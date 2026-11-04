@@ -4,7 +4,7 @@ import { Play } from 'lucide-react'
 import type { MouseEvent } from 'react'
 
 const CENTER_PLAY_CLASSES =
-  'absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70'
+  'absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/50 text-white backdrop-blur linux:bg-solid-overlay transition-colors hover:bg-black/70'
 
 interface LazyVideoPlayButtonProps {
   label: string

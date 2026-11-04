@@ -8,9 +8,9 @@ export function file(rel: string): string {
   return path.join(ROOT, rel)
 }
 
-/** Rows of a markdown section's table, header excluded. */
-export function tableRows(markdown: string, heading: string): string[][] {
-  const lines = markdown.split('\n')
+/** Lines of a markdown section, heading excluded. */
+export function sectionLines(markdown: string, heading: string): string[] {
+  const lines = markdown.split(/\r?\n/)
 
   const start = lines.findIndex((line) => {
     return line.trim() === `## ${heading}`
@@ -26,10 +26,12 @@ export function tableRows(markdown: string, heading: string): string[][] {
     return line.startsWith('## ')
   })
 
-  const section = (end === -1 ? rest : rest.slice(0, end)).join('\n')
+  return end === -1 ? rest : rest.slice(0, end)
+}
 
-  return section
-    .split('\n')
+/** Rows of a markdown section's table, header excluded. */
+export function tableRows(markdown: string, heading: string): string[][] {
+  return sectionLines(markdown, heading)
     .map((line) => {
       return line.trim()
     })

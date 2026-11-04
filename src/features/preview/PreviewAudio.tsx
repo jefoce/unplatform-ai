@@ -80,7 +80,7 @@ export function PreviewAudio(props: PreviewAudioProps) {
           type="button"
           onClick={handleToggle}
           aria-label={`${playLabel} ${item.originalName}`}
-          className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-black/40 text-fg backdrop-blur-sm transition hover:bg-black/60"
+          className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-black/40 text-fg backdrop-blur-sm transition hover:bg-black/60 linux:bg-solid-overlay"
         >
           <PlayIcon size={16} className="fill-current" aria-hidden />
         </button>

@@ -1,6 +1,7 @@
 import { isNil } from 'lodash-es'
 
-import type { BrowseResult, FolderListing, MediaKind } from '@/core/media-types'
+import type { BrowseResult, FolderListing } from '@/core/api/folders'
+import type { MediaKind } from '@/core/media/media-types'
 import type { FolderItem } from '@/core/schemas/folder-item'
 import { apiDelete, apiPost, fetcher } from '@/lib/fetcher'
 

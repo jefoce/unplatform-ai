@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one queue owns marking, downloading and failure accounting */
 import 'server-only'
 
 import { createWriteStream } from 'node:fs'
@@ -9,20 +10,23 @@ import type { ReadableStream } from 'node:stream/web'
 
 import { isNil } from 'lodash-es'
 
-import { FETCH_TIMEOUTS, MAX_DOWNLOAD_RETRIES } from '@/core/constants'
+import { FETCH_TIMEOUTS, MAX_DOWNLOAD_RETRIES, SUBMIT_YIELD_MS } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 import { COPY_EXPIRED_TEXT } from '@/core/provider-errors/app'
-import type { GenerationRecord, RecordOutput } from '@/core/schemas/generation-record'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
 
+import { commitFile } from '../fs/atomic-file'
 import { exists, isDiskFull } from '../fs/stat'
 import { globalState } from '../global-state'
 import { probeMedia } from '../media/ffmpeg'
 import { makePreview } from '../media/preview'
 import { downloadPaths } from '../paths'
 import { getVideoProvider } from '../providers/registry'
+import { safeFetchProviderUrl } from '../providers/safe-fetch'
 import type { JobSnapshot } from '../providers/types'
-import { getGeneration, saveGeneration } from '../repos/generations'
+import { getGeneration, saveGeneration, updateGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
+import { buildOutput } from './download-output'
 
 const MAX_DOWNLOADS = 2
 
@@ -41,6 +45,14 @@ interface DownloadQueue {
 
 const DISK_FULL = 'Disk is full. Free some space, the download retries every minute.'
 const DISK_FULL_RETRY_MS = 60_000
+
+/** A body that reached the disk but cannot be a complete video. */
+class DownloadIntegrityError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'DownloadIntegrityError'
+  }
+}
 
 const downloads = globalState<DownloadQueue>('downloadQueue', () => {
   return {
@@ -67,6 +79,19 @@ export function stopDownloads(): void {
   downloads.stopped = true
 }
 
+/** Waits until no download is running, or the timeout expires. */
+export async function waitForDownloadsDone(timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+
+  while (downloads.active.size > 0 && Date.now() < deadline) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, SUBMIT_YIELD_MS)
+    })
+  }
+
+  return downloads.active.size === 0
+}
+
 /** Marks the record Downloading, then adds it to the bounded queue. */
 export async function queueDownload(record: GenerationRecord, job: JobSnapshot): Promise<void> {
   const fullAt = downloads.diskFullAt.get(record.id)
@@ -82,7 +107,21 @@ export async function queueDownload(record: GenerationRecord, job: JobSnapshot):
   let marked = record
 
   if (!record.download) {
-    marked = await saveGeneration({ ...record, download: { startedAt: new Date().toISOString() } })
+    const startedAt = new Date().toISOString()
+
+    const updated = await updateGeneration(record.id, (current) => {
+      if (!isNil(current.download)) {
+        return null
+      }
+
+      return { ...current, download: { startedAt } }
+    })
+
+    if (isNil(updated)) {
+      return
+    }
+
+    marked = updated
   }
 
   downloads.pending.set(record.id, { record: marked, job })
@@ -102,15 +141,15 @@ function drainDownloads(): void {
     downloads.pending.delete(id)
     downloads.active.add(id)
 
-    void withLock(id, async () => {
+    void (async () => {
       const current = await getGeneration(id)
 
       if (!current || current.output) {
         return
       }
 
-      await finalize({ ...task.record, favorite: current.favorite }, task.job)
-    })
+      await finalize(task.record, task.job)
+    })()
       .catch((error) => {
         console.error(`[unplatform-ai] download failed for ${id}`, error)
       })
@@ -124,26 +163,47 @@ function drainDownloads(): void {
 async function finalize(record: GenerationRecord, job: JobSnapshot): Promise<void> {
   const paths = downloadPaths(record.id)
 
-  if (await isExpiredBeforeDownload({ job, video: paths.video })) {
-    await saveGeneration({
-      ...record,
-      download: undefined,
-      status: 'expired',
-      error: COPY_EXPIRED_TEXT,
-    })
-
-    return
-  }
-
   try {
+    if (await exists(paths.video)) {
+      await completeDownload({ record, video: paths.video, preview: paths.preview })
+
+      return
+    }
+
+    if (await isExpiredBeforeDownload({ job, video: paths.video })) {
+      await saveIfPresent(record.id, {
+        download: undefined,
+        status: 'expired',
+        error: COPY_EXPIRED_TEXT,
+      })
+
+      return
+    }
+
     await download({ record, job })
+    await completeDownload({ record, video: paths.video, preview: paths.preview })
   } catch (error) {
+    if (error instanceof DownloadIntegrityError) {
+      await failIntegrity(record, error)
+
+      return
+    }
+
     await handleDownloadFailure(record, error)
-
-    return
   }
+}
 
-  await completeDownload({ record, video: paths.video, preview: paths.preview })
+/** A truncated or unplayable body fails at once, and the retry route can fetch it again. */
+async function failIntegrity(record: GenerationRecord, error: Error): Promise<void> {
+  downloads.failures.delete(record.id)
+  downloads.diskFullAt.delete(record.id)
+
+  await saveFailure(record.id, {
+    download: undefined,
+    status: 'failed',
+    error: `Download failed: ${error.message}`,
+    downloadFailed: true,
+  })
 }
 
 interface ExpiryParams {
@@ -171,8 +231,7 @@ async function handleDownloadFailure(record: GenerationRecord, error: unknown): 
   downloads.failures.delete(record.id)
   downloads.diskFullAt.set(record.id, Date.now())
 
-  await saveGeneration({
-    ...record,
+  await saveFailure(record.id, {
     download: undefined,
     status: 'in_progress',
     error: DISK_FULL,
@@ -187,70 +246,57 @@ interface CompleteDownloadParams {
 
 async function completeDownload(params: CompleteDownloadParams): Promise<void> {
   const { record, video, preview: previewPath } = params
+  let preview: string | undefined
 
-  downloads.failures.delete(record.id)
-  downloads.diskFullAt.delete(record.id)
-  const preview = await makePreview({ id: record.id, video, out: previewPath })
+  try {
+    preview = await makePreview({ id: record.id, video, out: previewPath })
+  } catch {
+    // A missing poster does not fail the completed video.
+  }
+
   const output = await buildOutput({ record, video, preview })
 
-  await saveGeneration({
-    ...record,
+  await saveIfPresent(record.id, {
     download: undefined,
     status: 'completed',
     output,
+    previewPending: false,
     error: undefined,
+    errorStatus: undefined,
     downloadFailed: undefined,
   })
-}
 
-interface BuildOutputParams {
-  record: GenerationRecord
-  video: string
-  preview: string | undefined
+  // Counters clear only after the record is saved, so a failed finalize is still retried.
+  downloads.failures.delete(record.id)
+  downloads.diskFullAt.delete(record.id)
 }
 
 /**
- * Stored output for a finished download.
- * A probe or stat failure drops the field, it does not fail the download.
+ * Patches the current record under its lock, so a delete or a favorite toggle
+ * during the download wins over the snapshot taken before it started.
  */
-async function buildOutput(params: BuildOutputParams): Promise<RecordOutput> {
-  const { record, video, preview } = params
+async function saveIfPresent(id: string, patch: Partial<GenerationRecord>): Promise<void> {
+  await withLock(id, async () => {
+    const current = await getGeneration(id)
 
-  const probe = await probeMedia(video).catch(() => {
-    return null
+    if (!current) {
+      return
+    }
+
+    await saveGeneration({ ...current, ...patch })
   })
+}
 
-  const stat = await fs.stat(video).catch(() => {
-    return null
-  })
+/** Logs a failure save that stays locked out, so the record id and code are not lost. */
+async function saveFailure(id: string, patch: Partial<GenerationRecord>): Promise<void> {
+  try {
+    await saveIfPresent(id, patch)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    const label = code ?? 'unknown'
 
-  const bytes = stat?.size
-
-  const output: RecordOutput = {
-    video: `${record.id}.mp4`,
+    console.error(`[unplatform-ai] failure save for ${id} failed (${label})`, error)
   }
-
-  if (!isNil(preview)) {
-    output.preview = preview
-  }
-
-  if (!isNil(probe?.width)) {
-    output.width = probe.width
-  }
-
-  if (!isNil(probe?.height)) {
-    output.height = probe.height
-  }
-
-  if (!isNil(probe?.durationSec)) {
-    output.durationSec = probe.durationSec
-  }
-
-  if (!isNil(bytes)) {
-    output.bytes = bytes
-  }
-
-  return output
 }
 
 /** Counts the failure and fails the record after the retry budget. */
@@ -260,17 +306,22 @@ async function saveRetry(record: GenerationRecord, error: unknown): Promise<void
   downloads.failures.set(record.id, count)
   const message = error instanceof Error ? error.message : 'Download failed'
   const isFailed = count >= MAX_DOWNLOAD_RETRIES
-  const failedRecord = { ...record, download: undefined, error: `Download failed: ${message}` }
+  const errorText = `Download failed: ${message}`
 
   if (isFailed) {
     downloads.failures.delete(record.id)
 
-    await saveGeneration({ ...failedRecord, status: 'failed', downloadFailed: true })
+    await saveFailure(record.id, {
+      download: undefined,
+      error: errorText,
+      status: 'failed',
+      downloadFailed: true,
+    })
 
     return
   }
 
-  await saveGeneration({ ...failedRecord, status: 'in_progress' })
+  await saveFailure(record.id, { download: undefined, error: errorText, status: 'in_progress' })
 }
 
 async function download(params: DownloadTask): Promise<void> {
@@ -291,7 +342,8 @@ async function download(params: DownloadTask): Promise<void> {
       signal: AbortSignal.timeout(FETCH_TIMEOUTS.content),
     })
 
-    await fs.rename(paths.part, paths.video)
+    await verifyDownload({ response, file: paths.part })
+    await commitFile({ temp: paths.part, target: paths.video })
   } catch (error) {
     await fs.unlink(paths.part).catch(() => {})
 
@@ -299,17 +351,48 @@ async function download(params: DownloadTask): Promise<void> {
   }
 }
 
+interface VerifyDownloadParams {
+  response: Response
+  file: string
+}
+
+/** Rejects a short body or one the media probe cannot read, before it becomes the video. */
+async function verifyDownload(params: VerifyDownloadParams): Promise<void> {
+  const { response, file } = params
+  const declared = response.headers.get('content-length')
+  const stats = await fs.stat(file)
+
+  if (!isNil(declared)) {
+    const expected = Number(declared)
+
+    if (!Number.isFinite(expected) || stats.size !== expected) {
+      throw new DownloadIntegrityError(
+        `Truncated video download (${stats.size} of ${declared} bytes)`,
+      )
+    }
+  }
+
+  const probe = await probeMedia(file).catch((error: unknown) => {
+    throw new DownloadIntegrityError(`Video check failed: ${String(error)}`)
+  })
+
+  if (isNil(probe.width) || isNil(probe.height)) {
+    throw new DownloadIntegrityError('Downloaded file is not a playable video')
+  }
+}
+
 async function openContent(params: DownloadTask): Promise<Response> {
   const { record, job } = params
   const jobId = record.job?.id
   const submittedAt = record.job?.submittedAt ?? ''
+  const provider = getVideoProvider(record.provider)
 
   try {
     if (!isNonEmptyString(jobId)) {
       throw new Error('Missing provider job id')
     }
 
-    return await getVideoProvider(record.provider).fetchContent({
+    return await provider.fetchContent({
       job: { jobId, submittedAt },
       index: 0,
       fallback: record.input,
@@ -321,7 +404,11 @@ async function openContent(params: DownloadTask): Promise<Response> {
       throw error
     }
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUTS.content) })
+    const res = await safeFetchProviderUrl({
+      url,
+      hosts: provider.contentHosts,
+      timeoutMs: FETCH_TIMEOUTS.content,
+    })
 
     if (!res.ok) {
       throw new Error(`Video download failed (${res.status})`)

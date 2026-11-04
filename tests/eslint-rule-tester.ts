@@ -7,12 +7,14 @@ RuleTester.it = it
 
 const linter = new Linter({ configType: 'eslintrc' })
 const loaded = linter.getRules().get('no-restricted-syntax')
+const loadedImports = linter.getRules().get('no-restricted-imports')
 
-if (!loaded) {
-  throw new Error('no-restricted-syntax rule missing')
+if (!loaded || !loadedImports) {
+  throw new Error('restricted import rules missing')
 }
 
 export const rule = loaded
+export const importsRule = loadedImports
 
 export const tester = new RuleTester({
   languageOptions: {

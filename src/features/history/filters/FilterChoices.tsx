@@ -2,8 +2,8 @@
 
 import { uniq } from 'lodash-es'
 
-import { MODEL_PRESETS } from '@/core/presets'
-import { RESOLUTIONS } from '@/core/presets/types'
+import { VIDEO_PRESETS } from '@/core/presets'
+import { RESOLUTIONS } from '@/core/presets/video/types'
 import type {
   AspectFilter,
   AudioFilter,
@@ -40,7 +40,7 @@ const ASPECT_OPTIONS: readonly FilterOption<AspectFilter>[] = [
   { value: 'all', label: 'All' },
   { value: 'auto', label: 'Auto' },
   ...uniq(
-    MODEL_PRESETS.flatMap((preset) => {
+    VIDEO_PRESETS.flatMap((preset) => {
       return preset.aspectRatios
     }),
   ).map((value) => {
@@ -113,7 +113,7 @@ export function FilterChoices() {
         value={filters.model ?? 'all'}
         options={[
           { value: 'all', label: 'All' },
-          ...MODEL_PRESETS.map((preset) => {
+          ...VIDEO_PRESETS.map((preset) => {
             return { value: preset.id, label: preset.title }
           }),
         ]}

@@ -5,11 +5,14 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { removeOwnedFile as RemoveOwnedFile } from '@/server/fs/json-file'
 import type * as Folders from '@/server/repos/folders'
 import type * as Generations from '@/server/repos/generations'
+import type * as Images from '@/server/repos/images'
 import type * as Uploads from '@/server/services/uploads'
+
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import type { ImageRecord } from '../src/core/schemas/image-record'
 
 vi.mock('server-only', () => {
   return {}
@@ -25,6 +28,7 @@ process.env.STORAGE_ROOT = ROOT
 let removeOwnedFile: typeof RemoveOwnedFile
 let folders: typeof Folders
 let generations: typeof Generations
+let images: typeof Images
 let uploads: typeof Uploads
 
 beforeAll(async () => {
@@ -36,6 +40,7 @@ beforeAll(async () => {
   ;({ removeOwnedFile } = await import('@/server/fs/json-file'))
   folders = await import('@/server/repos/folders')
   generations = await import('@/server/repos/generations')
+  images = await import('@/server/repos/images')
   uploads = await import('@/server/services/uploads')
 })
 
@@ -169,6 +174,57 @@ describe('upload delete safety', () => {
     const item = await uploads.createLinkUpload({ absPath: target })
 
     await generations.saveGeneration(makeActiveRecord(item.id))
+
+    await expect(uploads.removeUpload(item.id)).rejects.toThrow('Used by a running generation')
+
+    expect(await exists(path.join(UPLOADS, `${item.id}${item.ext}`))).toBe(true)
+    expect(await exists(path.join(UPLOADS, `${item.id}.json`))).toBe(true)
+  })
+})
+
+function makeActiveImage(uploadId: string): ImageRecord {
+  const now = new Date().toISOString()
+
+  return {
+    id: randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    status: 'saving',
+    provider: 'openrouter',
+    preset: { id: 'gemini-3.1-flash-image', title: 'Nano Banana 2', slug: 'gemini' },
+    input: {
+      presetId: 'gemini-3.1-flash-image',
+      prompt: 'a cat',
+      count: 1,
+      aspectRatio: '1:1',
+      resolution: '1K',
+      quality: null,
+      background: null,
+      references: [uploadId],
+      seed: null,
+    },
+    outputs: [],
+    seedUsed: null,
+    cost: {
+      currency: 'USD',
+      unit: 'image',
+      estimatedUsd: 0,
+      actualUsd: null,
+      priceSource: 'mock',
+      billed: null,
+    },
+  }
+}
+
+describe('image upload delete safety', () => {
+  it('refuses to delete an upload used by a running image job', async () => {
+    const target = path.join(OUTSIDE, 'image-busy.png')
+
+    await fs.writeFile(target, 'not really a png')
+
+    const item = await uploads.createLinkUpload({ absPath: target })
+
+    await images.saveImage(makeActiveImage(item.id))
 
     await expect(uploads.removeUpload(item.id)).rejects.toThrow('Used by a running generation')
 

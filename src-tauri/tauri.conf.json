@@ -13,15 +13,13 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     }
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg5Q0YzRERCNEJBODUyMDMKUldRRFVxaEwyejNQaVV2TG5GVXU1dlFjSllSYXFNcXo4YTJ3Z0xiQlJJU3pnekxta2VYL3NSdksK",
-      "endpoints": [
-        "https://github.com/jefoce/unplatform-ai/releases/latest/download/latest.json"
-      ],
+      "endpoints": ["https://github.com/jefoce/unplatform-ai/releases/latest/download/latest.json"],
       "windows": {
         "installMode": "passive"
       }
@@ -40,7 +38,7 @@
     ],
     "externalBin": ["binaries/unplatform-ai-server", "binaries/ffmpeg"],
     "resources": {
-      "resources/server/": "server/",
+      "resources/server-archive/": "",
       "resources/THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
       "resources/LICENSE": "LICENSE",
       "resources/licenses/": "licenses/"

@@ -3,16 +3,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=versions.env
+# shellcheck source=scripts/ffmpeg/versions.env
 source "$SCRIPT_DIR/versions.env"
+# shellcheck source=scripts/build-work.sh
+source "$SCRIPT_DIR/../build-work.sh"
 
-PROFILE=full
+PROFILE=minimal
 TARGET=""
 OUT=""
 SOURCES=""
+KEEP_WORK=0
 
 usage() {
-  printf 'usage: %s [--target <triple>] [--out <dir>] [--sources <dir>] [--profile full|minimal]\n' "$(basename "$0")"
+  printf 'usage: %s [--target <triple>] [--out <dir>] [--sources <dir>] [--profile full|minimal] [--keep-work]\n' "$(basename "$0")"
 }
 
 fail() {
@@ -79,6 +82,7 @@ while (($#)); do
     --out) OUT=${2:?missing value for --out}; shift 2 ;;
     --sources) SOURCES=${2:?missing value for --sources}; shift 2 ;;
     --profile) PROFILE=${2:?missing value for --profile}; shift 2 ;;
+    --keep-work) KEEP_WORK=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
@@ -111,12 +115,14 @@ fi
 
 CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/unplatform-ai-build/ffmpeg"
 OUT=${OUT:-"$CACHE_ROOT/$FFMPEG_VERSION-$PROFILE/$TARGET"}
-WORK=${FFMPEG_BUILD_WORK:-"$CACHE_ROOT/work/$FFMPEG_VERSION-$PROFILE-$TARGET"}
-SRC="$WORK/src"
+# Local builds need 186 MiB of work tree, measured on macOS arm64.
+resolve_work ffmpeg ffmpeg "$FFMPEG_VERSION-$PROFILE" \
+  "${FFMPEG_BUILD_WORK:-$CACHE_ROOT/work/$FFMPEG_VERSION-$PROFILE-$TARGET}" 190464
+SRC="$CACHE_ROOT/src"
 PREFIX="$WORK/prefix"
 # The binary is copied, never installed. A fixed prefix keeps buildconf free of home paths.
 FFMPEG_PREFIX=/opt/unplatform-ai-ffmpeg
-JOBS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+build_jobs ffmpeg "${FFMPEG_BUILD_JOBS:-}" FFMPEG_BUILD_JOBS
 
 PROFILE_FLAGS=()
 while IFS= read -r line; do
@@ -128,6 +134,15 @@ done < "$PROFILE_FILE"
 
 mkdir -p "$WORK" "$SRC" "$PREFIX" "$OUT"
 DEST="$OUT/ffmpeg-$TARGET"
+
+# The archives used to live inside the work tree. Move cached copies out.
+LEGACY_SRC="$CACHE_ROOT/work/$FFMPEG_VERSION-$PROFILE-$TARGET/src"
+for archive in "ffmpeg-$FFMPEG_VERSION.tar.xz" "x264-$X264_COMMIT.tar.bz2" \
+  "zlib-$ZLIB_VERSION.tar.gz"; do
+  if [[ ! -f "$SRC/$archive" && -f "$LEGACY_SRC/$archive" ]]; then
+    mv "$LEGACY_SRC/$archive" "$SRC/"
+  fi
+done
 
 copy_sources() {
   [[ -n "$SOURCES" ]] || return 0
@@ -230,6 +245,7 @@ chmod +x "$DEST"
 "$SCRIPT_DIR/verify.sh" "$DEST"
 "$DEST" -hide_banner -buildconf > "$OUT/buildconf.txt"
 copy_sources
+cleanup_work ffmpeg "$WORK" "$KEEP_WORK"
 
 printf '[ffmpeg] binary %s\n' "$DEST"
 printf '[ffmpeg] size %s\n' "$(du -h "$DEST" | cut -f1)"

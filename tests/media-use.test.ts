@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 
-import { getPreset } from '@/core/presets'
-import type { ModelPreset } from '@/core/presets/types'
-import type { UploadItem } from '@/core/schemas/upload-item'
 import {
   type MediaTarget,
   type MediaUse,
@@ -12,15 +9,18 @@ import {
 } from '@/features/generator/media-rules'
 import type { PreviewItem } from '@/features/preview/preview-store'
 
+import { getPreset } from '../src/core/presets'
+import type { VideoPreset } from '../src/core/presets/video/types'
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { record as makeRecord } from './helpers/history'
 import { upload } from './helpers/validation-fixtures'
 
 interface PresetsModule {
-  getPreset: (id: string) => ModelPreset
+  getPreset: (id: string) => VideoPreset
 }
 
 const mocks = vi.hoisted(() => {
-  return { presets: new Map<string, ModelPreset>() }
+  return { presets: new Map<string, VideoPreset>() }
 })
 
 vi.mock('@/core/presets', async (importOriginal) => {

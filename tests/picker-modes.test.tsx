@@ -3,7 +3,6 @@ import { type ReactNode, useState } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import {
   closeMediaPicker,
   openMediaPicker,
@@ -16,6 +15,7 @@ import { UploadsTab } from '@/features/media-picker/uploads/UploadsTab'
 import { MediaPreviewModal } from '@/features/preview/MediaPreviewModal'
 import { closePreview } from '@/features/preview/preview-store'
 
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { upload, uploadsOf } from './helpers/validation-fixtures'
 
 const mocks = vi.hoisted(() => {
@@ -34,6 +34,7 @@ vi.mock('@/lib/api/uploads', () => {
 
 const items = [upload('a', 'image'), upload('b', 'image')]
 
+// Revalidation is irrelevant: the picker only needs the initial list data.
 vi.mock('swr', () => {
   return {
     default: () => {
@@ -87,6 +88,9 @@ function toggleMode(params: {
     useSelectedIds: () => {
       return params.selectedIds
     },
+    getSelectedIds: () => {
+      return params.selectedIds
+    },
     useUploadsById: () => {
       return uploadsOf(...items)
     },
@@ -129,6 +133,11 @@ function ToggleHarness(props: ToggleHarnessProps) {
   const mode: PickerToggleMode = {
     kind: 'toggle',
     useSelectedIds: () => {
+      return selected.map((item) => {
+        return item.id
+      })
+    },
+    getSelectedIds: () => {
       return selected.map((item) => {
         return item.id
       })

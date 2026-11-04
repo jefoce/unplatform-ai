@@ -5,10 +5,10 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import type { FileHash } from '@/server/storage/hash'
 import type { ObjectInfo, ObjectStore, PutObjectParams } from '@/server/storage/types'
 
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { daysAgo, FakeStore } from './helpers/remote-fixtures'
 
 vi.mock('server-only', () => {
@@ -24,6 +24,7 @@ interface EnsureRemoteParams {
   upload: UploadItem
   onProgress?: (sent: number, total: number) => void
   store?: ObjectStore
+  signal?: AbortSignal
 }
 
 type EnsureRemote = (params: EnsureRemoteParams) => Promise<UploadItem>
@@ -101,6 +102,18 @@ afterAll(async () => {
 })
 
 describe('ensureRemote', () => {
+  it('stops before the network when the caller aborts', async () => {
+    const store = new FakeStore()
+    const upload = await makeUpload('aborted')
+    const controller = new AbortController()
+
+    controller.abort()
+
+    await expect(ensureRemote({ upload, store, signal: controller.signal })).rejects.toThrow()
+
+    expect(store.puts).toHaveLength(0)
+  })
+
   it('reuses a remote by size and mtime and refreshes lastUsedAt', async () => {
     const store = new FakeStore()
     const upload = await makeUpload('alpha')
@@ -205,7 +218,8 @@ describe('ensureRemote refresh', () => {
 
     const second = await ensureRemote({ upload: old, onProgress: undefined, store })
 
-    expect(store.headCalls).toBe(1)
+    // The stale head fails under the lock, so the digest path re-heads the same key.
+    expect(store.headCalls).toBe(2)
     expect(store.puts).toHaveLength(2)
     expect(second.remote?.uploadedAt).not.toBe(old.remote?.uploadedAt)
     expect(second.remote?.lastUsedAt).not.toBe(old.remote?.lastUsedAt)
@@ -236,7 +250,7 @@ describe('ensureRemote refresh', () => {
     expect(second.remote?.lastUsedAt).not.toBe(old.remote?.lastUsedAt)
   })
 
-  it('heads once when the object is deleted and the file is unchanged', async () => {
+  it('heads twice when the object is deleted and the file is unchanged', async () => {
     const store = new FakeStore()
     const upload = await makeUpload('deleted-head')
     const first = await ensureRemote({ upload, onProgress: undefined, store })
@@ -247,7 +261,7 @@ describe('ensureRemote refresh', () => {
 
     const second = await ensureRemote({ upload: first, onProgress: undefined, store })
 
-    expect(store.headCalls).toBe(1)
+    expect(store.headCalls).toBe(2)
     expect(store.puts).toHaveLength(2)
     expect(second.remote?.key).toBe(remote.key)
   })

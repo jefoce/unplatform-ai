@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { joinWords } from '@/core/text'
+import { joinWords } from '../src/core/text'
 
 const AND_CASES: [string[], string][] = [
   [[], ''],

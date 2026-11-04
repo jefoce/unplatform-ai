@@ -2,9 +2,10 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { videoStatusView } from '@/features/history/status/status-view'
 import { StatusOverlay } from '@/features/history/status/StatusOverlay'
 
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
 import { Observer, record } from './helpers/history'
 
 vi.mock('@/lib/fetcher', () => {
@@ -53,9 +54,11 @@ describe('Retry download button', () => {
   it('shows for a failed copy with a provider job and no expiry', () => {
     render(
       <StatusOverlay
-        record={failedRecord({
-          job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT },
-        })}
+        view={videoStatusView(
+          failedRecord({
+            job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT },
+          }),
+        )}
       />,
     )
 
@@ -65,11 +68,13 @@ describe('Retry download button', () => {
   it('is absent when the record failed outside the download', () => {
     render(
       <StatusOverlay
-        record={failedRecord({
-          error: 'Provider error: job expired',
-          downloadFailed: false,
-          job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT },
-        })}
+        view={videoStatusView(
+          failedRecord({
+            error: 'Provider error: job expired',
+            downloadFailed: false,
+            job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT },
+          }),
+        )}
       />,
     )
 
@@ -79,11 +84,33 @@ describe('Retry download button', () => {
   it('shows for a legacy record whose error text says the download failed', () => {
     render(
       <StatusOverlay
-        record={failedRecord({
-          error: 'Download failed: gone',
-          downloadFailed: undefined,
-          job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT },
-        })}
+        view={videoStatusView(
+          failedRecord({
+            error: 'Download failed: gone',
+            downloadFailed: undefined,
+            job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT },
+          }),
+        )}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Retry download' })).not.toBeNull()
+  })
+
+  it('shows for an expired record with a live link', () => {
+    render(
+      <StatusOverlay
+        view={videoStatusView(
+          failedRecord({
+            status: 'expired',
+            error: 'Job expired',
+            job: {
+              id: 'or-job-4242',
+              submittedAt: SUBMITTED_AT,
+              expiresAt: Date.now() + 60_000,
+            },
+          }),
+        )}
       />,
     )
 
@@ -93,13 +120,15 @@ describe('Retry download button', () => {
   it('is absent when the provider copy expired', () => {
     render(
       <StatusOverlay
-        record={failedRecord({
-          job: {
-            id: 'or-job-4242',
-            submittedAt: SUBMITTED_AT,
-            expiresAt: Date.now() - 1000,
-          },
-        })}
+        view={videoStatusView(
+          failedRecord({
+            job: {
+              id: 'or-job-4242',
+              submittedAt: SUBMITTED_AT,
+              expiresAt: Date.now() - 1000,
+            },
+          }),
+        )}
       />,
     )
 
@@ -107,7 +136,7 @@ describe('Retry download button', () => {
   })
 
   it('is absent when the failed record has no provider job', () => {
-    render(<StatusOverlay record={failedRecord({})} />)
+    render(<StatusOverlay view={videoStatusView(failedRecord({}))} />)
 
     expect(screen.queryByRole('button', { name: 'Retry download' })).toBeNull()
   })

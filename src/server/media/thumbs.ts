@@ -7,24 +7,34 @@ import path from 'node:path'
 import { clamp, sortBy, sumBy } from 'lodash-es'
 
 import {
+  POSTER_WIDTHS,
+  THUMB_ENCODER_VERSION,
   THUMB_TOUCH_MS,
   THUMB_UNUSED_DAYS,
   THUMB_WIDTH,
   THUMBS_MAX_BYTES,
   THUMBS_TARGET_BYTES,
 } from '@/core/constants'
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 
 import { HttpError } from '../errors'
+import { writeFileAtomic } from '../fs/atomic-file'
 import { isOwnedName, removeOwnedFile } from '../fs/json-file'
 import { THUMBS_DIR } from '../paths'
 import { createLimiter } from '../sync/limiter'
 import { extractPosterFrame } from './poster-frame'
-import sharp from './sharp'
+import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
 
-class ThumbUnavailableError extends HttpError {
+export class ThumbUnavailableError extends HttpError {
   constructor() {
     super(404, 'Thumbnail unavailable')
+  }
+}
+
+/** The source exists but its thumb is still being made, or may be next request. */
+export class ThumbPendingError extends HttpError {
+  constructor() {
+    super(503, 'Thumbnail not ready')
   }
 }
 
@@ -42,8 +52,24 @@ export interface ThumbResult {
 }
 
 const MAX_CONCURRENT = 4
+const MAX_WIDTH = Math.max(...POSTER_WIDTHS)
+const WEBP_OPTIONS = { quality: 84, smartSubsample: true, effort: 5 } as const
 const limiter = createLimiter('thumbQueue', MAX_CONCURRENT)
 const inFlight = new Map<string, Promise<ThumbResult>>()
+
+interface ThumbCacheKeyParams {
+  ref: string
+  mtimeMs: number
+  width: number
+  encoderVersion?: number
+}
+
+/** Cache file hash. The encoder version makes old soft thumbs miss. */
+export function thumbCacheKey(params: ThumbCacheKeyParams): string {
+  const { ref, mtimeMs, width, encoderVersion = THUMB_ENCODER_VERSION } = params
+
+  return createHash('sha1').update(`${ref}:${mtimeMs}:${width}:${encoderVersion}`).digest('hex')
+}
 
 export async function getThumbnail(input: ThumbInput): Promise<ThumbResult> {
   if (input.kind === 'audio') {
@@ -54,9 +80,9 @@ export async function getThumbnail(input: ThumbInput): Promise<ThumbResult> {
 
   const isWidthInvalid = requestedWidth === 0 || Number.isNaN(requestedWidth)
   const widthValue = isWidthInvalid ? THUMB_WIDTH : requestedWidth
-  const width = clamp(widthValue, 32, 1280)
+  const width = clamp(widthValue, 32, MAX_WIDTH)
 
-  const hash = createHash('sha1').update(`${input.ref}:${input.mtimeMs}:${width}`).digest('hex')
+  const hash = thumbCacheKey({ ref: input.ref, mtimeMs: input.mtimeMs, width })
   const filePath = path.join(THUMBS_DIR, `${hash}.webp`)
 
   await fs.mkdir(THUMBS_DIR, { recursive: true })
@@ -108,19 +134,19 @@ async function createThumb(params: CreateThumbParams): Promise<ThumbResult> {
       return renderVideo({ absPath: input.absolutePath, hash, width })
     })
 
-    await writeAtomic(filePath, buffer)
+    await writeFileAtomic(filePath, buffer)
 
     return { filePath, contentType: 'image/webp' }
   } catch {
-    throw new ThumbUnavailableError()
+    throw new ThumbPendingError()
   }
 }
 
 async function renderImage(absPath: string, width: number): Promise<Buffer> {
-  return sharp(absPath)
+  return sharp(absPath, SHARP_INPUT_OPTIONS)
     .rotate()
     .resize({ width, withoutEnlargement: true })
-    .webp({ quality: 78 })
+    .webp(WEBP_OPTIONS)
     .toBuffer()
 }
 
@@ -137,22 +163,9 @@ async function renderVideo(params: RenderVideoParams): Promise<Buffer> {
   try {
     await extractPosterFrame({ videoPath: absPath, width, outPath: frame })
 
-    return await sharp(frame).webp({ quality: 78 }).toBuffer()
+    return await sharp(frame, SHARP_INPUT_OPTIONS).webp(WEBP_OPTIONS).toBuffer()
   } finally {
     await fs.unlink(frame).catch(() => {})
-  }
-}
-
-async function writeAtomic(filePath: string, data: Buffer): Promise<void> {
-  const temp = `${filePath}.tmp-${randomUUID()}`
-
-  try {
-    await fs.writeFile(temp, data)
-    await fs.rename(temp, filePath)
-  } catch (error) {
-    await fs.unlink(temp).catch(() => {})
-
-    throw error
   }
 }
 

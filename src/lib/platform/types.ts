@@ -1,5 +1,5 @@
-import type { KindExtensions } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import type { KindExtensions } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import type { FolderItem } from '@/core/schemas/folder-item'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
@@ -12,9 +12,17 @@ export interface ChooseFilesParams {
   extensions?: KindExtensions
 }
 
-export interface SavedVideos {
+export interface SaveResult {
   saved: number
+  skipped: number
   folder?: string
+}
+
+/** One saved image output, with the file ref the browser downloads by. */
+export interface ImageSaveRef {
+  recordId: string
+  outputId: string
+  file: string
 }
 
 export type UpdateListener = (progress: UpdateProgress) => void
@@ -39,7 +47,10 @@ export interface Platform {
   saveVideo(record: GenerationRecord): Promise<boolean>
 
   /** Saves many videos into one folder. Browser starts a staggered download per file. */
-  saveVideos(records: GenerationRecord[]): Promise<SavedVideos>
+  saveVideos(records: GenerationRecord[]): Promise<SaveResult>
+
+  /** Saves many images into one folder. Browser starts a staggered download per file. */
+  saveImages(refs: ImageSaveRef[]): Promise<SaveResult>
 
   /** Desktop only: real paths of files dropped on the window. Browser returns a no-op unsubscribe. */
   onFileDrop(handler: FileDropHandler): Promise<() => void>

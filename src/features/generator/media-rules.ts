@@ -1,14 +1,15 @@
 import { isNil, isString } from 'lodash-es'
 
+import type { UploadsById } from '@/core/api/uploads'
 import { folderFileUpload } from '@/core/folder-match'
-import type { MediaKindCounts } from '@/core/media-types'
+import type { MediaKindCounts } from '@/core/media/media-types'
 import { getPreset } from '@/core/presets'
-import type { ModelPreset } from '@/core/presets/types'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { referenceSlots, type RefSlot, slotToken } from '@/core/prompt-tokens'
 import type { GenerationRecord, GeneratorTab } from '@/core/schemas/generation-record'
-import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import type { UploadItem } from '@/core/schemas/upload-item'
 
-import { addBlockReason, referenceRoom } from './reference-rules'
+import { referenceBlockReason, referenceRoom } from './reference-rules'
 
 interface UploadMediaTarget {
   kind: 'upload'
@@ -43,7 +44,7 @@ export interface MediaUse {
 
 interface UseContext {
   label: string
-  preset: ModelPreset
+  preset: VideoPreset
   room: MediaKindCounts
   slots: Map<string, RefSlot>
   state: MediaUseState
@@ -59,7 +60,12 @@ function disabled(label: string, reason: string): MediaUse {
 
 function referenceRecordUse(context: UseContext): MediaUse {
   const { label, preset, room } = context
-  const reason = addBlockReason({ kind: 'video', room, preset })
+
+  const reason = referenceBlockReason({
+    kind: 'video',
+    max: preset.references.video,
+    room: room.video,
+  })
 
   if (!isNil(reason)) {
     return disabled(label, reason)
@@ -80,7 +86,11 @@ function referenceUploadUse(context: UseContext, upload: UploadItem): MediaUse {
     return disabled(label, `Already ${slotToken(slot)}`)
   }
 
-  const reason = addBlockReason({ kind: upload.kind, room, preset })
+  const reason = referenceBlockReason({
+    kind: upload.kind,
+    max: preset.references[upload.kind],
+    room: room[upload.kind],
+  })
 
   if (!isNil(reason)) {
     return disabled(label, reason)

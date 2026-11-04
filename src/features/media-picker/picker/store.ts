@@ -1,18 +1,39 @@
 'use client'
 
-import { isEmpty, isNil } from 'lodash-es'
+import { isEmpty, isNil, omit } from 'lodash-es'
 import { create } from 'zustand'
 
-import { type KindExtensions } from '@/core/media-kinds'
-import { MEDIA_KINDS, type MediaKind } from '@/core/media-types'
-import type { PresetReferenceLimits } from '@/core/presets/types'
-import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import type { UploadsById } from '@/core/api/uploads'
+import type { RecordKind } from '@/core/feed/grid-item'
+import { type KindExtensions } from '@/core/media/media-kinds'
+import { MEDIA_KINDS, type MediaKind } from '@/core/media/media-types'
+import type { PresetReferenceLimits } from '@/core/presets/common/reference-limits'
+import type { UploadItem } from '@/core/schemas/upload-item'
 
 export type PickerCandidate = Pick<UploadItem, 'id' | 'kind'>
+
+export type PickerGenerationMode = 'none' | 'image' | 'video' | 'both'
+
+/** One saved generation output a picker tab can offer. */
+export interface PickerOutputCandidate {
+  recordId: string
+  outputId: string | null
+  recordKind: RecordKind
+  favorite: boolean
+}
+
+/** Callbacks a caller supplies to make generation tabs selectable. */
+export interface PickerOutputMode {
+  canAdd?: (item: PickerOutputCandidate) => string | null
+  onToggle?: (item: PickerOutputCandidate) => void
+  onAdd?: (item: PickerOutputCandidate) => void
+  onPick?: (item: PickerOutputCandidate) => void
+}
 
 export interface PickerToggleMode {
   kind: 'toggle'
   useSelectedIds: () => string[]
+  getSelectedIds: () => string[]
   useUploadsById: () => UploadsById
   canAdd: (item: PickerCandidate) => string | null
   onToggle: (item: UploadItem) => void
@@ -35,8 +56,35 @@ export interface PickerRequest {
   extensions?: KindExtensions
   mode: PickerMode
 
+  /** Which generation tabs to show. Derived from kinds when omitted. */
+  generations?: PickerGenerationMode
+  output?: PickerOutputMode
+
   /** Region that keeps the picker open, not the clicked control. */
   anchor: HTMLElement | null
+
+  /** Dock side on wide screens. Defaults to the right of the anchor. */
+  placement?: 'right' | 'top'
+
+  /** Panel width: `anchor` matches the opener, `default` keeps the video size. */
+  width?: 'anchor' | 'default'
+}
+
+/** Generation tabs to show, defaulting from the requested media kinds. */
+export function pickerGenerations(
+  request: Pick<PickerRequest, 'generations' | 'kinds'>,
+): PickerGenerationMode {
+  if (!isNil(request.generations)) {
+    return request.generations
+  }
+
+  const isVideoWanted = request.kinds.includes('video') || request.kinds.includes('audio')
+
+  if (isVideoWanted) {
+    return 'both'
+  }
+
+  return 'image'
 }
 
 /** Picker extensions from preset reference formats, ignoring kinds without a list. */
@@ -66,8 +114,15 @@ interface PickerInput extends Omit<PickerRequest, 'id' | 'anchor'> {
 
 interface MediaPickerState {
   request: PickerRequest | null
+  outputUploads: Record<string, string>
   open: (request: PickerInput) => void
   close: () => void
+  setOutputUpload: (key: string, uploadId: string | null) => void
+}
+
+/** Stable key for one generation output across picker tabs. */
+export function outputKey(item: PickerOutputCandidate): string {
+  return `${item.recordKind}:${item.recordId}:${item.outputId ?? ''}`
 }
 
 let nextId = 0
@@ -75,6 +130,7 @@ let nextId = 0
 export const useMediaPickerStore = create<MediaPickerState>((set, get) => {
   return {
     request: null,
+    outputUploads: {},
     open: (request) => {
       const current = get().request
 
@@ -83,10 +139,22 @@ export const useMediaPickerStore = create<MediaPickerState>((set, get) => {
         return
       }
 
-      set({ request: { ...request, anchor: request.anchor ?? null, id: (nextId += 1) } })
+      set({
+        request: { ...request, anchor: request.anchor ?? null, id: (nextId += 1) },
+        outputUploads: {},
+      })
     },
     close: () => {
-      set({ request: null })
+      set({ request: null, outputUploads: {} })
+    },
+    setOutputUpload: (key, uploadId) => {
+      set((state) => {
+        if (isNil(uploadId)) {
+          return { outputUploads: omit(state.outputUploads, key) }
+        }
+
+        return { outputUploads: { ...state.outputUploads, [key]: uploadId } }
+      })
     },
   }
 })

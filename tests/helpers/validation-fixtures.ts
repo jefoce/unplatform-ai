@@ -1,7 +1,9 @@
-import type { MediaKind } from '@/core/media-types'
-import { getPreset } from '@/core/presets'
-import type { GenerationInput } from '@/core/schemas/generation-record'
-import { type UploadItem, type UploadsById } from '@/core/schemas/upload-item'
+import { type UploadsById } from '@/core/api/uploads'
+import { type UploadItem } from '@/core/schemas/upload-item'
+
+import type { MediaKind } from '../../src/core/media/media-types'
+import { getPreset } from '../../src/core/presets'
+import type { GenerationInput } from '../../src/core/schemas/generation-record'
 
 export const preset = getPreset('wan-3.0')
 export const MB = 1024 * 1024

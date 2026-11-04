@@ -1,4 +1,4 @@
-import { seconds } from '@/core/validation-media'
+import { seconds } from '@/core/validation/media'
 
 const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   month: 'long',

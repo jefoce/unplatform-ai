@@ -5,9 +5,9 @@ import { isNil, isString } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { OPENROUTER_CREDITS_URL } from '@/core/providers/openrouter'
-import { STORAGE_PROVIDERS, VIDEO_PROVIDERS } from '@/core/providers/registry'
-import type { ProviderLink } from '@/core/providers/types'
+import { OPENROUTER_CREDITS_URL } from '../src/core/providers/openrouter'
+import { PROVIDERS, STORAGE_PROVIDERS } from '../src/core/providers/registry'
+import type { ProviderLink } from '../src/core/providers/types'
 
 const CAPABILITIES_PATH = path.join(process.cwd(), 'src-tauri/capabilities/default.json')
 const OPENER_PERMISSION = 'opener:allow-open-url'
@@ -64,7 +64,7 @@ async function openerGlobs(): Promise<string[]> {
 
 describe('provider links', () => {
   it('lists the setup guide for every provider', () => {
-    const descriptors = [...VIDEO_PROVIDERS, ...STORAGE_PROVIDERS]
+    const descriptors = [...PROVIDERS, ...STORAGE_PROVIDERS]
 
     for (const descriptor of descriptors) {
       const labels = descriptor.links.map((link) => {
@@ -77,7 +77,7 @@ describe('provider links', () => {
 
   it('allows every provider link in the Tauri opener capability', async () => {
     const patterns = (await openerGlobs()).map(globToRegex)
-    const descriptors = [...VIDEO_PROVIDERS, ...STORAGE_PROVIDERS]
+    const descriptors = [...PROVIDERS, ...STORAGE_PROVIDERS]
 
     const urls = descriptors.flatMap((descriptor) => {
       return linkUrls(descriptor.links)

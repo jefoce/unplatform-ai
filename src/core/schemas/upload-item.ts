@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
-import { MEDIA_KINDS } from '../media-types'
-import type { Dict } from '../utility-types'
+import { MEDIA_KINDS } from '../media/media-types'
 
 /** Media kind shared by uploads and record snapshots. */
 export const MediaKindSchema = z.enum(MEDIA_KINDS)
@@ -45,6 +44,3 @@ export const UploadItemSchema = z.object({
 export type UploadRemote = z.infer<typeof UploadRemoteSchema>
 
 export type UploadItem = z.infer<typeof UploadItemSchema>
-
-/** Uploads keyed by upload id. */
-export type UploadsById = Dict<UploadItem>

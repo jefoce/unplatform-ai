@@ -5,14 +5,14 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { COPY_EXPIRED_TEXT } from '@/core/provider-errors/app'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { JobSnapshot } from '@/server/providers/types'
 
+import { COPY_EXPIRED_TEXT } from '../src/core/provider-errors/app'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
 import { required } from './helpers/required'
 import { storedRecord } from './helpers/stored-record'
 
-const root = path.join(os.tmpdir(), `upai-retry-download-${process.pid}-${Date.now()}`)
+const root = path.join(os.tmpdir(), `cf-retry-download-${process.pid}-${Date.now()}`)
 
 process.env.STORAGE_ROOT = root
 delete process.env.APP_TOKEN
@@ -128,6 +128,45 @@ describe('POST /api/generations/[id]/download', () => {
     expect(await response.json()).toEqual({ error: COPY_EXPIRED_TEXT })
     expect(queueDownload).not.toHaveBeenCalled()
     expect((await getGeneration(id))?.status).toBe('failed')
+  })
+})
+
+describe('POST /api/generations/[id]/download for an expired record', () => {
+  it('queues an expired record with a live provider link', async () => {
+    const id = randomUUID()
+    const expiresAt = Date.now() + 60_000
+
+    await storeRecord(
+      storedRecord(id, {
+        status: 'expired',
+        error: 'Job expired',
+        job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT, expiresAt },
+      }),
+    )
+
+    const response = await POST(retryRequest(id), context(id))
+
+    expect(response.status).toBe(204)
+    expect(queueDownload).toHaveBeenCalledTimes(1)
+    expect((await getGeneration(id))?.status).toBe('in_progress')
+  })
+
+  it('returns 409 when an expired record has no live link', async () => {
+    const id = randomUUID()
+
+    await storeRecord(
+      storedRecord(id, {
+        status: 'expired',
+        error: 'Job expired',
+        job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT, expiresAt: Date.now() - 1000 },
+      }),
+    )
+
+    const response = await POST(retryRequest(id), context(id))
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: COPY_EXPIRED_TEXT })
+    expect(queueDownload).not.toHaveBeenCalled()
   })
 
   it('returns 409 when there is no provider job id', async () => {

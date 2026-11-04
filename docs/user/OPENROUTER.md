@@ -1,20 +1,20 @@
 # OpenRouter setup
 
-OpenRouter runs the video models. Unplatform AI needs one OpenRouter API key, and you pay OpenRouter only for the videos you make.
+OpenRouter runs the image and video models. Unplatform AI needs one OpenRouter API key, and you pay OpenRouter only for the images and videos you make.
 
 | | |
 |---|---|
 | Time | about 3 minutes |
-| Cost | pay per video, no subscription |
+| Cost | pay per image or video, no subscription |
 | You need | an OpenRouter account with some credit |
 
 ## 1. Add credit
 
-Sign in at [openrouter.ai](https://openrouter.ai), then open **Account → [Credits](https://openrouter.ai/settings/credits)** and add credit. A few dollars is enough to try every model at 480p.
+Sign in at [openrouter.ai](https://openrouter.ai), then open **Account → [Credits](https://openrouter.ai/settings/credits)** and add credit. A few dollars is enough to try every model at its cheapest settings.
 
 ## 2. Create an API key
 
-Open **Workspace → [API Keys](https://openrouter.ai/workspaces/default/keys) → New Key** and fill in:
+Open **Account → [API Keys](https://openrouter.ai/workspaces/default/keys) → New Key** and fill in:
 
 - **Name:** `Unplatform AI`
 - **Expiration:** shorter is safer, for example 30 days. When it ends, create a new key (this step) and paste it again.
@@ -48,7 +48,7 @@ Press the gear icon, find **OpenRouter**, paste the API key (and the management 
 
 ## When a key expires
 
-- **API key:** new videos fail with "Your OpenRouter key is not valid." Create a new key (step 2), paste it, press **Save**.
+- **API key:** new images and videos fail with "Your OpenRouter key is not valid." Create a new key (step 2), paste it, press **Save**.
 - **Management key:** the balance disappears from the wallet pill. Create a new one (step 3).
 
 ## Something went wrong?

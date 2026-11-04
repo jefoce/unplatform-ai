@@ -4,13 +4,14 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { folderTargetPath } from '@/core/folder-match'
-import type { MediaKind } from '@/core/media-types'
-import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import type { UploadsById } from '@/core/api/uploads'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import { FolderTab } from '@/features/media-picker/folders/FolderTab'
 import type { PickerPickMode, PickerToggleMode } from '@/features/media-picker/picker/store'
 import { UploadsTab } from '@/features/media-picker/uploads/UploadsTab'
 
+import { folderTargetPath } from '../src/core/folder-match'
+import type { MediaKind } from '../src/core/media/media-types'
 import { upload, uploadsOf } from './helpers/validation-fixtures'
 
 const mocks = vi.hoisted(() => {
@@ -46,6 +47,7 @@ vi.mock('@/lib/api/media-urls', () => {
   }
 })
 
+// Revalidation is irrelevant: the picker only needs the initial list data.
 vi.mock('swr', () => {
   return {
     default: () => {
@@ -98,12 +100,17 @@ function ReferenceHarness(props: ReferenceHarnessProps) {
     })
   }
 
+  const selectedIds = selected.map((item) => {
+    return item.id
+  })
+
   const mode: PickerToggleMode = {
     kind: 'toggle',
     useSelectedIds: () => {
-      return selected.map((item) => {
-        return item.id
-      })
+      return selectedIds
+    },
+    getSelectedIds: () => {
+      return selectedIds
     },
     useUploadsById: () => {
       return uploadsById
@@ -130,6 +137,34 @@ function tileRoot(name: string): HTMLElement {
 
 function badgeOf(name: string): string | null {
   return within(tileRoot(name)).queryByText(/^\d+$/)?.textContent ?? null
+}
+
+interface FolderModeParams {
+  earlier: UploadItem
+  linked: UploadItem
+}
+
+/** Toggle mode with both video uploads selected. */
+function folderMode(params: FolderModeParams): PickerToggleMode {
+  const { earlier, linked } = params
+
+  return {
+    kind: 'toggle',
+    useSelectedIds: () => {
+      return ['video-1', 'video-2']
+    },
+    getSelectedIds: () => {
+      return ['video-1', 'video-2']
+    },
+    useUploadsById: () => {
+      return uploadsOf(earlier, linked)
+    },
+    canAdd: () => {
+      return null
+    },
+    onToggle: vi.fn(),
+    onAdd: vi.fn(),
+  }
 }
 
 const FOLDER_PATH = '/videos/root'
@@ -196,21 +231,6 @@ describe('picker slot badges', () => {
       files: [{ name: 'clip.mp4', rel: 'clip.mp4', kind: 'video', sizeBytes: 1, mtimeMs: 1 }],
     }
 
-    const mode: PickerToggleMode = {
-      kind: 'toggle',
-      useSelectedIds: () => {
-        return ['video-1', 'video-2']
-      },
-      useUploadsById: () => {
-        return uploadsOf(earlier, linked)
-      },
-      canAdd: () => {
-        return null
-      },
-      onToggle: vi.fn(),
-      onAdd: vi.fn(),
-    }
-
     render(
       <FolderTab
         folderId="folder-1"
@@ -218,7 +238,7 @@ describe('picker slot badges', () => {
         folderName="Folder"
         kinds={['video']}
         sub=""
-        mode={mode}
+        mode={folderMode({ earlier, linked })}
         onNavigate={vi.fn()}
       />,
     )

@@ -55,7 +55,7 @@ export function Modal(props: ModalProps) {
               <button
                 type="button"
                 aria-label="Close"
-                className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm transition hover:bg-black/80 focus-visible:bg-black/80"
+                className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm transition hover:bg-black/80 focus-visible:bg-black/80 linux:bg-solid-overlay"
               >
                 <X size={18} aria-hidden />
               </button>

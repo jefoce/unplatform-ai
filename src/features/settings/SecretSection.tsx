@@ -3,7 +3,7 @@
 import { type ReactNode, type RefObject } from 'react'
 import { isNil } from 'lodash-es'
 
-import type { StorageProviderDescriptor, VideoProviderDescriptor } from '@/core/providers/types'
+import type { ProviderDescriptor, StorageProviderDescriptor } from '@/core/providers/types'
 import type { SecretName } from '@/core/secret-names'
 import type { SecretKeyStatus } from '@/core/types'
 import { Button } from '@/ui/Button'
@@ -17,7 +17,7 @@ import type { SecretChange } from './use-settings-draft'
 
 interface SecretSectionProps {
   sectionRef: RefObject<HTMLElement | null>
-  descriptor: VideoProviderDescriptor | StorageProviderDescriptor
+  descriptor: ProviderDescriptor | StorageProviderDescriptor
   description?: ReactNode
   keys: Record<SecretName, SecretKeyStatus>
   values: Partial<Record<SecretName, string | null>>

@@ -1,6 +1,8 @@
 mod boot;
+mod diagnostics;
 pub(crate) mod logs;
 mod shutdown;
+mod shutdown_waits;
 mod supervisor;
 
 use std::{
@@ -28,6 +30,8 @@ pub(crate) const LOG_LIMIT: u64 = 5 * 1024 * 1024;
 pub struct State {
     pub(crate) child: Mutex<Option<CommandChild>>,
     pub(crate) runtime: Mutex<Option<RuntimeInfo>>,
+    /// Shared with the sidecar, so the webview cannot register export paths.
+    pub(crate) parent_secret: Mutex<Option<String>>,
     /// Port the webview may navigate to. Updated when the sidecar respawns.
     pub(crate) allowed_port: Arc<AtomicU16>,
     /// Increments per sidecar spawn so replies meant for an older one are dropped.

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
   $createNodeSelection,
@@ -14,27 +14,59 @@ import { $isBeautifulMentionNode, useBeautifulMentions } from 'lexical-beautiful
 import { isNil } from 'lodash-es'
 
 import { isNonEmptyString } from '@/core/guards'
+import type { MediaKindCounts } from '@/core/media/media-types'
 import { referenceSlots, type RefSlot, slotLabel } from '@/core/prompt-tokens'
 
-import { useGeneratorStore } from '../store/store'
-import { slotCounts } from '../store/store-helpers'
 import {
   $convertLiteralMentions,
   buildEditor,
   mentionSlot,
+  type PromptMentionInserter,
+  type PromptMentions,
+  type PromptSlotFocuser,
   serializeEditor,
 } from './prompt-convert'
 import { usePromptEditorCommands } from './use-prompt-editor-commands'
 
+const EMPTY_COUNTS: MediaKindCounts = { image: 0, video: 0, audio: 0 }
+
 interface PromptEditorBridgeProps {
   prompt: string
   onSubmit: () => void
+  isReferences: boolean
+  mentions: PromptMentions | null
+  onRegisterInserter?: (fn: PromptMentionInserter | null) => void
+  onRegisterFocuser?: (fn: PromptSlotFocuser | null) => void
 }
 
 interface FocusSlotParams {
   editor: LexicalEditor
   slot: RefSlot
   occurrence: number
+}
+
+interface MentionLayout {
+  counts: MediaKindCounts
+  refsKey: string
+}
+
+/** Counts and reference identity for one mention source. */
+function mentionLayout(mentions: PromptMentions | null): MentionLayout {
+  if (isNil(mentions)) {
+    return { counts: EMPTY_COUNTS, refsKey: '' }
+  }
+
+  const { counts, slots } = referenceSlots(mentions.references, (id) => {
+    return mentions.uploadsById[id]?.kind
+  })
+
+  const refsKey = [...slots]
+    .map(([id, slot]) => {
+      return `${id}:${slot.kind}`
+    })
+    .join(',')
+
+  return { counts, refsKey }
 }
 
 /** Mention nodes matching a slot, in document order. */
@@ -115,48 +147,36 @@ function focusSlotInEditor(params: FocusSlotParams): void {
 
 /** Editor side effects: draft sync, chip conversion, insertion and shortcuts. */
 export function PromptEditorBridge(props: PromptEditorBridgeProps) {
-  const { prompt } = props
+  const { prompt, isReferences, mentions, onRegisterInserter, onRegisterFocuser } = props
   const [editor] = useLexicalComposerContext()
   const { insertMention } = useBeautifulMentions()
 
-  const registerInserter = useGeneratorStore((state) => {
-    return state.registerMentionInserter
-  })
+  const layout = useMemo(() => {
+    return mentionLayout(mentions)
+  }, [mentions])
 
-  const registerFocuser = useGeneratorStore((state) => {
-    return state.registerSlotFocuser
-  })
-
-  const refsKey = useGeneratorStore((state) => {
-    return [
-      ...referenceSlots(state.references, (id) => {
-        return state.uploadsById[id]?.kind
-      }).slots,
-    ]
-      .map(([id, slot]) => {
-        return `${id}:${slot.kind}`
-      })
-      .join(',')
-  })
+  const isActive = isReferences && !isNil(mentions)
 
   useEffect(() => {
     if (serializeEditor(editor.getEditorState()) !== prompt) {
       editor.update(() => {
-        buildEditor(prompt)
+        buildEditor({ prompt, isReferences, counts: layout.counts })
       })
     }
-  }, [editor, prompt])
+  }, [editor, prompt, isReferences, layout])
 
   useEffect(() => {
-    const counts = slotCounts(useGeneratorStore.getState())
-
     editor.update(() => {
-      $convertLiteralMentions(counts)
+      $convertLiteralMentions(layout.counts, isReferences)
     })
-  }, [editor, refsKey])
+  }, [editor, layout.refsKey, isReferences, layout.counts])
 
   useEffect(() => {
-    registerInserter((slot) => {
+    if (!isActive || isNil(onRegisterInserter)) {
+      return
+    }
+
+    onRegisterInserter((slot) => {
       editor.focus()
 
       insertMention({
@@ -168,21 +188,30 @@ export function PromptEditorBridge(props: PromptEditorBridgeProps) {
     })
 
     return () => {
-      registerInserter(null)
+      onRegisterInserter(null)
     }
-  }, [editor, insertMention, registerInserter])
+  }, [editor, insertMention, onRegisterInserter, isActive])
 
   useEffect(() => {
-    registerFocuser((slot, occurrence) => {
+    if (!isActive || isNil(onRegisterFocuser)) {
+      return
+    }
+
+    onRegisterFocuser((slot, occurrence) => {
       focusSlotInEditor({ editor, slot, occurrence })
     })
 
     return () => {
-      registerFocuser(null)
+      onRegisterFocuser(null)
     }
-  }, [editor, registerFocuser])
+  }, [editor, onRegisterFocuser, isActive])
 
-  usePromptEditorCommands(editor, props.onSubmit)
+  usePromptEditorCommands({
+    editor,
+    onSubmit: props.onSubmit,
+    isReferences: isActive,
+    counts: layout.counts,
+  })
 
   return null
 }

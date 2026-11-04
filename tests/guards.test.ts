@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isOneOf } from '@/core/guards'
+import { isOneOf } from '../src/core/guards'
 
 const COLORS = ['red', 'green'] as const
 

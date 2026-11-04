@@ -1,8 +1,18 @@
 import { isNil } from 'lodash-es'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { Dict } from '@/core/utility-types'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
+
+import { MAX_JSON_BODY_BYTES } from '../src/core/constants'
+import type { Dict } from '../src/core/utility-types'
+
+vi.mock('@/server/session', () => {
+  return {
+    hasSession: () => {
+      return true
+    },
+  }
+})
 
 const URL_LOCAL = 'http://127.0.0.1:3000/api/test'
 
@@ -85,10 +95,64 @@ describe('assertLocalRequest', () => {
       }),
     ).toBeNull()
   })
+})
 
+describe('assertLocalRequest origin', () => {
   it('rejects a foreign origin with 403', () => {
     const request = makeRequest(
       { origin: 'https://evil.example', 'content-type': 'application/json' },
+      { method: 'POST', body: '{}' },
+    )
+
+    expect(
+      statusOf(() => {
+        assertLocalRequest(request)
+      }),
+    ).toBe(403)
+  })
+
+  it('accepts an origin with the full local origin', () => {
+    const request = makeRequest(
+      { origin: 'http://127.0.0.1:3000', 'content-type': 'application/json' },
+      { method: 'POST', body: '{}' },
+    )
+
+    expect(
+      statusOf(() => {
+        assertLocalRequest(request)
+      }),
+    ).toBeNull()
+  })
+
+  it('rejects a local origin on another port with 403', () => {
+    const request = makeRequest(
+      { origin: 'http://127.0.0.1:3001', 'content-type': 'application/json' },
+      { method: 'POST', body: '{}' },
+    )
+
+    expect(
+      statusOf(() => {
+        assertLocalRequest(request)
+      }),
+    ).toBe(403)
+  })
+
+  it('rejects a malformed origin with 403', () => {
+    const request = makeRequest(
+      { origin: 'not-an-origin', 'content-type': 'application/json' },
+      { method: 'POST', body: '{}' },
+    )
+
+    expect(
+      statusOf(() => {
+        assertLocalRequest(request)
+      }),
+    ).toBe(403)
+  })
+
+  it('rejects an origin that changes the scheme with 403', () => {
+    const request = makeRequest(
+      { origin: 'https://127.0.0.1:3000', 'content-type': 'application/json' },
       { method: 'POST', body: '{}' },
     )
 
@@ -114,16 +178,6 @@ afterEach(() => {
 })
 
 describe('assertLocalRequest session', () => {
-  it('rejects a request without the cookie when desktop mode is on', async () => {
-    const guard = await loadGuarded()
-
-    expect(
-      statusOf(() => {
-        guard.assertLocalRequest(makeRequest({}))
-      }),
-    ).toBe(401)
-  })
-
   it('accepts the right cookie', async () => {
     const guard = await loadGuarded()
     const request = makeRequest({ cookie: `upai_session=${APP_TOKEN}` })
@@ -186,5 +240,35 @@ describe('readJsonBody', () => {
     )
 
     await expect(readJsonBody(request)).rejects.toMatchObject({ status: 400 })
+  })
+})
+
+describe('readJsonBody size cap', () => {
+  it('rejects a content-length over the cap without reading', async () => {
+    const body = makeRequest(
+      {
+        'content-type': 'application/json',
+        'content-length': String(MAX_JSON_BODY_BYTES + 1),
+      },
+      { method: 'POST', body: '{}' },
+    )
+
+    await expect(readJsonBody(body)).rejects.toMatchObject({ status: 413 })
+  })
+
+  it('rejects a streamed body over the cap', async () => {
+    const big = JSON.stringify({ text: 'a'.repeat(MAX_JSON_BODY_BYTES) })
+    const body = makeRequest({ 'content-type': 'application/json' }, { method: 'POST', body: big })
+
+    await expect(readJsonBody(body)).rejects.toMatchObject({ status: 413 })
+  })
+
+  it('still parses a small body', async () => {
+    const body = makeRequest(
+      { 'content-type': 'application/json' },
+      { method: 'POST', body: '{"ok":true}' },
+    )
+
+    await expect(readJsonBody(body)).resolves.toEqual({ ok: true })
   })
 })

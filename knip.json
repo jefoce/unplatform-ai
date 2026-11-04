@@ -2,6 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["src/app/**/*.{ts,tsx}", "scripts/*.mjs", "tests/**/*.test.ts"],
   "project": ["src/**/*.{ts,tsx}", "src/**/*.css", "scripts/*.mjs", "tests/**/*.ts"],
-  "ignoreBinaries": ["rustc"],
+  "ignoreBinaries": ["hdiutil", "rustc"],
   "ignoreDependencies": ["ffmpeg-static"]
 }

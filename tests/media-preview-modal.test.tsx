@@ -2,7 +2,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { UploadItem } from '@/core/schemas/upload-item'
 import { MediaPreviewModal } from '@/features/preview/MediaPreviewModal'
 import {
   closePreview,
@@ -11,6 +10,7 @@ import {
   usePreviewStore,
 } from '@/features/preview/preview-store'
 
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { upload } from './helpers/validation-fixtures'
 
 const items: PreviewItem[] = [upload('first', 'image'), upload('second', 'image')]

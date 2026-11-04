@@ -29,7 +29,7 @@ jobs:
       - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 .github/workflows/*.yml
       - name: shellcheck
-        run: shellcheck .github/scripts/*.sh
+        run: shellcheck -x .github/scripts/*.sh scripts/ffmpeg/*.sh scripts/node/*.sh scripts/generate-header.sh
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.12'

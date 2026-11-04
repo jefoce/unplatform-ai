@@ -4,8 +4,7 @@ import { isNil } from 'lodash-es'
 import { Wallet } from 'lucide-react'
 
 import { CREDIT_DANGER_USD, CREDIT_WARN_USD } from '@/core/constants'
-import { isNonEmptyString } from '@/core/guards'
-import { formatUsd } from '@/core/pricing'
+import { formatUsd } from '@/core/pricing/format'
 import type { CreditsInfo } from '@/core/types'
 import { useCredits } from '@/lib/api/credits'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/Popover'
@@ -19,7 +18,7 @@ interface CreditsSummary {
 }
 
 function summarize(credits: CreditsInfo | undefined): CreditsSummary {
-  if (!credits || isNonEmptyString(credits.error)) {
+  if (!credits) {
     return { text: '--', amount: null }
   }
 

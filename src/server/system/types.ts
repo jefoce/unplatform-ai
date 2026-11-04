@@ -1,4 +1,6 @@
-import type { MediaKind } from '@/core/media-types'
+import 'server-only'
+
+import type { MediaKind } from '@/core/media/media-types'
 
 interface ChooseFilesOptions {
   kinds: MediaKind[]

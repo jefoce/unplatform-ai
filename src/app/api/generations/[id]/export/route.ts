@@ -4,22 +4,27 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
-import { errorResponse, type IdRouteContext, jsonError, zodError } from '@/server/http'
+import { copyAtomic, copyExclusive, copyUnique, videoSource } from '@/server/fs/export-files'
+import {
+  errorResponse,
+  type IdRouteContext,
+  jsonError,
+  jsonResponse,
+  zodError,
+} from '@/server/http'
 import { getGeneration } from '@/server/repos/generations'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
-import { sessionRequired } from '@/server/session'
-
-import { copyExclusive, videoSource } from '../../export-files'
+import { consumeExportFolder, consumeExportPath } from '@/server/services/export-tokens'
+import { desktopMode, isDesktopMode } from '@/server/session'
 
 const BodySchema = z.object({
   path: z.string().trim().min(1),
-  overwrite: z.boolean().optional(),
 })
 
 /** Copies a finished video to a user-chosen absolute path. */
 export async function POST(request: Request, { params }: IdRouteContext): Promise<Response> {
   try {
-    if (!sessionRequired()) {
+    if (!desktopMode() || !isDesktopMode()) {
       return jsonError({ status: 404, error: 'Not found' })
     }
 
@@ -32,11 +37,7 @@ export async function POST(request: Request, { params }: IdRouteContext): Promis
 
     const { id } = await params
 
-    return await exportVideo({
-      id,
-      target: body.data.path,
-      isOverwrite: body.data.overwrite ?? false,
-    })
+    return await exportVideo({ id, target: body.data.path })
   } catch (error) {
     return errorResponse(error)
   }
@@ -45,11 +46,10 @@ export async function POST(request: Request, { params }: IdRouteContext): Promis
 interface ExportVideoParams {
   id: string
   target: string
-  isOverwrite: boolean
 }
 
 async function exportVideo(params: ExportVideoParams): Promise<Response> {
-  const { id, target, isOverwrite } = params
+  const { id, target } = params
 
   if (!path.isAbsolute(target)) {
     return jsonError({ status: 400, error: 'Path must be absolute' })
@@ -79,29 +79,39 @@ async function exportVideo(params: ExportVideoParams): Promise<Response> {
     return jsonError({ status: 400, error: 'Target must be a regular file' })
   }
 
-  return await copyVideo({ source, target, isOverwrite })
+  return await copyVideo({ source, target })
 }
 
 interface CopyVideoParams {
   source: string
   target: string
-  isOverwrite: boolean
 }
 
 async function copyVideo(params: CopyVideoParams): Promise<Response> {
-  const { source, target, isOverwrite } = params
+  const { source, target } = params
 
-  if (isOverwrite) {
-    await fs.copyFile(source, target)
+  if (consumeExportPath(target)) {
+    await copyAtomic(source, target)
 
-    return Response.json({ path: target }, { status: 201 })
+    return jsonResponse({ path: target }, { status: 201 })
   }
 
-  const didCopy = await copyExclusive(source, target)
+  const dir = path.dirname(target)
 
-  if (!didCopy) {
-    return jsonError({ status: 409, error: 'File already exists' })
+  if (!consumeExportFolder(dir)) {
+    return jsonError({ status: 403, error: 'Forbidden' })
   }
 
-  return Response.json({ path: target }, { status: 201 })
+  if (await copyExclusive(source, target)) {
+    return jsonResponse({ path: target }, { status: 201 })
+  }
+
+  const saved = await copyUnique({
+    source,
+    dir,
+    base: path.basename(target, path.extname(target)),
+    ext: path.extname(target).slice(1),
+  })
+
+  return jsonResponse({ path: saved }, { status: 201 })
 }

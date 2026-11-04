@@ -1,0 +1,74 @@
+[
+  {
+    "prefix": "next/dist/compiled/@vercel/og/",
+    "reason": "No ImageResponse route, og image code never loads"
+  },
+  {
+    "prefix": "next/dist/compiled/edge-runtime",
+    "reason": "No edge runtime, proxy and routes run on Node"
+  },
+  {
+    "prefix": "next/dist/compiled/@mswjs/",
+    "reason": "Next testmode only, not part of the runtime"
+  },
+  {
+    "prefix": "next/dist/compiled/tar",
+    "reason": "Build-time SWC download only"
+  },
+  {
+    "prefix": "next/dist/compiled/next-server/",
+    "reason": "Turbopack build loads only the turbo prod runtime"
+  },
+  {
+    "prefix": "next/dist/compiled/browserslist",
+    "reason": "Build-time browser target lookup"
+  },
+  {
+    "prefix": "next/dist/compiled/json5",
+    "reason": "Build-time config parsing"
+  },
+  {
+    "prefix": "next/dist/compiled/glob",
+    "reason": "Build-time config path scan"
+  },
+  {
+    "prefix": "next/dist/compiled/jest-worker",
+    "reason": "Build and dev worker pools"
+  },
+  {
+    "prefix": "next/dist/compiled/content-type",
+    "reason": "Pages API body parsing, no pages route"
+  },
+  {
+    "prefix": "next/dist/compiled/raw-body",
+    "reason": "Pages API body parsing, no pages route"
+  },
+  {
+    "prefix": "next/dist/compiled/safe-stable-stringify",
+    "reason": "Dev server logging"
+  },
+  {
+    "prefix": "next/dist/compiled/data-uri-to-buffer",
+    "reason": "Dev source map decoding"
+  },
+  {
+    "prefix": "next/dist/compiled/webpack/webpack",
+    "reason": "Dev webpack hot reload, build uses Turbopack"
+  },
+  {
+    "prefix": "next/dist/compiled/source-map08",
+    "reason": "Dev middleware source maps"
+  },
+  {
+    "prefix": "next/dist/compiled/@modelcontextprotocol/sdk/server/streamableHttp",
+    "reason": "MCP middleware, no MCP server"
+  },
+  {
+    "prefix": "next/dist/compiled/@modelcontextprotocol/sdk/server/mcp",
+    "reason": "MCP middleware, no MCP server"
+  },
+  {
+    "prefix": "next/dist/compiled/ua-parser-js",
+    "reason": "Web user-agent helper unused by the Node proxy"
+  }
+]

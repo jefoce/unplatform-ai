@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { folderFileUpload, folderTargetPath, isFolderFileAttached } from '@/core/folder-match'
-import type { UploadItem } from '@/core/schemas/upload-item'
-
+import { folderFileUpload, folderTargetPath } from '../src/core/folder-match'
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import { upload, uploadsOf } from './helpers/validation-fixtures'
 
 const folderPath = '/videos/root'
@@ -29,23 +28,12 @@ describe('folderTargetPath', () => {
 })
 
 describe('folderFileUpload', () => {
-  const target = folderTargetPath({ folderPath, rel })
-
   it('finds a selected upload with the same normalized target', () => {
     const item = linked('linked', '\\videos\\root\\sub\\clip.mp4')
 
     expect(
       folderFileUpload({ folderPath, rel, selectedIds: ['linked'], uploadsById: uploadsOf(item) }),
     ).toBe(item)
-
-    expect(
-      isFolderFileAttached({
-        folderPath,
-        rel,
-        selectedIds: ['linked'],
-        uploadsById: uploadsOf(item),
-      }),
-    ).toBe(true)
   })
 
   it('ignores other links and files without a target', () => {
@@ -60,13 +48,5 @@ describe('folderFileUpload', () => {
         uploadsById: uploadsOf(other, local),
       }),
     ).toBeNull()
-  })
-
-  it('returns null when the folder file is not selected', () => {
-    const item = linked('linked', target)
-
-    expect(
-      isFolderFileAttached({ folderPath, rel, selectedIds: [], uploadsById: uploadsOf(item) }),
-    ).toBe(false)
   })
 })

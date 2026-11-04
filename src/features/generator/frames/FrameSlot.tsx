@@ -4,14 +4,20 @@ import { type MouseEvent } from 'react'
 import { isNil } from 'lodash-es'
 
 import { isNonEmptyString } from '@/core/guards'
-import type { KindExtensions } from '@/core/media-kinds'
+import type { KindExtensions } from '@/core/media/media-kinds'
 import { getPreset } from '@/core/presets'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { pickerAnchor } from '@/features/media-picker/picker/anchors'
-import { extensionsFromLimits, openMediaPicker } from '@/features/media-picker/picker/store'
+import {
+  extensionsFromLimits,
+  openMediaPicker,
+  type PickerOutputCandidate,
+  type PickerOutputMode,
+} from '@/features/media-picker/picker/store'
 import { openPreview, type PreviewActions } from '@/features/preview/preview-store'
 import { Tooltip } from '@/ui/Tooltip'
 
+import { applyPickerOutput } from '../media-actions'
 import { useGeneratorStore } from '../store/store'
 import { FrameSlotCard } from './FrameSlotCard'
 
@@ -74,18 +80,30 @@ interface OpenFramePickerParams {
   openerKey: string
   extensions?: KindExtensions
   onPick: (item: UploadItem) => void
+  output: PickerOutputMode
+}
+
+/** Saved image outputs land in the chosen frame slot. */
+function frameOutputMode(slot: FrameSlotName): PickerOutputMode {
+  const handlePickOutput = (candidate: PickerOutputCandidate): void => {
+    void applyPickerOutput({ candidate, target: slot })
+  }
+
+  return { onPick: handlePickOutput }
 }
 
 /** Opens the image picker for one frame slot. */
 function openFramePicker(params: OpenFramePickerParams): void {
-  const { openerKey, extensions, onPick } = params
+  const { openerKey, extensions, onPick, output } = params
 
   openMediaPicker({
     openerKey,
     kinds: ['image'],
     extensions,
     anchor: pickerAnchor('frames'),
+    generations: 'image',
     mode: { kind: 'pick', onPick },
+    output,
   })
 }
 
@@ -138,7 +156,12 @@ function replaceFrame(params: ReplaceFrameParams): void {
     setFrame(target, next)
   }
 
-  openFramePicker({ openerKey: `frame:${target}`, extensions, onPick: handlePick })
+  openFramePicker({
+    openerKey: `frame:${target}`,
+    extensions,
+    onPick: handlePick,
+    output: frameOutputMode(target),
+  })
 }
 
 interface RemoveFrameParams {
@@ -215,7 +238,12 @@ export function FrameSlot(props: FrameSlotProps) {
   }
 
   const handlePick = (): void => {
-    openFramePicker({ openerKey: `frame:${slot}`, extensions, onPick: handlePickFrame })
+    openFramePicker({
+      openerKey: `frame:${slot}`,
+      extensions,
+      onPick: handlePickFrame,
+      output: frameOutputMode(slot),
+    })
   }
 
   const handleRemove = (): void => {

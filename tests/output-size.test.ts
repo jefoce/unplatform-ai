@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { aspectAllowed, outputSize, SHORT_SIDE } from '@/core/output-size'
-import { getPreset } from '@/core/presets'
-import type { AspectRatio } from '@/core/presets/types'
+import { aspectAllowed, outputSize, SHORT_SIDE } from '../src/core/media/output-size'
+import { getPreset } from '../src/core/presets'
+import type { AspectRatio } from '../src/core/presets/video/types'
 
 const seedance = getPreset('seedance-2.0')
 const seedance25 = getPreset('seedance-2.5')

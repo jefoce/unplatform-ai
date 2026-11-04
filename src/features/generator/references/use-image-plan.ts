@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import type { ReferencePlan } from '@/core/media-types'
+import type { ReferencePlan } from '@/core/media/media-types'
 import { requestReferencePlan } from '@/lib/api/generations'
 
 interface ImagePlanAnswer {

@@ -2,10 +2,10 @@
 
 import { isNil } from 'lodash-es'
 
+import type { FolderFile } from '@/core/api/folders'
+import type { UploadsById } from '@/core/api/uploads'
 import { folderFileUpload } from '@/core/folder-match'
-import type { FolderFile } from '@/core/media-types'
 import type { RefSlot } from '@/core/prompt-tokens'
-import type { UploadsById } from '@/core/schemas/upload-item'
 
 import type { PickerMode } from '../picker/store'
 import { folderFileReason } from './folder-tab-helpers'

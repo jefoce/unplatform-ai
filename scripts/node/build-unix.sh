@@ -3,19 +3,35 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=versions.env
+# shellcheck source=scripts/node/versions.env
 source "$SCRIPT_DIR/versions.env"
+# shellcheck source=scripts/build-work.sh
+source "$SCRIPT_DIR/../build-work.sh"
 
 TARGET=""
 OUT=""
+KEEP_WORK=0
 
 usage() {
-  printf 'usage: %s [--target <triple>] [--out <dir>]\n' "$(basename "$0")"
+  printf 'usage: %s [--target <triple>] [--out <dir>] [--keep-work]\n' "$(basename "$0")"
 }
 
 fail() {
   printf '[node] error: %s\n' "$*" >&2
   exit 1
+}
+
+stamp() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+phase_start() {
+  PHASE_START=$(date +%s)
+  printf '[node] %s start %s\n' "$1" "$(stamp)"
+}
+
+phase_end() {
+  printf '[node] %s done %s (%ss)\n' "$1" "$(stamp)" "$(($(date +%s) - PHASE_START))"
 }
 
 host_triple() {
@@ -69,6 +85,7 @@ while (($#)); do
   case "$1" in
     --target) TARGET=${2:?missing value for --target}; shift 2 ;;
     --out) OUT=${2:?missing value for --out}; shift 2 ;;
+    --keep-work) KEEP_WORK=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
@@ -89,16 +106,28 @@ for tool in curl tar make cc c++ python3 strip; do
   command -v "$tool" >/dev/null 2>&1 || fail "missing tool: $tool"
 done
 
+SUFFIX=${NODE_OUTPUT_SUFFIX:-}
+EXTRA=${NODE_CONFIGURE_EXTRA:-}
+VARIANT="$NODE_VERSION-small-icu$SUFFIX"
 CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/unplatform-ai-build/node"
-OUT=${OUT:-"$CACHE_ROOT/$NODE_VERSION-small-icu/$TARGET"}
-WORK=${NODE_BUILD_WORK:-"$CACHE_ROOT/work/$NODE_VERSION-small-icu-$TARGET"}
-SRC="$WORK/src"
+OUT=${OUT:-"$CACHE_ROOT/$VARIANT/$TARGET"}
+# Local builds need 25 GiB of work tree, measured on macOS arm64.
+resolve_work node node "$VARIANT" \
+  "${NODE_BUILD_WORK:-$CACHE_ROOT/work/$VARIANT-$TARGET}" 26214400
+SRC="$CACHE_ROOT/src"
 SRC_DIR="$WORK/node-v$NODE_VERSION"
+LINK_START="$WORK/link-start"
 PREFIX="$WORK/prefix"
-JOBS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+build_jobs node "${NODE_BUILD_JOBS:-}" NODE_BUILD_JOBS
 
 mkdir -p "$WORK" "$SRC" "$OUT"
-DEST="$OUT/unplatform-ai-server-$TARGET"
+
+# The archive used to live inside the work tree. Move a cached copy out.
+LEGACY_ARCHIVE="$CACHE_ROOT/work/$VARIANT-$TARGET/src/node-v$NODE_VERSION.tar.xz"
+if [[ ! -f "$SRC/node-v$NODE_VERSION.tar.xz" && -f "$LEGACY_ARCHIVE" ]]; then
+  mv "$LEGACY_ARCHIVE" "$SRC/"
+fi
+DEST="$OUT/unplatform-ai-server-$TARGET$SUFFIX"
 
 download_verify "$NODE_SHA256" "$SRC/node-v$NODE_VERSION.tar.xz"
 
@@ -112,29 +141,59 @@ fi
 rm -rf "$SRC_DIR" "$PREFIX"
 mkdir -p "$PREFIX"
 tar -xJf "$SRC/node-v$NODE_VERSION.tar.xz" -C "$WORK"
+BIN="$(cd "$SRC_DIR" && pwd)/out/Release/node"
 
 printf '[node] build %s (%s)\n' "$NODE_VERSION" "$TARGET"
 (
   cd "$SRC_DIR"
   help=$(./configure --help 2>&1)
-  for flag in --with-intl --without-npm --without-corepack; do
+  for flag in --with-intl --without-npm --without-corepack --without-amaro; do
     [[ "$help" == *"$flag"* ]] || fail "configure does not support $flag"
   done
   [[ "$help" == *"small-icu"* ]] || fail "configure does not support small-icu"
+  extra_flags=()
+  if [[ -n "$EXTRA" ]]; then
+    read -r -a extra_flags <<< "$EXTRA"
+    for flag in ${extra_flags[@]+"${extra_flags[@]}"}; do
+      [[ "$flag" == --* ]] || fail "NODE_CONFIGURE_EXTRA token must start with --: $flag"
+      [[ "$help" == *"$flag"* ]] || fail "unknown configure flag: $flag"
+    done
+  fi
   if [[ "$(uname -s)" == Darwin ]]; then
     # common.gypi hardcodes 13.5, so the user flags must win.
     export MACOSX_DEPLOYMENT_TARGET=13.0
-    export CFLAGS="-mmacosx-version-min=13.0 ${CFLAGS:-}"
-    export CXXFLAGS="-mmacosx-version-min=13.0 ${CXXFLAGS:-}"
+    export CFLAGS="-Os -mmacosx-version-min=13.0 ${CFLAGS:-}"
+    export CXXFLAGS="-Os -mmacosx-version-min=13.0 ${CXXFLAGS:-}"
     export LDFLAGS="-mmacosx-version-min=13.0 ${LDFLAGS:-}"
+  else
+    export CFLAGS="-Os ${CFLAGS:-}"
+    export CXXFLAGS="-Os ${CXXFLAGS:-}"
   fi
-  # Next 16 requires node:inspector at startup, so the custom Node keeps it.
+  # Amaro is unused by Next: 53,493,448 bytes, 51.0 MiB. Not --v8-lite-mode (+21.5% latency).
+  # Not --without-sqlite (link failure) or --without-inspector (Next 16 loads node:inspector).
+  phase_start configure
   ./configure --prefix="$PREFIX" --with-intl=small-icu --without-npm \
-    --without-corepack
-  make -j"$JOBS"
+    --without-corepack --without-amaro --enable-lto ${extra_flags[@]+"${extra_flags[@]}"}
+  phase_end configure
+
+  # Only node ships. cctest and embedtest also link under LTO and blew the CI timeout.
+  rm -f "$LINK_START"
+  phase_start compile
+  make -C out BUILDTYPE=Release -j"$JOBS" node 2>&1 | while IFS= read -r line; do
+    if [[ "$line" == *"LINK(target) $BIN" ]]; then
+      now=$(date +%s)
+      printf '[node] compile done %s (%ss)\n' "$(stamp)" "$((now - PHASE_START))"
+      printf '[node] link start %s\n' "$(stamp)"
+      printf '%s' "$now" > "$LINK_START"
+    fi
+
+    printf '%s\n' "$line"
+  done
+
+  [[ -s "$LINK_START" ]] || fail "link of node did not start"
+  printf '[node] link done %s (%ss)\n' "$(stamp)" "$(($(date +%s) - $(<"$LINK_START")))"
 )
 
-BIN="$SRC_DIR/out/Release/node"
 [[ -f "$BIN" ]] || fail "node build produced no binary"
 if [[ "$(uname -s)" == Darwin ]]; then
   strip -x "$BIN"
@@ -146,6 +205,7 @@ cp "$BIN" "$DEST"
 chmod +x "$DEST"
 bash "$SCRIPT_DIR/verify.sh" "$DEST"
 copy_license
+cleanup_work node "$WORK" "$KEEP_WORK"
 
 printf '[node] binary %s\n' "$DEST"
 printf '[node] size %s\n' "$(du -h "$DEST" | cut -f1)"

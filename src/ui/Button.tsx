@@ -18,7 +18,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANTS = {
   primary:
-    'bg-[radial-gradient(circle,var(--color-lime-hi)_40%,var(--color-lime))] pb-0.5 text-on-lime shadow-[inset_0_-3px_rgba(0,0,0,0.43)] hover:opacity-80 active:scale-[0.97] active:opacity-60 disabled:bg-disabled-surface disabled:text-disabled disabled:opacity-100',
+    'bg-[radial-gradient(circle,var(--color-accent-hi)_40%,var(--color-accent))] pb-0.5 text-on-accent shadow-[inset_0_-3px_rgba(0,0,0,0.43)] hover:opacity-80 active:scale-[0.97] active:opacity-60 disabled:bg-disabled-surface disabled:text-disabled disabled:opacity-100',
   secondary: 'bg-surface-2 text-fg hover:bg-white/10',
   ghost: 'bg-transparent text-fg hover:bg-white/5',
   outline: 'border border-line-strong bg-transparent text-fg hover:bg-white/5',
@@ -45,7 +45,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     ...rest
   } = props
 
-  const spinnerTone = variant === 'primary' ? 'lime' : 'muted'
+  const spinnerTone = variant === 'primary' ? 'accent' : 'muted'
 
   return (
     <button

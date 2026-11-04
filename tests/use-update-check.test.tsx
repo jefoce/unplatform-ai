@@ -2,11 +2,12 @@
 import { act, cleanup, render, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { UPDATE_CHECK_DELAY_MS, UPDATE_CHECK_INTERVAL_MS } from '@/core/constants'
 import { checkForUpdate } from '@/features/updates/check-update'
 import { useUpdateStore } from '@/features/updates/update-store'
 import { UpdateToast } from '@/features/updates/UpdateToast'
 import { useUpdateCheck } from '@/features/updates/use-update-check'
+
+import { UPDATE_CHECK_DELAY_MS, UPDATE_CHECK_INTERVAL_MS } from '../src/core/constants'
 
 const platformMock = vi.hoisted(() => {
   return {

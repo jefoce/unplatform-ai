@@ -1,5 +1,5 @@
 import { browseDirectories } from '@/server/fs/browse'
-import { errorResponse } from '@/server/http'
+import { errorResponse, jsonResponse } from '@/server/http'
 import { assertLocalRequest } from '@/server/request-guard'
 
 export async function GET(request: Request) {
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
       hidden: query.get('hidden') === '1',
     })
 
-    return Response.json(result)
+    return jsonResponse(result)
   } catch (error) {
     return errorResponse(error)
   }

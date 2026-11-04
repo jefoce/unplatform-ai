@@ -1,10 +1,18 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import {
+  type Dispatch,
+  type ReactNode,
+  type RefObject,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { isNil } from 'lodash-es'
 import { Image as ImageIcon, Music, Video } from 'lucide-react'
 
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 import { withQuery } from '@/lib/api/query'
 import { cn } from '@/lib/cn'
 
@@ -22,8 +30,39 @@ const PLACEHOLDER_ICONS = {
   audio: Music,
 }
 
-const RETRY_DELAY_MS = 500
-const SECOND_RETRY_DELAY_MS = 1500
+const RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10_000, 10_000] as const
+
+interface RetryOnWakeParams {
+  src: string
+  attempt: number
+  timer: RefObject<TimerId | null>
+  setStatus: Dispatch<SetStateAction<RetryStatus>>
+}
+
+/** Fires a pending retry as soon as the window is visible and focused again. */
+function useRetryOnWake(params: RetryOnWakeParams): void {
+  const { src, attempt, timer, setStatus } = params
+
+  useEffect(() => {
+    const retryNow = () => {
+      if (isNil(timer.current) || document.visibilityState !== 'visible') {
+        return
+      }
+
+      clearTimeout(timer.current)
+      timer.current = null
+      setStatus({ src, attempt: attempt + 1, isFailed: false })
+    }
+
+    window.addEventListener('focus', retryNow)
+    document.addEventListener('visibilitychange', retryNow)
+
+    return () => {
+      window.removeEventListener('focus', retryNow)
+      document.removeEventListener('visibilitychange', retryNow)
+    }
+  }, [attempt, setStatus, src, timer])
+}
 
 interface RetryImageProps {
   src: string
@@ -37,7 +76,7 @@ interface RetryImageProps {
   'aria-hidden'?: boolean
 }
 
-/** Image that retries twice before handing over to a placeholder. */
+/** Image that retries for about 30 s before handing over to a placeholder. */
 export function RetryImage(props: RetryImageProps) {
   const {
     src,
@@ -66,8 +105,12 @@ export function RetryImage(props: RetryImageProps) {
     }
   }, [src])
 
+  useRetryOnWake({ src, attempt, timer, setStatus })
+
   const handleError = () => {
-    if (attempt >= 2) {
+    const delay = RETRY_DELAYS_MS[attempt]
+
+    if (isNil(delay)) {
       setStatus({ src, attempt, isFailed: true })
 
       return
@@ -76,8 +119,6 @@ export function RetryImage(props: RetryImageProps) {
     if (!isNil(timer.current)) {
       clearTimeout(timer.current)
     }
-
-    const delay = attempt === 0 ? RETRY_DELAY_MS : SECOND_RETRY_DELAY_MS
 
     timer.current = setTimeout(() => {
       timer.current = null

@@ -2,14 +2,14 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CatalogEntry } from '@/core/catalog'
-import { formatRate } from '@/core/pricing'
-import type { PricingInfo } from '@/core/types'
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { useModelEntry } from '@/lib/api/models'
 import { Price } from '@/ui/Price'
 
+import type { CatalogEntry } from '../src/core/catalog'
+import { formatRate } from '../src/core/pricing/format'
+import type { PricingInfo } from '../src/core/pricing/types'
 import { required } from './helpers/required'
 
 vi.mock('@/lib/api/models', () => {
@@ -109,7 +109,7 @@ describe('ModelPicker rows', () => {
     const row = within(dialog).getByText('Wan 3.0').closest('button') as HTMLElement
 
     expect(within(row).getByText('$0.05/s').className).toContain('line-through')
-    expect(within(row).getByText('$0.043/s').className).toContain('text-lime')
+    expect(within(row).getByText('$0.043/s').className).toContain('text-accent')
     expect(within(dialog).queryByText('Blocks realistic faces in references')).toBeNull()
   })
 })
@@ -167,7 +167,7 @@ describe('ModelPicker header', () => {
     render(<ModelPicker />)
     const trigger = screen.getByRole('button', { name: /Model/ })
 
-    expect(within(trigger).getByText('15% off').className).toContain('text-lime')
+    expect(within(trigger).getByText('15% off').className).toContain('text-accent')
     expect(within(trigger).queryByText('$0.05/s')).toBeNull()
     expect(within(trigger).queryByText('$0.043/s')).toBeNull()
   })
@@ -178,7 +178,7 @@ describe('Price', () => {
     render(<Price current={0.0425} list={0.05} discount={0.15} format={formatRate} />)
 
     expect(screen.getByText('$0.05/s').className).toContain('line-through')
-    expect(screen.getByText('$0.043/s').className).toContain('text-lime')
+    expect(screen.getByText('$0.043/s').className).toContain('text-accent')
     expect(screen.queryByText(/% off/)).toBeNull()
   })
 
@@ -187,7 +187,7 @@ describe('Price', () => {
       <Price current={0.0425} list={0.05} discount={0.15} format={formatRate} showDiscountLabel />,
     )
 
-    expect(screen.getByText('15% off').className).toContain('text-lime')
+    expect(screen.getByText('15% off').className).toContain('text-accent')
   })
 
   it('never wraps', () => {
@@ -196,7 +196,7 @@ describe('Price', () => {
     expect(container.firstElementChild?.className).toContain('whitespace-nowrap')
   })
 
-  it('uses the onAccent tone on the lime button', () => {
+  it('uses the onAccent tone on the accent button', () => {
     render(
       <Price
         current={0.0425}
@@ -208,10 +208,10 @@ describe('Price', () => {
       />,
     )
 
-    expect(screen.getByText('$0.05/s').className).toContain('text-on-lime/50')
+    expect(screen.getByText('$0.05/s').className).toContain('text-on-accent/50')
     expect(screen.getByText('$0.05/s').className).toContain('line-through')
-    expect(screen.getByText('$0.043/s').className).toContain('text-on-lime')
-    expect(screen.getByText('15% off').className).toContain('text-on-lime/70')
+    expect(screen.getByText('$0.043/s').className).toContain('text-on-accent')
+    expect(screen.getByText('15% off').className).toContain('text-on-accent/70')
   })
 
   it('hides the struck price when list and current match', () => {

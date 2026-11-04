@@ -23,6 +23,14 @@ export class ApiError extends Error {
   }
 }
 
+/** Thrown on 401 so the UI can tell a lost session from a load failure. */
+export class SessionError extends ApiError {
+  constructor(params: ApiErrorParams) {
+    super(params)
+    this.name = 'SessionError'
+  }
+}
+
 interface ErrorBody {
   error?: string
   details?: string[]
@@ -33,11 +41,14 @@ async function throwApiError(response: Response): Promise<never> {
     return null
   })) as ErrorBody | null
 
-  throw new ApiError({
-    status: response.status,
-    message: body?.error ?? response.statusText ?? `Request failed (${response.status})`,
-    details: body?.details,
-  })
+  const details = body?.details
+  const message = body?.error ?? response.statusText ?? `Request failed (${response.status})`
+
+  if (response.status === 401) {
+    throw new SessionError({ status: 401, message: 'Session lost. Restart the app.', details })
+  }
+
+  throw new ApiError({ status: response.status, message, details })
 }
 
 async function readJson<T>(response: Response): Promise<T> {

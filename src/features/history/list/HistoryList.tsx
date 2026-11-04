@@ -1,21 +1,21 @@
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { type HistoryItem, isVideoItem } from '@/lib/feed/output-items'
 
 import { HistoryRow } from './HistoryRow'
 
 interface HistoryListProps {
-  records: GenerationRecord[]
+  items: HistoryItem[]
 }
 
-/** Full-width rows, one per generation. */
+/** Full-width rows, one per video generation. */
 export function HistoryList(props: HistoryListProps) {
-  const { records } = props
+  const { items } = props
 
   return (
     <div className="flex flex-col">
-      {records.map((record) => {
+      {items.filter(isVideoItem).map((item) => {
         return (
-          <div key={record.id} id={`history-item-${record.id}`} className="mb-5 pt-1 pl-1">
-            <HistoryRow record={record} />
+          <div key={item.id} id={`history-item-${item.id}`} className="mb-5 pt-1 pl-1">
+            <HistoryRow item={item} />
           </div>
         )
       })}

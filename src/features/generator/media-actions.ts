@@ -1,8 +1,20 @@
 import { isNil } from 'lodash-es'
 import { toast } from 'sonner'
 
+import { getPreset } from '@/core/presets'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
+import {
+  REFERENCE_LIMIT_REACHED,
+  referenceBlockReason,
+  referenceRoom,
+} from '@/features/generator/reference-rules'
+import { imageCanAdd } from '@/features/image-generator/image-picker'
+import { useImageGeneratorStore } from '@/features/image-generator/store'
+import type { PickerOutputCandidate } from '@/features/media-picker/picker/store'
+import { currentWorkspaceTab } from '@/features/shared/use-workspace-tab'
+import { fetchGenerationsByIds } from '@/lib/api/generations'
+import { createImageOutputUpload } from '@/lib/api/images'
 import { linkFolderFile } from '@/lib/api/uploads'
 import { toastError } from '@/lib/notify'
 
@@ -33,7 +45,7 @@ async function applyRecord(record: GenerationRecord): Promise<boolean> {
     const isApplied = await applyRecordToGenerator(record)
 
     if (!isApplied) {
-      toast.error('Reference limit reached')
+      toast.error(REFERENCE_LIMIT_REACHED)
 
       return false
     }
@@ -63,26 +75,31 @@ function applyUploadFrame(upload: UploadItem): boolean {
 
 function applyUploadReference(upload: UploadItem): boolean {
   const store = useGeneratorStore.getState()
+  const preset = getPreset(store.presetId)
 
-  if (store.references.includes(upload.id)) {
-    toast.error('Already attached')
+  const room = referenceRoom({
+    preset,
+    references: store.references,
+    uploadsById: store.uploadsById,
+  })
+
+  const reason = referenceBlockReason({
+    kind: upload.kind,
+    max: preset.references[upload.kind],
+    room: room[upload.kind],
+    isAttached: store.references.includes(upload.id),
+  })
+
+  if (!isNil(reason)) {
+    toast.error(reason)
 
     return false
   }
 
   store.addReferences([upload])
+  toast.success('Added as reference')
 
-  const isAdded = useGeneratorStore.getState().references.includes(upload.id)
-
-  if (isAdded) {
-    toast.success('Added as reference')
-
-    return true
-  }
-
-  toast.error('Reference limit reached')
-
-  return false
+  return true
 }
 
 /**
@@ -106,4 +123,112 @@ export async function applyMedia(target: MediaTarget): Promise<boolean> {
   }
 
   return applyUploadReference(upload)
+}
+
+interface ImageOutputParams {
+  recordId: string
+  outputId: string
+}
+
+interface ImageOutputFrameParams extends ImageOutputParams {
+  slot: 'start' | 'end'
+}
+
+async function imageOutputUpload(params: ImageOutputParams): Promise<UploadItem | null> {
+  try {
+    return await createImageOutputUpload(params)
+  } catch (error) {
+    toastError(error)
+
+    return null
+  }
+}
+
+/** Copies an image output into uploads and puts it in a frame slot. */
+export async function applyImageOutputFrame(params: ImageOutputFrameParams): Promise<boolean> {
+  const { slot, ...output } = params
+  const upload = await imageOutputUpload(output)
+
+  if (isNil(upload)) {
+    return false
+  }
+
+  const store = useGeneratorStore.getState()
+
+  if (store.tab !== 'frames') {
+    store.setTab('frames')
+  }
+
+  store.setFrame(slot, upload)
+  const message = slot === 'start' ? 'Start frame set' : 'End frame set'
+
+  toast.success(message)
+
+  return true
+}
+
+/** Adds a copied output to the image draft, reporting the rule that blocked it. */
+function applyImageDraftReference(upload: UploadItem): boolean {
+  const blocked = imageCanAdd(upload)
+
+  if (!isNil(blocked)) {
+    toast.error(blocked)
+
+    return false
+  }
+
+  useImageGeneratorStore.getState().addReferences([upload])
+  toast.success('Added as reference')
+
+  return true
+}
+
+/** Copies an image output into uploads and adds it to the active workspace draft. */
+export async function applyImageOutputReference(params: ImageOutputParams): Promise<boolean> {
+  const upload = await imageOutputUpload(params)
+
+  if (isNil(upload)) {
+    return false
+  }
+
+  if (currentWorkspaceTab() === 'image') {
+    return applyImageDraftReference(upload)
+  }
+
+  return applyUploadReference(upload)
+}
+
+type PickerOutputTarget = 'reference' | 'start' | 'end'
+
+interface ApplyPickerOutputParams {
+  candidate: PickerOutputCandidate
+  target: PickerOutputTarget
+}
+
+/** Applies a picker generation tile to a reference or frame slot. */
+export async function applyPickerOutput(params: ApplyPickerOutputParams): Promise<boolean> {
+  const { candidate, target } = params
+
+  if (candidate.recordKind === 'image') {
+    if (isNil(candidate.outputId)) {
+      return false
+    }
+
+    const output = { recordId: candidate.recordId, outputId: candidate.outputId }
+
+    if (target === 'reference') {
+      return applyImageOutputReference(output)
+    }
+
+    return applyImageOutputFrame({ ...output, slot: target })
+  }
+
+  const result = await fetchGenerationsByIds([candidate.recordId])
+  const record = result.items.at(0)
+
+  if (isNil(record)) {
+    return false
+  }
+
+  return applyMedia({ kind: 'record', record })
 }

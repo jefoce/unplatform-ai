@@ -1,4 +1,4 @@
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { GenerationRecord } from '../../src/core/schemas/generation-record'
 
 type StoredRecordOverrides = Partial<GenerationRecord>
 

@@ -2,13 +2,13 @@ import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import { HISTORY_MAX_PAGE_SIZE, HISTORY_PAGE_SIZE, MAX_IDS } from '@/core/constants'
-import { applyFilters, countActive, paginate, sortRecords } from '@/core/history-filters'
+import { applyFilters, countActive, paginate, sortRecords } from '@/core/feed/history-filters'
 import { findPreset } from '@/core/presets'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/types'
+import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { GENERATOR_TABS } from '@/core/schemas/generation-record'
 import { AUDIO_FILTERS, HISTORY_MODES, STATUS_FILTERS } from '@/core/types'
-import { buildInputSchema } from '@/core/validation'
-import { errorResponse, jsonError, zodError } from '@/server/http'
+import { buildInputSchema } from '@/core/validation/video'
+import { errorResponse, jsonError, jsonResponse, zodError } from '@/server/http'
 import { listGenerations } from '@/server/repos/generations'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { secretsReady } from '@/server/secrets'
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     if (ids.length > 0) {
       const wanted = new Set(ids)
 
-      return Response.json({
+      return jsonResponse({
         items: sortRecords(
           records.filter((record) => {
             return wanted.has(record.id)
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
       limit: query.data.limit,
     })
 
-    return Response.json({
+    return jsonResponse({
       items: page.items,
       nextCursor: page.nextCursor,
       activeCount: countActive(records),
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
 
     await secretsReady()
 
-    return Response.json(await createGeneration(input.data), { status: 201 })
+    return jsonResponse(await createGeneration(input.data), { status: 201 })
   } catch (error) {
     return errorResponse(error)
   }

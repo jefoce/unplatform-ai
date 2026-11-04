@@ -17,7 +17,7 @@ interface ViewerUseButtonProps {
 }
 
 const BUTTON_CLASSES =
-  'inline-flex h-10 items-center gap-2 rounded-full bg-black/60 px-4 text-sm font-semibold text-fg backdrop-blur-sm transition hover:bg-black/80 disabled:opacity-50'
+  'inline-flex h-10 items-center gap-2 rounded-full bg-black/60 px-4 text-sm font-semibold text-fg backdrop-blur-sm linux:bg-solid-overlay transition hover:bg-black/80 disabled:opacity-50'
 
 /** Adds the current media as a reference or start frame for the active generator mode. */
 export function ViewerUseButton(props: ViewerUseButtonProps) {

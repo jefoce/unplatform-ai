@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
 
 vi.mock('@/lib/api/system', () => {
   return {
@@ -57,6 +57,24 @@ describe('browser saveVideo', () => {
     const { browserPlatform } = await import('@/lib/platform/browser')
 
     await expect(browserPlatform.saveVideo(record('a'))).resolves.toBe(true)
+    expect(click).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('browser saveImages', () => {
+  it('starts one download per saved image', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const { browserPlatform } = await import('@/lib/platform/browser')
+
+    const result = await browserPlatform.saveImages([
+      {
+        recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        file: 'a.png',
+      },
+    ])
+
+    expect(result).toEqual({ saved: 1, skipped: 0 })
     expect(click).toHaveBeenCalledTimes(1)
   })
 })

@@ -7,7 +7,7 @@ import { useShallow } from 'zustand/react/shallow'
 
 import type { CreditsInfo } from '@/core/types'
 import { fetchCredits } from '@/lib/api/credits'
-import { CREDITS_KEY } from '@/lib/swr-keys'
+import { CREDITS_KEY } from '@/lib/api/swr-keys'
 import { Button } from '@/ui/Button'
 import { Modal } from '@/ui/Modal'
 

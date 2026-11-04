@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { MAX_IDS, MAX_REQUEST_MB, REQUEST_RESERVE_MB } from '@/core/constants'
 import { findPreset } from '@/core/presets'
 import type { UploadItem } from '@/core/schemas/upload-item'
-import { errorResponse, jsonError, zodError } from '@/server/http'
+import { errorResponse, jsonError, jsonResponse, zodError } from '@/server/http'
 import { encodeImages } from '@/server/media/image-data-url'
 import { getUpload } from '@/server/repos/uploads'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       budgetBytes: MAX_REQUEST_MB * 1024 * 1024 - REQUEST_RESERVE_MB * 1024 * 1024,
     })
 
-    return Response.json(plan)
+    return jsonResponse(plan)
   } catch (error) {
     return errorResponse(error)
   }

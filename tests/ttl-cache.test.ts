@@ -135,6 +135,75 @@ describe('createTtlCache', () => {
   })
 })
 
+describe('createTtlCache forced loads', () => {
+  it('starts its own load when forced while an older load is pending', async () => {
+    useClock(1_000)
+
+    const cache = createTtlCache<number>({
+      key: 'test-force-pending',
+      okTtlMs: 100,
+      failTtlMs: 10,
+    })
+
+    const slow = Promise.withResolvers<void>()
+    const fresh = Promise.withResolvers<void>()
+
+    const load = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await slow.promise
+
+        return value(1)
+      })
+      .mockImplementationOnce(async () => {
+        await fresh.promise
+
+        return value(2)
+      })
+
+    const pending = cache.get('a', load)
+    const forced = cache.get('a', load, true)
+
+    slow.resolve()
+    expect(await pending).toBe(1)
+
+    fresh.resolve()
+    expect(await forced).toBe(2)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(await cache.get('a', load)).toBe(2)
+  })
+
+  it('does not store an older load that settles after a forced load', async () => {
+    useClock(1_000)
+
+    const cache = createTtlCache<number>({
+      key: 'test-stale-settle',
+      okTtlMs: 100,
+      failTtlMs: 10,
+    })
+
+    const slow = Promise.withResolvers<void>()
+
+    const load = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await slow.promise
+
+        return value(1)
+      })
+      .mockResolvedValueOnce(value(2))
+
+    const stale = cache.get('a', load)
+    const forced = cache.get('a', load, true)
+
+    expect(await forced).toBe(2)
+
+    slow.resolve()
+    expect(await stale).toBe(1)
+    expect(await cache.get('a', load)).toBe(2)
+  })
+})
+
 describe('createTtlCache invalidation', () => {
   it('drops a load that settles after clear', async () => {
     useClock(1_000)

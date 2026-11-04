@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
 
 const control = vi.hoisted(() => {
   return { current: null as GenerationRecord | null }

@@ -2,7 +2,7 @@
 
 import { toast } from 'sonner'
 
-import type { BrowseResult } from '@/core/media-types'
+import type { BrowseResult } from '@/core/api/folders'
 import type { FolderItem } from '@/core/schemas/folder-item'
 import { createFolder } from '@/lib/api/folders'
 import { toastError } from '@/lib/notify'

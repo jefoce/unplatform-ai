@@ -6,11 +6,12 @@ import fs from 'node:fs/promises'
 import { filter, isNil, orderBy } from 'lodash-es'
 
 import { isNonEmptyString } from '@/core/guards'
-import { extWithDot, kindFromExt, mimeFromExt } from '@/core/media-kinds'
-import type { MediaKind } from '@/core/media-types'
+import { extWithDot, kindFromExt, mimeFromExt } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
 import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { UploadError } from '../errors'
+import { commitFile } from '../fs/atomic-file'
 import { removeFile, removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { uploadPaths, UPLOADS_DIR } from '../paths'
 import { forgetUpload, getUploadRecord, listUploadRecords, rememberUpload } from './upload-record'
@@ -53,7 +54,18 @@ export async function saveFileUpload(params: SaveFileUploadParams): Promise<Uplo
   const paths = uploadPaths(id, ext)
 
   await fs.mkdir(UPLOADS_DIR, { recursive: true })
-  await fs.writeFile(paths.media, bytes)
+
+  const temp = `${paths.media}.tmp-${randomUUID()}`
+
+  await fs.writeFile(temp, bytes)
+
+  try {
+    await commitFile({ temp, target: paths.media })
+  } catch (error) {
+    await removeFile(temp)
+
+    throw error
+  }
 
   const item: UploadItem = {
     id,
@@ -63,6 +75,68 @@ export async function saveFileUpload(params: SaveFileUploadParams): Promise<Uplo
     ext,
     originalName,
     sizeBytes: bytes.length,
+    sha256,
+    width,
+    height,
+    durationSec,
+    createdAt: new Date().toISOString(),
+  }
+
+  try {
+    await writeJsonAtomic({ file: paths.json, data: item })
+  } catch (error) {
+    await removeFile(paths.media)
+
+    throw error
+  }
+
+  await rememberUpload(item)
+
+  return item
+}
+
+interface SaveStagedUploadParams {
+  temp: string
+  originalName: string
+  sha256: string
+  sizeBytes: number
+  width?: number
+  height?: number
+  durationSec?: number
+}
+
+/** Moves an already-written temp file into uploads/ and writes the json record last. */
+export async function saveStagedUpload(params: SaveStagedUploadParams): Promise<UploadItem> {
+  const { temp, originalName, sha256, sizeBytes, width, height, durationSec } = params
+  const ext = extWithDot(originalName)
+  const kind = kindFromExt(ext)
+  const mime = mimeFromExt(ext)
+
+  if (isNil(kind) || !isNonEmptyString(mime)) {
+    throw new UploadError(400, `Unsupported file type: ${ext}`)
+  }
+
+  const id = randomUUID()
+  const paths = uploadPaths(id, ext)
+
+  await fs.mkdir(UPLOADS_DIR, { recursive: true })
+
+  try {
+    await commitFile({ temp, target: paths.media })
+  } catch (error) {
+    await removeFile(temp)
+
+    throw error
+  }
+
+  const item: UploadItem = {
+    id,
+    source: 'file',
+    kind,
+    mime,
+    ext,
+    originalName,
+    sizeBytes,
     sha256,
     width,
     height,

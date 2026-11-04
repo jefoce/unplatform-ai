@@ -1,4 +1,8 @@
 name: pr-version
+# Pull requests into releases are never merged by this check. A Dependabot PR
+# stays open as a reminder with the apply-on-next label and one comment, and is
+# applied on the next version branch. Branch protection can optionally require
+# the apply-on-next check so an unlabeled Dependabot PR cannot merge.
 run-name: >-
   Version check #${{ github.event.number }} ${{ github.event.pull_request.title }}
 
@@ -8,20 +12,13 @@ on:
     types: [opened, edited, synchronize, reopened]
 permissions:
   contents: read
+  pull-requests: write
+  issues: write
 jobs:
   version:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
-      - name: Reject Dependabot PRs
-        shell: bash
-        env:
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          if [[ "$PR_AUTHOR" == 'dependabot[bot]' ]]; then
-            echo "::error::Dependabot PRs are not merged into releases. Apply the update on the next version branch."
-            exit 1
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -29,20 +26,13 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - shell: bash
+      - name: Check version
+        shell: bash
         env:
+          PR_AUTHOR: ${{ github.actor }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.number }}
           TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          set -euo pipefail
-          v_pkg=$(node -p "require('./package.json').version")
-          v_cargo=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
-          v_lock=$(awk '/^\[\[package\]\]/ { in_package = 0 } /^name = "unplatform-ai"$/ { in_package = 1 } in_package && /^version = "/ { gsub(/^version = "|"$/, ""); print; exit }' src-tauri/Cargo.lock)
-          [[ "$v_pkg" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version '$v_pkg' is not X.Y.Z"; exit 1; }
-          [[ "$v_pkg" == "$v_cargo" && "$v_pkg" == "$v_lock" ]] || { echo "::error::versions differ: package $v_pkg, cargo $v_cargo, lock $v_lock"; exit 1; }
-          [[ "$TITLE" == "$v_pkg" ]] || { echo "::error::PR title must be '$v_pkg'"; exit 1; }
-          git rev-parse -q --verify "refs/tags/v$v_pkg" >/dev/null && { echo "::error::v$v_pkg already exists"; exit 1; }
-          last=$(git tag -l 'v*' | grep -v -- '-rc\.' | sed 's/^v//' | sort -V | tail -1)
-          if [[ -n "$last" ]]; then
-            [[ "$(printf '%s\n%s\n' "$last" "$v_pkg" | sort -V | tail -1)" == "$v_pkg" && "$last" != "$v_pkg" ]] || { echo "::error::$v_pkg is not greater than $last"; exit 1; }
-          fi
-          grep -q "^## $v_pkg" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $v_pkg' section"; exit 1; }
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/version-check.sh

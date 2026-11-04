@@ -1,8 +1,9 @@
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { isNil } from 'lodash-es'
 
-import type { MediaKind } from '@/core/media-types'
+import type { MediaKind } from '@/core/media/media-types'
 import { resolveMediaRef } from '@/server/fs/media-ref'
 import { streamFile } from '@/server/fs/range-response'
 import { errorResponse, jsonError, type PathRouteContext } from '@/server/http'
@@ -10,6 +11,15 @@ import { CompatError, type CompatMedia, getCompatMedia } from '@/server/media/co
 import { assertLocalRequest } from '@/server/request-guard'
 
 export const dynamic = 'force-dynamic'
+
+/** E2E only: holds the media response so the thumb-first paint can be checked. */
+const slowMediaMs = Number(process.env.E2E_SLOW_MEDIA_MS ?? 0)
+
+async function slowTestResponse(): Promise<void> {
+  if (slowMediaMs > 0) {
+    await delay(slowMediaMs)
+  }
+}
 
 /** Download names are immutable uuids, uploads and folders can change. */
 function cacheControlFor(ref: string, isCompat: boolean): string {
@@ -28,6 +38,9 @@ export async function GET(request: Request, { params }: PathRouteContext) {
   try {
     assertLocalRequest(request)
     const { ref } = await params
+
+    await slowTestResponse()
+
     const media = await resolveMediaRef(ref)
     const search = new URL(request.url).searchParams
     const isDownload = search.get('download') === '1'

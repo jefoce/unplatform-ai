@@ -6,14 +6,16 @@ import { z } from 'zod'
 import { FETCH_TIMEOUTS } from '@/core/constants'
 import { messageOf } from '@/core/errors'
 import { isNonEmptyString } from '@/core/guards'
-import type { ModelPreset } from '@/core/presets/types'
+import type { VideoPreset } from '@/core/presets/video/types'
+import type { PricingInfo } from '@/core/pricing/types'
 import { asJobStatus } from '@/core/submit-state'
-import type { PricingInfo, TestResult } from '@/core/types'
+import type { TestResult } from '@/core/types'
 
 import { getSecret } from '../../secrets'
 import type {
   AccountLookupParams,
   ContentRequest,
+  EndpointSignal,
   JobRef,
   JobSnapshot,
   JobUsage,
@@ -38,6 +40,7 @@ import {
 } from './http'
 import { listModels } from './models'
 import { getPricing as getPresetPricing } from './pricing'
+import { fetchVideoEndpoints } from './video-models'
 
 const KeyDataSchema = z.object({ label: z.string().nullish() }).loose()
 
@@ -47,6 +50,7 @@ const KeySchema = z.object({ data: KeyDataSchema }).loose()
 export function createOpenRouterProvider(): VideoProvider {
   return {
     id: 'openrouter',
+    contentHosts: ['openrouter.ai'],
     isConfigured,
     submit,
     getJob,
@@ -54,8 +58,13 @@ export function createOpenRouterProvider(): VideoProvider {
     getAccount,
     getPricing,
     listModels,
+    listEndpoints,
     testConnection,
   }
+}
+
+function listEndpoints(modelId: string): Promise<EndpointSignal> {
+  return fetchVideoEndpoints(modelId)
 }
 
 function isConfigured(): boolean {
@@ -102,8 +111,13 @@ interface SubmittedResponse {
   status: string
 }
 
+/** A submit reply is only pending or in progress. Anything else waits for a poll. */
 function toSubmitted(job: SubmittedResponse): SubmittedJob {
-  return { jobId: job.id, status: asJobStatus(job.status) ?? 'pending' }
+  if (asJobStatus(job.status) === 'in_progress') {
+    return { jobId: job.id, status: 'in_progress' }
+  }
+
+  return { jobId: job.id, status: 'pending' }
 }
 
 async function getJob(job: JobRef): Promise<JobSnapshot> {
@@ -174,7 +188,7 @@ function getAccount(params?: AccountLookupParams): Promise<ProviderAccount> {
   return getProviderAccount(params)
 }
 
-function getPricing(preset: ModelPreset, isForce?: boolean): Promise<PricingInfo> {
+function getPricing(preset: VideoPreset, isForce?: boolean): Promise<PricingInfo> {
   return getPresetPricing(preset, isForce)
 }
 

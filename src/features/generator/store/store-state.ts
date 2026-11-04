@@ -1,9 +1,10 @@
 import type { StoreApi } from 'zustand'
 
-import type { AspectChoice, Resolution } from '@/core/presets/types'
+import type { UploadsById } from '@/core/api/uploads'
+import type { AspectChoice, Resolution } from '@/core/presets/video/types'
 import type { RefSlot } from '@/core/prompt-tokens'
 import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-record'
-import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import type { UploadItem } from '@/core/schemas/upload-item'
 
 import type { GeneratorDraft } from './store-draft'
 

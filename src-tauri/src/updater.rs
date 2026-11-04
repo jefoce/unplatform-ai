@@ -133,7 +133,7 @@ pub(crate) async fn update_install(
         },
     )?;
 
-    stop_server(&app, pending.is_sending()).await;
+    stop_server(&app, pending.needs_wait()).await;
 
     let installed = tauri::async_runtime::spawn_blocking(move || update.install(bytes))
         .await

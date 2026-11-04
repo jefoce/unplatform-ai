@@ -1,8 +1,9 @@
 import { z } from 'zod'
 
-import { FLATTEN_COLORS, IMAGE_FORMATS } from '../media-types'
-import { ASPECT_RATIOS, RESOLUTIONS, RESOLVED_TRANSPORTS } from '../presets/types'
-import { VIDEO_PROVIDER_IDS } from '../providers/types'
+import { FLATTEN_COLORS, IMAGE_FORMATS } from '../media/media-types'
+import { RESOLVED_TRANSPORTS } from '../presets/common/transport'
+import { ASPECT_RATIOS, RESOLUTIONS } from '../presets/video/types'
+import { PROVIDER_IDS } from '../providers/types'
 import { MediaKindSchema, UploadSourceSchema } from './upload-item'
 
 export const GENERATOR_TABS = ['frames', 'references'] as const
@@ -54,7 +55,7 @@ const GenerationInputSchema = z.object({
 
 export type GenerationInput = z.infer<typeof GenerationInputSchema>
 
-const RecordPresetSchema = z.object({
+export const RecordPresetSchema = z.object({
   id: z.string(),
   title: z.string(),
   slug: z.string(),
@@ -62,7 +63,7 @@ const RecordPresetSchema = z.object({
 
 export type RecordPreset = z.infer<typeof RecordPresetSchema>
 
-const RecordSubmitSchema = z.object({
+export const RecordSubmitSchema = z.object({
   stage: z.enum(['grace', 'uploading', 'sending']),
   notBefore: z.string().optional(),
   progress: z.number().optional(),
@@ -89,7 +90,7 @@ export type RecordDownload = z.infer<typeof RecordDownloadSchema>
 
 const RecordOutputSchema = z.object({
   video: z.string(),
-  preview: z.string().optional(),
+  preview: z.string().nullable().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
   durationSec: z.number().optional(),
@@ -115,7 +116,7 @@ const SnapshotItemSchema = z.object({
 
 export type SnapshotItem = z.infer<typeof SnapshotItemSchema>
 
-const InputSnapshotSchema = z.record(z.string(), SnapshotItemSchema)
+export const InputSnapshotSchema = z.record(z.string(), SnapshotItemSchema)
 
 export type InputSnapshot = z.infer<typeof InputSnapshotSchema>
 
@@ -125,6 +126,9 @@ const GenerationCostSchema = z.object({
   priceSource: PriceSourceSchema,
   estimatedUsd: z.number(),
   actualUsd: z.number().nullable(),
+
+  /** Reference video seconds billed with this run. Missing on old records. */
+  referenceSeconds: z.number().optional(),
   isByok: z.boolean().nullable(),
   billed: z.boolean().nullable(),
 })
@@ -137,7 +141,7 @@ export const GenerationRecordSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   status: JobStatusSchema,
-  provider: z.enum(VIDEO_PROVIDER_IDS).default('openrouter'),
+  provider: z.enum(PROVIDER_IDS).default('openrouter'),
   input: GenerationInputSchema,
   preset: RecordPresetSchema,
   inputsSnapshot: InputSnapshotSchema,
@@ -149,7 +153,11 @@ export const GenerationRecordSchema = z.object({
   favorite: z.boolean(),
   cost: GenerationCostSchema,
   output: RecordOutputSchema.optional(),
+
+  /** False once the poster step ran, even when it produced no preview. */
+  previewPending: z.boolean().optional(),
   error: z.string().optional(),
+  errorStatus: z.number().optional(),
 })
 
 export type GenerationRecord = z.infer<typeof GenerationRecordSchema>

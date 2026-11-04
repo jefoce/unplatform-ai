@@ -36,7 +36,7 @@ function stagePoster(item: PreviewItem | undefined): string | undefined {
 
   const ref = item.previewRef ?? `uploads/${item.id}`
 
-  return thumbUrl({ ref, w: 64 })
+  return thumbUrl({ ref, w: 64, isBlurred: true })
 }
 
 function stageBackdrop(item: PreviewItem | undefined, poster: string | undefined) {

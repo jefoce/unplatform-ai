@@ -34,7 +34,7 @@ vi.mock('@/server/media/thumbs', () => {
   }
 })
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-thumbs-route-'))
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-thumbs-route-'))
 
 state.sourcePath = path.join(root, 'source.png')
 state.thumbDir = path.join(root, 'thumbs')

@@ -1,13 +1,13 @@
 import { clamp, isNil } from 'lodash-es'
 
+import type { UploadsById } from './api/uploads'
 import { durationLimitFor } from './duration-limits'
 import { isNonEmptyString } from './guards'
-import { MEDIA_KINDS, type MediaKindCounts } from './media-types'
-import { aspectAllowed } from './output-size'
+import { MEDIA_KINDS, type MediaKindCounts } from './media/media-types'
+import { aspectAllowed } from './media/output-size'
 import { minDuration } from './presets'
-import type { AspectChoice, ModelPreset, Resolution } from './presets/types'
+import type { AspectChoice, Resolution, VideoPreset } from './presets/video/types'
 import type { GenerationInput } from './schemas/generation-record'
-import type { UploadsById } from './schemas/upload-item'
 import type { FrameSlots } from './types'
 
 /** Drop media belonging to the inactive tab. Returns a new object. */
@@ -24,7 +24,7 @@ export function inputForSubmit(input: GenerationInput): GenerationInput {
 
 interface ClampDurationParams {
   value: number
-  preset: ModelPreset
+  preset: VideoPreset
   limit: number
 }
 
@@ -37,7 +37,7 @@ export const clampDuration = (params: ClampDurationParams): number => {
 
 interface NormalizeAspectParams {
   aspect: AspectChoice
-  preset: ModelPreset
+  preset: VideoPreset
   resolution: Resolution
 }
 
@@ -59,7 +59,7 @@ function normalizeAspect(params: NormalizeAspectParams): AspectChoice {
   return preset.defaultAspectRatio
 }
 
-function normalizeFrames(frames: FrameSlots, preset: ModelPreset): FrameSlots {
+function normalizeFrames(frames: FrameSlots, preset: VideoPreset): FrameSlots {
   if (!preset.frames.start || !isNonEmptyString(frames.start)) {
     return { start: null, end: null }
   }
@@ -71,7 +71,7 @@ function normalizeFrames(frames: FrameSlots, preset: ModelPreset): FrameSlots {
   return { start: frames.start, end: frames.end }
 }
 
-const referencesDisabled = (preset: ModelPreset): boolean => {
+const referencesDisabled = (preset: VideoPreset): boolean => {
   return MEDIA_KINDS.every((kind) => {
     return preset.references[kind] === 0
   })
@@ -79,7 +79,7 @@ const referencesDisabled = (preset: ModelPreset): boolean => {
 
 interface TrimReferencesParams {
   ids: string[]
-  preset: ModelPreset
+  preset: VideoPreset
   uploads: UploadsById
 }
 
@@ -126,7 +126,7 @@ function trimReferences(params: TrimReferencesParams): TrimReferencesResult {
 
 interface NormalizeForPresetParams {
   input: GenerationInput
-  preset: ModelPreset
+  preset: VideoPreset
   uploads?: UploadsById
 }
 

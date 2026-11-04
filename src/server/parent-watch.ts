@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { shutdownServer } from './shutdown'
+
 const CHECK_MS = 1000
 
 /**
@@ -20,7 +22,7 @@ export function startParentWatch(): () => void {
 
     clearInterval(timer)
     console.log('[unplatform-ai] parent exited, shutting down')
-    process.exit(0)
+    void shutdownServer()
   }, CHECK_MS)
 
   return () => {

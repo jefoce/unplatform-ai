@@ -1,19 +1,22 @@
+/* eslint-disable max-lines -- catalog cases share one mock registry */
 import { isNil } from 'lodash-es'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MODEL_PRESETS } from '@/core/presets'
-import { activeBinding, primaryBinding } from '@/core/presets/bindings'
-import type { ModelPreset } from '@/core/presets/types'
-import type { VideoProviderId } from '@/core/providers/types'
 import { listModels as mockListModels } from '@/server/providers/mock/models'
-import type { ProviderModel, ProviderModelList } from '@/server/providers/types'
-import { getModelCatalog } from '@/server/services/model-catalog'
+import type { EndpointSignal, ProviderModel, ProviderModelList } from '@/server/providers/types'
+import { clearModelCatalog, getModelCatalog } from '@/server/services/model-catalog'
+
+import { VIDEO_PRESETS } from '../src/core/presets'
+import { activeBinding, primaryBinding } from '../src/core/presets/common/bindings'
+import { IMAGE_PRESETS } from '../src/core/presets/image'
+import type { VideoPreset } from '../src/core/presets/video/types'
+import type { ProviderId } from '../src/core/providers/types'
 
 const multi = vi.hoisted(() => {
   return {
     id: 'multi-binding',
     laterModel: 'later/model',
-    fakeProvider: 'fake' as VideoProviderId,
+    fakeProvider: 'fake' as ProviderId,
   }
 })
 
@@ -26,7 +29,7 @@ const mocks = vi.hoisted(() => {
     fetchedAt: '',
   }
 
-  return {
+  const state = {
     getPricing: vi.fn(async () => {
       return pricing
     }),
@@ -36,26 +39,43 @@ const mocks = vi.hoisted(() => {
     listModels: vi.fn(async (): Promise<ProviderModelList> => {
       return { models: [], isFresh: true }
     }),
+    listEndpoints: vi.fn(async (): Promise<EndpointSignal> => {
+      return { state: 'unknown', reason: 'not checked' }
+    }),
   }
+
+  const provider = (id: string) => {
+    return {
+      id,
+      getPricing: state.getPricing,
+      isConfigured: () => {
+        return state.isConfigured(id)
+      },
+      listModels: state.listModels,
+      listEndpoints: state.listEndpoints,
+    }
+  }
+
+  return { ...state, provider }
 })
 
 vi.mock('@/core/presets', async (importOriginal) => {
-  const actual = await importOriginal<{ MODEL_PRESETS: readonly ModelPreset[] }>()
-  const base = actual.MODEL_PRESETS[0]
+  const actual = await importOriginal<{ VIDEO_PRESETS: readonly VideoPreset[] }>()
+  const base = actual.VIDEO_PRESETS[0]
 
   if (isNil(base)) {
     throw new Error('base preset is missing')
   }
 
   const later = { ...base.bindings[0], provider: multi.fakeProvider, modelId: multi.laterModel }
-  const preset: ModelPreset = { ...base, id: multi.id, bindings: [base.bindings[0], later] }
+  const preset: VideoPreset = { ...base, id: multi.id, bindings: [base.bindings[0], later] }
 
-  return { ...actual, MODEL_PRESETS: [...actual.MODEL_PRESETS, preset] }
+  return { ...actual, VIDEO_PRESETS: [...actual.VIDEO_PRESETS, preset] }
 })
 
 vi.mock('@/core/providers/registry', () => {
   return {
-    videoProviderDescriptor: (id: string) => {
+    providerDescriptor: (id: string) => {
       return { id, label: 'OpenRouter' }
     },
   }
@@ -63,15 +83,8 @@ vi.mock('@/core/providers/registry', () => {
 
 vi.mock('@/server/providers/registry', () => {
   return {
-    getVideoProvider: (id: string) => {
-      return {
-        getPricing: mocks.getPricing,
-        isConfigured: () => {
-          return mocks.isConfigured(id)
-        },
-        listModels: mocks.listModels,
-      }
-    },
+    getImageProvider: mocks.provider,
+    getVideoProvider: mocks.provider,
   }
 })
 
@@ -94,17 +107,25 @@ function model(modelId: string): ProviderModel {
 }
 
 const allPresetModels = (): ProviderModel[] => {
-  return MODEL_PRESETS.map((preset) => {
-    return model(primaryBinding(preset).modelId)
-  })
+  return [
+    ...VIDEO_PRESETS.map((preset) => {
+      return model(primaryBinding(preset).modelId)
+    }),
+    ...IMAGE_PRESETS.map((preset) => {
+      return model(preset.bindings[0].modelId)
+    }),
+  ]
 }
 
 beforeEach(() => {
+  clearModelCatalog()
   mocks.getPricing.mockClear()
   mocks.isConfigured.mockReset()
   mocks.isConfigured.mockReturnValue(true)
   mocks.listModels.mockReset()
   mocks.listModels.mockResolvedValue({ models: [], isFresh: true })
+  mocks.listEndpoints.mockReset()
+  mocks.listEndpoints.mockResolvedValue({ state: 'unknown', reason: 'not checked' })
 })
 
 describe('getModelCatalog status', () => {
@@ -126,8 +147,9 @@ describe('getModelCatalog status', () => {
     ).toBe(true)
   })
 
-  it('marks an absent model as missing with the provider label', async () => {
+  it('marks an absent model with no endpoints as missing with the provider label', async () => {
     mocks.listModels.mockResolvedValue({ models: [model('other/model')], isFresh: true })
+    mocks.listEndpoints.mockResolvedValue({ state: 'not_found', reason: 'HTTP 404' })
 
     const { entries } = await getModelCatalog()
 
@@ -138,6 +160,19 @@ describe('getModelCatalog status', () => {
     ).toBe(true)
 
     expect(entries[0]?.reason).toBe('Not available on OpenRouter right now.')
+  })
+
+  it('marks an absent model with endpoints as unverified', async () => {
+    mocks.listModels.mockResolvedValue({ models: [model('other/model')], isFresh: true })
+    mocks.listEndpoints.mockResolvedValue({ state: 'present', reason: null })
+
+    const { entries } = await getModelCatalog()
+
+    expect(
+      entries.every((entry) => {
+        return entry.status === 'unverified'
+      }),
+    ).toBe(true)
   })
 
   it('marks a fresh but empty list as unverified without a reason', async () => {
@@ -192,7 +227,12 @@ describe('getModelCatalog providers', () => {
   })
 
   it('marks every model available from the mock adapter list', async () => {
-    mocks.listModels.mockResolvedValue(await mockListModels())
+    const mockModels = await mockListModels()
+
+    mocks.listModels.mockResolvedValue({
+      models: [...mockModels.models, ...allPresetModels()],
+      isFresh: true,
+    })
 
     const { entries } = await getModelCatalog()
 
@@ -207,6 +247,19 @@ describe('getModelCatalog providers', () => {
         return entry.reason === null
       }),
     ).toBe(true)
+  })
+
+  it('includes every image preset in the catalog', async () => {
+    const { entries } = await getModelCatalog()
+
+    for (const preset of IMAGE_PRESETS) {
+      expect(
+        entries.some((entry) => {
+          return entry.presetId === preset.id
+        }),
+        preset.id,
+      ).toBe(true)
+    }
   })
 
   it('uses a configured later binding for the catalog entry', async () => {
@@ -230,7 +283,7 @@ describe('getModelCatalog providers', () => {
 
 describe('activeBinding', () => {
   it('returns the first configured binding', () => {
-    const preset = MODEL_PRESETS.find((item) => {
+    const preset = VIDEO_PRESETS.find((item) => {
       return item.id === multi.id
     })
 
@@ -246,7 +299,7 @@ describe('activeBinding', () => {
   })
 
   it('falls back to the primary binding when none is configured', () => {
-    const preset = MODEL_PRESETS.find((item) => {
+    const preset = VIDEO_PRESETS.find((item) => {
       return item.id === multi.id
     })
 

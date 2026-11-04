@@ -2,7 +2,7 @@
 
 import { Folder } from 'lucide-react'
 
-import type { BrowseDir } from '@/core/media-types'
+import type { BrowseDir } from '@/core/api/folders'
 
 export interface DirectoryButtonProps {
   dir: BrowseDir

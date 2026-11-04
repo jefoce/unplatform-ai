@@ -3,8 +3,8 @@
 import { closestCenter, DndContext } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 
-import type { KindExtensions } from '@/core/media-kinds'
-import type { ModelPreset } from '@/core/presets/types'
+import type { KindExtensions } from '@/core/media/media-kinds'
+import type { VideoPreset } from '@/core/presets/video/types'
 
 import { AddReferenceTile } from './AddReferenceTile'
 import { labelFor, noteFor } from './reference-notes'
@@ -14,15 +14,16 @@ import { ReferenceItem } from './ReferenceItem'
 import { useReferencesGrid } from './use-references-grid'
 
 interface ReferencesGridProps {
-  preset: ModelPreset
+  preset: VideoPreset
   extensions?: KindExtensions
   max: number
+  isUploadsLoading?: boolean
   onPick: () => void
 }
 
 /** Sortable reference grid with counters and drag reorder. */
 export function ReferencesGrid(props: ReferencesGridProps) {
-  const { preset, extensions, max } = props
+  const { preset, extensions, max, isUploadsLoading } = props
 
   const grid = useReferencesGrid(preset)
 
@@ -48,6 +49,7 @@ export function ReferencesGrid(props: ReferencesGridProps) {
                   upload={grid.uploadsById[id]}
                   label={labelFor(grid.slots, id)}
                   note={noteFor({ id, planned: grid.planned })}
+                  isUploadsLoading={isUploadsLoading}
                   previewUploads={grid.previewUploads}
                   slots={grid.slots}
                   extensions={extensions}

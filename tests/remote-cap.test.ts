@@ -5,12 +5,12 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { REMOTE_FREE_GB, REMOTE_LINK_TTL_SEC, REMOTE_MAX_GB } from '@/core/constants'
-import { friendlyError } from '@/core/provider-errors'
-import type { UploadItem } from '@/core/schemas/upload-item'
 import { RemoteCapError } from '@/server/errors'
-import type { ObjectStore } from '@/server/storage/types'
+import type { ListedObject, ObjectStore } from '@/server/storage/types'
 
+import { REMOTE_FREE_GB, REMOTE_LINK_TTL_SEC, REMOTE_MAX_GB } from '../src/core/constants'
+import { friendlyError } from '../src/core/provider-errors'
+import type { UploadItem } from '../src/core/schemas/upload-item'
 import {
   daysAgo,
   FakeStore,
@@ -25,6 +25,12 @@ import {
 vi.mock('server-only', () => {
   return {}
 })
+
+class BrokenListStore extends FakeStore {
+  override async *list(_prefix: string): AsyncIterable<ListedObject> {
+    throw new Error('list failed')
+  }
+}
 
 const ROOT = path.join(process.cwd(), '.cache', `remote-cap-test-${process.pid}`)
 const PREVIOUS_ROOT = process.env.STORAGE_ROOT
@@ -179,7 +185,7 @@ describe('makeRoom', () => {
 
     expect((error as Error).message).toBe(expected)
 
-    const friendly = friendlyError({ raw: expected, family: null, httpRules: null })
+    const friendly = friendlyError({ raw: expected, rules: [], httpRules: null })
 
     expect(friendly.title).toBe('Cloud storage is full.')
     expect(friendly.hint).toContain('Try again later, or use shorter clips.')
@@ -245,6 +251,24 @@ describe('makeRoom with listing', () => {
     await makeRoom({ store, bytes: GIB, keepKey: 'refs/incoming.png' })
 
     expect(store.listCalls).toBe(1)
+    expect(store.deleted).toEqual([])
+  })
+
+  it('reuses one listing for a short window', async () => {
+    const store = new FakeStore()
+
+    store.seed({ key: 'refs/old.png', size: GIB, lastModified: Date.now() })
+
+    await makeRoom({ store, bytes: GIB, keepKey: 'refs/a.png' })
+    await makeRoom({ store, bytes: GIB, keepKey: 'refs/b.png' })
+
+    expect(store.listCalls).toBe(1)
+  })
+
+  it('falls back to tracked sizes when the listing fails', async () => {
+    const store = new BrokenListStore()
+
+    await expect(makeRoom({ store, bytes: 1, keepKey: 'refs/new.png' })).resolves.toBeUndefined()
     expect(store.deleted).toEqual([])
   })
 })

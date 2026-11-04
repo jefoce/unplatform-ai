@@ -9,6 +9,7 @@ import { useSelectionItem } from './use-selection-item'
 
 interface SelectionCheckboxProps {
   id: string
+  label: string
   className?: string
 }
 
@@ -18,7 +19,7 @@ function handleStopPropagation(event: MouseEvent<HTMLSpanElement>): void {
 
 /** Inline checkbox for a card's media area. */
 export function SelectionCheckbox(props: SelectionCheckboxProps) {
-  const { id, className } = props
+  const { id, label, className } = props
 
   const {
     selected: isSelected,
@@ -49,10 +50,10 @@ export function SelectionCheckbox(props: SelectionCheckboxProps) {
     <span
       onMouseDown={handleStopPropagation}
       className={cn(
-        'absolute top-3 left-3 z-30 transition-opacity',
+        'absolute top-3 left-3 z-40 transition-opacity',
         isSelecting && 'opacity-100',
         !isSelecting &&
-          'pointer-events-none opacity-0 group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-has-[:focus-visible]/card:pointer-events-auto group-has-[:focus-visible]/card:opacity-100',
+          'pointer-events-none opacity-0 group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-has-[:focus-visible]/card:pointer-events-auto group-has-[:focus-visible]/card:opacity-100 has-focus-visible:pointer-events-auto has-focus-visible:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100',
         className,
       )}
     >
@@ -60,11 +61,11 @@ export function SelectionCheckbox(props: SelectionCheckboxProps) {
         type="button"
         role="checkbox"
         aria-checked={isSelected}
-        aria-label="Select video"
+        aria-label={label}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          'flex size-5 items-center justify-center rounded-md transition-colors',
+          'flex size-5 items-center justify-center rounded-full transition-colors',
           isSelected && 'border-[1.5px] border-white bg-white text-black',
           !isSelected && 'border-[1.5px] border-white/90 bg-black/20 hover:bg-black/40',
         )}

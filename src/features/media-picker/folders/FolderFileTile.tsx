@@ -3,7 +3,7 @@
 import { Film, Image as ImageIcon, Maximize2, Play } from 'lucide-react'
 import type { MouseEvent, ReactNode } from 'react'
 
-import type { FolderFile } from '@/core/media-types'
+import type { FolderFile } from '@/core/api/folders'
 import { cn } from '@/lib/cn'
 import { RetryImage } from '@/ui/RetryImage'
 import { Spinner } from '@/ui/Spinner'
@@ -131,7 +131,7 @@ export function FolderFileTile(props: FolderFileTileProps) {
           type="button"
           onClick={handleExpandClick}
           aria-label={`Preview ${file.name}`}
-          className="absolute top-1/2 left-1/2 z-20 flex size-10 -translate-1/2 items-center justify-center rounded-full bg-black/60 text-fg opacity-0 backdrop-blur-sm transition group-hover:opacity-100 hover:bg-black/80 focus-visible:opacity-100"
+          className="absolute top-1/2 left-1/2 z-20 flex size-10 -translate-1/2 items-center justify-center rounded-full bg-black/60 text-fg opacity-0 backdrop-blur-sm transition group-hover:opacity-100 hover:bg-black/80 focus-visible:opacity-100 pointer-coarse:opacity-100 linux:bg-solid-overlay"
         >
           <Maximize2 size={16} aria-hidden />
         </button>

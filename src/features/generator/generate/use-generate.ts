@@ -6,51 +6,24 @@ import { toast } from 'sonner'
 import { inputForSubmit } from '@/core/normalize-input'
 import { getPreset } from '@/core/presets'
 import { friendlyError } from '@/core/provider-errors'
-import { videoProviderDescriptor } from '@/core/providers/registry'
-import { VIDEO_PROVIDER_IDS, type VideoProviderId } from '@/core/providers/types'
+import { providerDescriptor } from '@/core/providers/registry'
+import { PROVIDER_IDS, type ProviderId } from '@/core/providers/types'
 import { openSettings } from '@/features/settings/settings-store'
+import { requestNotifications } from '@/features/shared/request-notifications'
 import { refreshCredits } from '@/lib/api/credits'
-import { cancelGenerationRequest, createGeneration } from '@/lib/api/generations'
-import { ApiError } from '@/lib/fetcher'
-import { toastError } from '@/lib/notify'
-import { getPlatform } from '@/lib/platform'
-import { refreshHistory } from '@/lib/swr-keys'
+import { createGeneration } from '@/lib/api/generations'
+import { refreshHistoryFeeds } from '@/lib/history-feed-refresh'
 import { useAsyncAction } from '@/lib/use-async-action'
 
 import { useGeneratorStore } from '../store/store'
 import { inputFromState } from '../store/store-draft'
-
-function requestNotifications(): void {
-  void getPlatform()
-    .then((platform) => {
-      return platform.requestNotifications()
-    })
-    .catch(() => {})
-}
-
-/** Cancels a generation still inside the submit grace window. */
-async function cancelGeneration(id: string): Promise<void> {
-  try {
-    await cancelGenerationRequest(id)
-    toast.success('Generation cancelled')
-    await refreshHistory()
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 409) {
-      toast.error('Already sent, cannot cancel')
-      await refreshHistory()
-
-      return
-    }
-
-    toastError(error)
-  }
-}
+import { cancelGeneration } from './cancel-generation'
 
 interface ShowErrorParams {
   message: string
   presetId: string
   presetTitle: string
-  provider: VideoProviderId
+  provider: ProviderId
 }
 
 /** Shows the plain error with the preset name, plus Settings when the key is missing. */
@@ -59,8 +32,8 @@ function showError(params: ShowErrorParams): void {
 
   const friendly = friendlyError({
     raw: message,
-    family: getPreset(presetId).family,
-    httpRules: videoProviderDescriptor(provider).httpRules,
+    rules: getPreset(presetId).errors,
+    httpRules: providerDescriptor(provider).httpRules,
   })
 
   const title = `${presetTitle}: ${friendly.title}`
@@ -81,12 +54,21 @@ function showError(params: ShowErrorParams): void {
   })
 }
 
+interface GenerateOptions {
+  canSubmit?: boolean
+}
+
 /** Submits the draft, refreshes generation lists and credits. Returns the record id. */
-export function useGenerate() {
+export function useGenerate(options: GenerateOptions = {}) {
+  const { canSubmit = true } = options
   const [error, setError] = useState<string | null>(null)
   const resultId = useRef<string | null>(null)
 
   const generation = useAsyncAction(async () => {
+    if (!canSubmit) {
+      return
+    }
+
     resultId.current = null
     requestNotifications()
     setError(null)
@@ -115,7 +97,7 @@ export function useGenerate() {
         })
       }
 
-      await Promise.all([refreshHistory(), refreshCredits()])
+      await Promise.all([refreshHistoryFeeds(), refreshCredits(true)])
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'Request failed'
       const preset = getPreset(useGeneratorStore.getState().presetId)
@@ -127,7 +109,7 @@ export function useGenerate() {
         message,
         presetId: preset.id,
         presetTitle: preset.title,
-        provider: VIDEO_PROVIDER_IDS[0],
+        provider: PROVIDER_IDS[0],
       })
     }
   })

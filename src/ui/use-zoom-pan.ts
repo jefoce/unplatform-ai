@@ -4,12 +4,15 @@ import {
   type Dispatch,
   type MouseEvent,
   type PointerEvent,
+  type RefObject,
   type SetStateAction,
+  useEffect,
   useRef,
   useState,
 } from 'react'
 import { isFunction, isNil } from 'lodash-es'
 
+import { cancelFrame } from './zoom-frame'
 import {
   clampOffset,
   FIT_ZOOM,
@@ -26,6 +29,7 @@ interface UseZoomPanParams {
   scale: number
   offset: ZoomOffset
   setZoom: Dispatch<SetStateAction<ZoomState>>
+  contentRef: RefObject<HTMLDivElement | null>
 }
 
 interface UseZoomControlsParams {
@@ -35,7 +39,7 @@ interface UseZoomControlsParams {
   setZoom: Dispatch<SetStateAction<ZoomState>>
 }
 
-interface DragState {
+export interface DragState {
   pointerId: number
   startX: number
   startY: number
@@ -53,11 +57,51 @@ function layerPoint(layer: HTMLElement, point: ClientPoint): ZoomPoint {
   return { x: point.clientX - rect.left, y: point.clientY - rect.top }
 }
 
+interface PaintOffsetParams {
+  contentRef: RefObject<HTMLDivElement | null>
+  view: ZoomView
+  scale: number
+  offset: ZoomOffset
+}
+
+/** Sets or clears the compositing hint on the content layer. */
+function syncWillChange(contentRef: RefObject<HTMLDivElement | null>, isZoomed: boolean): void {
+  if (isNil(contentRef.current)) {
+    return
+  }
+
+  const value = isZoomed ? 'transform' : ''
+
+  contentRef.current.style.willChange = value
+}
+
+/** Paints the pan transform without a React commit, on the GPU layer. */
+export function paintOffset(params: PaintOffsetParams): void {
+  const { contentRef, view, scale, offset } = params
+  const element = contentRef.current
+
+  if (isNil(element)) {
+    return
+  }
+
+  const clamped = clampOffset({ view, scale, offset })
+
+  element.style.transform = `translate3d(${clamped.x}px, ${clamped.y}px, 0) scale(${scale})`
+}
+
 /** Pointer pan while zoomed, clamped to the content bounds. */
 export function useZoomPan(params: UseZoomPanParams) {
-  const { view, scale, offset, setZoom } = params
+  const { view, scale, offset, setZoom, contentRef } = params
   const [isDragging, setIsDragging] = useState(false)
   const dragRef = useRef<DragState | undefined>(undefined)
+  const latestRef = useRef<ZoomOffset | undefined>(undefined)
+  const frameRef = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    return () => {
+      cancelFrame(frameRef)
+    }
+  }, [])
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     const isControl = event.target instanceof Element && !isNil(event.target.closest('button'))
@@ -68,12 +112,16 @@ export function useZoomPan(params: UseZoomPanParams) {
 
     event.currentTarget.setPointerCapture(event.pointerId)
 
+    syncWillChange(contentRef, true)
+
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       offset,
     }
+
+    latestRef.current = undefined
 
     setIsDragging(true)
   }
@@ -85,16 +133,21 @@ export function useZoomPan(params: UseZoomPanParams) {
       return
     }
 
-    const nextOffset = {
+    latestRef.current = {
       x: drag.offset.x + event.clientX - drag.startX,
       y: drag.offset.y + event.clientY - drag.startY,
     }
 
-    setZoom((current) => {
-      return {
-        ...current,
-        isAnimated: false,
-        offset: clampOffset({ view, scale: current.scale, offset: nextOffset }),
+    if (!isNil(frameRef.current)) {
+      return
+    }
+
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = undefined
+      const latest = latestRef.current
+
+      if (!isNil(latest)) {
+        paintOffset({ contentRef, view, scale, offset: latest })
       }
     })
   }
@@ -111,11 +164,30 @@ export function useZoomPan(params: UseZoomPanParams) {
     }
 
     dragRef.current = undefined
+
+    cancelFrame(frameRef)
+
+    const latest = latestRef.current
+
+    latestRef.current = undefined
+
+    if (!isNil(latest)) {
+      setZoom((current) => {
+        return {
+          ...current,
+          isAnimated: false,
+          offset: clampOffset({ view, scale: current.scale, offset: latest }),
+        }
+      })
+    }
+
     setIsDragging(false)
+    syncWillChange(contentRef, scale > 1)
   }
 
   return {
     isDragging,
+    dragRef,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp: handlePointerEnd,

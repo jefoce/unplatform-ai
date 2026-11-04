@@ -1,25 +1,36 @@
+/* eslint-disable max-lines-per-function -- the export route cases stay in one suite */
+
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  consumeExportPath,
+  rememberExportFolder,
+  rememberExportPath,
+} from '@/server/services/export-tokens'
+
 import { storedRecord } from './helpers/stored-record'
 
-const root = await mkdtemp(path.join(os.tmpdir(), 'upai-export-'))
+const root = await mkdtemp(path.join(os.tmpdir(), 'cf-export-'))
 
 process.env.STORAGE_ROOT = root
 delete process.env.APP_TOKEN
 
 const session = vi.hoisted(() => {
-  return { required: true }
+  return { required: true, desktop: true }
 })
 
 vi.mock('@/server/session', () => {
   return {
-    sessionRequired: () => {
+    desktopMode: () => {
       return session.required
+    },
+    isDesktopMode: () => {
+      return session.desktop
     },
     hasSession: () => {
       return true
@@ -57,6 +68,7 @@ beforeAll(async () => {
 describe('POST /api/generations/[id]/export', () => {
   beforeEach(() => {
     session.required = true
+    session.desktop = true
   })
 
   it('rejects relative paths', async () => {
@@ -71,18 +83,23 @@ describe('POST /api/generations/[id]/export', () => {
     expect(response.status).toBe(400)
   })
 
-  it('refuses to overwrite without the flag', async () => {
+  it('writes a unique name from a folder grant', async () => {
     const target = path.join(root, 'existing.mp4')
 
     await writeFile(target, 'keep')
+    rememberExportFolder(root, 1)
     const response = await POST(exportRequest({ path: target }), context())
+    const body = (await response.json()) as { path: string }
 
-    expect(response.status).toBe(409)
+    expect(response.status).toBe(201)
     expect(await readFile(target, 'utf8')).toBe('keep')
+    expect(body.path).toBe(path.join(root, 'existing (2).mp4'))
   })
 
   it('copies the video to the target', async () => {
     const target = path.join(root, 'copy.mp4')
+
+    rememberExportPath(target)
     const response = await POST(exportRequest({ path: target }), context())
 
     expect(response.status).toBe(201)
@@ -90,19 +107,61 @@ describe('POST /api/generations/[id]/export', () => {
     expect(await readFile(target)).toEqual(videoBytes)
   })
 
-  it('overwrites when asked', async () => {
+  it('leaves no temp file next to the export', async () => {
+    const target = path.join(root, 'atomic.mp4')
+
+    rememberExportPath(target)
+    await POST(exportRequest({ path: target }), context())
+
+    const names = await readdir(root)
+
+    expect(
+      names.filter((name) => {
+        return name.includes('.tmp-')
+      }),
+    ).toEqual([])
+  })
+
+  it('overwrites only a path the dialog registered, once', async () => {
     const target = path.join(root, 'copy.mp4')
 
     await writeFile(target, 'old')
-    const response = await POST(exportRequest({ path: target, overwrite: true }), context())
+    rememberExportPath(target)
+
+    const response = await POST(exportRequest({ path: target }), context())
 
     expect(response.status).toBe(201)
     expect(await readFile(target)).toEqual(videoBytes)
+    expect(consumeExportPath(target)).toBe(false)
+
+    await writeFile(target, 'old again')
+    const next = await POST(exportRequest({ path: target }), context())
+
+    expect(next.status).toBe(403)
+    expect(await readFile(target, 'utf8')).toBe('old again')
+  })
+
+  it('403s without a dialog token', async () => {
+    const target = path.join(root, 'no-token.mp4')
+    const response = await POST(exportRequest({ path: target }), context())
+
+    expect(response.status).toBe(403)
+    await expect(stat(target)).rejects.toThrow()
   })
 
   it('404s in browser mode', async () => {
     session.required = false
     const target = path.join(root, 'browser.mp4')
+    const response = await POST(exportRequest({ path: target }), context())
+
+    expect(response.status).toBe(404)
+  })
+
+  it('404s when the shell is not the desktop parent', async () => {
+    session.desktop = false
+    const target = path.join(root, 'no-desktop.mp4')
+
+    rememberExportPath(target)
     const response = await POST(exportRequest({ path: target }), context())
 
     expect(response.status).toBe(404)
@@ -115,7 +174,7 @@ describe('POST /api/generations/[id]/export', () => {
     const link = path.join(root, 'link.mp4')
 
     await symlink(real, link)
-    const response = await POST(exportRequest({ path: link, overwrite: true }), context())
+    const response = await POST(exportRequest({ path: link }), context())
 
     expect(response.status).toBe(400)
     expect(await readFile(real, 'utf8')).toBe('keep')

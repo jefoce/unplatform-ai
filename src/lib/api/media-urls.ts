@@ -13,6 +13,7 @@ const encodeRef = (ref: string): string => {
 interface ThumbUrlParams {
   ref: string
   w?: number
+  isBlurred?: boolean
 }
 
 /** Media stream URL, routed through the compat copy when the MIME cannot play. */
@@ -36,20 +37,33 @@ export function mediaUrl(ref: string, mime?: string): string {
 
 /** Thumbnail URL for a ref, encoding each path segment. */
 export function thumbUrl(params: ThumbUrlParams): string {
-  const { ref, w = THUMB_WIDTH } = params
+  const { ref, w = THUMB_WIDTH, isBlurred = false } = params
+  const blur = isBlurred ? 1 : undefined
 
-  return withQuery(`/api/thumbs/${encodeRef(ref)}`, { w })
+  return withQuery(`/api/thumbs/${encodeRef(ref)}`, { w, blur })
+}
+
+/** Marks an existing thumb URL as the blurred stage backdrop. */
+export function blurThumbUrl(src: string): string {
+  const [pathRef = src, query = ''] = src.split('?')
+
+  return withQuery(pathRef, { ...Object.fromEntries(new URLSearchParams(query)), blur: 1 })
+}
+
+/** Download URL for a stored media ref, forcing an attachment. */
+export function downloadRefUrl(ref: string): string {
+  const [pathRef = ref] = ref.split('?')
+
+  return `/api/media/${encodeRef(pathRef)}?download=1`
 }
 
 /** Download URL for a stored video file, optionally forcing a download. */
 export function downloadMediaUrl(file: string, isDownload = false): string {
-  const base = `/api/media/downloads/${file}`
-
   if (isDownload) {
-    return `${base}?download=1`
+    return downloadRefUrl(`downloads/${file}`)
   }
 
-  return base
+  return `/api/media/downloads/${file}`
 }
 
 export function uploadThumbUrl(id: string, width = 160): string {

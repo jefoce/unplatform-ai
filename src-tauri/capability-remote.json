@@ -1,0 +1,29 @@
+{
+  "identifier": "main-remote-__PORT__",
+  "description": "Permissions for the bound sidecar origin",
+  "windows": ["main"],
+  "local": false,
+  "remote": {
+    "urls": ["http://127.0.0.1:__PORT__/*"]
+  },
+  "permissions": [
+    "core:default",
+    "allow-update-info",
+    "allow-update-check",
+    "allow-update-install",
+    "allow-update-set-auto",
+    "allow-update-open-release",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-ask",
+    "notification:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://openrouter.ai/*" },
+        { "url": "https://dash.cloudflare.com/*" },
+        { "url": "https://github.com/jefoce/unplatform-ai*" }
+      ]
+    }
+  ]
+}

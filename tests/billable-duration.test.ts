@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeForPreset } from '@/core/normalize-input'
-import { getPreset, minDuration } from '@/core/presets'
-import { billableSeconds } from '@/core/pricing'
-import type { GenerationInput } from '@/core/schemas/generation-record'
-import type { UploadItem } from '@/core/schemas/upload-item'
-import { validateInput } from '@/core/validation'
+import { normalizeForPreset } from '../src/core/normalize-input'
+import { getPreset, minDuration } from '../src/core/presets'
+import { billableSeconds } from '../src/core/pricing/quote'
+import type { GenerationInput } from '../src/core/schemas/generation-record'
+import type { UploadItem } from '../src/core/schemas/upload-item'
+import { validateInput } from '../src/core/validation/video'
 
 const wan = getPreset('wan-3.0')
 const prime = getPreset('wan-3.0-prime')

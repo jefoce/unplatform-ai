@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { VideoProviderId } from '@/core/providers/types'
+import type { ProviderId } from '@/core/providers/types'
 
 export type ProviderErrorKind =
   | 'no_key'
@@ -9,6 +9,7 @@ export type ProviderErrorKind =
   | 'not_found'
   | 'rate_limit'
   | 'timeout'
+  | 'charged_unknown'
   | 'server'
   | 'url_input'
   | 'input'
@@ -16,7 +17,7 @@ export type ProviderErrorKind =
   | 'unknown'
 
 export interface ProviderErrorParams {
-  providerId: VideoProviderId
+  providerId: ProviderId
   kind: ProviderErrorKind
   message: string
   storedMessage: string
@@ -37,9 +38,18 @@ export class ProviderError extends Error {
     this.code = code
   }
 
-  readonly providerId: VideoProviderId
+  readonly providerId: ProviderId
   readonly kind: ProviderErrorKind
   readonly storedMessage: string
   readonly status: number
   readonly code: string | null
+}
+
+/** Stored provider HTTP status, absent for app or network failures. */
+export function providerStatusOf(error: unknown): number | undefined {
+  if (error instanceof ProviderError) {
+    return error.status
+  }
+
+  return undefined
 }

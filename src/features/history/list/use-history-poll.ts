@@ -3,14 +3,16 @@
 import { useEffect, useRef } from 'react'
 import { uniq } from 'lodash-es'
 
-import { HISTORY_POLL_MS } from '@/core/constants'
+import { type GenerationListResult } from '@/core/api/video'
+import { HIDDEN_POLL_MS, HISTORY_POLL_MS } from '@/core/constants'
+import { isPreviewPending } from '@/core/feed/preview-pending'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { ACTIVE_STATUSES, type GenerationListResult } from '@/core/types'
+import { ACTIVE_STATUSES } from '@/core/types'
 import { fetchGenerationsByIds } from '@/lib/api/generations'
+import { currentFavoriteEpoch } from '@/lib/favorite-epoch'
+import { refreshHistoryFeeds } from '@/lib/history-feed-refresh'
 
-import { patchPage, revalidateHistory } from './history-pages'
-
-const HIDDEN_POLL_MS = 15_000
+import { patchPage } from './history-pages'
 
 interface HistoryPagesMutator {
   (
@@ -25,11 +27,11 @@ interface HistoryPollParams {
   mutate: HistoryPagesMutator
 }
 
-function activeIds(records: GenerationRecord[]): string[] {
+function pollIds(records: GenerationRecord[]): string[] {
   return uniq(
     records
       .filter((record) => {
-        return ACTIVE_STATUSES.includes(record.status)
+        return ACTIVE_STATUSES.includes(record.status) || isPreviewPending(record)
       })
       .map((record) => {
         return record.id
@@ -56,7 +58,7 @@ async function revalidateIdleCount(state: PollState): Promise<void> {
   state.isRunning = true
 
   try {
-    await revalidateHistory()
+    await refreshHistoryFeeds()
   } catch {
     // Next tick retries, polling does not surface transient errors.
   } finally {
@@ -69,12 +71,16 @@ export function useHistoryPoll(params: HistoryPollParams): void {
   const { activeCount, records, mutate } = params
   const recordsRef = useRef(records)
 
+  const hasPreviewPending = records.some((record) => {
+    return isPreviewPending(record)
+  })
+
   useEffect(() => {
     recordsRef.current = records
   }, [records])
 
   useEffect(() => {
-    if (activeCount <= 0) {
+    if (activeCount <= 0 && !hasPreviewPending) {
       return
     }
 
@@ -88,7 +94,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
       }
 
       lastRunAt = Date.now()
-      const ids = activeIds(recordsRef.current)
+      const ids = pollIds(recordsRef.current)
 
       if (ids.length === 0) {
         await revalidateIdleCount(state)
@@ -97,6 +103,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
       }
 
       state.isRunning = true
+      const epoch = currentFavoriteEpoch()
 
       try {
         const result = await fetchGenerationsByIds(ids)
@@ -106,7 +113,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
         }
 
         if (result.items.length < ids.length) {
-          void revalidateHistory()
+          void refreshHistoryFeeds()
         } // some ids no longer exist
 
         if (result.items.length === 0) {
@@ -121,7 +128,7 @@ export function useHistoryPoll(params: HistoryPollParams): void {
 
         await mutate((pages) => {
           return pages?.map((page) => {
-            return patchPage({ page, byId, activeCount: result.activeCount })
+            return patchPage({ page, byId, activeCount: result.activeCount, epoch })
           })
         }, false)
       } catch {
@@ -150,5 +157,5 @@ export function useHistoryPoll(params: HistoryPollParams): void {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [activeCount, mutate])
+  }, [activeCount, hasPreviewPending, mutate])
 }

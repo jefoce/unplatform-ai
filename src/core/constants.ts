@@ -1,9 +1,31 @@
+/** Active video generations. Image uses IMAGE_MAX_ACTIVE. */
 export const MAX_ACTIVE_JOBS = 4
+
+/** Active image generations, counted apart from video. */
+export const IMAGE_MAX_ACTIVE = 4
+
+/** Records one submit queue runs at once. */
+export const SUBMIT_QUEUE_CONCURRENCY = 2
 
 /** Ids accepted in one history ids filter or reference plan. */
 export const MAX_IDS = 100
 export const MAX_INLINE_MEDIA_MB = 50
 export const MAX_REQUEST_MB = 64
+
+/** One JSON request body, checked from the header and while it streams. */
+export const MAX_JSON_BODY_BYTES = 1024 * 1024
+
+/** One multipart upload, per file and per request. */
+export const MAX_UPLOAD_BYTES = MAX_REQUEST_MB * 1024 * 1024
+
+/** Files accepted in one multipart upload. */
+export const MAX_UPLOAD_FILES = 20
+
+/** Largest base64 payload accepted before decode, from the upload byte cap. */
+export const MAX_PROVIDER_B64_CHARS = Math.ceil((MAX_UPLOAD_BYTES * 4) / 3)
+
+/** Largest image output accepted per image in one response. */
+export const IMAGE_OUTPUT_MAX_BYTES = 48 * 1024 * 1024
 
 /** Space kept for the JSON body and prompt around inline media. */
 export const REQUEST_RESERVE_MB = 1
@@ -19,14 +41,38 @@ export const AUTOPLAY_DELAY_MS = 500
 export const HISTORY_PAGE_SIZE = 20
 export const HISTORY_MAX_PAGE_SIZE = 50
 export const HISTORY_POLL_MS = 4000
+
+/** Favorite ids kept so a slow poll cannot revert a recent pick. */
+export const MAX_FAVORITE_EPOCHS = 1000
+
+/** How long a finished video may keep polling for its poster. */
+export const PREVIEW_GRACE_MS = 30_000
+
+/** Slower history tick while the page is hidden. */
+export const HIDDEN_POLL_MS = 15_000
 export const HISTORY_SCROLL_DELAY_MS = 300
 export const HISTORY_BATCH_MAX = 200
 export const DOWNLOAD_STAGGER_MS = 300
 export const CREDITS_POLL_MS = 60000
+
+/** Follow-up credits refresh after a job finishes, once provider billing settles. */
+export const CREDITS_SETTLE_MS = 15_000
+
+/** Fresh credits fetch offsets from the settle moment. Each new settle restarts it. */
+export const CREDITS_FOLLOWUP_DELAYS_MS = [0, CREDITS_SETTLE_MS, 45_000, 120_000] as const
+
+/** A settled record older than this no longer triggers a credits refresh. */
+export const CREDITS_SETTLE_WINDOW_MS = 120_000
+
+/** Focus or tab-visible refresh only when the last credits fetch is older than this. */
+export const CREDITS_FOCUS_STALE_MS = 30_000
 export const UPDATE_CHECK_DELAY_MS = 15000
 export const UPDATE_CHECK_INTERVAL_MS = 43200000
 
 export const LOW_RES_MIN_PX = 300
+
+/** Decode cap for every user-supplied image, about 50 MP. */
+export const MAX_IMAGE_PIXELS = 50_000_000
 
 export const FLATTEN_BACKGROUND = '#ffffff'
 export const FLATTEN_LIGHT = '#1c1e20'
@@ -47,6 +93,17 @@ export const IMAGE_STEPS = [
   { maxSidePx: 1536, jpegQuality: 80 },
 ] as const
 
+/** Image workspace: count stepper cap, call fan-out, masonry and reference bounds. */
+export const IMAGE_COUNT_MAX = 4
+export const IMAGE_SUBMIT_PARALLEL = 2
+export const IMAGE_GRID_GAP = 4
+export const HISTORY_GRID_GAP = 12
+export const IMAGE_ROW_MAX_HEIGHT = 640
+export const IMAGE_ROW_OVERSCAN = 2
+export const IMAGE_REFERENCE_MAX = 16
+export const IMAGE_REFERENCE_MAX_SIDE_PX = 2048
+export const IMAGE_REFERENCE_MAX_MB = 5
+
 export const CREDIT_WARN_USD = 2
 export const CREDIT_DANGER_USD = 0.5
 
@@ -54,11 +111,22 @@ export const ZOOM_STEPS = 6
 export const ZOOM_DEFAULT = 5
 
 export const THUMB_WIDTH = 320
+
+/** Stage backdrop: 96 px wide, blurred on the server so Linux needs no filter. */
+export const BLUR_WIDTH = 96
+export const BLUR_SIGMA = 8
+export const BLUR_SATURATION = 1.5
+
 export const PREVIEW_WIDTH = 640
+export const PREVIEW_MAX_WIDTH = 1920
+export const PREVIEW_QUALITY = 90
 export const PREVIEW_AT_SEC = 0.5
 
 /** Poster widths. Requests round up to the next bucket, capped at the last. */
-export const POSTER_WIDTHS = [320, 640, 960, 1280, 1920] as const
+export const POSTER_WIDTHS = [320, 640, 960, 1280, 1600, 1920] as const
+
+/** Bumped when the thumb encoder changes, so old files regenerate. */
+export const THUMB_ENCODER_VERSION = 1
 
 /** Thumb cache: 30 days unused, 1 GB cap trimmed to 800 MB. */
 export const THUMB_UNUSED_DAYS = 30
@@ -94,13 +162,42 @@ export const FFMPEG_TIMEOUTS = {
   mock: 60_000,
 } as const
 
+export const PRICE_DEBOUNCE_MS = 500
 export const PRICING_FALLBACK_TTL_MS = 5 * 60_000
+export const PRICING_LIVE_TTL_MS = 3_600_000
+
+/** Model catalog cache lifetime. Settings saves clear it. */
+export const MODEL_CATALOG_TTL_MS = 60_000
+
+/** Provider model lists are paginated. More pages than this means the list is incomplete. */
+export const MODEL_LIST_MAX_PAGES = 20
 
 export const SUBMIT_GRACE_MS = 10_000
 export const SUBMIT_YIELD_MS = 50
 export const GRACE_STALE_MS = 60_000
-export const SHUTDOWN_SEND_WAIT_MS = 60_000
+
+/** A live owner with a lock this young may still be booting. */
+export const LOCK_BOOT_GRACE_MS = 60_000
+
+/** Sends outlive the submit timeout, so quitting waits for a request that may be billed. */
+export const SHUTDOWN_SEND_WAIT_MS = FETCH_TIMEOUTS.submit + 5_000
+
+/**
+ * Image calls share one global limiter, so two records each run their own waves.
+ * Quitting waits for both records' waves plus room to save.
+ */
+export const SHUTDOWN_IMAGE_WAIT_MS =
+  SUBMIT_QUEUE_CONCURRENCY *
+  Math.ceil(IMAGE_COUNT_MAX / IMAGE_SUBMIT_PARALLEL) *
+  (FETCH_TIMEOUTS.submit + 5_000)
+
+/** One download may run until the content timeout, plus room to write the result. */
+export const SHUTDOWN_DOWNLOAD_WAIT_MS = FETCH_TIMEOUTS.content + 30_000
 export const SHUTDOWN_EXIT_DELAY_MS = 100
+
+/** A save-dialog path may overwrite only this long after the dialog returned it. */
+export const EXPORT_TOKEN_TTL_MS = 10 * 60_000
+
 export const REMOTE_LINK_TTL_SEC = 7200
 export const REMOTE_UNUSED_DAYS = 30
 
@@ -119,3 +216,9 @@ export const ZOOM_MIN = 0
 export const ZOOM_MAX = 5
 export const DETAILS_MIN_WIDTH = 240
 export const ROW_MIN_HEIGHT = 280
+
+/** Default docked panel width, the video picker size. */
+export const DOCKED_PANEL_WIDTH = 560
+
+/** Gap kept between a docked panel and the viewport edges. */
+export const DOCKED_PANEL_EDGE_GAP = 16

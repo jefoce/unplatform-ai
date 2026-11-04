@@ -2,19 +2,23 @@
 
 import { Copy } from 'lucide-react'
 
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { MediaKindCounts } from '@/core/media/media-types'
+import type { RefSlot } from '@/core/prompt-tokens'
+import type { InputSnapshot } from '@/core/schemas/generation-record'
 import { copyText } from '@/lib/notify'
 
 import { PromptText } from './PromptText'
 
 interface DetailsPromptProps {
-  record: GenerationRecord
   plain: string
+  counts: MediaKindCounts
+  slots: Map<string, RefSlot>
+  snapshot: InputSnapshot
 }
 
-/** Prompt block with its copy button. */
+/** Prompt block with its copy button, shared by video and image records. */
 export function DetailsPrompt(props: DetailsPromptProps) {
-  const { record, plain } = props
+  const { plain, counts, slots, snapshot } = props
 
   const handleCopyPrompt = () => {
     return void copyText(plain, 'Prompt copied')
@@ -37,7 +41,7 @@ export function DetailsPrompt(props: DetailsPromptProps) {
       {plain !== '' && (
         <div className="max-h-40 min-h-0 overflow-y-auto">
           <p className="pt-1 text-sm whitespace-pre-wrap text-fg-2">
-            <PromptText prompt={plain} record={record} />
+            <PromptText prompt={plain} counts={counts} slots={slots} snapshot={snapshot} />
           </p>
         </div>
       )}

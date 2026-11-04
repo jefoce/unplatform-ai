@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { acceptFiles, acceptForKinds, extensionsForKinds, kindFromFile } from '@/core/media-kinds'
+import {
+  acceptFiles,
+  acceptForKinds,
+  extensionsForKinds,
+  kindFromFile,
+} from '../src/core/media/media-kinds'
 
 describe('kindFromFile', () => {
   it('falls back to the MIME type when the name has no usable extension', () => {

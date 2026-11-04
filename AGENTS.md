@@ -18,7 +18,7 @@ pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pn
 - The first commit on a new branch bumps the version in `package.json`, `src-tauri/Cargo.toml` and `Cargo.lock`, and opens `## X.Y.Z - unreleased` in `CHANGELOG.md`. Replace `unreleased` with the date in the last commit before the PR.
 - Commit message: `TYPE: X.Y.Z Message`, where X.Y.Z is the version of the current branch. Optional description after a blank line. No task ids or review ids.
 - Message completes "If applied, this commit will ...", imperative mood, no trailing period.
-- Types: CRITICAL (critical fix), FIX (bug fix), HACKFIX (workaround until a proper fix), FEAT (user-facing feature added or removed), CODE (internal feature invisible to users), PERF (performance), SECURITY (security improvement), DOCS (documentation), STYLE (formatting only), REFACTOR (no behavior change), TEST (tests), CHORE (tiny fixes, config, deps), TEXT (user-facing text only).
+- Types: CRITICAL (critical fix), FIX (bug fix), HACKFIX (workaround until a proper fix), FEAT (user-facing feature added or removed), CODE (internal feature invisible to users), PERF (performance), SECURITY (security improvement), DOCS (documentation), STYLE (formatting only), REFACTOR (no behavior change), TEST (tests), CHORE (tiny fixes, config, deps), BUILD (build scripts and artifacts), CI (workflows and checks), TEXT (user-facing text only).
 - Examples: `FEAT: 0.2.0 Show unavailable models as disabled`, `REFACTOR: 0.2.0 Move lock to server/sync`, `STYLE: 0.2.0 Add braces and blank lines`.
 - One commit per item. Bulk tool runs get their own commit, usually STYLE.
 - The pull request and its squash commit stay titled `X.Y.Z` (the release workflow depends on it).
@@ -34,12 +34,12 @@ pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pn
 - Never log secrets, full keys, presigned URLs or account ids. Status may show the last four characters.
 - `src/core` imports nothing from `server`, `features` or `lib`.
 - Bounds and tunables live in `src/core/constants.ts`. Docs tables are tested against them.
-- Model data lives in `src/core/presets/<family>/<model>.ts`. No code outside `src/core/presets` branches on a preset id, slug, title or family. Lint enforces it.
+- Model data lives in `src/core/presets/{video,image}/<family>/<model>.ts`. No code outside `src/core/presets` branches on a preset id, slug, title or family. Lint enforces it.
 - Error texts and hints describe the current model only. Never suggest a specific other model.
 - Change a preset only with a source link (provider docs or a real-key test) in the commit message and in a comment next to the value.
 - Do not add a dependency for something the stdlib or an installed package already does.
 - Never delete outside `STORAGE_ROOT`. Never use recursive rm.
-- No focus rings. Keyboard focus uses the `:focus-visible` hover UI, never `focus-visible:ring-*`. Mouse clicks do not leave buttons focused (`usePointerBlur`), menus excepted.
+- No focus rings. Keyboard focus uses the `:focus-visible` hover UI, never `focus-visible:ring-*`. Mouse clicks do not leave buttons focused (`usePointerBlur`), and menus return focus to the trigger only on keyboard close.
 
 ## Mock first
 
@@ -116,20 +116,25 @@ async function copyUnique(params: CopyUniqueParams): Promise<string> {
 - `src/server/jobs` never reads an HTTP status code or a provider name. It branches on `ProviderError.kind`.
 - Feature direction, where an arrow means "may import":
 
-| From                    | May import                              |
-| ----------------------- | --------------------------------------- |
-| `src/app`               | `features/studio`, server route helpers |
-| `features/studio`       | every feature                           |
-| `features/history`      | `generator`, `preview`, `player`        |
-| `features/generator`    | `media-picker`, `preview`, `settings`   |
-| `features/media-picker` | `preview`, `player`                     |
-| `features/preview`      | `player`                                |
-| `features/settings`     | nothing in `features`                   |
-| `features/player`       | nothing in `features`                   |
-| `features/updates`      | nothing in `features`                   |
-| `features`, `ui`        | `lib`, `core`, `ui`                     |
-| `lib`                   | `core`                                  |
-| `core`                  | packages only                           |
+| From                       | May import                                                               |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `src/app`                  | `features/studio`, server route helpers                                  |
+| `features/studio`          | every feature                                                            |
+| `features/history`         | `generator`, `image-generator`, `viewers`, `preview`, `player`, `shared` |
+| `features/generator`       | `image-generator`, `media-picker`, `preview`, `settings`, `shared`       |
+| `features/image-generator` | `generator`, `media-picker`, `preview`, `shared`                         |
+| `features/workspace`       | `generator`, `history`, `settings`, `shared`                             |
+| `features/viewers`         | `generator`, `preview`, `shared`                                         |
+| `features/media-input`     | `generator`, `image-generator`, `media-picker`, `shared`                 |
+| `features/media-picker`    | `preview`, `player`                                                      |
+| `features/preview`         | `player`                                                                 |
+| `features/settings`        | nothing in `features`                                                    |
+| `features/player`          | nothing in `features`                                                    |
+| `features/updates`         | nothing in `features`                                                    |
+| `features/shared`          | nothing in `features`                                                    |
+| `features`, `ui`           | `lib`, `core`, `ui`                                                      |
+| `lib`                      | `core`                                                                   |
+| `core`                     | packages only                                                            |
 
 ## Shared helpers
 
@@ -150,7 +155,7 @@ Search here before writing a helper. One of these covers the case. Extract a new
 - `createTtlCache` (`src/server/sync/ttl-cache.ts`): `globalState` TTL cache.
 - `createLimiter` (`src/server/sync/limiter.ts`): at most `max` tasks at once per key.
 - `settings::update` (`src-tauri/src/settings.rs`): the only writer for `desktop.json`, under one lock.
-- `Dict`, `HasId` (`src/core/utility-types.ts`), `UploadsById` (`src/core/media-types.ts`).
+- `Dict`, `HasId` (`src/core/utility-types.ts`), `UploadsById` (`src/core/api/uploads.ts`).
 
 ## React
 
@@ -297,7 +302,7 @@ const deletion = useAsyncAction(async () => {
 - Media: `src/server/media` (`ffmpeg`, `image-data-url`, `image-encode`, `to-data-url`, `preview`, `thumbs`, `compat`), `src/server/services` (`remote-cap`)
 - Presets: `src/core/presets` (one file per model, `index.ts` holds the list)
 - History: `src/features/history` (`record-view` helpers, `record-actions`, `selection-store`, `view-store`)
-- Validation: `src/core/validation.ts`
+- Validation: `src/core/validation/video.ts`, `src/core/validation/image.ts`
 - Provider errors: `src/core/provider-errors/`
 - Sync: `src/server/sync` (`lock`, `limiter`, `ttl-cache`)
 - Secrets: `src/server/secrets`

@@ -5,9 +5,8 @@ import { isEmpty, uniq } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import * as bounds from '@/core/constants'
-import { SECRET_NAMES } from '@/core/secret-names'
-
+import * as bounds from '../src/core/constants'
+import { SECRET_NAMES } from '../src/core/secret-names'
 import { file, tableRows } from './helpers/docs-tables'
 import { required } from './helpers/required'
 
@@ -31,6 +30,9 @@ const BUILD_ONLY = new Set([
   'NODE_BINARY',
   'UPAI_PREPARED',
   'TAURI_ENV_TARGET_TRIPLE',
+  'TAURI_SIGNING_PRIVATE_KEY',
+  'UPAI_BUILD_WORK_DIR',
+  'CARGO_TARGET_DIR',
 ])
 
 /** Framework, runtime and injected names that are not user-facing app config. */
@@ -40,6 +42,12 @@ const INTERNAL = new Set([
   'NEXT_PUBLIC_APP_VERSION',
   'NEXT_RUNTIME',
   'NODE_ENV',
+  'CHROME_PATH',
+  'E2E_CDP_PORT',
+  'E2E_KEEP_TMP',
+  'E2E_SKIP_BUILD',
+  'E2E_TMPDIR',
+  'PATH',
 ])
 
 const CapabilitySchema = z.object({

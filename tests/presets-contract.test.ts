@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { MEDIA_KINDS } from '@/core/media-types'
-import { aspectAllowed } from '@/core/output-size'
-import { minDuration, MODEL_PRESETS } from '@/core/presets'
-import { primaryBinding } from '@/core/presets/bindings'
-import type { ModelPreset } from '@/core/presets/types'
-import { skuKey } from '@/core/pricing'
+import { MEDIA_KINDS } from '../src/core/media/media-types'
+import { aspectAllowed } from '../src/core/media/output-size'
+import { minDuration, VIDEO_PRESETS } from '../src/core/presets'
+import { primaryBinding } from '../src/core/presets/common/bindings'
+import type { VideoPreset } from '../src/core/presets/video/types'
+import { skuKey } from '../src/core/pricing/sku'
 
 /** Every key the preset can produce for its allowed inputs. */
-function pricingKeys(preset: ModelPreset): string[] {
+function pricingKeys(preset: VideoPreset): string[] {
   return preset.resolutions.flatMap((resolution) => {
     return [true, false].flatMap((isAudio) => {
       return [true, false].map((hasVideoInput) => {
@@ -22,11 +22,11 @@ function pricingKeys(preset: ModelPreset): string[] {
 const FAMILY_CONTRACT = {
   wan: { idPrefix: 'wan-', icon: 'sparkles' },
   seedance: { idPrefix: 'seedance-', icon: 'audio-lines' },
-} as const satisfies Record<ModelPreset['family'], { idPrefix: string; icon: string }>
+} as const satisfies Record<VideoPreset['family'], { idPrefix: string; icon: string }>
 
 describe('preset contract', () => {
   it('keeps defaults inside their lists', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       const min = minDuration(preset)
 
       expect(preset.aspectRatios, preset.id).toContain(preset.defaultAspectRatio)
@@ -41,7 +41,7 @@ describe('preset contract', () => {
   })
 
   it('keeps every duration option inside min and max', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       const min = minDuration(preset)
 
       for (const option of preset.duration.options ?? []) {
@@ -52,7 +52,7 @@ describe('preset contract', () => {
   })
 
   it('has a size for every allowed aspect and resolution pair', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       if (!preset.outputSizes) {
         continue
       }
@@ -69,7 +69,7 @@ describe('preset contract', () => {
   })
 
   it('has a fallback for every SKU key pricing can return', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       for (const key of pricingKeys(preset)) {
         expect(primaryBinding(preset).pricing.fallback[key], `${preset.id} ${key}`).toBeDefined()
       }
@@ -77,7 +77,7 @@ describe('preset contract', () => {
   })
 
   it('declares a reference video billing factor', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       expect(primaryBinding(preset).pricing.referenceVideoFactor, preset.id).toBeGreaterThanOrEqual(
         0,
       )
@@ -85,7 +85,7 @@ describe('preset contract', () => {
   })
 
   it('has limits for every enabled reference kind', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       for (const kind of MEDIA_KINDS) {
         if (preset.references[kind] === 0) {
           continue
@@ -97,7 +97,7 @@ describe('preset contract', () => {
   })
 
   it('sets family and icon', () => {
-    for (const preset of MODEL_PRESETS) {
+    for (const preset of VIDEO_PRESETS) {
       const contract = FAMILY_CONTRACT[preset.family]
 
       expect(preset.id.startsWith(contract.idPrefix), preset.id).toBe(true)
@@ -106,11 +106,11 @@ describe('preset contract', () => {
   })
 
   it('has unique ids and slugs', () => {
-    const ids = MODEL_PRESETS.map((preset) => {
+    const ids = VIDEO_PRESETS.map((preset) => {
       return preset.id
     })
 
-    const slugs = MODEL_PRESETS.map((preset) => {
+    const slugs = VIDEO_PRESETS.map((preset) => {
       return primaryBinding(preset).modelId
     })
 

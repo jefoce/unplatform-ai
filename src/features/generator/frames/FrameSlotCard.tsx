@@ -62,8 +62,8 @@ export function FrameSlotCard(props: FrameSlotCardProps) {
         )}
 
         {isPreviewable && (
-          <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-            <span className="flex size-7 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm">
+          <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100">
+            <span className="flex size-7 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm linux:bg-solid-overlay">
               <Maximize2 size={12} aria-hidden />
             </span>
           </span>
@@ -90,9 +90,9 @@ export function FrameSlotCard(props: FrameSlotCardProps) {
           onClick={props.onRemove}
           aria-label={`Remove ${label.toLowerCase()}`}
           className={cn(
-            'absolute -top-1.5 -right-1.5 z-20 size-6 items-center justify-center rounded-full bg-black/70 text-fg backdrop-blur-sm hover:bg-black',
+            'absolute -top-1.5 -right-1.5 z-20 size-6 items-center justify-center rounded-full bg-black/70 text-fg backdrop-blur-sm hover:bg-black linux:bg-solid-overlay',
             isBroken && 'flex',
-            !isBroken && 'hidden group-hover:flex',
+            !isBroken && 'hidden group-hover:flex pointer-coarse:flex',
           )}
         >
           <X size={12} />

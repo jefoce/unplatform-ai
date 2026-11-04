@@ -1,4 +1,4 @@
-import { errorResponse, type IdRouteContext, parseKinds } from '@/server/http'
+import { errorResponse, type IdRouteContext, jsonResponse, parseKinds } from '@/server/http'
 import { listFolderFiles } from '@/server/repos/folders'
 import { assertLocalRequest } from '@/server/request-guard'
 
@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: IdRouteContext) {
       kinds: parseKinds(query.get('kind')),
     })
 
-    return Response.json(result)
+    return jsonResponse(result)
   } catch (error) {
     return errorResponse(error)
   }

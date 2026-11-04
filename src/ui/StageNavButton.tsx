@@ -44,7 +44,7 @@ export function StageNavButton(props: StageNavButtonProps) {
       onClick={props.onClick}
       aria-label={label}
       className={cn(
-        'absolute top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm transition hover:bg-black/80',
+        'absolute top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-fg backdrop-blur-sm transition hover:bg-black/80 linux:bg-solid-overlay',
         isLeft && 'left-4',
         !isLeft && 'right-4',
         // A reveal-mode disabled arrow keeps opacity-0, :disabled would outrank it.

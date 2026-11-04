@@ -114,4 +114,51 @@ describe('getProviderAccount', () => {
 
     expect(cached.keyLimitRemaining).toBe(222)
   })
+
+  it('retries a failed management call and keeps the last good balance', async () => {
+    __setSecretsBackendForTests(
+      memoryBackend({ OPENROUTER_API_KEY: 'key-a', OPENROUTER_MANAGEMENT_KEY: 'mgmt-a' }),
+    )
+
+    await setSecrets({ OPENROUTER_API_KEY: 'key-a', OPENROUTER_MANAGEMENT_KEY: 'mgmt-a' })
+
+    let isManagementDown = false
+
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+
+      if (url.endsWith('/api/v1/credits')) {
+        if (isManagementDown) {
+          throw new Error('credits endpoint down')
+        }
+
+        return new Response(JSON.stringify({ data: { total_credits: 100, total_usage: 20 } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+
+      return keyResponse(10)
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = await getProviderAccount({ fresh: true })
+
+    expect(first.balance).toBe(80)
+
+    isManagementDown = true
+
+    const second = await getProviderAccount({ fresh: true })
+
+    expect(second.balance).toBe(80)
+    expect(second.error).toBe('credits endpoint down')
+
+    const before = fetchMock.mock.calls.length
+
+    const third = await getProviderAccount()
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(before)
+    expect(third.error).toBe('credits endpoint down')
+  })
 })

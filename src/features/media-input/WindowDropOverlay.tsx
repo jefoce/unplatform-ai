@@ -18,7 +18,7 @@ export function WindowDropOverlay(props: WindowDropOverlayProps) {
   return createPortal(
     <div
       aria-hidden
-      className="pointer-events-auto fixed inset-0 flex flex-col items-center justify-center gap-2 border-4 border-dashed border-lime/60 bg-page/80 text-center"
+      className="pointer-events-auto fixed inset-0 flex flex-col items-center justify-center gap-2 border-4 border-dashed border-accent/60 bg-page/80 text-center"
       style={{ zIndex: 'var(--z-drop)' }}
     >
       <span className="text-base font-medium text-fg">Drop to add</span>

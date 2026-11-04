@@ -1,28 +1,27 @@
 'use client'
 
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { debounce } from 'lodash-es'
 
 import { SearchInput } from '@/ui/form/SearchInput'
+import { Switch } from '@/ui/form/Switch'
 
-import { FavoriteToggle } from '../actions/FavoriteToggle'
-import { useHistoryViewStore } from '../list/view-store'
-import { FilterChoices } from './FilterChoices'
+interface FilterValues {
+  q?: string
+  favorite?: boolean
+}
 
-/** Prompt search, favorites switch, choice rows and reset. */
-export function FilterForm() {
-  const filters = useHistoryViewStore((state) => {
-    return state.filters
-  })
+interface FilterFormProps {
+  filters: FilterValues
+  setFilters: (patch: FilterValues) => void
+  resetFilters: () => void
+  favoriteLabel: string
+  children: ReactNode
+}
 
-  const setFilters = useHistoryViewStore((state) => {
-    return state.setFilters
-  })
-
-  const resetFilters = useHistoryViewStore((state) => {
-    return state.resetFilters
-  })
-
+/** Prompt search, liked switch, choice rows and reset, shared by both feeds. */
+export function FilterForm(props: FilterFormProps) {
+  const { filters, setFilters, resetFilters, favoriteLabel } = props
   const [query, setQuery] = useState(filters.q ?? '')
 
   const commitQuery = useMemo(() => {
@@ -36,7 +35,7 @@ export function FilterForm() {
 
   useEffect(() => {
     return () => {
-      commitQuery.cancel()
+      commitQuery.flush()
     }
   }, [commitQuery])
 
@@ -51,18 +50,28 @@ export function FilterForm() {
     commitQuery(event.target.value)
   }
 
+  const handleFavoriteChange = (isChecked: boolean) => {
+    const isFavorite = isChecked ? true : undefined
+
+    setFilters({ favorite: isFavorite })
+  }
+
   return (
     <>
       <SearchInput
-        id="history-filter-search"
+        id="filter-search"
         name="q"
         aria-label="Search prompts"
         value={query}
         onChange={handleQueryChange}
         placeholder="Search prompt"
       />
-      <FavoriteToggle />
-      <FilterChoices />
+      <Switch
+        checked={filters.favorite === true}
+        onCheckedChange={handleFavoriteChange}
+        label={favoriteLabel}
+      />
+      {props.children}
       <div className="flex justify-end border-t border-divider pt-2">
         <button
           type="button"

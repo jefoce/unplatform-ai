@@ -200,7 +200,7 @@ mod tests {
 
     /// Points desktop.json at a throwaway folder and returns the file path.
     fn use_temp_settings() -> PathBuf {
-        let dir = env::temp_dir().join(format!("upai-settings-{}", std::process::id()));
+        let dir = env::temp_dir().join(format!("cf-settings-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("create temp dir");
         let path = dir.join("desktop.json");

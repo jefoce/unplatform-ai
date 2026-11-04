@@ -76,7 +76,7 @@ export function MediaTileAudio(props: MediaTileAudioProps) {
               style={{ height: `${height}%` }}
               className={cn(
                 'min-w-px flex-1 rounded-full',
-                index / audioBars.length < played && 'bg-lime',
+                index / audioBars.length < played && 'bg-accent',
                 !(index / audioBars.length < played) && 'bg-fg-2/50',
               )}
             />
@@ -88,7 +88,7 @@ export function MediaTileAudio(props: MediaTileAudioProps) {
         onClick={handleAudioClick}
         aria-label={`${playLabel} ${item.originalName}`}
         disabled={isMissing}
-        className="absolute right-2 bottom-2 z-20 flex size-7 items-center justify-center rounded-full border border-white/10 bg-black/50 text-fg backdrop-blur-sm transition hover:bg-black/70 disabled:opacity-40"
+        className="absolute right-2 bottom-2 z-20 flex size-7 items-center justify-center rounded-full border border-white/10 bg-black/50 text-fg backdrop-blur-sm transition hover:bg-black/70 disabled:opacity-40 linux:bg-solid-overlay"
       >
         <PlayIcon size={14} className="fill-current" aria-hidden />
       </button>

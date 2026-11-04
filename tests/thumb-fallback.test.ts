@@ -14,11 +14,15 @@ function fakeFfmpeg(attemptsFile: string, failMarker: string): string {
   return `#!/usr/bin/env node
 const fs = require('node:fs')
 const args = process.argv.slice(2)
+if (!args.includes('-ss')) {
+  process.stderr.write('Stream #0:0: Video: h264, yuv420p, 320x240\\n')
+  process.exit(1)
+}
 const at = args[args.indexOf('-ss') + 1]
 const out = args[args.length - 1]
 fs.appendFileSync(${JSON.stringify(attemptsFile)}, at + '\\n')
 if (fs.existsSync(${JSON.stringify(failMarker)}) || at !== '0') {
-  process.stderr.write('no frame at requested position\\n')
+  process.stderr.write('no frame at requested position ' + out + '\\n')
   process.exit(1)
 }
 fs.copyFileSync(${JSON.stringify(FIXTURE_PNG)}, out)
@@ -32,11 +36,11 @@ let failMarker = ''
 async function readAttempts(): Promise<string[]> {
   const text = await fs.readFile(attemptsFile, 'utf8')
 
-  return compact(text.split('\n'))
+  return compact(text.split(/\r?\n/))
 }
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-poster-'))
+  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-poster-'))
   attemptsFile = path.join(dir, 'attempts.txt')
   failMarker = path.join(dir, 'fail')
 
@@ -77,11 +81,11 @@ describe.skipIf(process.platform === 'win32')('poster fallback', () => {
 
   it('returns the preview name from the fallback frame', async () => {
     const { makePreview } = await import('@/server/media/preview')
-    const out = path.join(dir, 'clip.preview.png')
+    const out = path.join(dir, 'clip.preview.webp')
 
     const name = await makePreview({ id: 'clip', video: FIXTURE_MP4, out })
 
-    expect(name).toBe('clip.preview.png')
+    expect(name).toBe('clip.preview.webp')
     expect(await readAttempts()).toEqual(['0.5', '0'])
     expect((await fs.stat(out)).size).toBeGreaterThan(0)
   })
@@ -92,13 +96,19 @@ describe.skipIf(process.platform === 'win32')('poster fallback', () => {
 
     await fs.writeFile(failMarker, '')
 
-    await expect(
-      extractPosterFrame({
-        videoPath: FIXTURE_MP4,
-        width: 320,
-        outPath: path.join(dir, 'frame.png'),
-      }),
-    ).rejects.toThrow('ffmpeg failed')
+    const outPath = path.join(dir, 'frame.png')
+
+    const error: unknown = await extractPosterFrame({
+      videoPath: FIXTURE_MP4,
+      width: 320,
+      outPath,
+    }).catch((caught: unknown) => {
+      return caught
+    })
+
+    expect(String(error)).toContain('ffmpeg failed')
+    expect(String(error)).not.toContain(dir)
+    expect(String(error)).toContain('frame.png')
 
     expect(errorLog).toHaveBeenCalledWith(
       '[unplatform-ai] poster frame failed',

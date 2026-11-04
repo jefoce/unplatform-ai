@@ -1,10 +1,12 @@
 import { isNil } from 'lodash-es'
 
+import type { FolderFile } from '@/core/api/folders'
+import type { UploadsById } from '@/core/api/uploads'
 import { folderFileUpload } from '@/core/folder-match'
 import { isNonEmptyString } from '@/core/guards'
-import { extWithDot, mimeFromExt } from '@/core/media-kinds'
-import type { FolderFile, MediaKind } from '@/core/media-types'
-import type { UploadItem, UploadsById } from '@/core/schemas/upload-item'
+import { extWithDot, mimeFromExt } from '@/core/media/media-kinds'
+import type { MediaKind } from '@/core/media/media-types'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import type { ActionKey, PreviewActions, PreviewItem } from '@/features/preview/preview-store'
 import type { LatestRef } from '@/lib/use-latest'
 

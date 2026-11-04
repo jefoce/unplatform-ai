@@ -2,15 +2,15 @@
 
 import { keyBy } from 'lodash-es'
 
-import type { ModelPreset } from '@/core/presets/types'
+import type { UploadsById } from '@/core/api/uploads'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { referenceSlots } from '@/core/prompt-tokens'
-import type { UploadsById } from '@/core/schemas/upload-item'
 
 import { referenceUploads } from './reference-notes'
 import { useImagePlan } from './use-image-plan'
 
 interface ReferencePlanParams {
-  preset: ModelPreset
+  preset: VideoPreset
   order: string[]
   references: string[]
   uploadsById: UploadsById

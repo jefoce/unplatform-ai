@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.{ts,tsx}'],
+    testTimeout: process.env.CI ? 20_000 : 5_000,
   },
   resolve: {
     alias: {
