@@ -101,6 +101,24 @@ describe('badge allocation', () => {
     expect(third.file.badgeCounter).toBe(3)
   })
 
+  it('advances the counter for a custom badge after it is deleted', async () => {
+    const saved = await repo.applyEndpoints({ entries: [{ ...entry('One'), badge: 'CU9' }] })
+
+    expect(saved.file.endpoints[0]?.badge).toBe('CU9')
+    expect(saved.file.badgeCounter).toBe(9)
+
+    const service = await import('@/server/services/endpoints')
+
+    await repo.applyEndpoints({ entries: [] })
+
+    expect((await service.getEndpointOverview()).nextBadge).toBe('CU10')
+
+    const next = await repo.applyEndpoints({ entries: [entry('Two')] })
+
+    expect(next.file.endpoints[0]?.badge).toBe('CU10')
+    expect(next.file.badgeCounter).toBe(10)
+  })
+
   it('uppercases a typed badge and rejects a duplicate', async () => {
     const saved = await repo.applyEndpoints({
       entries: [

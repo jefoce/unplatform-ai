@@ -193,7 +193,20 @@ function buildEndpoint(params: BuildEndpointParams): CustomEndpoint {
     throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid endpoint')
   }
 
+  state.counter = Math.max(state.counter, badgeNumber(badge) ?? 0)
+
   return parsed.data
+}
+
+/** Number of a `CUn` badge, or null for a custom badge. */
+function badgeNumber(badge: string): number | null {
+  const match = BADGE_NUMBER.exec(badge)
+
+  if (isNil(match)) {
+    return null
+  }
+
+  return Number(match[1])
 }
 
 function allocateBadge(state: BadgeState, used: Set<string>): string {
