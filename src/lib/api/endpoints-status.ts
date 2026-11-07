@@ -169,12 +169,19 @@ async function checkModel(presetId: string): Promise<string | null> {
   return entryReason(entry)
 }
 
-/** Fresh check for a selected preset. Null means ready or not a custom model. */
-export async function freshPresetReason(presetId: string): Promise<string | null> {
-  if (!presetId.startsWith('custom.')) {
-    return null
-  }
+function timeoutReason(signal: AbortSignal): Promise<string> {
+  return new Promise((resolve) => {
+    signal.addEventListener(
+      'abort',
+      () => {
+        resolve('ComfyUI did not answer in time.')
+      },
+      { once: true },
+    )
+  })
+}
 
+async function checkPreset(presetId: string): Promise<string | null> {
   const catalog = await fetcher<ModelCatalog>(CATALOG_PATH)
 
   const entry = catalog.entries.find((item) => {
@@ -192,6 +199,25 @@ export async function freshPresetReason(presetId: string): Promise<string | null
   }
 
   return checkCustomEndpoint({ instanceId: entry.source.instanceId, presetId })
+}
+
+/** Fresh check for a selected preset. Null means ready or not a custom model. */
+export async function freshPresetReason(presetId: string): Promise<string | null> {
+  if (!presetId.startsWith('custom.')) {
+    return null
+  }
+
+  const controller = new AbortController()
+
+  const timer = setTimeout(() => {
+    controller.abort()
+  }, CUSTOM_CHECK_TIMEOUT_MS)
+
+  try {
+    return await Promise.race([checkPreset(presetId), timeoutReason(controller.signal)])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** One fresh health and model check for a custom endpoint. Null means ready. */
