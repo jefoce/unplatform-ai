@@ -7,6 +7,7 @@ import { MAX_REQUEST_MB, REQUEST_RESERVE_MB } from '@/core/constants'
 import type { ReferencePlan } from '@/core/media/media-types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { UploadItem } from '@/core/schemas/upload-item'
 import { base64Only } from '@/core/submit-state'
 import type { ResolvedTransport } from '@/core/transport'
 import type { Dict } from '@/core/utility-types'
@@ -16,6 +17,7 @@ import { toDataUrl } from '../media/to-data-url'
 import { getVideoProvider } from '../providers/registry'
 import type { ResolvedMedia, SubmittedJob } from '../providers/types'
 import { ensureRemote, presignFor } from '../services/remote-inputs'
+import { uploadCustomRefs } from './custom-endpoint-media'
 import { throwIfStopped, updateSubmit } from './submit-record'
 import { shouldRetryAsBase64 } from './submit-retry'
 
@@ -42,6 +44,7 @@ interface BuildMediaParams {
   uploads: UploadsById
   transports: Transports
   preset: VideoPreset
+  endpointId: string | null
 }
 
 interface SendParams {
@@ -117,8 +120,24 @@ export async function uploadUrls(params: UploadUrlsParams): Promise<void> {
 }
 
 export async function buildMedia(params: BuildMediaParams): Promise<BuiltMedia> {
-  const { uploads, transports, preset } = params
+  const { uploads, transports, preset, endpointId } = params
   const items = Object.values(uploads)
+
+  const endpointUploads = items.filter((upload) => {
+    return isEndpointUpload(upload, transports)
+  })
+
+  const refs = await uploadCustomRefs({ instanceId: endpointId, uploads: endpointUploads })
+
+  const uploaded = endpointUploads.map((upload) => {
+    const url = refs[upload.id]
+
+    if (isNil(url)) {
+      throw new Error(`Missing upload ref for ${upload.id}`)
+    }
+
+    return { id: upload.id, kind: upload.kind, url, bytes: 0 }
+  })
 
   const remote = await Promise.all(
     items
@@ -136,7 +155,7 @@ export async function buildMedia(params: BuildMediaParams): Promise<BuiltMedia> 
   )
 
   const inline = items.filter((upload) => {
-    return transports[upload.id] !== 'url'
+    return transports[upload.id] !== 'url' && !isEndpointUpload(upload, transports)
   })
 
   const others = await Promise.all(
@@ -169,7 +188,7 @@ export async function buildMedia(params: BuildMediaParams): Promise<BuiltMedia> 
     }
   })
 
-  const entries = [...remote, ...others, ...encoded]
+  const entries = [...remote, ...uploaded, ...others, ...encoded]
 
   const media = Object.fromEntries(
     entries.map(({ id, kind, url }) => {
@@ -178,6 +197,11 @@ export async function buildMedia(params: BuildMediaParams): Promise<BuiltMedia> 
   )
 
   return { media, encodedBytes: sumBy(entries, 'bytes'), plan }
+}
+
+/** Video and audio go to the endpoint. Images and frames stay inline. */
+function isEndpointUpload(upload: UploadItem, transports: Transports): boolean {
+  return transports[upload.id] === 'upload' && upload.kind !== 'image'
 }
 
 /** Stores the encoding actually sent for each image. */
@@ -228,16 +252,20 @@ export async function send(params: SendParams): Promise<SubmittedJob> {
     return await provider.submit({ input: record.input, preset, media: built.media })
   } catch (error) {
     const hasUrlInputs = Object.values(transports).includes('url')
+    const hasUploadInputs = Object.values(transports).includes('upload')
 
-    if (!shouldRetryAsBase64({ error, hasUrlInputs, fitsBase64: true })) {
+    if (hasUploadInputs || !shouldRetryAsBase64({ error, hasUrlInputs, fitsBase64: true })) {
       throw error
     }
 
-    const retry = await buildMedia({ uploads, transports: base64Only(transports), preset }).catch(
-      () => {
-        return null
-      },
-    )
+    const retry = await buildMedia({
+      uploads,
+      transports: base64Only(transports),
+      preset,
+      endpointId: null,
+    }).catch(() => {
+      return null
+    })
 
     const canFitBase64 = !isNil(retry) && retry.encodedBytes <= LIMIT_BYTES
 

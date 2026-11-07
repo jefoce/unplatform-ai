@@ -131,7 +131,13 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
 
   await uploadUrls({ id: record.id, uploads, transports, signal })
   throwIfStopped(signal)
-  const built = await buildMedia({ uploads, transports, preset })
+
+  const built = await buildMedia({
+    uploads,
+    transports,
+    preset,
+    endpointId: endpointIdOf(record),
+  })
 
   await recordSent(record.id, built.plan)
 
@@ -167,6 +173,15 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
   if (saved) {
     emitJobSent(record.id)
   }
+}
+
+/** Custom records carry the endpoint id in their source snapshot. */
+function endpointIdOf(record: GenerationRecord): string | null {
+  if (isNil(record.source)) {
+    return null
+  }
+
+  return record.source.instanceId
 }
 
 /** Records the send, accepting a record that skipped the upload stage. */
