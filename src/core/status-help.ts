@@ -13,6 +13,9 @@ export const STATUS_HELP_KEYS = [
   'failed',
   'expired',
   'cancelled',
+  'waiting_comfyui',
+  'queued_n',
+  'endpoint_unreachable',
 ] as const
 
 export type StatusHelpKey = (typeof STATUS_HELP_KEYS)[number]
@@ -96,6 +99,27 @@ export const STATUS_HELP: Record<StatusHelpKey, StatusHelp> = {
     cancel: 'No',
     charged: 'No',
     quit: 'Yes',
+  },
+  waiting_comfyui: {
+    label: 'Waiting for ComfyUI',
+    what: 'ComfyUI is busy with another job',
+    cancel: 'Yes, with Stop in ComfyUI',
+    charged: 'When it finishes',
+    quit: 'ComfyUI keeps running this job. The app picks it up on the next start.',
+  },
+  queued_n: {
+    label: 'In queue, N ahead',
+    what: 'Waiting in the ComfyUI queue',
+    cancel: 'Yes, with Stop in ComfyUI',
+    charged: 'When it finishes',
+    quit: 'ComfyUI keeps running this job. The app picks it up on the next start.',
+  },
+  endpoint_unreachable: {
+    label: 'ComfyUI offline, will resume',
+    what: 'ComfyUI is not reachable',
+    cancel: 'No',
+    charged: 'When it finishes',
+    quit: 'Quit is safe. The app checks again on the next start.',
   },
 }
 

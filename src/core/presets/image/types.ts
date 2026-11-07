@@ -41,7 +41,7 @@ export type ImageQuality = (typeof IMAGE_QUALITIES)[number]
 export const IMAGE_BACKGROUNDS = ['auto', 'opaque', 'transparent'] as const
 export type ImageBackground = (typeof IMAGE_BACKGROUNDS)[number]
 
-export const IMAGE_FAMILIES = ['gemini', 'openai', 'seedream', 'flux'] as const
+export const IMAGE_FAMILIES = ['gemini', 'openai', 'seedream', 'flux', 'custom'] as const
 export type ImageFamily = (typeof IMAGE_FAMILIES)[number]
 
 export const IMAGE_PARAMS = [

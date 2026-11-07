@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { ProviderId } from '@/core/providers/types'
+import type { ProviderKindId } from '@/core/providers/types'
 
 export type ProviderErrorKind =
   | 'no_key'
@@ -17,7 +17,7 @@ export type ProviderErrorKind =
   | 'unknown'
 
 export interface ProviderErrorParams {
-  providerId: ProviderId
+  providerId: ProviderKindId
   kind: ProviderErrorKind
   message: string
   storedMessage: string
@@ -38,7 +38,7 @@ export class ProviderError extends Error {
     this.code = code
   }
 
-  readonly providerId: ProviderId
+  readonly providerId: ProviderKindId
   readonly kind: ProviderErrorKind
   readonly storedMessage: string
   readonly status: number

@@ -13,7 +13,13 @@ describe('pricing type lists', () => {
   it('keeps the generic lists in one place', () => {
     expect(ASPECT_BUCKETS).toEqual(['square', 'wide', 'tall'])
 
-    expect(PRICING_FORMULAS).toEqual(['perSecond', 'videoTokens', 'perImage', 'imageTokens'])
+    expect(PRICING_FORMULAS).toEqual([
+      'perSecond',
+      'videoTokens',
+      'perImage',
+      'imageTokens',
+      'perRun',
+    ])
 
     expect(QUOTE_UNITS).toEqual(['second', 'image', 'token'])
     expect(QUOTE_SOURCES).toEqual(['live', 'fallback'])

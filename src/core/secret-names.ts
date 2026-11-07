@@ -7,6 +7,7 @@ export const SECRET_NAMES = [
   'R2_ACCESS_KEY_ID',
   'R2_SECRET_ACCESS_KEY',
   'R2_BUCKET',
+  'CUSTOM_ENDPOINT_TOKENS',
 ] as const
 
 export type SecretName = (typeof SECRET_NAMES)[number]
@@ -37,6 +38,7 @@ export const SECRET_SCHEMAS: Record<SecretName, z.ZodString> = {
     /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/,
     '3-63 lowercase letters, digits or hyphens',
   ),
+  CUSTOM_ENDPOINT_TOKENS: SecretValueSchema,
 }
 
 /** First schema error for a value, or null when valid. */

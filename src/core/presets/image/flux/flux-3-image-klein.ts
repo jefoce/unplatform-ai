@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import { imagePricing, imageResolutionOptions } from '../../common/options'
 import type { ImagePreset } from '../types'
 import { FLUX_FAMILY } from './family'
@@ -12,7 +11,7 @@ export const FLUX_3_KLEIN: ImagePreset = {
   defaultResolution: '1K',
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'black-forest-labs/flux-3-image-klein',
       // $0.008 at 768, $0.009 at 1K, $0.011 at 1.5K, $0.014 at 2K, $0.036 at
       // 4K. Source: live /api/v1/images/models and /endpoints, 2026-10-29.

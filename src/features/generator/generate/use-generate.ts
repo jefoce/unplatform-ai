@@ -7,7 +7,7 @@ import { inputForSubmit } from '@/core/normalize-input'
 import { getPreset } from '@/core/presets'
 import { friendlyError } from '@/core/provider-errors'
 import { providerDescriptor } from '@/core/providers/registry'
-import { PROVIDER_IDS, type ProviderId } from '@/core/providers/types'
+import type { ProviderKindId } from '@/core/providers/types'
 import { openSettings } from '@/features/settings/settings-store'
 import { requestNotifications } from '@/features/shared/request-notifications'
 import { refreshCredits } from '@/lib/api/credits'
@@ -23,7 +23,7 @@ interface ShowErrorParams {
   message: string
   presetId: string
   presetTitle: string
-  provider: ProviderId
+  provider: ProviderKindId
 }
 
 /** Shows the plain error with the preset name, plus Settings when the key is missing. */
@@ -109,7 +109,7 @@ export function useGenerate(options: GenerateOptions = {}) {
         message,
         presetId: preset.id,
         presetTitle: preset.title,
-        provider: PROVIDER_IDS[0],
+        provider: 'openrouter',
       })
     }
   })

@@ -1,5 +1,5 @@
 /** @public */
-export const RESOLVED_TRANSPORTS = ['base64', 'url'] as const
+export const RESOLVED_TRANSPORTS = ['base64', 'url', 'upload'] as const
 
 /** @public */
 export const TRANSPORTS = [...RESOLVED_TRANSPORTS, 'auto'] as const

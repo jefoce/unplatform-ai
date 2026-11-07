@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import { tokenPricing } from '../../common/options'
 import type { ImagePreset } from '../types'
 import { GPT_IMAGE_2_OUTPUT_TOKEN_RULES, OPENAI_FAMILY, OPENAI_QUALITIES_2 } from './family'
@@ -15,7 +14,7 @@ export const GPT_IMAGE_2: ImagePreset = {
   params: ['n', 'aspect_ratio', 'quality', 'input_references'],
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'openai/gpt-image-2',
       // $0.00003 output, $0.000008 image input and $0.000005 text input per token,
       // live endpoints read 2026-10-29. Output tokens follow the quality table,

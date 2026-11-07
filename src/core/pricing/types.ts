@@ -18,7 +18,13 @@ export interface ImagePriceLine {
 export const ASPECT_BUCKETS = ['square', 'wide', 'tall'] as const
 export type AspectBucket = (typeof ASPECT_BUCKETS)[number]
 
-export const PRICING_FORMULAS = ['perSecond', 'videoTokens', 'perImage', 'imageTokens'] as const
+export const PRICING_FORMULAS = [
+  'perSecond',
+  'videoTokens',
+  'perImage',
+  'imageTokens',
+  'perRun',
+] as const
 
 type PricingFormula = (typeof PRICING_FORMULAS)[number]
 

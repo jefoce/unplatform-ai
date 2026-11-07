@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import { videoTokenPricing } from '../../common/pricing'
 import type { VideoPreset } from '../types'
 import { SEEDANCE_FAMILY, SEEDANCE_UNKNOWN_LIMITS, seedanceImageLimits } from './family'
@@ -80,7 +79,7 @@ export const SEEDANCE_25: VideoPreset = {
   outputSizes: SIZES,
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'bytedance/seedance-2.5',
       pricing: PRICING,
       transport: { image: 'base64', video: 'url', audio: 'auto' },

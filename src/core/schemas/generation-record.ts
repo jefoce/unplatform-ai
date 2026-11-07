@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { FLATTEN_COLORS, IMAGE_FORMATS } from '../media/media-types'
 import { RESOLVED_TRANSPORTS } from '../presets/common/transport'
 import { ASPECT_RATIOS, RESOLUTIONS } from '../presets/video/types'
-import { PROVIDER_IDS } from '../providers/types'
+import { UPAI_WAITING_ON } from '../protocol/upai'
+import { PROVIDER_KIND_IDS } from '../providers/types'
+import { RecordSourceSchema } from './record-source'
 import { MediaKindSchema, UploadSourceSchema } from './upload-item'
 
 export const GENERATOR_TABS = ['frames', 'references'] as const
@@ -70,6 +72,15 @@ export const RecordSubmitSchema = z.object({
 })
 
 export type RecordSubmit = z.infer<typeof RecordSubmitSchema>
+
+export const RecordProgressSchema = z.object({
+  percent: z.number().min(0).max(100),
+  node: z.string().nullable(),
+  queuePosition: z.number().int().nullable(),
+  waitingOn: z.enum(UPAI_WAITING_ON).nullable(),
+})
+
+export type RecordProgress = z.infer<typeof RecordProgressSchema>
 
 const RecordJobSchema = z.object({
   id: z.string(),
@@ -141,11 +152,13 @@ export const GenerationRecordSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   status: JobStatusSchema,
-  provider: z.enum(PROVIDER_IDS).default('openrouter'),
+  provider: z.enum(PROVIDER_KIND_IDS).default('openrouter'),
+  source: RecordSourceSchema.optional(),
   input: GenerationInputSchema,
   preset: RecordPresetSchema,
   inputsSnapshot: InputSnapshotSchema,
   submit: RecordSubmitSchema.optional(),
+  progress: RecordProgressSchema.optional(),
   job: RecordJobSchema.optional(),
   download: RecordDownloadSchema.optional(),
   downloadFailed: z.boolean().nullish(),

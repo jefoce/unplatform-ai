@@ -2,7 +2,7 @@
 
 import { mutate } from 'swr'
 
-import type { ProviderId, StorageProviderId } from '@/core/providers/types'
+import type { ProviderKindId, StorageProviderId } from '@/core/providers/types'
 import type { SecretName } from '@/core/secret-names'
 import type { SecretStatus, TestResult } from '@/core/types'
 import { SECRETS_KEY } from '@/lib/api/swr-keys'
@@ -10,7 +10,7 @@ import { apiPost, apiRequest, fetcher } from '@/lib/fetcher'
 
 import { refreshRemoteStatus } from './remote'
 
-export type SecretTarget = ProviderId | StorageProviderId
+export type SecretTarget = ProviderKindId | StorageProviderId
 
 export function fetchSecrets(): Promise<SecretStatus> {
   return fetcher<SecretStatus>(SECRETS_KEY)

@@ -22,7 +22,7 @@ export const ASPECT_RATIOS = [
 export type AspectRatio = (typeof ASPECT_RATIOS)[number]
 export type AspectChoice = AspectRatio | 'auto'
 
-export const VIDEO_FAMILIES = ['wan', 'seedance'] as const
+export const VIDEO_FAMILIES = ['wan', 'seedance', 'custom'] as const
 
 export type VideoFamily = (typeof VIDEO_FAMILIES)[number]
 
@@ -43,6 +43,8 @@ interface PresetAudio {
 interface PresetFrames {
   start: boolean
   end: boolean
+  startRequired?: boolean
+  endRequired?: boolean
 }
 
 interface PresetReferences extends MediaKindCounts {
@@ -75,6 +77,7 @@ export interface VideoPreset {
   audio: PresetAudio
   frames: PresetFrames
   references: PresetReferences
+  referencesRequired?: MediaKindCounts
   referenceLimits?: PresetReferenceLimits
   maxInputPlusOutputSec: number | null
   promptMaxChars: number

@@ -166,6 +166,7 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `R2_ACCESS_KEY_ID` | R2 token access key |
 | `R2_SECRET_ACCESS_KEY` | R2 token secret |
 | `R2_BUCKET` | Bucket name |
+| `CUSTOM_ENDPOINT_TOKENS` | Custom endpoint auth tokens, stored as JSON |
 | `REMOTE_MOCK` | Local R2 mock, `1` or `fail` |
 | `REMOTE_MOCK_MBPS` | Mock upload speed |
 | `APP_TOKEN` | Session token override for dev and smoke runs. Unset reuses `$STORAGE_ROOT/browser-session` (or mints it) and prints the session URL. |

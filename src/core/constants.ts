@@ -172,6 +172,21 @@ export const MODEL_CATALOG_TTL_MS = 60_000
 /** Provider model lists are paginated. More pages than this means the list is incomplete. */
 export const MODEL_LIST_MAX_PAGES = 20
 
+/** Longest wait for one custom image job, then the call fails. */
+export const CUSTOM_IMAGE_MAX_WAIT_MS = 15 * 60_000
+
+/** Combined reference seconds custom presets advertise. */
+export const CUSTOM_REF_TOTAL_SEC = 30
+
+/** Fresh availability check timeout on Generate. */
+export const CUSTOM_CHECK_TIMEOUT_MS = 3_000
+
+/** Days a missing custom model stays in the cache before it is dropped. */
+export const CUSTOM_MISSING_KEEP_DAYS = 30
+
+/** A health state older than this is refreshed on the next use. */
+export const ENDPOINT_HEALTH_MAX_AGE_MS = 30_000
+
 export const SUBMIT_GRACE_MS = 10_000
 export const SUBMIT_YIELD_MS = 50
 export const GRACE_STALE_MS = 60_000

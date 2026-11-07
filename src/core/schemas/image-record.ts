@@ -8,13 +8,15 @@ import {
   IMAGE_RESOLUTIONS,
 } from '../presets/image/types'
 import { PRICE_UNITS } from '../pricing/types'
-import { PROVIDER_IDS } from '../providers/types'
+import { PROVIDER_KIND_IDS } from '../providers/types'
 import {
   InputSnapshotSchema,
   PRICE_SOURCES,
   RecordPresetSchema,
+  RecordProgressSchema,
   RecordSubmitSchema,
 } from './generation-record'
+import { RecordSourceSchema } from './record-source'
 
 export const IMAGE_RECORD_STATUSES = [
   'submitting',
@@ -103,11 +105,13 @@ export const ImageRecordSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   status: z.enum(IMAGE_RECORD_STATUSES),
-  provider: z.enum(PROVIDER_IDS).default('openrouter'),
+  provider: z.enum(PROVIDER_KIND_IDS).default('openrouter'),
+  source: RecordSourceSchema.optional(),
   preset: RecordPresetSchema,
   input: ImageInputSchema,
   inputsSnapshot: InputSnapshotSchema.optional(),
   submit: RecordSubmitSchema.optional(),
+  progress: RecordProgressSchema.optional(),
   outputs: z.array(ImageOutputSchema),
   seedUsed: z.number().nullable(),
 

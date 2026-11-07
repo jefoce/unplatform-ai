@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import {
   IMAGE_PROMPT_MAX_CHARS,
   IMAGE_REFERENCE_LIMITS,
@@ -22,7 +21,7 @@ export const GEMINI_NANO_BANANA_21: ImagePreset = {
   promptMaxChars: IMAGE_PROMPT_MAX_CHARS,
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'google/gemini-nano-banana-2.1',
       // $0.00003 per output token, live endpoints read 2026-10-29.
       // Per-resolution output tokens come from the Google pricing page and

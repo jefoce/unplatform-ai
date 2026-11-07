@@ -136,17 +136,20 @@ The one thing to remember: the video is made on OpenRouter, but the app brings i
 
 ## What the statuses mean
 
-| Status      | What is happening                                                                                              | OK to quit?                    |
-| ----------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Processing  | 10 seconds before sending, or the model is starting. Cancel works during the first 10 seconds, nothing charged | Better not                     |
-| Uploading   | Sending reference files to storage, nothing charged                                                            | No, it fails                   |
-| Sending     | Handing the job to OpenRouter                                                                                  | Yes, it finishes sending first |
-| Generating  | The model is making your video or image, charged when it finishes                                              | Yes, reopen within a few hours |
-| Downloading | Saving the finished video to your computer                                                                     | No, wait a moment              |
-| Completed   | Saved                                                                                                          | Yes                            |
-| Failed      | Usually not charged. The card says why                                                                         | Yes                            |
-| Expired     | Charged if it finished. Check OpenRouter activity                                                              | Yes                            |
-| Cancelled   | Never sent, nothing charged                                                                                    | Yes                            |
+| Status                       | What is happening                                                                                              | OK to quit?                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Processing                   | 10 seconds before sending, or the model is starting. Cancel works during the first 10 seconds, nothing charged | Better not                                            |
+| Uploading                    | Sending reference files to storage, nothing charged                                                            | No, it fails                                          |
+| Sending                      | Handing the job to OpenRouter                                                                                  | Yes, it finishes sending first                        |
+| Generating                   | The model is making your video or image, charged when it finishes                                              | Yes, reopen within a few hours                        |
+| Downloading                  | Saving the finished video to your computer                                                                     | No, wait a moment                                     |
+| Completed                    | Saved                                                                                                          | Yes                                                   |
+| Failed                       | Usually not charged. The card says why                                                                         | Yes                                                   |
+| Expired                      | Charged if it finished. Check OpenRouter activity                                                              | Yes                                                   |
+| Cancelled                    | Never sent, nothing charged                                                                                    | Yes                                                   |
+| Waiting for ComfyUI          | ComfyUI is busy with another job, charged when it finishes                                                     | Yes, with Stop in ComfyUI                             |
+| In queue, N ahead            | Waiting in the ComfyUI queue, charged when it finishes                                                         | Yes, with Stop in ComfyUI                             |
+| ComfyUI offline, will resume | ComfyUI is not reachable, charged when it finishes                                                             | Quit is safe. The app checks again on the next start. |
 
 ## Where your files are
 

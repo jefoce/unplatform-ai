@@ -3,15 +3,15 @@
 import { create } from 'zustand'
 
 import {
-  PROVIDER_IDS,
-  type ProviderId,
+  PROVIDER_KIND_IDS,
+  type ProviderKindId,
   STORAGE_PROVIDER_IDS,
   type StorageProviderId,
 } from '@/core/providers/types'
 
-export const SETTINGS_SECTION_IDS = [...PROVIDER_IDS, ...STORAGE_PROVIDER_IDS] as const
+export const SETTINGS_SECTION_IDS = [...PROVIDER_KIND_IDS, ...STORAGE_PROVIDER_IDS] as const
 
-export type SettingsSection = ProviderId | StorageProviderId
+export type SettingsSection = ProviderKindId | StorageProviderId
 
 interface SettingsState {
   open: boolean

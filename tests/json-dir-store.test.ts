@@ -80,3 +80,21 @@ describe('jsonDirStore load', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 })
+
+describe('jsonDirStore onChange', () => {
+  it('notifies on remember and stops after unsubscribe', async () => {
+    const store = openStore()
+    const listener = vi.fn()
+    const unsubscribe = store.onChange(listener)
+    const id = randomUUID()
+
+    await store.remember({ id })
+
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    unsubscribe()
+    await store.forget(id)
+
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+})

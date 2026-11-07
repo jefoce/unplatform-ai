@@ -10,13 +10,13 @@ import { VIDEO_PRESETS } from '../src/core/presets'
 import { activeBinding, primaryBinding } from '../src/core/presets/common/bindings'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
 import type { VideoPreset } from '../src/core/presets/video/types'
-import type { ProviderId } from '../src/core/providers/types'
+import type { ProviderKindId } from '../src/core/providers/types'
 
 const multi = vi.hoisted(() => {
   return {
     id: 'multi-binding',
     laterModel: 'later/model',
-    fakeProvider: 'fake' as ProviderId,
+    fakeProvider: 'fake' as ProviderKindId,
   }
 })
 

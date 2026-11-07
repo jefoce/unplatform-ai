@@ -4,7 +4,7 @@ import { OPENROUTER_DESCRIPTOR } from './openrouter'
 import { R2_DESCRIPTOR } from './r2'
 import {
   type ProviderDescriptor,
-  type ProviderId,
+  type ProviderKindId,
   type StorageProviderDescriptor,
   type StorageProviderId,
 } from './types'
@@ -15,7 +15,7 @@ export const PROVIDERS: readonly ProviderDescriptor[] = [OPENROUTER_DESCRIPTOR]
 /** @public */
 export const STORAGE_PROVIDERS: readonly StorageProviderDescriptor[] = [R2_DESCRIPTOR]
 
-export function providerDescriptor(id: ProviderId): ProviderDescriptor {
+export function providerDescriptor(id: ProviderKindId): ProviderDescriptor {
   const descriptor = PROVIDERS.find((provider) => {
     return provider.id === id
   })

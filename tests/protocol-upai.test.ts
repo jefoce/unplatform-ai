@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- protocol schemas and type contracts stay in one suite */
+
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -11,33 +13,100 @@ import {
   UPAI_JOB_STATUSES,
   UPAI_MODEL_STATUSES,
   UPAI_WAITING_ON,
+  type UpaiCapabilities,
   UpaiCapabilitiesSchema,
+  type UpaiCount,
   UpaiCountSchema,
+  type UpaiCreatedJob,
   UpaiCreatedJobSchema,
+  type UpaiDuration,
   UpaiDurationSchema,
+  type UpaiError,
+  type UpaiErrorCode,
+  type UpaiErrorDetails,
   UpaiErrorDetailsSchema,
+  type UpaiErrorResponse,
   UpaiErrorResponseSchema,
   UpaiErrorSchema,
+  type UpaiFrameRule,
   UpaiFrameRuleSchema,
+  type UpaiFrames,
   UpaiFramesSchema,
+  type UpaiHealth,
   UpaiHealthSchema,
+  type UpaiJob,
+  type UpaiJobKind,
+  type UpaiJobProgress,
   UpaiJobProgressSchema,
   UpaiJobSchema,
+  type UpaiJobStatus,
+  type UpaiJobUsage,
   UpaiJobUsageSchema,
+  type UpaiModel,
+  type UpaiModelList,
   UpaiModelListSchema,
   UpaiModelSchema,
+  type UpaiModelStatus,
+  type UpaiPricing,
   UpaiPricingSchema,
+  type UpaiPrompt,
   UpaiPromptSchema,
+  type UpaiReferenceCount,
+  type UpaiReferenceCounts,
   UpaiReferenceCountSchema,
   UpaiReferenceCountsSchema,
+  type UpaiReferenceLimit,
+  type UpaiReferenceLimits,
   UpaiReferenceLimitSchema,
   UpaiReferenceLimitsSchema,
+  type UpaiSizeMap,
   UpaiSizeMapSchema,
+  type UpaiSyncImage,
+  type UpaiSyncImages,
   UpaiSyncImageSchema,
   UpaiSyncImagesSchema,
+  type UpaiUpload,
   UpaiUploadSchema,
+  type UpaiWaitingOn,
+  type UpaiWorkflow,
   UpaiWorkflowSchema,
 } from '../src/core/protocol/upai'
+
+type ProtocolTypes = readonly [
+  UpaiCapabilities,
+  UpaiCount,
+  UpaiCreatedJob,
+  UpaiDuration,
+  UpaiError,
+  UpaiErrorCode,
+  UpaiErrorDetails,
+  UpaiErrorResponse,
+  UpaiFrameRule,
+  UpaiFrames,
+  UpaiHealth,
+  UpaiJob,
+  UpaiJobKind,
+  UpaiJobProgress,
+  UpaiJobStatus,
+  UpaiJobUsage,
+  UpaiModel,
+  UpaiModelList,
+  UpaiModelStatus,
+  UpaiPricing,
+  UpaiPrompt,
+  UpaiReferenceCount,
+  UpaiReferenceCounts,
+  UpaiReferenceLimit,
+  UpaiReferenceLimits,
+  UpaiSizeMap,
+  UpaiSyncImage,
+  UpaiSyncImages,
+  UpaiUpload,
+  UpaiWaitingOn,
+  UpaiWorkflow,
+]
+
+const CONTRACT_TYPES: ProtocolTypes | null = null
 
 const ROOT = path.join(process.cwd(), 'docs/protocol/upai-1')
 const FIXTURES = path.join(ROOT, 'fixtures')
@@ -246,5 +315,9 @@ describe('upai/1 enums', () => {
     for (const schema of ALL_SCHEMAS) {
       expect(typeof schema.safeParse).toBe('function')
     }
+  })
+
+  it('exports every contract type', () => {
+    expect(CONTRACT_TYPES).toBeNull()
   })
 })

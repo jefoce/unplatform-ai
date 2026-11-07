@@ -4,6 +4,7 @@ export const REMOTE_STATUS_KEY = '/api/remote/status'
 export const CREDITS_KEY = '/api/credits'
 export const SECRETS_KEY = '/api/settings/secrets'
 export const MODELS_KEY = '/api/models'
+export const HISTORY_FACETS_PATH = '/api/history/facets'
 export const IMAGES_KEY = '/api/images'
 export const ACTIVE_IMAGES_KEY = withQuery(IMAGES_KEY, { active: '1' })
 

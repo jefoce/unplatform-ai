@@ -46,11 +46,19 @@ function entry(pricing: PricingInfo): CatalogEntry {
     status: 'available',
     reason: null,
     pricing,
+    availability: { status: 'available', reason: null },
+    source: {
+      kind: 'openrouter',
+      instanceId: 'openrouter',
+      badge: null,
+      workflowName: null,
+      local: false,
+    },
   }
 }
 
 function unavailable(status: 'missing' | 'no_provider', reason: string): CatalogEntry {
-  return { ...entry(PRICING), status, reason }
+  return { ...entry(PRICING), status, reason, availability: { status, reason } }
 }
 
 class Observer {

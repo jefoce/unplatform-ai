@@ -4,7 +4,7 @@ import { isNil } from 'lodash-es'
 
 import type { ModelStatus } from '@/core/catalog'
 import type { BindingBase } from '@/core/presets/common/binding'
-import type { ProviderId } from '@/core/providers/types'
+import type { ProviderKindId } from '@/core/providers/types'
 
 import { globalState } from '../global-state'
 import type { EndpointSignal } from '../providers/types'
@@ -19,7 +19,7 @@ interface CatalogList<TModel extends CatalogModel> {
 }
 
 interface CatalogProvider<TModel extends CatalogModel> {
-  readonly id: ProviderId
+  readonly id: ProviderKindId
   listModels(): Promise<CatalogList<TModel>>
   listEndpoints(modelId: string): Promise<EndpointSignal>
 }
@@ -84,7 +84,7 @@ export async function catalogStatus<TModel extends CatalogModel>(
 }
 
 interface WarnParams {
-  provider: ProviderId
+  provider: ProviderKindId
   modelId: string
   reason: string
 }

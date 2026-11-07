@@ -2,7 +2,7 @@ import 'server-only'
 
 import { isEmpty, isNil } from 'lodash-es'
 
-import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
+import type { CatalogEntry, CatalogEntrySource, ModelCatalog } from '@/core/catalog'
 import { MODEL_CATALOG_TTL_MS } from '@/core/constants'
 import { VIDEO_PRESETS } from '@/core/presets'
 import type { ProviderBinding } from '@/core/presets/common/binding'
@@ -23,6 +23,14 @@ import { catalogStatus } from './catalog-status'
 
 interface DriftState {
   logged: Set<string>
+}
+
+const STATIC_CATALOG_SOURCE: CatalogEntrySource = {
+  kind: 'openrouter',
+  instanceId: 'openrouter',
+  badge: null,
+  workflowName: null,
+  local: false,
 }
 
 const driftState = globalState<DriftState>('modelCatalogDrift', () => {
@@ -86,11 +94,15 @@ async function buildEntry(preset: VideoPreset): Promise<CatalogEntry> {
   const isConfigured = preset.bindings.some(isBindingConfigured)
 
   if (!isConfigured) {
+    const reason = `Add your ${label} key in Settings.`
+
     return {
       ...base,
       provider: null,
       status: 'no_provider',
-      reason: `Add your ${label} key in Settings.`,
+      reason,
+      availability: { status: 'no_provider', reason },
+      source: STATIC_CATALOG_SOURCE,
     }
   }
 
@@ -100,7 +112,14 @@ async function buildEntry(preset: VideoPreset): Promise<CatalogEntry> {
     logDrift(preset, status.model)
   }
 
-  return { ...base, provider: binding.provider, status: status.status, reason: status.reason }
+  return {
+    ...base,
+    provider: binding.provider,
+    status: status.status,
+    reason: status.reason,
+    availability: { status: status.status, reason: status.reason },
+    source: STATIC_CATALOG_SOURCE,
+  }
 }
 
 /** Development-only drift report. Logs once per preset, never blocks. */
@@ -204,17 +223,28 @@ async function buildImageEntry(preset: ImagePreset): Promise<CatalogEntry> {
   })
 
   if (!isConfigured) {
+    const reason = `Add your ${label} key in Settings.`
+
     return {
       ...base,
       provider: null,
       status: 'no_provider',
-      reason: `Add your ${label} key in Settings.`,
+      reason,
+      availability: { status: 'no_provider', reason },
+      source: STATIC_CATALOG_SOURCE,
     }
   }
 
   const status = await catalogStatus({ provider, binding, label })
 
-  return { ...base, provider: binding.provider, status: status.status, reason: status.reason }
+  return {
+    ...base,
+    provider: binding.provider,
+    status: status.status,
+    reason: status.reason,
+    availability: { status: status.status, reason: status.reason },
+    source: STATIC_CATALOG_SOURCE,
+  }
 }
 
 async function imagePricing(preset: ImagePreset): Promise<PricingInfo> {

@@ -10,6 +10,7 @@ import {
   IMAGES_KEY,
 } from '@/lib/api/swr-keys'
 import { imageOutputPath, imageRecordPath, IMAGES_DIR, imageTempPath } from '@/server/paths'
+import type { JobProgress } from '@/server/providers/types'
 
 import {
   type ImageBatchBody,
@@ -71,7 +72,7 @@ import {
   PRICE_UNITS,
   type PriceQuote,
 } from '../src/core/pricing/types'
-import type { ProviderId } from '../src/core/providers/types'
+import type { ProviderId, ProviderKindId } from '../src/core/providers/types'
 import {
   IMAGE_OUTPUT_MEDIA_TYPES,
   IMAGE_OUTPUT_STATUSES,
@@ -187,7 +188,9 @@ const defaultInSet = <T extends string>(
 }
 
 type ContractTypes = readonly [
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- alias stays for one version
   ProviderId,
+  ProviderKindId,
   ImagePreset,
   ImageResolution,
   ImageAspectRatio,
@@ -200,6 +203,7 @@ type ContractTypes = readonly [
   readonly ImageOption<string>[],
   ImagePriceLine,
   BindingBase,
+  JobProgress,
   ImageRecordStatus,
   ImageOutputStatus,
   ImageOutputMediaType,

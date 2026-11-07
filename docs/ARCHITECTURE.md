@@ -275,10 +275,15 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `CREDITS_SETTLE_WINDOW_MS` | 120000 | Window for a newly seen settled record to trigger a refresh |
 | `CREDIT_DANGER_USD` | 0.5 | Balance that shows the danger color |
 | `CREDIT_WARN_USD` | 2 | Balance that shows the warning color |
+| `CUSTOM_CHECK_TIMEOUT_MS` | 3000 | Fresh availability check timeout on Generate |
+| `CUSTOM_IMAGE_MAX_WAIT_MS` | 900000 | Longest wait for one custom image job |
+| `CUSTOM_MISSING_KEEP_DAYS` | 30 | Days a missing custom model stays in the cache |
+| `CUSTOM_REF_TOTAL_SEC` | 30 | Combined reference seconds custom presets advertise |
 | `DETAILS_MIN_WIDTH` | 240 | Minimum details panel width |
 | `DOCKED_PANEL_EDGE_GAP` | 16 | Gap between a docked panel and the viewport edges |
 | `DOCKED_PANEL_WIDTH` | 560 | Default docked panel width, the video picker size |
 | `DOWNLOAD_STAGGER_MS` | 300 | Delay between batch download starts |
+| `ENDPOINT_HEALTH_MAX_AGE_MS` | 30000 | A health state older than this is refreshed on the next use |
 | `EXPORT_TOKEN_TTL_MS` | 600000 | Window to use a save-dialog path |
 | `FETCH_TIMEOUTS.submit` | 300000 | Submit request timeout |
 | `FETCH_TIMEOUTS.poll` | 30000 | Poll request timeout |

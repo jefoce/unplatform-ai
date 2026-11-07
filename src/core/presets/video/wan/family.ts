@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import type { Dict } from '../../../utility-types'
 import { perSecondPricing } from '../../common/pricing'
 import type { VideoPreset } from '../types'
@@ -75,7 +74,7 @@ export function wanPreset(params: WanPresetParams): VideoPreset {
     title,
     bindings: [
       {
-        provider: PROVIDER_IDS[0],
+        provider: 'openrouter',
         modelId,
         // Alibaba bills input plus output seconds when a video reference is sent,
         // both at the output-resolution rate.

@@ -73,6 +73,14 @@ describe('videoPickerModel', () => {
       status: 'available',
       reason: null,
       pricing: PRICING,
+      availability: { status: 'available', reason: null },
+      source: {
+        kind: 'openrouter',
+        instanceId: 'openrouter',
+        badge: null,
+        workflowName: null,
+        local: false,
+      },
     }
 
     const model = videoPickerModel(WAN, entry)
@@ -117,6 +125,14 @@ describe('ModelRow image view', () => {
       status: 'missing',
       reason: 'Not available on OpenRouter right now.',
       pricing: null,
+      availability: { status: 'missing', reason: 'Not available on OpenRouter right now.' },
+      source: {
+        kind: 'openrouter',
+        instanceId: 'openrouter',
+        badge: null,
+        workflowName: null,
+        local: false,
+      },
     })
 
     render(<ModelRow model={imagePickerModel(preset)} selected={false} onSelect={handleSelect} />)
@@ -150,6 +166,14 @@ describe('ModelVideoRow', () => {
     status: 'no_provider',
     reason: null,
     pricing: { ...PRICING, listSkus: { duration_seconds_480p: 0.06 }, discount: 0.15 },
+    availability: { status: 'no_provider', reason: null },
+    source: {
+      kind: 'openrouter',
+      instanceId: 'openrouter',
+      badge: null,
+      workflowName: null,
+      local: false,
+    },
   }
 
   it('keeps a long title on one truncated line and still shows the price', () => {

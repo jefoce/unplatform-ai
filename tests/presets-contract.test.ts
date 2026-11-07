@@ -18,11 +18,12 @@ function pricingKeys(preset: VideoPreset): string[] {
   })
 }
 
-/** Per-family expectations the contract pins. */
-const FAMILY_CONTRACT = {
-  wan: { idPrefix: 'wan-', icon: 'sparkles' },
-  seedance: { idPrefix: 'seedance-', icon: 'audio-lines' },
-} as const satisfies Record<VideoPreset['family'], { idPrefix: string; icon: string }>
+/** Per-family expectations the contract pins. Custom presets arrive with the adapters. */
+const FAMILY_CONTRACT: Partial<Record<VideoPreset['family'], { idPrefix: string; icon: string }>> =
+  {
+    wan: { idPrefix: 'wan-', icon: 'sparkles' },
+    seedance: { idPrefix: 'seedance-', icon: 'audio-lines' },
+  }
 
 describe('preset contract', () => {
   it('keeps defaults inside their lists', () => {
@@ -100,8 +101,8 @@ describe('preset contract', () => {
     for (const preset of VIDEO_PRESETS) {
       const contract = FAMILY_CONTRACT[preset.family]
 
-      expect(preset.id.startsWith(contract.idPrefix), preset.id).toBe(true)
-      expect(preset.icon, preset.id).toBe(contract.icon)
+      expect(preset.id.startsWith(contract?.idPrefix ?? ''), preset.id).toBe(true)
+      expect(preset.icon, preset.id).toBe(contract?.icon)
     }
   })
 
