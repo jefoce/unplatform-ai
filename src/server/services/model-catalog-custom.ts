@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one custom catalog owns the cache, the refresh and the entry mapping */
 import 'server-only'
 
 import { isNil } from 'lodash-es'
@@ -8,8 +9,11 @@ import {
   type ModelAvailability,
   type ModelStatus,
 } from '@/core/catalog'
-import { FETCH_TIMEOUTS, MODEL_CATALOG_TTL_MS } from '@/core/constants'
+import { CUSTOM_CHECK_TIMEOUT_MS, MODEL_CATALOG_TTL_MS } from '@/core/constants'
+import { setRuntimeVideoPresets } from '@/core/presets'
+import { isImagePreset, isVideoPreset } from '@/core/presets/common/preset-kind'
 import { mapCustomModel } from '@/core/presets/custom/from-capabilities'
+import { setRuntimeImagePresets } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
@@ -35,10 +39,6 @@ import {
 const MISSING_REASON = 'This workflow is gone from ComfyUI.'
 const UNREACHABLE_REASON = 'ComfyUI is not reachable.'
 
-const presetIndex = globalState<Map<string, PresetSource>>('customPresetIndex', () => {
-  return new Map()
-})
-
 export interface PresetSource {
   preset: VideoPreset | ImagePreset
   source: CatalogEntrySource
@@ -48,6 +48,20 @@ export interface CustomCatalogData {
   entries: CatalogEntry[]
   presets: PresetSource[]
 }
+
+interface CustomCatalogCache extends CustomCatalogData {
+  isLoaded: boolean
+  pending: Promise<void> | null
+}
+
+interface EnsureCustomCatalogParams {
+  isRefresh: boolean
+  shouldAwaitLoad: boolean
+}
+
+const cache = globalState<CustomCatalogCache>('customCatalogCache', () => {
+  return { entries: [], presets: [], isLoaded: false, pending: null }
+})
 
 interface KindCatalog {
   entries: CatalogEntry[]
@@ -81,12 +95,9 @@ interface LoadCustomCatalogParams {
 }
 
 /** Custom presets and catalog entries from the cached model lists of enabled endpoints. */
-export async function loadCustomCatalog(
-  params: LoadCustomCatalogParams,
-): Promise<CustomCatalogData> {
+async function loadCustomCatalog(params: LoadCustomCatalogParams): Promise<CustomCatalogData> {
   const { isForce } = params
-
-  presetIndex.clear()
+  const presets = new Map<string, PresetSource>()
 
   const endpoints = await listEnabledCustomEndpoints()
 
@@ -102,19 +113,93 @@ export async function loadCustomCatalog(
 
   for (const catalog of catalogs) {
     for (const preset of catalog.presets) {
-      presetIndex.set(preset.preset.id, preset)
+      presets.set(preset.preset.id, preset)
     }
   }
 
-  return { entries, presets: Array.from(presetIndex.values()) }
+  return { entries, presets: Array.from(presets.values()) }
+}
+
+/**
+ * Cached custom entries. A refresh with a loaded cache returns at once and
+ * refreshes in the background, so callers never wait on a slow endpoint.
+ */
+export async function ensureCustomCatalog(
+  params: EnsureCustomCatalogParams,
+): Promise<CustomCatalogData> {
+  const { isRefresh, shouldAwaitLoad } = params
+
+  if (!cache.isLoaded && shouldAwaitLoad) {
+    await refreshCustomCatalog()
+  } else if (!cache.isLoaded) {
+    startRefresh()
+  } else if (isRefresh) {
+    startRefresh()
+  }
+
+  return { entries: cache.entries, presets: cache.presets }
+}
+
+/** Deduped custom catalog load. Never rejects, so a background call is safe. */
+export function refreshCustomCatalog(): Promise<void> {
+  const running = cache.pending
+
+  if (!isNil(running)) {
+    return running
+  }
+
+  const pending = loadCustomCatalog({ isForce: true })
+    .then((data) => {
+      if (cache.pending !== pending) {
+        return
+      }
+
+      applyCustomCatalog(data)
+      cache.isLoaded = true
+    })
+    .catch(() => {
+      // Keep the previous entries. The next request retries.
+    })
+    .finally(() => {
+      if (cache.pending === pending) {
+        cache.pending = null
+      }
+    })
+
+  cache.pending = pending
+
+  return pending
+}
+
+function startRefresh(): void {
+  void refreshCustomCatalog()
+}
+
+function applyCustomCatalog(data: CustomCatalogData): void {
+  cache.entries = data.entries
+  cache.presets = data.presets
+
+  const presets = data.presets.map((item) => {
+    return item.preset
+  })
+
+  setRuntimeVideoPresets(presets.filter(isVideoPreset))
+  setRuntimeImagePresets(presets.filter(isImagePreset))
 }
 
 export function findCustomPreset(presetId: string): PresetSource | null {
-  return presetIndex.get(presetId) ?? null
+  return (
+    cache.presets.find((item) => {
+      return item.preset.id === presetId
+    }) ?? null
+  )
 }
 
 export function clearCustomCatalog(): void {
-  presetIndex.clear()
+  cache.entries = []
+  cache.presets = []
+  cache.isLoaded = false
+  cache.pending = null
 }
 
 async function loadEndpointCatalog(
@@ -188,7 +273,7 @@ async function fetchModelList(
     endpoint,
     path,
     init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
-    timeoutMs: FETCH_TIMEOUTS.meta,
+    timeoutMs: CUSTOM_CHECK_TIMEOUT_MS,
   })
 
   return UpaiModelListSchema.parse(payload).data

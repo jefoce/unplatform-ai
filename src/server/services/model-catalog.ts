@@ -20,13 +20,13 @@ import { loadLivePricing } from '../pricing/live'
 import { getImageProvider, getVideoProvider } from '../providers/registry'
 import type { ProviderModel } from '../providers/types'
 import { registerSecretsListener, secretsReady } from '../secrets'
-import { createTtlCache } from '../sync/ttl-cache'
+import { createTtlCache, type TtlLoadResult } from '../sync/ttl-cache'
 import { catalogStatus } from './catalog-status'
 import { clearEndpointModelCache } from './endpoint-model-cache'
 import {
   clearCustomCatalog,
+  ensureCustomCatalog,
   findCustomPreset,
-  loadCustomCatalog,
   type PresetSource,
 } from './model-catalog-custom'
 
@@ -52,27 +52,29 @@ function isBindingConfigured(binding: ProviderBinding): boolean {
   return getVideoProvider(binding.provider).isConfigured()
 }
 
-const cache = createTtlCache<ModelCatalog>({
-  key: 'modelCatalog',
+const cache = createTtlCache<CatalogEntry[]>({
+  key: 'modelCatalogStatic',
   okTtlMs: MODEL_CATALOG_TTL_MS,
   failTtlMs: MODEL_CATALOG_TTL_MS,
 })
 
-interface LoadCatalogParams {
-  isForce: boolean
+interface GetModelCatalogParams {
+  isRefreshCustom?: boolean
 }
 
-/** One entry per preset, with availability from the provider model list. */
-export async function getModelCatalog(isForce = false): Promise<ModelCatalog> {
-  if (isForce) {
-    cache.clear()
+/** Static entries from the TTL cache next to the cached custom entries. */
+export async function getModelCatalog(params: GetModelCatalogParams = {}): Promise<ModelCatalog> {
+  const { isRefreshCustom = false } = params
+
+  const [entries, custom] = await Promise.all([
+    cache.get('static', loadStaticEntries),
+    ensureCustomCatalog({ isRefresh: isRefreshCustom, shouldAwaitLoad: false }),
+  ])
+
+  return {
+    entries: [...entries, ...custom.entries],
+    fetchedAt: new Date().toISOString(),
   }
-
-  return cache.get('catalog', async () => {
-    const catalog = await loadCatalog({ isForce })
-
-    return { value: catalog, isOk: true }
-  })
 }
 
 /** Drops the cached catalog and custom model memory after settings change. */
@@ -105,7 +107,7 @@ export async function findPresetAny(presetId: string): Promise<PresetSource | nu
     return { preset: image, source: STATIC_CATALOG_SOURCE }
   }
 
-  await getModelCatalog()
+  await ensureCustomCatalog({ isRefresh: false, shouldAwaitLoad: true })
 
   return findCustomPreset(presetId)
 }
@@ -132,28 +134,15 @@ export async function findImagePresetAny(presetId: string): Promise<ImagePreset 
   return found.preset
 }
 
-async function loadCatalog(params: LoadCatalogParams): Promise<ModelCatalog> {
-  const { isForce } = params
-
+async function loadStaticEntries(): Promise<TtlLoadResult<CatalogEntry[]>> {
   await secretsReady()
 
-  const [videoEntries, imageEntries, custom] = await Promise.all([
+  const [videoEntries, imageEntries] = await Promise.all([
     Promise.all(VIDEO_PRESETS.map(buildEntry)),
     Promise.all(IMAGE_PRESETS.map(buildImageEntry)),
-    loadCustomCatalog({ isForce }),
   ])
 
-  const customPresets = custom.presets.map((item) => {
-    return item.preset
-  })
-
-  setRuntimeVideoPresets(customPresets.filter(isVideoPreset))
-  setRuntimeImagePresets(customPresets.filter(isImagePreset))
-
-  return {
-    entries: [...videoEntries, ...imageEntries, ...custom.entries],
-    fetchedAt: new Date().toISOString(),
-  }
+  return { value: [...videoEntries, ...imageEntries], isOk: true }
 }
 
 async function buildEntry(preset: VideoPreset): Promise<CatalogEntry> {

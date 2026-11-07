@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
     const isForce = new URL(request.url).searchParams.get('refresh') === '1'
 
-    return jsonResponse(await getModelCatalog(isForce))
+    return jsonResponse(await getModelCatalog({ isRefreshCustom: isForce }))
   } catch (error) {
     return errorResponse(error)
   }

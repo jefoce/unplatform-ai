@@ -285,6 +285,18 @@ describe('getModelCatalog providers', () => {
     expect(entry?.provider).toBe(multi.fakeProvider)
     expect(entry?.status).toBe('available')
   })
+
+  it('does not rebuild static entries on a custom refresh', async () => {
+    await getModelCatalog()
+    mocks.getPricing.mockClear()
+    mocks.listModels.mockClear()
+
+    const { entries } = await getModelCatalog({ isRefreshCustom: true })
+
+    expect(entries.length).toBeGreaterThan(0)
+    expect(mocks.getPricing).not.toHaveBeenCalled()
+    expect(mocks.listModels).not.toHaveBeenCalled()
+  })
 })
 
 describe('activeBinding', () => {

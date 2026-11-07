@@ -87,7 +87,7 @@ const loadUploads = vi.hoisted(() => {
 
 vi.mock('@/server/services/model-catalog-custom', () => {
   return {
-    loadCustomCatalog: async () => {
+    ensureCustomCatalog: async () => {
       return { entries: catalogState.entries, presets: catalogState.presets }
     },
     findCustomPreset: (presetId: string) => {
