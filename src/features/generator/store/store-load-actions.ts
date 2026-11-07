@@ -1,6 +1,6 @@
 'use client'
 
-import { isEqual, keyBy, omit, pick } from 'lodash-es'
+import { isEqual, isNil, keyBy, omit, pick } from 'lodash-es'
 import { toast } from 'sonner'
 
 import { normalizeForPreset } from '@/core/normalize-input'
@@ -19,6 +19,19 @@ export function createLoadActions(set: GeneratorSetState, get: GeneratorGetState
     loadInput: (input, uploads) => {
       const cache = { ...get().uploadsById, ...keyBy(uploads, 'id') }
       const found = findPreset(input.presetId)
+
+      if (isNil(found) && input.presetId.startsWith('custom.')) {
+        set((state) => {
+          return {
+            ...omit(input, 'prompt'),
+            prompts: { ...state.prompts, [input.tab]: input.prompt },
+            uploadsById: cache,
+          }
+        })
+
+        return
+      }
+
       const preset = found ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
 
       if (!found) {
@@ -39,7 +52,13 @@ export function createLoadActions(set: GeneratorSetState, get: GeneratorGetState
     },
     normalizeLoaded: () => {
       const state = get()
-      const preset = findPreset(state.presetId) ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
+      const found = findPreset(state.presetId)
+
+      if (isNil(found) && state.presetId.startsWith('custom.')) {
+        return
+      }
+
+      const preset = found ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
 
       const { input } = normalizeForPreset({
         input: inputFromState(state),

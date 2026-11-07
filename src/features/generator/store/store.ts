@@ -1,6 +1,6 @@
 'use client'
 
-import { omit } from 'lodash-es'
+import { isNil, omit } from 'lodash-es'
 import { z } from 'zod'
 
 import { normalizeForPreset } from '@/core/normalize-input'
@@ -30,7 +30,13 @@ const DraftSchema = z.object({
 
 /** Reapplies the preset rules to a restored draft. */
 function normalizeDraft(state: GeneratorState): Partial<GeneratorState> {
-  const preset = findPreset(state.presetId) ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
+  const found = findPreset(state.presetId)
+
+  if (isNil(found) && state.presetId.startsWith('custom.')) {
+    return {}
+  }
+
+  const preset = found ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
 
   const { input } = normalizeForPreset({
     input: inputFromState(state),

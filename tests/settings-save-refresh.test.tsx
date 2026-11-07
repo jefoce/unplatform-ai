@@ -7,7 +7,10 @@ import { useSettingsDraft } from '@/features/settings/use-settings-draft'
 const mocks = vi.hoisted(() => {
   return {
     order: [] as string[],
+    rowCount: 0,
+    refreshedRowCount: 0,
     saveEndpoints: vi.fn(),
+    reset: vi.fn(),
   }
 })
 
@@ -23,6 +26,7 @@ vi.mock('@/lib/api/endpoints', () => {
   return {
     refreshEndpoints: vi.fn(async () => {
       mocks.order.push('endpoints')
+      mocks.refreshedRowCount = 2
     }),
   }
 })
@@ -43,7 +47,7 @@ vi.mock('@/features/settings/use-endpoints-draft', () => {
   return {
     useEndpointsDraft: () => {
       return {
-        rows: [],
+        rows: Array.from({ length: mocks.rowCount }),
         nextBadge: 'CU2',
         isLoading: false,
         isDirty: true,
@@ -52,7 +56,7 @@ vi.mock('@/features/settings/use-endpoints-draft', () => {
         onChange: vi.fn(),
         onTest: vi.fn(),
         onSave: mocks.saveEndpoints,
-        reset: vi.fn(),
+        reset: mocks.reset,
       }
     },
   }
@@ -93,6 +97,15 @@ vi.mock('sonner', () => {
 
 beforeEach(() => {
   mocks.order.length = 0
+  mocks.rowCount = 0
+  mocks.refreshedRowCount = 0
+  mocks.reset.mockReset()
+
+  mocks.reset.mockImplementation(() => {
+    mocks.order.push('reset')
+    mocks.rowCount = mocks.refreshedRowCount
+  })
+
   mocks.saveEndpoints.mockReset()
   mocks.saveEndpoints.mockResolvedValue(undefined)
 })
@@ -113,6 +126,7 @@ describe('settings save refresh', () => {
     })
 
     expect(mocks.saveEndpoints).toHaveBeenCalledTimes(1)
-    expect(mocks.order).toEqual(['models', 'endpoints'])
+    expect(mocks.order).toEqual(['models', 'endpoints', 'reset'])
+    expect(result.current.endpoints.rows).toHaveLength(2)
   })
 })

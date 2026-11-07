@@ -254,6 +254,12 @@ export function validateReferences(params: ValidateWithContextParams): RuleResul
   const errors: string[] = []
 
   if (input.tab !== 'references') {
+    checkReferenceCounts({
+      counts: { image: 0, video: 0, audio: 0 },
+      preset,
+      errors,
+    })
+
     return { errors, warnings: [] }
   }
 

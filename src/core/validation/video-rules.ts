@@ -142,11 +142,12 @@ export function validateFrames(params: ValidateFramesParams): RuleResult {
   const { input, uploads, preset } = params
   const errors: string[] = []
 
+  checkRequiredFrames({ input, uploads, preset, errors })
+
   if (input.tab !== 'frames') {
     return { errors, warnings: [] }
   }
 
-  checkRequiredFrames({ input, uploads, preset, errors })
   checkFrameOrder({ input, uploads, preset, errors })
   checkFrameKind({ id: input.frames.start, role: 'Start frame', uploads, errors })
 

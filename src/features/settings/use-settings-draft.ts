@@ -185,6 +185,7 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
 
       await Promise.all([refreshCredits(), refreshRemoteStatus(), refreshModels()])
       await refreshEndpoints()
+      endpoints.reset()
       setEdits({})
       resetResults()
       toast.success('Settings saved')
