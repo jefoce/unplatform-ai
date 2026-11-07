@@ -13,6 +13,7 @@ import { useGenerate } from '../generate/use-generate'
 import { usePanelPrice } from '../generate/use-panel-price'
 import { isPriceReason, useSubmitGate } from '../generate/use-submit-gate'
 import { ModelPicker } from '../model/ModelPicker'
+import { isPriceVisibleFor } from '../model/price-visibility'
 import { ReferencesBox } from '../references/ReferencesBox'
 import { useGeneratorStore } from '../store/store'
 import { ModeTabs } from './ModeTabs'
@@ -39,13 +40,16 @@ interface PanelErrorParams {
   priceReason: string | null
 }
 
-/** Validation first, then the provider reason, then the price reasons. */
+/** Provider reason first: unreachable, missing, stale, then validation and price. */
 function panelError(params: PanelErrorParams): string | undefined {
   const { validationError, providerReason, priceReason } = params
-  const error = validationError ?? providerReason ?? undefined
 
-  if (!isNil(error)) {
-    return error
+  if (!isNil(providerReason)) {
+    return providerReason
+  }
+
+  if (!isNil(validationError)) {
+    return validationError
   }
 
   if (isPriceReason(priceReason)) {
@@ -76,6 +80,9 @@ export function GeneratorPanel() {
     isPriceLoading,
     price,
   })
+
+  const priceUsd = price ?? 0
+  const isPriceVisible = isPriceVisibleFor(draft.entry, priceUsd)
 
   const error = panelError({
     validationError: draft.validation.errors[0],
@@ -156,6 +163,7 @@ export function GeneratorPanel() {
           disabled={!isReady}
           error={error}
           price={price}
+          isPriceVisible={isPriceVisible}
           listPrice={listPrice}
           discount={discount}
         />
