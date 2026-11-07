@@ -13,6 +13,7 @@ import { stopImageSubmits, waitForImageSendingDone } from './jobs/image-submit-q
 import { stopPoller } from './jobs/poller'
 import { stopSubmits, waitForSendingDone } from './jobs/submit-queue'
 import { stopAllFfmpeg } from './media/ffmpeg'
+import { cancelActiveCustomImageJobs } from './providers/custom/image-jobs'
 
 let isShuttingDown = false
 
@@ -27,6 +28,8 @@ export async function shutdownServer(): Promise<void> {
   stopPoller()
   stopSubmits()
   stopImageSubmits()
+
+  await cancelActiveCustomImageJobs()
 
   const [isImageDone] = await Promise.all([
     waitForImageSendingDone(SHUTDOWN_IMAGE_WAIT_MS),

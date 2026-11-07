@@ -68,6 +68,7 @@ const HealthSchema = z
     desktop: z.boolean(),
     ready: z.boolean(),
     generating: z.number(),
+    customVideo: z.number(),
     downloading: z.number(),
     sending: z.number(),
     imageSending: z.number(),

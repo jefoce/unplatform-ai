@@ -1,6 +1,7 @@
 import { isNil } from 'lodash-es'
 
 import { appVersion } from '@/core/app-version'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { errorResponse, jsonResponse } from '@/server/http'
 import { downloadQueueIds } from '@/server/jobs/download-queue'
 import { imageSendingCount } from '@/server/jobs/image-submit-queue'
@@ -11,6 +12,10 @@ import { assertLocalRequest } from '@/server/request-guard'
 import { bootNonce, desktopMode, hasSession } from '@/server/session'
 
 export const dynamic = 'force-dynamic'
+
+const isGenerating = (record: GenerationRecord) => {
+  return record.status === 'pending' || (record.status === 'in_progress' && isNil(record.download))
+}
 
 export async function GET(request: Request) {
   try {
@@ -26,9 +31,11 @@ export async function GET(request: Request) {
     }).length
 
     const generating = records.filter((record) => {
-      return (
-        record.status === 'pending' || (record.status === 'in_progress' && isNil(record.download))
-      )
+      return record.provider !== 'custom' && isGenerating(record)
+    }).length
+
+    const customVideo = records.filter((record) => {
+      return record.provider === 'custom' && isGenerating(record)
     }).length
 
     const downloadingIds = new Set(
@@ -52,6 +59,7 @@ export async function GET(request: Request) {
       desktop: desktopMode(),
       ready: isBooted(),
       generating,
+      customVideo,
       downloading: downloadingIds.size,
       sending: sendingCount(),
       imageSending: imageSendingCount(),

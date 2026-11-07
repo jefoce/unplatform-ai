@@ -4,6 +4,7 @@ import { SHUTDOWN_IMAGE_WAIT_MS } from '../src/core/constants'
 
 const mocks = vi.hoisted(() => {
   return {
+    cancelActiveCustomImageJobs: vi.fn(async () => {}),
     exit: vi.fn(),
     flagUnfinishedImageCharges: vi.fn(async () => {}),
     releaseInstanceLock: vi.fn(),
@@ -54,6 +55,10 @@ vi.mock('@/server/media/ffmpeg', () => {
   return { stopAllFfmpeg: mocks.stopAllFfmpeg }
 })
 
+vi.mock('@/server/providers/custom/image-jobs', () => {
+  return { cancelActiveCustomImageJobs: mocks.cancelActiveCustomImageJobs }
+})
+
 const { shutdownServer } = await import('@/server/shutdown')
 
 const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
@@ -68,6 +73,7 @@ describe('shutdown path', () => {
     expect(mocks.stopPoller).toHaveBeenCalledTimes(1)
     expect(mocks.stopSubmits).toHaveBeenCalledTimes(1)
     expect(mocks.stopImageSubmits).toHaveBeenCalledTimes(1)
+    expect(mocks.cancelActiveCustomImageJobs).toHaveBeenCalledTimes(1)
     expect(mocks.waitForSendingDone).toHaveBeenCalledTimes(1)
     expect(mocks.waitForImageSendingDone).toHaveBeenCalledWith(SHUTDOWN_IMAGE_WAIT_MS)
     expect(mocks.waitForDownloadsDone).toHaveBeenCalledTimes(1)

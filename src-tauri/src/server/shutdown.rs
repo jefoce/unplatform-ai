@@ -28,6 +28,7 @@ const WORK_POLL: Duration = Duration::from_millis(250);
 #[derive(Default)]
 pub(crate) struct Pending {
     generating: u32,
+    custom_video: u32,
     downloading: u32,
     sending: u32,
     image_sending: u32,
@@ -42,6 +43,7 @@ impl Pending {
         };
         Self {
             generating: health.generating,
+            custom_video: health.custom_video,
             downloading: health.downloading,
             sending: health.sending,
             image_sending: health.image_sending,
@@ -52,6 +54,7 @@ impl Pending {
 
     pub(crate) fn busy(&self) -> bool {
         self.generating
+            + self.custom_video
             + self.downloading
             + self.sending
             + self.image_sending
@@ -70,7 +73,13 @@ impl Pending {
     }
 
     fn has_videos(&self) -> bool {
-        self.generating + self.downloading + self.sending + self.uploading + self.grace > 0
+        self.generating
+            + self.custom_video
+            + self.downloading
+            + self.sending
+            + self.uploading
+            + self.grace
+            > 0
     }
 }
 
@@ -192,6 +201,11 @@ fn guard_text(pending: &Pending) -> String {
             pending.generating,
             "1 video keeps generating on OpenRouter, and the app downloads it when you open it again. Finished videos are kept only for a limited time, so open the app again within a few hours.",
             "{} videos keep generating on OpenRouter, and the app downloads them when you open it again. Finished videos are kept only for a limited time, so open the app again within a few hours.",
+        ),
+        group(
+            pending.custom_video,
+            "1 ComfyUI video keeps running in ComfyUI. The app picks it up on the next start.",
+            "{} ComfyUI videos keep running in ComfyUI. The app picks them up on the next start.",
         ),
         group(
             pending.downloading,
@@ -323,6 +337,7 @@ mod tests {
             "desktop": true,
             "ready": true,
             "generating": 0,
+            "customVideo": 0,
             "downloading": 0,
             "sending": 0,
             "imageSending": 1,
@@ -337,6 +352,13 @@ mod tests {
         let mut health = health_with_image_sending();
         health.image_sending = 0;
         health.downloading = 1;
+        health
+    }
+
+    fn health_with_custom_video() -> Health {
+        let mut health = health_with_download();
+        health.downloading = 0;
+        health.custom_video = 1;
         health
     }
 
@@ -369,6 +391,26 @@ mod tests {
     fn download_only_does_not_need_a_send_wait() {
         let pending = Pending::from_health(Some(health_with_download()));
         assert!(!pending.needs_send_wait());
+    }
+
+    #[test]
+    fn custom_video_keeps_the_guard_but_not_the_wait() {
+        let pending = Pending::from_health(Some(health_with_custom_video()));
+
+        assert!(pending.busy());
+        assert!(!pending.needs_wait());
+
+        let one = guard_text(&Pending {
+            custom_video: 1,
+            ..Pending::default()
+        });
+        assert!(one.contains("1 ComfyUI video keeps running in ComfyUI"));
+
+        let many = guard_text(&Pending {
+            custom_video: 2,
+            ..Pending::default()
+        });
+        assert!(many.contains("2 ComfyUI videos keep running in ComfyUI"));
     }
 
     #[test]

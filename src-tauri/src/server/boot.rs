@@ -59,6 +59,8 @@ pub(crate) struct Health {
     pub(crate) ready: bool,
     #[serde(default)]
     pub(crate) generating: u32,
+    #[serde(default, rename = "customVideo")]
+    pub(crate) custom_video: u32,
     #[serde(default)]
     pub(crate) downloading: u32,
     #[serde(default)]

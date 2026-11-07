@@ -25,7 +25,7 @@ export function untrackCustomImageJob(jobId: string): void {
 }
 
 /** Best effort: a process signal cancels the queued ComfyUI jobs. */
-async function cancelActiveCustomImageJobs(): Promise<void> {
+export async function cancelActiveCustomImageJobs(): Promise<void> {
   const jobs = [...active.values()]
 
   active.clear()
