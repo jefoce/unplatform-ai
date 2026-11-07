@@ -45,7 +45,7 @@ function customRecord() {
 }
 
 beforeEach(() => {
-  mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false })
+  mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
 })
 
 afterEach(() => {
@@ -61,7 +61,7 @@ describe('custom details source', () => {
   })
 
   it('marks a deleted endpoint', () => {
-    mockEndpoints.mockReturnValue({ endpoints: [], isLoading: false })
+    mockEndpoints.mockReturnValue({ endpoints: [], isLoading: false, error: null })
 
     render(<DetailsSource record={customRecord()} />)
 
@@ -69,7 +69,19 @@ describe('custom details source', () => {
   })
 
   it('does not mark a removed endpoint while the list loads', () => {
-    mockEndpoints.mockReturnValue({ endpoints: [], isLoading: true })
+    mockEndpoints.mockReturnValue({ endpoints: [], isLoading: true, error: null })
+
+    render(<DetailsSource record={customRecord()} />)
+
+    expect(screen.getByText('Endpoint: Studio PC')).toBeTruthy()
+  })
+
+  it('does not mark a removed endpoint when the list failed', () => {
+    mockEndpoints.mockReturnValue({
+      endpoints: [],
+      isLoading: false,
+      error: new Error('failed'),
+    })
 
     render(<DetailsSource record={customRecord()} />)
 

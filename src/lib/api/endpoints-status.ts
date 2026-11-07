@@ -37,6 +37,7 @@ export interface EndpointsOverview {
 interface EndpointsState {
   endpoints: EndpointStatusEntry[]
   isLoading: boolean
+  error: unknown
 }
 
 interface EndpointTestResult {
@@ -56,12 +57,12 @@ const EndpointTestSchema = z.object({
 
 /** Endpoint list with the last health state, read for the ready gate. */
 export function useEndpointsStatus(): EndpointsState {
-  const { data, isLoading } = useSWR<EndpointsOverview>(ENDPOINTS_STATUS_KEY, fetcher, {
+  const { data, isLoading, error } = useSWR<EndpointsOverview>(ENDPOINTS_STATUS_KEY, fetcher, {
     refreshInterval: 15_000,
     revalidateOnFocus: true,
   })
 
-  return { endpoints: data?.endpoints ?? [], isLoading }
+  return { endpoints: data?.endpoints ?? [], isLoading, error }
 }
 
 /** One endpoint by id, or null while loading or after a delete. */

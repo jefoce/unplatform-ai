@@ -266,6 +266,32 @@ describe('endpoint edits', () => {
     expect(next.endpoints[0]?.status).toBe('unknown')
     expect(health.getHealth(id)).toBeNull()
   })
+
+  it('keeps health after a test when only the instance id changes', async () => {
+    const saved = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
+    })
+
+    const id = saved.endpoints[0]?.id ?? ''
+    const health = await import('@/server/services/endpoint-health')
+
+    health.setEndpointHealth({ endpointId: id, status: 'ok', message: null })
+
+    const next = await service.saveEndpoints({
+      endpoints: [
+        {
+          ...endpoint('Studio'),
+          id,
+          instanceId: HEALTH.instance_id,
+          lastHealth: LAST_HEALTH,
+        },
+      ],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).not.toBeNull()
+    expect(next.endpoints[0]?.status).toBe('ok')
+    expect(health.getHealth(id)).not.toBeNull()
+  })
 })
 
 describe('endpoint test mapping', () => {

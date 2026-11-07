@@ -93,7 +93,7 @@ function setKey(isSet: boolean): void {
 beforeEach(() => {
   mockCredits.mockReturnValue({ credits: null } as unknown as ReturnType<typeof useCredits>)
   mockEntry.mockReturnValue(null)
-  mockEndpoints.mockReturnValue({ endpoints: [], isLoading: false })
+  mockEndpoints.mockReturnValue({ endpoints: [], isLoading: false, error: null })
   setKey(false)
 })
 
@@ -112,7 +112,7 @@ describe('ready gate', () => {
   })
 
   it('opens with one healthy custom endpoint and no OpenRouter key', () => {
-    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false })
+    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
 
     const { result } = renderHook(() => {
       return useProviderReady('custom.cu1.wan22', 'video')
@@ -127,6 +127,7 @@ describe('ready gate', () => {
     mockEndpoints.mockReturnValue({
       endpoints: [endpoint({ videoCount: 2, imageCount: 0 })],
       isLoading: false,
+      error: null,
     })
 
     const { result } = renderHook(() => {
@@ -140,6 +141,7 @@ describe('ready gate', () => {
     mockEndpoints.mockReturnValue({
       endpoints: [endpoint({ status: 'unreachable' })],
       isLoading: false,
+      error: null,
     })
 
     mockEntry.mockReturnValue(
@@ -154,7 +156,7 @@ describe('ready gate', () => {
   })
 
   it('reports an invalid workflow with its reason', () => {
-    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false })
+    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
 
     const reason = 'This workflow cannot run in ComfyUI.'
 
@@ -175,7 +177,7 @@ describe('ready gate', () => {
   })
 
   it('reports a stale workflow with the Generate hint', () => {
-    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false })
+    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
 
     mockEntry.mockReturnValue(
       customEntry({

@@ -35,7 +35,13 @@ export async function POST(request: Request) {
 
     const input: ImageGenerationInput = { ...parsed.data, prompt: '', seed: null }
     const promptChars = Math.min(parsed.data.promptChars, preset.promptMaxChars)
-    const promptLength = Math.max(1, Math.min(parsed.data.promptChars, preset.promptMaxChars + 1))
+    const cappedPrompt = Math.min(parsed.data.promptChars, preset.promptMaxChars + 1)
+    let promptLength = cappedPrompt
+
+    if (preset.promptOptional !== true) {
+      promptLength = Math.max(1, cappedPrompt)
+    }
+
     // The estimate carries prompt length, not text, so validate a bounded stand-in.
     const problems = validateImageInput(preset, { ...input, prompt: 'x'.repeat(promptLength) })
 

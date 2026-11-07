@@ -75,18 +75,27 @@ export function mapDuration(raw: UpaiDuration | undefined): DurationResult {
     step = Math.floor(raw.step)
   }
 
+  const gridMax = step > 1 ? min + Math.floor((max - min) / step) * step : max
+  const clampedDefault = clamp(Math.round(raw.default), min, gridMax)
+
+  const defaultDuration =
+    step > 1 ? min + Math.round((clampedDefault - min) / step) * step : clampedDefault
+
   const duration: MappedDuration = {
     min,
-    max,
-    default: clamp(Math.round(raw.default), min, max),
+    max: gridMax,
+    default: defaultDuration,
   }
 
   if (step > 1) {
     duration.step = step
 
-    duration.options = Array.from({ length: Math.floor((max - min) / step) + 1 }, (_, index) => {
-      return min + index * step
-    })
+    duration.options = Array.from(
+      { length: Math.floor((gridMax - min) / step) + 1 },
+      (_, index) => {
+        return min + index * step
+      },
+    )
   }
 
   return { duration, warnings: [] }

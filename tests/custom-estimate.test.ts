@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- one custom catalog fixture drives every estimate case */
+/* eslint-disable max-lines, max-lines-per-function -- one custom catalog fixture drives every estimate case */
 
 import fs from 'node:fs/promises'
 
@@ -336,6 +336,44 @@ describe('custom preset estimates', () => {
           background: preset.defaultBackground,
           references: [],
           promptChars: 5,
+        }),
+      }),
+    )
+
+    const body = (await response.json()) as { usd: number }
+
+    expect(response.status).toBe(200)
+    expect(body.usd).toBeCloseTo(2.5)
+  })
+
+  it('estimates a custom image preset with an optional zero-length prompt', async () => {
+    const base = modelAt(IMAGE_MODELS, 0)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        prompt: { required: false, max_chars: 0 },
+      },
+    }
+
+    const preset = imagePreset(model, 2.5)
+
+    registerPreset(preset)
+
+    const response = await imageEstimate(
+      new Request('http://localhost/api/images/estimate', {
+        method: 'POST',
+        headers: { host: 'localhost', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          presetId: preset.id,
+          count: 1,
+          aspectRatio: preset.defaultAspectRatio,
+          resolution: preset.defaultResolution,
+          quality: preset.defaultQuality,
+          background: preset.defaultBackground,
+          references: [],
+          promptChars: 0,
         }),
       }),
     )

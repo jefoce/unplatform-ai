@@ -143,6 +143,22 @@ describe('video mapping', () => {
     expect(preset.duration).toEqual({ min: 3, max: 9, default: 9, step: 3, options: [3, 6, 9] })
   })
 
+  it('aligns max and default to the step grid anchored at min', () => {
+    const base = modelAt(VIDEO_MODELS, 1)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        duration: { min: 3, max: 9, default: 9, step: 4 },
+      },
+    }
+
+    const preset = expectVideo(mapModel(model))
+
+    expect(preset.duration).toEqual({ min: 3, max: 7, default: 7, step: 4, options: [3, 7] })
+  })
+
   it('drops unsupported resolutions and falls back to a kept default', () => {
     const base = modelAt(VIDEO_MODELS, 1)
 

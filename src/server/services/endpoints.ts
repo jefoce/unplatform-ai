@@ -240,7 +240,6 @@ function isChanged(params: EndpointChangeParams): boolean {
 
   return (
     previous.baseUrl !== item.entry.baseUrl ||
-    previous.instanceId !== item.entry.instanceId ||
     previous.enabled !== item.entry.enabled ||
     !isUndefined(item.token)
   )
