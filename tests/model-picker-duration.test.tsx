@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 import { Price } from '@/ui/Price'
 
 import type { CatalogEntry } from '../src/core/catalog'
@@ -18,11 +18,6 @@ vi.mock('@/lib/api/catalog', () => {
       return { catalog: undefined, isLoading: false, isValidating: false }
     },
     refreshCatalog: vi.fn(async () => {}),
-  }
-})
-
-vi.mock('@/lib/api/models', () => {
-  return {
     useModelEntry: vi.fn(() => {
       return null
     }),

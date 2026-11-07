@@ -5,7 +5,7 @@ import { isNil } from 'lodash-es'
 
 import { findPreset } from '@/core/presets'
 import { findImagePreset } from '@/core/presets/image'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 
 import { imagePickerModel } from './image-picker-model'
 import type { ModelRowProps } from './model-row-props'

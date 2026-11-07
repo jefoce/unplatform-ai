@@ -12,7 +12,7 @@ import { videoPickerModel } from '@/features/generator/model/video-picker-model'
 import { GeneratorPanel } from '@/features/generator/panel/GeneratorPanel'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { pickerAnchor } from '@/features/media-picker/picker/anchors'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 
 import type { CatalogEntry } from '../src/core/catalog'
 import { getPreset } from '../src/core/presets'
@@ -44,7 +44,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return { useModelEntry: mocks.useModelEntry }
 })
 

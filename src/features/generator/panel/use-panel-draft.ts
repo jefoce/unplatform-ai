@@ -8,7 +8,7 @@ import { getPreset } from '@/core/presets'
 import type { GenerationInput } from '@/core/schemas/generation-record'
 import { validateInput, validateSettings } from '@/core/validation/video'
 import { useSecrets } from '@/features/settings/use-secrets'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 import { useRemoteStatus } from '@/lib/api/remote'
 
 import { useGeneratorStore } from '../store/store'

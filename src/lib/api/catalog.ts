@@ -41,7 +41,10 @@ function splitPresets(entries: readonly CatalogEntry[]): RuntimeSplit {
   return split
 }
 
-/** Publishes catalog presets so the shared find helpers see dynamic models. */
+/**
+ * Publishes catalog presets so the shared find helpers see dynamic models.
+ * @public
+ */
 export function registerCatalogPresets(entries: readonly CatalogEntry[]): void {
   const split = splitPresets(entries)
 
@@ -70,6 +73,17 @@ export function useCatalog(): CatalogState {
   })
 
   return { catalog: data, isLoading, isValidating }
+}
+
+/** One preset's catalog entry, or null while loading or unknown. */
+export function useModelEntry(presetId: string): CatalogEntry | null {
+  const { catalog } = useCatalog()
+
+  return (
+    catalog?.entries.find((entry) => {
+      return entry.presetId === presetId
+    }) ?? null
+  )
 }
 
 /** Refetches the catalog, resolving once the new entries are registered. */

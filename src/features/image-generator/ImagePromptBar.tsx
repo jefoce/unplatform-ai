@@ -12,7 +12,7 @@ import { GenerateButton } from '@/features/generator/generate/GenerateButton'
 import { isPriceReason, useSubmitGate } from '@/features/generator/generate/use-submit-gate'
 import { useProviderReady } from '@/features/generator/use-provider-ready'
 import { registerPickerAnchor } from '@/features/media-picker/picker/anchors'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 
 import { ImagePromptControls } from './ImagePromptControls'
 import { ImageReferences } from './ImageReferences'

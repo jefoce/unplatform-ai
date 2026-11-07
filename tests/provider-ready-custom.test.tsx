@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useProviderReady } from '@/features/generator/use-provider-ready'
 import { useSecrets } from '@/features/settings/use-secrets'
+import { useModelEntry } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
 import type * as EndpointsStatusModule from '@/lib/api/endpoints-status'
 import {
@@ -11,7 +12,6 @@ import {
   hasReadyEndpoint,
   useEndpointsStatus,
 } from '@/lib/api/endpoints-status'
-import { useModelEntry } from '@/lib/api/models'
 
 import type { CatalogEntry } from '../src/core/catalog'
 
@@ -23,7 +23,7 @@ vi.mock('@/lib/api/credits', () => {
   return { useCredits: vi.fn() }
 })
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return {
     useModelEntry: vi.fn(() => {
       return null

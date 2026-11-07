@@ -8,9 +8,9 @@ import { PROVIDERS, STORAGE_PROVIDERS } from '@/core/providers/registry'
 import type { StorageProviderId } from '@/core/providers/types'
 import { secretError, type SecretName } from '@/core/secret-names'
 import type { SecretStatus } from '@/core/types'
+import { refreshCatalog } from '@/lib/api/catalog'
 import { refreshCredits } from '@/lib/api/credits'
 import { refreshEndpoints } from '@/lib/api/endpoints'
-import { refreshModels } from '@/lib/api/models'
 import { refreshRemoteStatus } from '@/lib/api/remote'
 import { saveSecrets } from '@/lib/api/settings'
 import { toastError } from '@/lib/notify'
@@ -183,7 +183,7 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
         await endpoints.onSave()
       }
 
-      await Promise.all([refreshCredits(), refreshRemoteStatus(), refreshModels()])
+      await Promise.all([refreshCredits(), refreshRemoteStatus(), refreshCatalog()])
       await refreshEndpoints()
       endpoints.reset()
       setEdits({})

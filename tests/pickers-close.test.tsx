@@ -11,7 +11,7 @@ vi.mock('sonner', () => {
   return { toast: { success: vi.fn(), error: vi.fn() } }
 })
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return {
     useModelEntry: () => {
       return null

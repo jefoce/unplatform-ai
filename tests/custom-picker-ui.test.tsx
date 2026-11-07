@@ -7,17 +7,14 @@ import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { refreshCatalog, useCatalog } from '@/lib/api/catalog'
-import { useModelEntry } from '@/lib/api/models'
+import { refreshCatalog, useCatalog, useModelEntry } from '@/lib/api/catalog'
 
 import { getPreset } from '../src/core/presets'
 
 vi.mock('@/lib/api/catalog', () => {
-  return { useCatalog: vi.fn(), refreshCatalog: vi.fn() }
-})
-
-vi.mock('@/lib/api/models', () => {
   return {
+    useCatalog: vi.fn(),
+    refreshCatalog: vi.fn(),
     useModelEntry: vi.fn(() => {
       return null
     }),

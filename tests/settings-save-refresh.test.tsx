@@ -14,9 +14,9 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return {
-    refreshModels: vi.fn(async () => {
+    refreshCatalog: vi.fn(async () => {
       mocks.order.push('models')
     }),
   }

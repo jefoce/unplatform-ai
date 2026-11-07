@@ -21,8 +21,12 @@ vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return {
+    useCatalog: () => {
+      return { catalog: undefined, isLoading: false, isValidating: false }
+    },
+    refreshCatalog: vi.fn(async () => {}),
     useModelEntry: () => {
       return null
     },

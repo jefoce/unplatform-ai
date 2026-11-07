@@ -7,7 +7,7 @@ import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { ModelRow } from '@/features/generator/model/ModelRow'
 import { ModelVideoRow } from '@/features/generator/model/ModelVideoRow'
 import { videoPickerModel } from '@/features/generator/model/video-picker-model'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 
 import type { CatalogEntry } from '../src/core/catalog'
 import type { PickerModel } from '../src/core/feed/picker-model'
@@ -21,11 +21,6 @@ vi.mock('@/lib/api/catalog', () => {
       return { catalog: undefined, isLoading: false, isValidating: false }
     },
     refreshCatalog: vi.fn(async () => {}),
-  }
-})
-
-vi.mock('@/lib/api/models', () => {
-  return {
     useModelEntry: vi.fn(() => {
       return null
     }),
