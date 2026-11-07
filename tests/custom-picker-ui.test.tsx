@@ -1,0 +1,218 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
+import type { VideoPreset } from '@/core/presets/video/types'
+import { ModelPicker } from '@/features/generator/model/ModelPicker'
+import { useGeneratorStore } from '@/features/generator/store/store'
+import { refreshCatalog, useCatalog } from '@/lib/api/catalog'
+import { useModelEntry } from '@/lib/api/models'
+
+import { getPreset } from '../src/core/presets'
+
+vi.mock('@/lib/api/catalog', () => {
+  return { useCatalog: vi.fn(), refreshCatalog: vi.fn() }
+})
+
+vi.mock('@/lib/api/models', () => {
+  return {
+    useModelEntry: vi.fn(() => {
+      return null
+    }),
+  }
+})
+
+const mockCatalog = vi.mocked(useCatalog)
+const mockRefresh = vi.mocked(refreshCatalog)
+const mockEntry = vi.mocked(useModelEntry)
+
+class Observer {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+function handleNoop(): void {}
+
+const BASE = getPreset('wan-3.0')
+
+function customPreset(id: string, title: string): VideoPreset {
+  return {
+    ...BASE,
+    id,
+    title,
+    family: 'custom',
+    bindings: [
+      {
+        provider: 'custom',
+        modelId: id,
+        pricing: { formula: 'perRun', skuRules: [], fallback: { per_run: 0.5 } },
+        transport: { image: 'base64', video: 'upload', audio: 'upload' },
+      },
+    ],
+  }
+}
+
+function entry(params: {
+  preset: VideoPreset
+  status?: CatalogEntry['status']
+  reason?: string | null
+  badge?: string
+}): CatalogEntry {
+  const { preset, status = 'available', reason = null, badge = 'CU1' } = params
+
+  return {
+    modelId: preset.id,
+    presetId: preset.id,
+    provider: 'custom',
+    status,
+    reason,
+    pricing: null,
+    availability: { status, reason },
+    source: {
+      kind: 'custom',
+      instanceId: 'cu1',
+      badge,
+      workflowName: 'Wan 2.2 workflow',
+      local: true,
+    },
+    preset,
+  }
+}
+
+function catalogOf(entries: CatalogEntry[]): ModelCatalog {
+  return { entries, fetchedAt: '2026-01-01T00:00:00.000Z' }
+}
+
+const AVAILABLE = entry({ preset: customPreset('custom.cu1.wan22', 'Wan 2.2 I2V') })
+
+const STALE = entry({
+  preset: customPreset('custom.cu1.flux', 'Flux Dev'),
+  reason: 'Workflow changed in ComfyUI since the last save',
+})
+
+const UNREACHABLE = entry({
+  preset: customPreset('custom.cu2.sdxl', 'SDXL Turbo'),
+  status: 'unverified',
+  reason: 'ComfyUI is not reachable.',
+  badge: 'CU2',
+})
+
+const MISSING = entry({
+  preset: customPreset('custom.cu1.gone', 'Gone Workflow'),
+  status: 'missing',
+  reason: 'This workflow is gone from ComfyUI.',
+})
+
+function useEntries(entries: CatalogEntry[]): void {
+  mockCatalog.mockReturnValue({
+    catalog: catalogOf(entries),
+    isLoading: false,
+    isValidating: false,
+  })
+}
+
+beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', Observer)
+
+  vi.stubGlobal('matchMedia', () => {
+    return { matches: false, addEventListener: handleNoop, removeEventListener: handleNoop }
+  })
+
+  mockRefresh.mockReset()
+  mockRefresh.mockResolvedValue(undefined)
+  mockEntry.mockReturnValue(null)
+  useGeneratorStore.setState({ presetId: 'wan-3.0' })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
+
+function openPicker(): HTMLElement {
+  fireEvent.click(screen.getByRole('button', { name: /Model/ }))
+
+  return screen.getByRole('dialog')
+}
+
+describe('custom model picker', () => {
+  it('groups OpenRouter first and sorts custom rows by badge', () => {
+    useEntries([UNREACHABLE, AVAILABLE])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+
+    const headings = within(dialog).getAllByText(/OpenRouter|ComfyUI/)
+
+    expect(
+      headings.map((node) => {
+        return node.textContent
+      }),
+    ).toEqual(['OpenRouter', 'ComfyUI'])
+
+    const rows = within(dialog).getAllByRole('button', { pressed: false })
+
+    expect(rows[0]?.textContent).toContain('CU1')
+    expect(rows[1]?.textContent).toContain('CU2')
+  })
+
+  it('shows the badge, workflow subtitle and a stale warning icon', () => {
+    useEntries([AVAILABLE, STALE])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+
+    expect(within(dialog).getByText('Wan 2.2 I2V')).toBeTruthy()
+    expect(within(dialog).getAllByText('Wan 2.2 workflow')).toHaveLength(2)
+    expect(within(dialog).getAllByText('CU1').length).toBeGreaterThan(0)
+
+    const staleRow = within(dialog).getByRole('button', { name: /Flux Dev/ })
+
+    expect((staleRow as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('disables an unreachable row and hides a missing one', () => {
+    useEntries([AVAILABLE, UNREACHABLE, MISSING])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+
+    const unreachable = within(dialog).getByRole('button', { name: /SDXL Turbo/ })
+
+    expect((unreachable as HTMLButtonElement).disabled).toBe(true)
+    expect(unreachable.textContent).toContain('(unreachable)')
+    expect(within(dialog).queryByText('Gone Workflow')).toBeNull()
+  })
+
+  it('keeps a missing selected model in the trigger with its snapshot title', () => {
+    useEntries([MISSING])
+    mockEntry.mockReturnValue({ ...MISSING, preset: MISSING.preset })
+
+    render(<ModelPicker selectedId={MISSING.presetId} />)
+
+    expect(screen.getByRole('button', { name: /Model/ }).textContent).toContain(
+      '[CU1] Gone Workflow',
+    )
+  })
+
+  it('refetches the catalog on open and from the refresh button', async () => {
+    useEntries([AVAILABLE])
+
+    render(<ModelPicker />)
+    openPicker()
+
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+
+    const refresh = screen.getByRole('button', { name: 'Refresh models' })
+
+    await waitFor(() => {
+      expect((refresh as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    fireEvent.click(refresh)
+
+    expect(mockRefresh).toHaveBeenCalledTimes(2)
+  })
+})

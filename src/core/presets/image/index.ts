@@ -29,10 +29,23 @@ export const IMAGE_PRESETS = [
 
 export const DEFAULT_IMAGE_PRESET_ID = GEMINI_31_FLASH_IMAGE.id
 
+const runtimePresets = new Map<string, ImagePreset>()
+
+/** Runtime presets from the model catalog, replaced on every catalog refresh. */
+export function setRuntimeImagePresets(presets: readonly ImagePreset[]): void {
+  runtimePresets.clear()
+
+  for (const preset of presets) {
+    runtimePresets.set(preset.id, preset)
+  }
+}
+
 export const findImagePreset = (id: string): ImagePreset | null => {
   return (
     IMAGE_PRESETS.find((preset) => {
       return preset.id === id
-    }) ?? null
+    }) ??
+    runtimePresets.get(id) ??
+    null
   )
 }

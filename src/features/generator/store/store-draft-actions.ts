@@ -81,6 +81,10 @@ export function createDraftActions(set: GeneratorSetState): DraftActions {
         const preset = findPreset(id)
 
         if (!preset) {
+          if (id.startsWith('custom.')) {
+            return { presetId: id }
+          }
+
           return {}
         }
 

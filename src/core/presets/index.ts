@@ -14,11 +14,24 @@ export const VIDEO_PRESETS = [
 
 export const DEFAULT_VIDEO_PRESET_ID = 'wan-3.0'
 
+const runtimePresets = new Map<string, VideoPreset>()
+
+/** Runtime presets from the model catalog, replaced on every catalog refresh. */
+export function setRuntimeVideoPresets(presets: readonly VideoPreset[]): void {
+  runtimePresets.clear()
+
+  for (const preset of presets) {
+    runtimePresets.set(preset.id, preset)
+  }
+}
+
 export const findPreset = (id: string): VideoPreset | null => {
   return (
     VIDEO_PRESETS.find((preset) => {
       return preset.id === id
-    }) ?? null
+    }) ??
+    runtimePresets.get(id) ??
+    null
   )
 }
 

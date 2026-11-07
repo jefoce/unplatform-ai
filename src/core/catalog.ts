@@ -1,3 +1,5 @@
+import type { ImagePreset } from './presets/image/types'
+import type { VideoPreset } from './presets/video/types'
 import type { PricingInfo } from './pricing/types'
 import type { ProviderKindId } from './providers/types'
 
@@ -27,6 +29,9 @@ export interface CatalogEntry {
   pricing: PricingInfo | null
   availability: ModelAvailability
   source: CatalogEntrySource
+
+  /** Runtime preset for dynamic models, absent for the static ones. */
+  preset?: VideoPreset | ImagePreset
 }
 
 export interface ModelCatalog {

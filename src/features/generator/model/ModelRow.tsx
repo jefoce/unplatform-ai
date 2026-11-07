@@ -9,6 +9,7 @@ import { useModelEntry } from '@/lib/api/models'
 
 import { imagePickerModel } from './image-picker-model'
 import type { ModelRowProps } from './model-row-props'
+import { ModelCustomRow } from './ModelCustomRow'
 import { ModelGenericRow } from './ModelGenericRow'
 import { ModelVideoRow } from './ModelVideoRow'
 import { videoPickerModel } from './video-picker-model'
@@ -34,6 +35,10 @@ export function ModelRow(props: ModelRowProps) {
 
     return imagePickerModel(imagePreset, skus)
   }, [imagePreset, skus])
+
+  if (props.model.isCustom === true) {
+    return <ModelCustomRow {...props} />
+  }
 
   if (isNil(preset)) {
     if (isNil(imagePreset) || isNil(imageModel)) {
