@@ -4,12 +4,14 @@ import { isNil } from 'lodash-es'
 
 import { type ProviderInstance, type ProviderKindId } from '@/core/providers/types'
 
-import { isMockMode } from '../config/mock-mode'
+import { isCustomEndpointMockMode, isMockMode } from '../config/mock-mode'
 import { globalState } from '../global-state'
 import { getEndpointsSync, getEndpointSync } from './custom/endpoint-source'
 import { createCustomImageProvider } from './custom/image'
 import { createCustomVideoProvider } from './custom/video'
-import { createCustomMockImageProvider, createCustomMockVideoProvider } from './mock/custom-mock'
+import { createCustomMockImageProvider } from './mock/custom-image'
+import { customMockInstances } from './mock/custom-mock'
+import { createCustomMockVideoProvider } from './mock/custom-video'
 import { createMockProvider } from './mock/provider'
 import { createOpenRouterProvider } from './openrouter/provider'
 import type { ImageProvider, VideoProvider } from './types'
@@ -40,8 +42,9 @@ const OPENROUTER_INSTANCE: ProviderInstance = {
   badge: null,
 }
 
-function isCustomMockMode(): boolean {
-  return process.env.CUSTOM_ENDPOINT_MOCK === '1'
+/** Any non-OpenRouter instance stays in-process while the custom mock is on. */
+function isCustomMockInstance(instanceId: string): boolean {
+  return instanceId !== 'openrouter' && isCustomEndpointMockMode()
 }
 
 function customEndpoint(instanceId: string) {
@@ -58,6 +61,10 @@ function customEndpoint(instanceId: string) {
 export function listInstances(kind: ProviderKindId): readonly ProviderInstance[] {
   if (kind === 'openrouter') {
     return [OPENROUTER_INSTANCE]
+  }
+
+  if (isCustomEndpointMockMode()) {
+    return customMockInstances()
   }
 
   return getEndpointsSync()
@@ -84,27 +91,35 @@ export function instanceKind(instanceId: string): ProviderKindId {
     return 'custom'
   }
 
+  if (isCustomMockInstance(instanceId)) {
+    return 'custom'
+  }
+
   throw new Error(`[unplatform-ai] unknown provider instance ${instanceId}`)
 }
 
-function customVideoProvider(instanceId: string): VideoProvider {
-  const endpoint = customEndpoint(instanceId)
+function videoProvider(instanceId: string): VideoProvider {
+  if (instanceId === 'openrouter') {
+    if (isMockMode()) {
+      return createMockProvider()
+    }
 
-  if (isCustomMockMode()) {
-    return createCustomMockVideoProvider()
+    return createOpenRouterProvider()
   }
 
-  return createCustomVideoProvider(endpoint)
+  if (isCustomMockInstance(instanceId)) {
+    return createCustomMockVideoProvider({ instanceId })
+  }
+
+  return createCustomVideoProvider(customEndpoint(instanceId))
 }
 
-function customImageProvider(instanceId: string): ImageProvider {
-  const endpoint = customEndpoint(instanceId)
-
-  if (isCustomMockMode()) {
-    return createCustomMockImageProvider()
+function imageProvider(instanceId: string): ImageProvider {
+  if (isCustomMockInstance(instanceId)) {
+    return createCustomMockImageProvider({ instanceId })
   }
 
-  return createCustomImageProvider(endpoint)
+  return createCustomImageProvider(customEndpoint(instanceId))
 }
 
 /** One configured adapter per instance id. */
@@ -115,17 +130,7 @@ export function getVideoProvider(instanceId: string = DEFAULT_INSTANCE_ID): Vide
     return existing
   }
 
-  let provider: VideoProvider
-
-  if (instanceId === 'openrouter') {
-    if (isMockMode()) {
-      provider = createMockProvider()
-    } else {
-      provider = createOpenRouterProvider()
-    }
-  } else {
-    provider = customVideoProvider(instanceId)
-  }
+  const provider = videoProvider(instanceId)
 
   state.video.set(instanceId, provider)
 
@@ -147,7 +152,7 @@ export function getImageProvider(instanceId: string = DEFAULT_INSTANCE_ID): Imag
   }
 
   if (instanceId !== 'openrouter') {
-    const provider = customImageProvider(instanceId)
+    const provider = imageProvider(instanceId)
 
     state.image.set(instanceId, provider)
 

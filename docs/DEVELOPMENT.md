@@ -74,6 +74,7 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 | Variable | Effect |
 |---|---|
 | `OPENROUTER_MOCK=1` | Local timeline. Pending for 3 s (`MOCK_QUEUE_MS`), in progress for 6 s (`MOCK_GENERATE_MS`), then a locally generated video. No API key needed and no cost. |
+| `CUSTOM_ENDPOINT_MOCK=1` | In-process upai/1 endpoint mock read from `docs/protocol/upai-1/fixtures`. No ComfyUI or Python. |
 | `REMOTE_MOCK=1` | Local R2 replacement, only honored together with mock OpenRouter. Links point at the local server. |
 | `REMOTE_MOCK_MBPS` | Throttles mock uploads, default 20. |
 | `REMOTE_MOCK=fail` | Every mock upload fails. |
