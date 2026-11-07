@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { RecordSource } from '@/core/schemas/record-source'
 import { DetailsPanel } from '@/features/history/details/DetailsPanel'
 import { useImageGeneratorStore } from '@/features/image-generator/store'
 
@@ -136,6 +137,30 @@ describe.each(CASES)('$kind shared details panel', (testCase) => {
 
     expect(screen.getByText(`Seed ${testCase.seed}`)).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Use seed' })).not.toBeNull()
+  })
+})
+
+describe('local price visibility', () => {
+  const LOCAL: RecordSource = {
+    kind: 'custom',
+    instanceId: 'cu1',
+    badge: 'CU1',
+    presetTitle: 'Local Image',
+    workflowName: null,
+    endpointLabel: 'Studio PC',
+    local: true,
+  }
+
+  it('hides a local zero price', () => {
+    render(<DetailsPanel item={imageItem({ actualUsd: 0, source: LOCAL })} />)
+
+    expect(screen.queryByText('$0.00')).toBeNull()
+  })
+
+  it('shows a local override', () => {
+    render(<DetailsPanel item={imageItem({ actualUsd: 0.5, source: LOCAL })} />)
+
+    expect(screen.getByText('$0.50')).not.toBeNull()
   })
 })
 

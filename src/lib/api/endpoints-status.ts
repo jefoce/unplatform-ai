@@ -151,6 +151,10 @@ function entryReason(entry: CatalogEntry | undefined): string | null {
     return entry.reason ?? MISSING_REASON
   }
 
+  if (entry.status === 'invalid') {
+    return entry.reason ?? MISSING_REASON
+  }
+
   if (!isNil(entry.reason)) {
     return STALE_REASON
   }

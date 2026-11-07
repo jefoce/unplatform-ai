@@ -122,6 +122,22 @@ describe('fresh generate check', () => {
     expect(urls).not.toContain('/api/endpoints/test')
   })
 
+  it('returns the invalid reason without a health call', async () => {
+    const reason = 'This workflow cannot run in ComfyUI.'
+
+    const fetchMock = stubFetch({
+      catalog: catalog([entry({ status: 'invalid', reason })]),
+    })
+
+    expect(await freshPresetReason(PRESET_ID)).toBe(reason)
+
+    const urls = fetchMock.mock.calls.map(([input]) => {
+      return String(input)
+    })
+
+    expect(urls).not.toContain('/api/endpoints/test')
+  })
+
   it('returns the stale hint', async () => {
     stubFetch({ catalog: catalog([entry({ reason: 'workflow changed' })]) })
 

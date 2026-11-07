@@ -1,4 +1,5 @@
 import type { ImageOutput, ImageRecord } from '../../src/core/schemas/image-record'
+import type { RecordSource } from '../../src/core/schemas/record-source'
 import { type ImageGridItem, imageItems } from '../../src/lib/feed/output-items'
 
 const RECORD_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
@@ -32,6 +33,7 @@ interface ImageRecordOverrides {
   inputsSnapshot?: ImageRecord['inputsSnapshot']
   output?: ImageOutput
   actualUsd?: number | null
+  source?: RecordSource
 }
 
 function actualUsdOf(overrides: ImageRecordOverrides): number | null {
@@ -76,6 +78,7 @@ function imageRecord(overrides: ImageRecordOverrides = {}): ImageRecord {
       seed: null,
     },
     inputsSnapshot: overrides.inputsSnapshot,
+    source: overrides.source,
     outputs: [overrides.output ?? savedOutput()],
     seedUsed: null,
     cost: {

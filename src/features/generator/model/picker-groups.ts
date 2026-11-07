@@ -8,9 +8,8 @@ import { findImagePreset } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { formatUsd } from '@/core/pricing/format'
+import { showPrice } from '@/core/pricing/visibility'
 import type { ProviderKindId } from '@/core/providers/types'
-
-import { showPrice } from './price-visibility'
 
 export type PickerKind = 'video' | 'image'
 
@@ -54,9 +53,8 @@ function isVideoPreset(preset: VideoPreset | ImagePreset): preset is VideoPreset
   return 'duration' in preset
 }
 
-function customPrice(preset: VideoPreset | ImagePreset): string {
-  const binding = primaryBinding(preset)
-  const usd = binding.pricing.fallback.per_run ?? 0
+function customPrice(entry: CatalogEntry, preset: VideoPreset | ImagePreset): string {
+  const usd = entry.pricing?.skus.per_run ?? primaryBinding(preset).pricing.fallback.per_run ?? 0
 
   if (!showPrice({ local: true }, usd)) {
     return ''
@@ -79,7 +77,7 @@ function customRow(entry: CatalogEntry, preset: VideoPreset | ImagePreset): Pick
     title: preset.title,
     icon: preset.icon,
     description: descriptionOf(preset),
-    priceText: customPrice(preset),
+    priceText: customPrice(entry, preset),
     kind: 'custom',
     badge: entry.source.badge,
     workflowName: entry.source.workflowName,

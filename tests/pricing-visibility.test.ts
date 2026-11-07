@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { showPrice } from '../src/core/pricing/visibility'
+import { isPriceVisibleFor, showPrice } from '../src/core/pricing/visibility'
 
 describe('price visibility', () => {
   it('hides a local zero price', () => {
@@ -13,5 +13,9 @@ describe('price visibility', () => {
 
   it('shows an API zero price', () => {
     expect(showPrice({ local: false }, 0)).toBe(true)
+  })
+
+  it('stays visible while the catalog loads', () => {
+    expect(isPriceVisibleFor(null, 0)).toBe(true)
   })
 })

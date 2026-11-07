@@ -9,9 +9,13 @@ import { Tooltip } from '@/ui/Tooltip'
 import type { ModelRowProps } from './model-row-props'
 import type { PickerRow } from './picker-groups'
 
-type RowState = 'ok' | 'stale' | 'unreachable'
+type RowState = 'ok' | 'stale' | 'invalid' | 'unreachable'
 
 function rowState(row: PickerRow): RowState {
+  if (row.status === 'invalid') {
+    return 'invalid'
+  }
+
   if (row.status === 'unverified') {
     return 'unreachable'
   }
@@ -44,7 +48,7 @@ function rowNote(state: RowState): string | null {
 export function ModelCustomRow(props: ModelRowProps) {
   const { model, selected: isSelected } = props
   const state = rowState(model)
-  const isBlocked = state === 'unreachable' || model.status === 'missing'
+  const isBlocked = state === 'unreachable' || state === 'invalid' || model.status === 'missing'
   const price = rowPrice(model, state)
   const note = rowNote(state)
 

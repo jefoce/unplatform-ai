@@ -33,6 +33,10 @@ function modelReason(entry: CatalogEntry | null): string | null {
     return entry.reason ?? PROVIDER_KEY_REASON
   }
 
+  if (entry.status === 'invalid') {
+    return entry.reason
+  }
+
   if (!isNil(entry.reason)) {
     return STALE_REASON
   }

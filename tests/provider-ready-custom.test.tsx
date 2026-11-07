@@ -153,6 +153,27 @@ describe('ready gate', () => {
     expect(result.current.reason).toBe('ComfyUI is not reachable.')
   })
 
+  it('reports an invalid workflow with its reason', () => {
+    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false })
+
+    const reason = 'This workflow cannot run in ComfyUI.'
+
+    mockEntry.mockReturnValue(
+      customEntry({
+        status: 'invalid',
+        reason,
+        availability: { status: 'invalid', reason },
+      }),
+    )
+
+    const { result } = renderHook(() => {
+      return useProviderReady('custom.cu1.wan22', 'video')
+    })
+
+    expect(result.current.isReady).toBe(false)
+    expect(result.current.reason).toBe(reason)
+  })
+
   it('reports a stale workflow with the Generate hint', () => {
     mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false })
 

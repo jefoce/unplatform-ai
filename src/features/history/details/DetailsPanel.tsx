@@ -3,12 +3,12 @@
 import { isNil } from 'lodash-es'
 import { Lock } from 'lucide-react'
 
+import { showPrice } from '@/core/pricing/visibility'
 import { canonicalizePrompt } from '@/core/prompt-tokens'
 import { recordSource, sourceTitle } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { ImageRecord } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
-import { showPrice } from '@/features/generator/model/price-visibility'
 import { currentImagePreset } from '@/features/image-generator/preset'
 import { useImageGeneratorStore } from '@/features/image-generator/store'
 import { setWorkspaceTab } from '@/features/shared/use-workspace-tab'

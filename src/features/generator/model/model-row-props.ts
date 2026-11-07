@@ -10,5 +10,7 @@ export interface ModelRowProps {
 
 /** True when the catalog reports the model cannot run right now. */
 export function isBlockedEntry(entry: CatalogEntry | null): boolean {
-  return entry?.status === 'missing' || entry?.status === 'no_provider'
+  return (
+    entry?.status === 'missing' || entry?.status === 'no_provider' || entry?.status === 'invalid'
+  )
 }

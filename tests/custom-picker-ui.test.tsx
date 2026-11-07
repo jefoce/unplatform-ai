@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
@@ -59,8 +60,9 @@ function entry(params: {
   status?: CatalogEntry['status']
   reason?: string | null
   badge?: string
+  perRun?: number
 }): CatalogEntry {
-  const { preset, status = 'available', reason = null, badge = 'CU1' } = params
+  const { preset, status = 'available', reason = null, badge = 'CU1', perRun } = params
 
   return {
     modelId: preset.id,
@@ -68,7 +70,15 @@ function entry(params: {
     provider: 'custom',
     status,
     reason,
-    pricing: null,
+    pricing: isNil(perRun)
+      ? null
+      : {
+          skus: { per_run: perRun },
+          listSkus: {},
+          discount: 0,
+          source: 'fallback',
+          fetchedAt: '2026-01-01T00:00:00.000Z',
+        },
     availability: { status, reason },
     source: {
       kind: 'custom',
@@ -103,6 +113,12 @@ const MISSING = entry({
   preset: customPreset('custom.cu1.gone', 'Gone Workflow'),
   status: 'missing',
   reason: 'This workflow is gone from ComfyUI.',
+})
+
+const INVALID = entry({
+  preset: customPreset('custom.cu1.broken', 'Broken Workflow'),
+  status: 'invalid',
+  reason: 'This workflow cannot run in ComfyUI.',
 })
 
 function useEntries(entries: CatalogEntry[]): void {
@@ -184,6 +200,37 @@ describe('custom model picker', () => {
     expect((unreachable as HTMLButtonElement).disabled).toBe(true)
     expect(unreachable.textContent).toContain('(unreachable)')
     expect(within(dialog).queryByText('Gone Workflow')).toBeNull()
+  })
+
+  it('renders an invalid row as muted and disabled with its reason tooltip', async () => {
+    useEntries([INVALID])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+
+    const invalid = within(dialog).getByRole('button', { name: /Broken Workflow/ })
+
+    expect((invalid as HTMLButtonElement).disabled).toBe(true)
+    expect(invalid.className).toContain('opacity-50')
+
+    fireEvent.pointerEnter(invalid)
+    fireEvent.pointerMove(invalid)
+
+    expect(await screen.findByText(INVALID.reason ?? '')).toBeTruthy()
+  })
+
+  it('uses the endpoint perRun override and hides a local zero price', () => {
+    useEntries([
+      entry({ preset: customPreset('custom.cu1.override', 'Override Model'), perRun: 2 }),
+      entry({ preset: customPreset('custom.cu1.free', 'Free Model'), perRun: 0 }),
+    ])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+
+    expect(within(dialog).getByText('$2.00 / run')).toBeTruthy()
+    expect(within(dialog).queryByText('$0.00 / run')).toBeNull()
+    expect(within(dialog).queryByText('$0.50 / run')).toBeNull()
   })
 
   it('keeps a missing selected model in the trigger with its snapshot title', () => {
