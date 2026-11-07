@@ -18,6 +18,7 @@ const ENDPOINTS_TEST_PATH = `${ENDPOINTS_STATUS_KEY}/test`
 const CATALOG_PATH = MODELS_KEY
 const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
 const MISSING_REASON = 'This workflow is gone from ComfyUI.'
+const REMOVED_REASON = 'This endpoint was removed.'
 
 export interface EndpointStatusEntry {
   id: string
@@ -194,7 +195,11 @@ async function checkPreset(presetId: string): Promise<string | null> {
     return item.presetId === presetId
   })
 
-  if (isNil(entry) || entry.source.kind !== 'custom') {
+  if (isNil(entry)) {
+    return REMOVED_REASON
+  }
+
+  if (entry.source.kind !== 'custom') {
     return null
   }
 
@@ -235,7 +240,7 @@ export async function checkCustomEndpoint(params: FreshCheckParams): Promise<str
   const endpoint = endpointById(overview.endpoints, instanceId)
 
   if (isNil(endpoint) || !endpoint.enabled) {
-    return 'This endpoint was removed.'
+    return REMOVED_REASON
   }
 
   const health = await testEndpointHealth(instanceId, endpoint.baseUrl)

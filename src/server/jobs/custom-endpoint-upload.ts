@@ -20,12 +20,11 @@ import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { readJson } from '../fs/json-file'
 import { STORAGE_ROOT, uploadPaths } from '../paths'
+import { endpointRemovedError, networkError } from '../providers/custom/errors'
 import { getSecret } from '../secrets'
 import {
   customEndpointError,
-  endpointConnectionError,
   endpointProtocolError,
-  endpointRemovedError,
   endpointResponseError,
   endpointSizeError,
 } from './custom-endpoint-errors'
@@ -266,7 +265,7 @@ async function endpointFetch(params: EndpointRequestParams): Promise<Response> {
       throw error
     }
 
-    throw endpointConnectionError()
+    throw networkError(error)
   }
 
   if (res.status >= 300 && res.status <= 399) {

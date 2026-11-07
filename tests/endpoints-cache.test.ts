@@ -136,7 +136,24 @@ describe('endpoint cache refresh', () => {
     await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('keeps the cache file when a fresh test covers an edited endpoint', async () => {
+  it('keeps the cache file when a fresh test covers an enabled change', async () => {
+    const entry = await saveStudio()
+    const cacheFile = await writeCache(entry.id)
+
+    await service.saveEndpoints({
+      endpoints: [
+        {
+          ...endpointInput(entry),
+          enabled: false,
+          lastHealth: { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' },
+        },
+      ],
+    })
+
+    await expect(fs.stat(cacheFile)).resolves.toBeDefined()
+  })
+
+  it('removes the cache file when a fresh test still changes the base URL', async () => {
     const entry = await saveStudio()
     const cacheFile = await writeCache(entry.id)
 
@@ -150,7 +167,7 @@ describe('endpoint cache refresh', () => {
       ],
     })
 
-    await expect(fs.stat(cacheFile)).resolves.toBeDefined()
+    await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('has no cache file for a new endpoint', async () => {

@@ -81,7 +81,15 @@ function isSavedUrl(params: EndpointTestParams, baseUrl: string): boolean {
     return true
   }
 
-  return getEndpointSync(params.endpointId)?.baseUrl === baseUrl
+  if (getEndpointSync(params.endpointId)?.baseUrl !== baseUrl) {
+    return false
+  }
+
+  if (!isUndefined(params.token)) {
+    return params.token === readEndpointToken(params.endpointId)
+  }
+
+  return true
 }
 
 export async function testEndpoint(params: EndpointTestParams): Promise<EndpointTestResult> {

@@ -48,8 +48,12 @@ const HEALTH = {
 }
 
 const { testEndpoint } = await import('@/server/services/endpoint-test')
-const { readEndpointModels } = await import('@/server/services/endpoint-model-cache')
-const { getHealth } = await import('@/server/services/endpoint-health')
+
+const { clearEndpointModelCache, readEndpointModels } =
+  await import('@/server/services/endpoint-model-cache')
+
+const { __resetEndpointHealthForTests: resetEndpointHealth, getHealth } =
+  await import('@/server/services/endpoint-health')
 
 const SAVED_ID = 'ep-refresh'
 const UNSAVED_ID = 'ep-unsaved'
@@ -81,6 +85,8 @@ function mockFetch(): void {
 }
 
 beforeEach(async () => {
+  resetEndpointHealth()
+  clearEndpointModelCache()
   await fs.rm(ROOT, { recursive: true, force: true })
 
   await fs.mkdir(path.join(ROOT, 'data'), { recursive: true })
@@ -123,6 +129,21 @@ describe('endpoint test refresh', () => {
     expect(cache?.image).toHaveLength(imageFixture.data.length)
     expect(catalog.clearModelCatalog).toHaveBeenCalled()
     expect(registry.resetCustomProviders).toHaveBeenCalled()
+  })
+
+  it('returns the draft result when the tested token differs from the saved one', async () => {
+    mockFetch()
+
+    const result = await testEndpoint({
+      baseUrl: SAVED_URL,
+      endpointId: SAVED_ID,
+      token: 'different-token',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(getHealth(SAVED_ID)).toBeNull()
+    expect(await readEndpointModels(SAVED_ID)).toBeNull()
+    expect(catalog.clearModelCatalog).not.toHaveBeenCalled()
   })
 
   it('returns the draft result without writing a URL that is not saved', async () => {

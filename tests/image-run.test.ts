@@ -28,6 +28,16 @@ vi.mock('@/server/secrets', () => {
   return { secretsReady: async () => {} }
 })
 
+vi.mock('@/server/services/model-catalog', async () => {
+  const { findImagePreset } = await import('@/core/presets/image')
+
+  return {
+    findImagePresetAny: async (presetId: string) => {
+      return findImagePreset(presetId)
+    },
+  }
+})
+
 vi.mock('@/server/providers/registry', () => {
   return {
     getImageProvider: () => {
@@ -348,6 +358,35 @@ describe('runImageSubmit persistence', () => {
     await run
 
     expect((await repo.getImage(recordId))?.status).toBe('completed')
+  })
+})
+
+describe('runImageSubmit custom endpoint', () => {
+  it('fails a custom record whose endpoint is gone', async () => {
+    const id = randomUUID()
+
+    await repo.saveImage(
+      makeRecord(id, {
+        provider: 'custom',
+        source: {
+          kind: 'custom',
+          instanceId: 'ep-gone',
+          badge: 'CU1',
+          presetTitle: 'Local SDXL',
+          workflowName: null,
+          endpointLabel: 'Studio',
+          local: true,
+        },
+        input: { ...makeRecord(id).input, presetId: 'custom.ep-gone.sdxl' },
+      }),
+    )
+
+    await runner.runImageSubmit(id)
+
+    const record = await repo.getImage(id)
+
+    expect(record?.status).toBe('failed')
+    expect(record?.error).toBe('upai:endpoint_removed: Endpoint removed')
   })
 })
 

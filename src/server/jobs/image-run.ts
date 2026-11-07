@@ -6,6 +6,7 @@ import { IMAGE_SUBMIT_PARALLEL, MAX_REQUEST_MB, REQUEST_RESERVE_MB } from '@/cor
 import { graceDelayMs } from '@/core/submit-state'
 
 import { encodeImages } from '../media/image-data-url'
+import { missingPresetError } from '../providers/custom/record-instance'
 import { getImage, saveImage } from '../repos/images'
 import { getUpload } from '../repos/uploads'
 import { secretsReady } from '../secrets'
@@ -65,7 +66,7 @@ async function beginSending(id: string): Promise<PreparedImage | null> {
     const preset = await findImagePresetAny(record.input.presetId)
 
     if (!preset) {
-      throw new Error('Unknown model')
+      throw missingPresetError(record)
     }
 
     const uploads = await Promise.all(

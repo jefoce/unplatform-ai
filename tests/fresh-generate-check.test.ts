@@ -146,6 +146,18 @@ describe('fresh generate check', () => {
     )
   })
 
+  it('reports a removed endpoint when the catalog has no entry', async () => {
+    const fetchMock = stubFetch({ catalog: catalog([]) })
+
+    expect(await freshPresetReason(PRESET_ID)).toBe('This endpoint was removed.')
+
+    const urls = fetchMock.mock.calls.map(([input]) => {
+      return String(input)
+    })
+
+    expect(urls).not.toContain('/api/endpoints/test')
+  })
+
   it('ignores OpenRouter presets', async () => {
     const fetchMock = stubFetch({ catalog: catalog([]) })
 

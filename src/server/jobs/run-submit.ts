@@ -11,6 +11,7 @@ import { graceDelayMs, inputIds, transportsFor, withTransports } from '@/core/su
 import type { ResolvedTransport } from '@/core/transport'
 import type { Dict } from '@/core/utility-types'
 
+import { missingPresetError } from '../providers/custom/record-instance'
 import { ProviderError, providerStatusOf } from '../providers/provider-error'
 import type { SubmittedJob } from '../providers/types'
 import { getGeneration, saveGeneration } from '../repos/generations'
@@ -76,7 +77,7 @@ async function beginUpload(id: string): Promise<Prepared | null> {
     const preset = await findVideoPresetAny(record.input.presetId)
 
     if (!preset) {
-      throw new Error('Unknown model')
+      throw missingPresetError(record)
     }
 
     const uploads = await loadUploads(record.input)
@@ -126,7 +127,7 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
   const preset = await findVideoPresetAny(record.input.presetId)
 
   if (!preset) {
-    throw new Error('Unknown model')
+    throw missingPresetError(record)
   }
 
   await uploadUrls({ id: record.id, uploads, transports, signal })
@@ -244,6 +245,10 @@ function failText(record: GenerationRecord, error: unknown): string {
 /** Formats a stored failure without repeating the HTTP status. */
 export function submitError(error: unknown): string {
   if (error instanceof ProviderError) {
+    if (error.providerId === 'custom') {
+      return error.storedMessage
+    }
+
     return formatError(error)
   }
 

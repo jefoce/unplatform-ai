@@ -36,10 +36,9 @@ export async function pruneEndpointCaches(params: PruneEndpointCachesParams): Pr
 
       return (
         !isNil(previous) &&
-        !isFreshTest({ previous, item }) &&
         (previous.baseUrl !== item.entry.baseUrl ||
-          previous.enabled !== item.entry.enabled ||
-          !isUndefined(item.token))
+          (!isFreshTest({ previous, item }) &&
+            (previous.enabled !== item.entry.enabled || !isUndefined(item.token))))
       )
     })
     .map((item) => {

@@ -17,6 +17,7 @@ export interface RecordOverrides {
   status?: JobStatus
   error?: string
   favorite?: boolean
+  provider?: GenerationRecord['provider']
   submit?: GenerationRecord['submit']
   output?: GenerationRecord['output']
   previewPending?: boolean

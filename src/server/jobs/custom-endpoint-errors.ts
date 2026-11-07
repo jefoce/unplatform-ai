@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { isNil } from 'lodash-es'
+
 import type { UpaiError } from '@/core/protocol/upai'
 
 import { ProviderError, type ProviderErrorKind } from '../providers/provider-error'
@@ -22,6 +24,10 @@ interface SizeErrorParams {
   maxBytes: number
 }
 
+function upaiMessage(code: string, message: string): string {
+  return `upai:${code}: ${message}`
+}
+
 export function customEndpointError(params: CustomErrorParams): ProviderError {
   const { kind, message, status, code } = params
 
@@ -32,15 +38,6 @@ export function customEndpointError(params: CustomErrorParams): ProviderError {
     storedMessage: message,
     status,
     code,
-  })
-}
-
-export function endpointRemovedError(): ProviderError {
-  return customEndpointError({
-    kind: 'not_found',
-    status: 0,
-    code: 'endpoint_removed',
-    message: 'This endpoint was removed.',
   })
 }
 
@@ -76,8 +73,8 @@ function endpointQuotaError(): ProviderError {
   return customEndpointError({
     kind: 'input',
     status: 413,
-    code: null,
-    message: 'ComfyUI upload space is full',
+    code: 'too_large',
+    message: upaiMessage('too_large', 'ComfyUI upload space is full'),
   })
 }
 
@@ -86,7 +83,10 @@ function endpointTooLargeError(): ProviderError {
     kind: 'input',
     status: 413,
     code: 'too_large',
-    message: 'The file is too large for ComfyUI. Use a smaller file or raise the limit in ComfyUI.',
+    message: upaiMessage(
+      'too_large',
+      'The file is too large for ComfyUI. Use a smaller file or raise the limit in ComfyUI.',
+    ),
   })
 }
 
@@ -99,16 +99,10 @@ export function endpointSizeError(params: SizeErrorParams): ProviderError {
     kind: 'input',
     status: 413,
     code: 'too_large',
-    message: `The file is too large for ComfyUI (${mb} MB, max ${maxMb} MB). Use a smaller file or raise the limit in ComfyUI.`,
-  })
-}
-
-export function endpointConnectionError(): ProviderError {
-  return customEndpointError({
-    kind: 'timeout',
-    status: 0,
-    code: 'comfy_unavailable',
-    message: 'ComfyUI is not reachable. Start ComfyUI, then try again.',
+    message: upaiMessage(
+      'too_large',
+      `The file is too large for ComfyUI (${mb} MB, max ${maxMb} MB). Use a smaller file or raise the limit in ComfyUI.`,
+    ),
   })
 }
 
@@ -142,11 +136,17 @@ export function endpointResponseError(params: ResponseErrorParams): ProviderErro
     kind = 'server'
   }
 
+  let message = `Upload failed (HTTP ${status})`
+
+  if (!isNil(error)) {
+    message = upaiMessage(error.code, error.message)
+  }
+
   return customEndpointError({
     kind,
     status,
     code: error?.code ?? null,
-    message: error?.message ?? `Upload failed (HTTP ${status})`,
+    message,
   })
 }
 

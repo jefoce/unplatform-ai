@@ -248,10 +248,10 @@ describe('HistoryModal navigation', () => {
 })
 
 describe('HistoryModal active records', () => {
-  it('shows a running record present in the view order without navigating', () => {
+  it('shows a running custom record with one More menu without navigating', () => {
     render(
       modal({
-        record: record('b', { status: 'in_progress' }),
+        record: record('b', { status: 'in_progress', provider: 'custom' }),
         selectedId: 'b',
         viewOrder: ['a', 'b', 'c'],
       }),
@@ -259,6 +259,7 @@ describe('HistoryModal active records', () => {
 
     expect(screen.getByText('Prompt b')).not.toBeNull()
     expect(useHistoryViewerStore.getState().selectedId).toBe('b')
+    expect(screen.getAllByRole('button', { name: 'More actions' })).toHaveLength(1)
   })
 
   it('steps next and previous across completed, running and failed ids', () => {

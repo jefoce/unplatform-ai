@@ -123,7 +123,10 @@ describe('custom endpoint upload errors', () => {
         transports: { [upload.id]: 'upload' },
         endpointId: 'custom-1',
       }),
-    ).rejects.toThrow('ComfyUI upload space is full')
+    ).rejects.toMatchObject({
+      code: 'too_large',
+      storedMessage: 'upai:too_large: ComfyUI upload space is full',
+    })
   })
 
   it('rejects a file over max_upload_bytes before the upload call', async () => {
@@ -153,9 +156,14 @@ describe('custom endpoint upload errors', () => {
         transports: { [upload.id]: 'upload' },
         endpointId: null,
       }),
-    ).rejects.toThrow('This endpoint was removed.')
+    ).rejects.toMatchObject({
+      code: 'endpoint_removed',
+      storedMessage: 'upai:endpoint_removed: Endpoint removed',
+    })
   })
+})
 
+describe('custom endpoint connection errors', () => {
   it('reports connection refusal as comfy_unavailable', async () => {
     const upload = await makeVideo()
 
@@ -171,7 +179,10 @@ describe('custom endpoint upload errors', () => {
         transports: { [upload.id]: 'upload' },
         endpointId: 'custom-1',
       }),
-    ).rejects.toMatchObject({ code: 'comfy_unavailable' })
+    ).rejects.toMatchObject({
+      code: 'comfy_unavailable',
+      storedMessage: 'upai:comfy_unavailable: Endpoint unreachable',
+    })
   })
 
   it('asks for a token when the endpoint requires one', async () => {
