@@ -2,8 +2,11 @@ import 'server-only'
 
 import { type ProviderInstance, type ProviderKindId } from '@/core/providers/types'
 
-import { isMockMode } from '../config/mock-mode'
+import { isCustomEndpointMockMode, isMockMode } from '../config/mock-mode'
 import { globalState } from '../global-state'
+import { createCustomMockImageProvider } from './mock/custom-image'
+import { customMockInstances } from './mock/custom-mock'
+import { createCustomMockVideoProvider } from './mock/custom-video'
 import { createMockProvider } from './mock/provider'
 import { createOpenRouterProvider } from './openrouter/provider'
 import type { ImageProvider, VideoProvider } from './types'
@@ -45,6 +48,11 @@ function isMockProvider(instanceId: string): boolean {
   return instanceId === 'openrouter' && isMockMode()
 }
 
+/** Any non-OpenRouter instance stays in-process while the custom mock is on. */
+function isCustomMockInstance(instanceId: string): boolean {
+  return instanceId !== 'openrouter' && isCustomEndpointMockMode()
+}
+
 function videoFactory(instanceId: string): VideoProviderFactory {
   if (instanceId !== 'openrouter') {
     throw new Error(`[unplatform-ai] no video provider for ${instanceId}`)
@@ -55,17 +63,25 @@ function videoFactory(instanceId: string): VideoProviderFactory {
 
 /** Configured instances for one provider kind. Custom instances arrive with the adapters. */
 export function listInstances(kind: ProviderKindId): readonly ProviderInstance[] {
-  if (kind === 'openrouter') {
-    return [OPENROUTER_INSTANCE]
+  if (kind === 'custom') {
+    if (!isCustomEndpointMockMode()) {
+      return []
+    }
+
+    return customMockInstances()
   }
 
-  return []
+  return [OPENROUTER_INSTANCE]
 }
 
 /** Provider kind behind one instance id. */
 export function instanceKind(instanceId: string): ProviderKindId {
   if (instanceId === 'openrouter') {
     return 'openrouter'
+  }
+
+  if (isCustomMockInstance(instanceId)) {
+    return 'custom'
   }
 
   throw new Error(`[unplatform-ai] unknown provider instance ${instanceId}`)
@@ -80,9 +96,12 @@ export function getVideoProvider(instanceId: string = DEFAULT_INSTANCE_ID): Vide
   }
 
   const isMock = isMockProvider(instanceId)
+  const isCustomMock = isCustomMockInstance(instanceId)
   let provider: VideoProvider
 
-  if (isMock) {
+  if (isCustomMock) {
+    provider = createCustomMockVideoProvider({ instanceId })
+  } else if (isMock) {
     provider = createMockProvider()
   } else {
     provider = videoFactory(instanceId)()
@@ -105,6 +124,14 @@ export function getImageProvider(instanceId: string = DEFAULT_INSTANCE_ID): Imag
 
   if (existing) {
     return existing
+  }
+
+  if (isCustomMockInstance(instanceId)) {
+    const mock = createCustomMockImageProvider({ instanceId })
+
+    state.image.set(instanceId, mock)
+
+    return mock
   }
 
   const factory = state.imageFactories.get(instanceId)
