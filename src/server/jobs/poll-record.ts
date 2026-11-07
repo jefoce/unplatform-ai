@@ -208,7 +208,16 @@ async function finishFinal(params: FinishFinalParams): Promise<void> {
     }
 
     if (status === 'completed') {
-      const costed = next.provider === 'custom' ? finalizeCost(next, job) : next
+      let costed = next
+
+      if (next.provider === 'custom' && isNil(job.usage?.costUsd)) {
+        const actual = next.cost.estimatedUsd
+
+        costed = {
+          ...next,
+          cost: { ...next.cost, actualUsd: actual, billed: actual > 0 },
+        }
+      }
 
       // The download queue owns the record until the poster and output exist.
       return { ...costed, status: 'in_progress', download: { startedAt: now } }
