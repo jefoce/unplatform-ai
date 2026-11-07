@@ -161,6 +161,7 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `OPENROUTER_API_KEY` | Required for real generation |
 | `OPENROUTER_MANAGEMENT_KEY` | Optional, adds balance to the credits pill |
 | `OPENROUTER_MOCK` | `1` turns on the mock provider |
+| `CUSTOM_ENDPOINT_MOCK` | `1` turns on the in-process custom endpoint mock |
 | `STORAGE_ROOT` | Data folder, default `~/.unplatform-ai` |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_ACCESS_KEY_ID` | R2 token access key |

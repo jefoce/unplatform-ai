@@ -1,9 +1,15 @@
 import 'server-only'
 
+import { isNil } from 'lodash-es'
+
 import { type ProviderInstance, type ProviderKindId } from '@/core/providers/types'
 
 import { isMockMode } from '../config/mock-mode'
 import { globalState } from '../global-state'
+import { getEndpointsSync, getEndpointSync } from './custom/endpoint-source'
+import { createCustomImageProvider } from './custom/image'
+import { createCustomVideoProvider } from './custom/video'
+import { createCustomMockImageProvider, createCustomMockVideoProvider } from './mock/custom-mock'
 import { createMockProvider } from './mock/provider'
 import { createOpenRouterProvider } from './openrouter/provider'
 import type { ImageProvider, VideoProvider } from './types'
@@ -11,8 +17,6 @@ import type { ImageProvider, VideoProvider } from './types'
 const DEFAULT_INSTANCE_ID = 'openrouter'
 
 type ImageProviderFactory = () => ImageProvider
-
-type VideoProviderFactory = () => VideoProvider
 
 interface ProviderState {
   video: Map<string, VideoProvider>
@@ -29,10 +33,6 @@ const state = globalState<ProviderState>('providers', () => {
   }
 })
 
-const FACTORIES: Record<'openrouter', VideoProviderFactory> = {
-  openrouter: createOpenRouterProvider,
-}
-
 const OPENROUTER_INSTANCE: ProviderInstance = {
   id: 'openrouter',
   kind: 'openrouter',
@@ -40,26 +40,38 @@ const OPENROUTER_INSTANCE: ProviderInstance = {
   badge: null,
 }
 
-/** True when the registry selects the mock adapter for this instance. */
-function isMockProvider(instanceId: string): boolean {
-  return instanceId === 'openrouter' && isMockMode()
+function isCustomMockMode(): boolean {
+  return process.env.CUSTOM_ENDPOINT_MOCK === '1'
 }
 
-function videoFactory(instanceId: string): VideoProviderFactory {
-  if (instanceId !== 'openrouter') {
-    throw new Error(`[unplatform-ai] no video provider for ${instanceId}`)
+function customEndpoint(instanceId: string) {
+  const endpoint = getEndpointSync(instanceId)
+
+  if (isNil(endpoint)) {
+    throw new Error(`[unplatform-ai] unknown provider instance ${instanceId}`)
   }
 
-  return FACTORIES.openrouter
+  return endpoint
 }
 
-/** Configured instances for one provider kind. Custom instances arrive with the adapters. */
+/** Configured instances for one provider kind. Custom instances come from the endpoint file. */
 export function listInstances(kind: ProviderKindId): readonly ProviderInstance[] {
   if (kind === 'openrouter') {
     return [OPENROUTER_INSTANCE]
   }
 
-  return []
+  return getEndpointsSync()
+    .filter((endpoint) => {
+      return endpoint.enabled
+    })
+    .map((endpoint): ProviderInstance => {
+      return {
+        id: endpoint.id,
+        kind: 'custom',
+        label: endpoint.label,
+        badge: endpoint.badge,
+      }
+    })
 }
 
 /** Provider kind behind one instance id. */
@@ -68,7 +80,31 @@ export function instanceKind(instanceId: string): ProviderKindId {
     return 'openrouter'
   }
 
+  if (!isNil(getEndpointSync(instanceId))) {
+    return 'custom'
+  }
+
   throw new Error(`[unplatform-ai] unknown provider instance ${instanceId}`)
+}
+
+function customVideoProvider(instanceId: string): VideoProvider {
+  const endpoint = customEndpoint(instanceId)
+
+  if (isCustomMockMode()) {
+    return createCustomMockVideoProvider()
+  }
+
+  return createCustomVideoProvider(endpoint)
+}
+
+function customImageProvider(instanceId: string): ImageProvider {
+  const endpoint = customEndpoint(instanceId)
+
+  if (isCustomMockMode()) {
+    return createCustomMockImageProvider()
+  }
+
+  return createCustomImageProvider(endpoint)
 }
 
 /** One configured adapter per instance id. */
@@ -79,13 +115,16 @@ export function getVideoProvider(instanceId: string = DEFAULT_INSTANCE_ID): Vide
     return existing
   }
 
-  const isMock = isMockProvider(instanceId)
   let provider: VideoProvider
 
-  if (isMock) {
-    provider = createMockProvider()
+  if (instanceId === 'openrouter') {
+    if (isMockMode()) {
+      provider = createMockProvider()
+    } else {
+      provider = createOpenRouterProvider()
+    }
   } else {
-    provider = videoFactory(instanceId)()
+    provider = customVideoProvider(instanceId)
   }
 
   state.video.set(instanceId, provider)
@@ -105,6 +144,14 @@ export function getImageProvider(instanceId: string = DEFAULT_INSTANCE_ID): Imag
 
   if (existing) {
     return existing
+  }
+
+  if (instanceId !== 'openrouter') {
+    const provider = customImageProvider(instanceId)
+
+    state.image.set(instanceId, provider)
+
+    return provider
   }
 
   const factory = state.imageFactories.get(instanceId)

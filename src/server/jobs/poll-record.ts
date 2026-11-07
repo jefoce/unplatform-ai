@@ -7,13 +7,18 @@ import { isNonEmptyString } from '@/core/guards'
 import type { GenerationRecord, JobStatus, RecordJob } from '@/core/schemas/generation-record'
 import { ACTIVE_STATUSES, TERMINAL_STATUSES } from '@/core/types'
 
+import { getEndpointSync } from '../providers/custom/endpoint-source'
+import { instanceIdOf } from '../providers/custom/record-instance'
 import { ProviderError, type ProviderErrorKind } from '../providers/provider-error'
 import { getVideoProvider } from '../providers/registry'
 import type { JobSnapshot } from '../providers/types'
 import { updateGeneration } from '../repos/generations'
+import { recordHealthFromError, recordHealthOk } from '../services/endpoint-health'
 import { queueDownload } from './download-queue'
 
 const RETRY_KINDS: readonly ProviderErrorKind[] = ['timeout', 'rate_limit', 'server']
+
+const ENDPOINT_REMOVED_TEXT = 'upai:endpoint_removed: Endpoint removed'
 
 /** Fetches the latest job, then merges it under the record lock. */
 export async function processRecord(record: GenerationRecord): Promise<void> {
@@ -71,19 +76,46 @@ interface PollJobParams {
 /** Returns null when the tick handled the provider error. */
 async function pollJob(params: PollJobParams): Promise<JobSnapshot | null> {
   const { record, current } = params
+  const instanceId = instanceIdOf(record)
+
+  if (record.provider === 'custom' && isNil(getEndpointSync(instanceId))) {
+    await failEndpointRemoved(record.id)
+
+    return null
+  }
 
   try {
-    return await getVideoProvider(record.provider).getJob({
+    const snapshot = await getVideoProvider(instanceId).getJob({
       jobId: current.id,
       submittedAt: current.submittedAt,
     })
+
+    if (record.provider === 'custom') {
+      recordHealthOk(instanceId)
+    }
+
+    return snapshot
   } catch (error) {
+    if (record.provider === 'custom') {
+      recordHealthFromError(instanceId, error)
+    }
+
     if (await handleJobError(record, error)) {
       return null
     }
 
     throw error
   }
+}
+
+async function failEndpointRemoved(id: string): Promise<void> {
+  await updateGeneration(id, (latest) => {
+    if (!ACTIVE_STATUSES.includes(latest.status)) {
+      return null
+    }
+
+    return { ...latest, status: 'failed', error: ENDPOINT_REMOVED_TEXT, errorStatus: undefined }
+  })
 }
 
 interface MergeJobParams {
@@ -176,8 +208,19 @@ async function finishFinal(params: FinishFinalParams): Promise<void> {
     }
 
     if (status === 'completed') {
+      let costed = next
+
+      if (next.provider === 'custom' && isNil(job.usage?.costUsd)) {
+        const actual = next.cost.estimatedUsd
+
+        costed = {
+          ...next,
+          cost: { ...next.cost, actualUsd: actual, billed: actual > 0 },
+        }
+      }
+
       // The download queue owns the record until the poster and output exist.
-      return { ...next, status: 'in_progress', download: { startedAt: now } }
+      return { ...costed, status: 'in_progress', download: { startedAt: now } }
     }
 
     const fallback = status === 'expired' ? 'Job expired' : `Job ${status}`
@@ -195,7 +238,10 @@ function finalizeCost(record: GenerationRecord, job: JobSnapshot): GenerationRec
     return record
   }
 
-  return { ...record, cost: { ...record.cost, actualUsd: 0, billed: false } }
+  // A local run is never billed by the pack, so the resolved price is the actual cost.
+  const actual = record.provider === 'custom' ? record.cost.estimatedUsd : 0
+
+  return { ...record, cost: { ...record.cost, actualUsd: actual, billed: actual > 0 } }
 }
 
 /** Returns true when the error was handled and this tick should stop. */

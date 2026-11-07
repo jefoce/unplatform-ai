@@ -7,6 +7,8 @@ import { isNonEmptyString } from '@/core/guards'
 import { graceDelayMs } from '@/core/submit-state'
 
 import { globalState } from '../global-state'
+import { endpointQueueKey, getEndpointSync } from '../providers/custom/endpoint-source'
+import { getMaxRunning } from '../services/endpoint-health'
 
 export type SubmitStage = 'uploading' | 'sending'
 
@@ -19,10 +21,27 @@ interface QueuedSubmit {
   notBefore?: string
 }
 
+interface QueuedSource {
+  instanceId?: string
+}
+
 interface QueuedRecord {
   id: string
   status: string
+  provider?: string
+  source?: QueuedSource
   submit?: QueuedSubmit
+}
+
+interface PendingEntry {
+  id: string
+  key: string
+}
+
+interface ScheduleParams {
+  id: string
+  delayMs: number
+  key: string
 }
 
 export interface SubmitQueueOptions {
@@ -46,8 +65,8 @@ export interface SubmitQueue {
 }
 
 interface SubmitState {
-  pending: Set<string>
-  active: Set<string>
+  pending: Map<string, string>
+  active: Map<string, string>
   timers: Map<string, NodeJS.Timeout>
   stages: Map<string, SubmitStage>
   controllers: Map<string, AbortController>
@@ -57,8 +76,8 @@ interface SubmitState {
 
 function createState(): SubmitState {
   return {
-    pending: new Set(),
-    active: new Set(),
+    pending: new Map(),
+    active: new Map(),
     timers: new Map(),
     stages: new Map(),
     controllers: new Map(),
@@ -93,6 +112,57 @@ class SubmitQueueImpl implements SubmitQueue {
 
   isOwned(id: string): boolean {
     return this.state.timers.has(id) || this.state.pending.has(id) || this.state.active.has(id)
+  }
+
+  /** Pack instance for a custom endpoint, so two endpoints on one ComfyUI share a limit. */
+  private queueKeyOf(record: QueuedRecord): string {
+    if (record.provider !== 'custom') {
+      return 'openrouter'
+    }
+
+    const endpointId = record.source?.instanceId
+
+    if (!isNonEmptyString(endpointId)) {
+      return 'custom'
+    }
+
+    const endpoint = getEndpointSync(endpointId)
+
+    if (isNil(endpoint)) {
+      return `custom:${endpointId}`
+    }
+
+    return `custom:${endpointQueueKey(endpoint)}`
+  }
+
+  private limitFor(key: string): number {
+    if (!key.startsWith('custom:')) {
+      return this.maxConcurrent
+    }
+
+    return getMaxRunning(key.slice('custom:'.length))
+  }
+
+  private activeCount(key: string): number {
+    let count = 0
+
+    for (const value of this.state.active.values()) {
+      if (value === key) {
+        count += 1
+      }
+    }
+
+    return count
+  }
+
+  private nextPending(): PendingEntry | null {
+    for (const [id, key] of this.state.pending) {
+      if (this.activeCount(key) < this.limitFor(key)) {
+        return { id, key }
+      }
+    }
+
+    return null
   }
 
   /** Runs that already handed the request to the provider but await its reply. */
@@ -134,7 +204,11 @@ class SubmitQueueImpl implements SubmitQueue {
       return
     }
 
-    this.schedule(id, graceDelayMs(record.submit.notBefore))
+    this.schedule({
+      id,
+      delayMs: graceDelayMs(record.submit.notBefore),
+      key: this.queueKeyOf(record),
+    })
   }
 
   /** Reschedules the remaining grace windows after a process restart. */
@@ -189,14 +263,16 @@ class SubmitQueueImpl implements SubmitQueue {
     return this.state.stages.size === 0
   }
 
-  private schedule(id: string, delayMs: number): void {
+  private schedule(params: ScheduleParams): void {
+    const { id, delayMs, key } = params
+
     if (this.state.closed || this.isOwned(id)) {
       return
     }
 
     const timer = setTimeout(() => {
       this.state.timers.delete(id)
-      this.state.pending.add(id)
+      this.state.pending.set(id, key)
       this.drain()
     }, delayMs)
 
@@ -204,19 +280,17 @@ class SubmitQueueImpl implements SubmitQueue {
   }
 
   private drain(): void {
-    while (
-      !this.state.closed &&
-      this.state.active.size < this.maxConcurrent &&
-      this.state.pending.size > 0
-    ) {
-      const id = this.state.pending.values().next().value
+    while (!this.state.closed) {
+      const next = this.nextPending()
 
-      if (!isNonEmptyString(id)) {
+      if (isNil(next)) {
         return
       }
 
+      const { id, key } = next
+
       this.state.pending.delete(id)
-      this.state.active.add(id)
+      this.state.active.set(id, key)
       const controller = new AbortController()
 
       this.state.controllers.set(id, controller)
