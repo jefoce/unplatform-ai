@@ -84,3 +84,8 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
 export function testEndpoint(params: EndpointTestParams): Promise<EndpointTestResult> {
   return apiPost<EndpointTestResult>(`${ENDPOINTS_KEY}/test`, params)
 }
+
+/** Revalidates the endpoint overview after a settings save. */
+export async function refreshEndpoints(): Promise<void> {
+  await mutate(ENDPOINTS_KEY)
+}

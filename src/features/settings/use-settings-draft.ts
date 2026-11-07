@@ -9,6 +9,7 @@ import type { StorageProviderId } from '@/core/providers/types'
 import { secretError, type SecretName } from '@/core/secret-names'
 import type { SecretStatus } from '@/core/types'
 import { refreshCredits } from '@/lib/api/credits'
+import { refreshEndpoints } from '@/lib/api/endpoints'
 import { refreshModels } from '@/lib/api/models'
 import { refreshRemoteStatus } from '@/lib/api/remote'
 import { saveSecrets } from '@/lib/api/settings'
@@ -183,6 +184,7 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
       }
 
       await Promise.all([refreshCredits(), refreshRemoteStatus(), refreshModels()])
+      await refreshEndpoints()
       setEdits({})
       resetResults()
       toast.success('Settings saved')
