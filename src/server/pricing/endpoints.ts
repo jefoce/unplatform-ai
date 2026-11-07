@@ -1,51 +1,12 @@
 import 'server-only'
 
-import path from 'node:path'
-
 import { isNil } from 'lodash-es'
 
-import { isNonEmptyString } from '@/core/guards'
 import type { PricingConfig } from '@/core/pricing/types'
-import {
-  CustomEndpointFileSchema,
-  type CustomEndpointPricing,
-} from '@/core/schemas/custom-endpoint'
+import type { CustomEndpointPricing } from '@/core/schemas/custom-endpoint'
 
-import { readJson } from '../fs/json-file'
-import { STORAGE_ROOT } from '../paths'
-
-/** The endpoints repo belongs to w-settings. Swap this for its path constant after the merge. */
-const ENDPOINTS_FILE = path.join(STORAGE_ROOT, 'data', 'endpoints.json')
-
-/** Endpoint id from the mapper convention `custom.<endpointId>.<modelId>`. */
-export function endpointIdOf(presetId: string): string | null {
-  if (!presetId.startsWith('custom.')) {
-    return null
-  }
-
-  const [, endpointId] = presetId.split('.')
-
-  if (!isNonEmptyString(endpointId)) {
-    return null
-  }
-
-  return endpointId
-}
-
-/** One endpoint's pricing, null when the file or the endpoint is missing. */
-async function loadEndpointPricing(endpointId: string): Promise<CustomEndpointPricing | null> {
-  const file = await readJson(ENDPOINTS_FILE, CustomEndpointFileSchema)
-
-  if (isNil(file)) {
-    return null
-  }
-
-  const endpoint = file.endpoints.find((item) => {
-    return item.id === endpointId
-  })
-
-  return endpoint?.pricing ?? null
-}
+import { getEndpoint } from '../providers/custom/endpoint-source'
+import { endpointIdFromPresetId } from '../providers/custom/preset-link'
 
 interface RunPriceParams {
   pricing: CustomEndpointPricing | null
@@ -86,15 +47,15 @@ export async function resolveRunPricing(params: ResolveRunPricingParams): Promis
     return pricing
   }
 
-  const endpointId = endpointIdOf(presetId)
+  const endpointId = endpointIdFromPresetId(presetId)
 
   if (isNil(endpointId)) {
     return pricing
   }
 
-  const override = await loadEndpointPricing(endpointId)
+  const endpoint = await getEndpoint(endpointId)
   const modelUsd = pricing.fallback.per_run ?? 0
-  const perRun = runPrice({ pricing: override, modelUsd, seconds })
+  const perRun = runPrice({ pricing: endpoint?.pricing ?? null, modelUsd, seconds })
 
   return { ...pricing, fallback: { ...pricing.fallback, per_run: perRun } }
 }

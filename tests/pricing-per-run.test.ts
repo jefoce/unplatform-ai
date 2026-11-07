@@ -139,10 +139,10 @@ describe('perRun quote', () => {
 
 describe('endpoint override', () => {
   it('reads the endpoint id from the custom preset id', async () => {
-    const { endpointIdOf } = await import('../src/server/pricing/endpoints')
+    const { endpointIdFromPresetId } = await import('../src/server/providers/custom/preset-link')
 
-    expect(endpointIdOf('custom.ep-1.wf.model')).toBe('ep-1')
-    expect(endpointIdOf('wan-3.0')).toBeNull()
+    expect(endpointIdFromPresetId('custom.ep-1.wf.model')).toBe('ep-1')
+    expect(endpointIdFromPresetId('wan-3.0')).toBeNull()
   })
 
   it('uses the model price in model mode', async () => {
