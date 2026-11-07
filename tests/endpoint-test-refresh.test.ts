@@ -11,6 +11,7 @@ const ROOT = vi.hoisted(() => {
   const root = pathModule.join(os.tmpdir(), `cf-endpoint-test-refresh-${process.pid}`)
 
   process.env.STORAGE_ROOT = root
+  process.env.UPAI_SECRETS_BACKEND = 'file'
 
   return root
 })

@@ -252,10 +252,13 @@ async function endpointFetch(params: EndpointRequestParams): Promise<Response> {
     combined = AbortSignal.any([signal, timeout])
   }
 
+  let res: Response
+
   try {
-    return await fetch(`${target.baseUrl}${route}`, {
+    res = await fetch(`${target.baseUrl}${route}`, {
       ...init,
       headers: authHeaders(target),
+      redirect: 'manual',
       signal: combined,
     })
   } catch (error) {
@@ -265,6 +268,14 @@ async function endpointFetch(params: EndpointRequestParams): Promise<Response> {
 
     throw endpointConnectionError()
   }
+
+  if (res.status >= 300 && res.status <= 399) {
+    await res.body?.cancel()
+
+    throw endpointProtocolError()
+  }
+
+  return res
 }
 
 function authHeaders(target: EndpointTarget): HeadersInit {

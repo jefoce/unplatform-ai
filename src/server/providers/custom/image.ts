@@ -36,6 +36,7 @@ import {
 import { testCustomEndpoint } from './health'
 import { customRequest, requestHeaders, requestJson } from './http'
 import { trackCustomImageJob, untrackCustomImageJob } from './image-jobs'
+import { resolveCustomRunPrice } from './pricing'
 
 const IMAGE_POLL_INTERVAL_MS = 1000
 const FINAL_STATUSES: readonly UpaiJobStatus[] = ['completed', 'failed', 'cancelled', 'expired']
@@ -220,8 +221,13 @@ async function generate(
     }
 
     const items = await imageItems({ endpoint, job, count })
+    let costUsd = job.usage.cost
 
-    return { items, costUsd: job.usage.cost }
+    if (costUsd === 0) {
+      costUsd = resolveCustomRunPrice({ endpoint, preset: params.preset, duration: 1 })
+    }
+
+    return { items, costUsd }
   } finally {
     untrackCustomImageJob(jobId)
   }

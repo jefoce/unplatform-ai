@@ -470,22 +470,24 @@ describe('custom catalog', () => {
     expect(entryFor(entries, video.id).status).toBe('unverified')
   })
 
-  it('does not fetch when the endpoint was never tested', async () => {
+  it('fetches both lists for an untested endpoint with a stale cache', async () => {
     const video = modelAt(VIDEO_MODELS, 0)
     const endpoint = customEndpoint('cat-net-off', 'CUH')
 
     await writeEndpoints([endpoint])
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
     await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    vi.setSystemTime(new Date('2026-01-01T00:02:00Z'))
     clearModelCatalog()
 
-    const fetchMock = vi.fn()
-
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = mockModelFetch()
 
     const entries = customEntries((await getModelCatalog()).entries)
 
     expect(entryFor(entries, video.id).status).toBe('available')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 

@@ -162,3 +162,49 @@ describe('custom image adapter', () => {
     expect(models.models[0]?.referenceMax).toBe(1)
   })
 })
+
+describe('custom image cost', () => {
+  it('uses the resolved run price when the pack reports zero', async () => {
+    const created = await fixture('create-job-image.json')
+    const done = UpaiJobSchema.parse(await fixture('job-completed.json'))
+    const completed = { ...done, kind: 'image', model: 'sdxl', usage: { cost: 0 } }
+
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(created), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(completed), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1]), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      )
+
+    const endpoint = { ...ENDPOINT, pricing: { mode: 'perRun' as const, usd: 2.5 } }
+    const provider = createCustomImageProvider(endpoint)
+    const result = await provider.generate({ preset: PRESET, input: INPUT, references: REFERENCES })
+
+    expect(result.costUsd).toBe(2.5)
+  })
+
+  it('keeps a reported non-zero cost', async () => {
+    const created = await fixture('create-job-image.json')
+    const done = UpaiJobSchema.parse(await fixture('job-completed.json'))
+    const completed = { ...done, kind: 'image', model: 'sdxl', usage: { cost: 3 } }
+
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(created), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(completed), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1]), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      )
+
+    const endpoint = { ...ENDPOINT, pricing: { mode: 'perRun' as const, usd: 2.5 } }
+    const provider = createCustomImageProvider(endpoint)
+    const result = await provider.generate({ preset: PRESET, input: INPUT, references: REFERENCES })
+
+    expect(result.costUsd).toBe(3)
+  })
+})

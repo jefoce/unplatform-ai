@@ -65,9 +65,8 @@ beforeAll(async () => {
 
   await fs.writeFile(path.join(ROOT, 'data', 'endpoints.json'), JSON.stringify(ENDPOINTS))
 
-  ;({ UPLOADS_DIR: uploadsDir } = await import('@/server/paths'))
-
-  ;({ buildMedia } = await import('@/server/jobs/submit-media'))
+  uploadsDir = (await import('@/server/paths')).UPLOADS_DIR
+  buildMedia = (await import('@/server/jobs/submit-media')).buildMedia
 })
 
 afterAll(async () => {
@@ -194,5 +193,23 @@ describe('custom endpoint upload errors', () => {
         endpointId: 'custom-2',
       }),
     ).rejects.toThrow('The endpoint needs a token. Add it in Settings.')
+  })
+})
+
+describe('custom endpoint redirects', () => {
+  it('rejects a redirect without parsing the body', async () => {
+    const upload = await makeVideo()
+
+    mockFetch([{ method: 'GET', path: '/upai/api/v1/health', status: 302 }])
+
+    await expect(
+      runBuild({
+        uploads: { [upload.id]: upload },
+        transports: { [upload.id]: 'upload' },
+        endpointId: 'custom-1',
+      }),
+    ).rejects.toMatchObject({ code: 'protocol' })
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({ redirect: 'manual' })
   })
 })

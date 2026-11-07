@@ -13,6 +13,7 @@ import {
 
 import { resetCustomProviders } from '../providers/registry'
 import { normalizeBaseUrl } from '../repos/endpoints'
+import { secretsReady } from '../secrets'
 import { writeEndpointModels } from './endpoint-model-cache'
 import { readEndpointToken } from './endpoint-tokens'
 import { markEndpointHealth } from './endpoints'
@@ -75,6 +76,7 @@ class EndpointTestError extends Error {
 }
 
 export async function testEndpoint(params: EndpointTestParams): Promise<EndpointTestResult> {
+  await secretsReady()
   const baseUrl = normalizeBaseUrl(params.baseUrl)
   const token = resolveToken(params)
   const checkedAt = new Date().toISOString()

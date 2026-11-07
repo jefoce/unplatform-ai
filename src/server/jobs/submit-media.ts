@@ -46,6 +46,7 @@ interface BuildMediaParams {
   transports: Transports
   preset: VideoPreset
   endpointId: string | null
+  signal?: AbortSignal
 }
 
 interface SendParams {
@@ -54,6 +55,7 @@ interface SendParams {
   uploads: UploadsById
   transports: Transports
   built: BuiltMedia
+  signal?: AbortSignal
 }
 
 /** Uploads url inputs two at a time with combined byte progress. */
@@ -121,14 +123,14 @@ export async function uploadUrls(params: UploadUrlsParams): Promise<void> {
 }
 
 export async function buildMedia(params: BuildMediaParams): Promise<BuiltMedia> {
-  const { uploads, transports, preset, endpointId } = params
+  const { uploads, transports, preset, endpointId, signal } = params
   const items = Object.values(uploads)
 
   const endpointUploads = items.filter((upload) => {
     return isEndpointUpload(upload, transports)
   })
 
-  const refs = await uploadCustomRefs({ instanceId: endpointId, uploads: endpointUploads })
+  const refs = await uploadCustomRefs({ instanceId: endpointId, uploads: endpointUploads, signal })
 
   const uploaded = endpointUploads.map((upload) => {
     const url = refs[upload.id]
@@ -246,7 +248,7 @@ export async function recordSent(id: string, plan: ReferencePlan): Promise<void>
 }
 
 export async function send(params: SendParams): Promise<SubmittedJob> {
-  const { record, preset, uploads, transports, built } = params
+  const { record, preset, uploads, transports, built, signal } = params
   const provider = getVideoProvider(instanceIdOf(record))
 
   try {
@@ -264,6 +266,7 @@ export async function send(params: SendParams): Promise<SubmittedJob> {
       transports: base64Only(transports),
       preset,
       endpointId: instanceIdOf(record),
+      signal,
     }).catch(() => {
       return null
     })

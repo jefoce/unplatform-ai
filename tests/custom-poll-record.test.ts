@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => {
     endpoints: new Set<string>(['ep1']),
     recordHealthOk: vi.fn(),
     recordHealthFromError: vi.fn(),
+    queueDownload: vi.fn(),
   }
 })
 
@@ -46,6 +47,10 @@ vi.mock('@/server/services/endpoint-health', () => {
   }
 })
 
+vi.mock('@/server/jobs/download-queue', () => {
+  return { queueDownload: mocks.queueDownload }
+})
+
 interface SaveModule {
   saveGeneration: (record: GenerationRecord) => Promise<GenerationRecord>
   getGeneration: (id: string) => Promise<GenerationRecord | null>
@@ -58,8 +63,7 @@ beforeAll(async () => {
   await fs.mkdir(ROOT, { recursive: true })
 
   repo = await import('@/server/repos/generations')
-
-  ;({ processRecord } = await import('@/server/jobs/poll-record'))
+  processRecord = (await import('@/server/jobs/poll-record')).processRecord
 })
 
 afterAll(async () => {
@@ -78,6 +82,7 @@ beforeEach(() => {
   mocks.getJob.mockReset()
   mocks.recordHealthOk.mockReset()
   mocks.recordHealthFromError.mockReset()
+  mocks.queueDownload.mockReset()
   mocks.endpoints.clear()
   mocks.endpoints.add('ep1')
 })
@@ -163,6 +168,26 @@ describe('custom record completion cost', () => {
     expect(saved?.cost.billed).toBe(false)
   })
 
+  it('treats a reported zero cost as unreported for a custom completion', async () => {
+    const id = '55555555-5555-4555-8555-555555555555'
+    const record = customRecord(id, 2.5)
+
+    mocks.getJob.mockResolvedValue(
+      snapshot({
+        status: 'completed',
+        usage: { costUsd: 0, isByok: false, usesEstimatedCost: false },
+      }),
+    )
+
+    await repo.saveGeneration(record)
+    await processRecord(record)
+
+    const saved = await repo.getGeneration(id)
+
+    expect(saved?.cost.actualUsd).toBe(2.5)
+    expect(saved?.cost.billed).toBe(true)
+  })
+
   it('records a health failure from a rejected poll', async () => {
     const { ProviderError } = await import('@/server/providers/provider-error')
     const id = '33333333-3333-4333-8333-333333333333'
@@ -183,6 +208,37 @@ describe('custom record completion cost', () => {
     await processRecord(record)
 
     expect(mocks.recordHealthFromError).toHaveBeenCalledWith('ep1', expect.anything())
+  })
+})
+
+describe('custom record progress', () => {
+  it('stores the reported progress on a non-final snapshot', async () => {
+    const id = '44444444-4444-4444-8444-444444444441'
+    const record = { ...customRecord(id, 0.1), createdAt: new Date().toISOString() }
+
+    mocks.getJob.mockResolvedValue(
+      snapshot({
+        status: 'in_progress',
+        progress: {
+          percent: 42,
+          node: null,
+          queuePosition: null,
+          waitingOn: 'comfyui_busy',
+        },
+      }),
+    )
+
+    await repo.saveGeneration(record)
+    await processRecord(record)
+
+    const saved = await repo.getGeneration(id)
+
+    expect(saved?.progress).toEqual({
+      percent: 42,
+      node: null,
+      queuePosition: null,
+      waitingOn: 'comfyui_busy',
+    })
   })
 })
 

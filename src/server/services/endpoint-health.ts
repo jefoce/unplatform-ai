@@ -74,7 +74,26 @@ export function recordHealthOk(endpointId: string): void {
   })
 }
 
+/** Only transport, auth and protocol failures close an endpoint. */
+function isHealthFailure(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    return true
+  }
+
+  if (!(error instanceof ProviderError)) {
+    return false
+  }
+
+  return (
+    error.status === 0 || error.status === 401 || error.status === 403 || error.code === 'protocol'
+  )
+}
+
 export function recordHealthFromError(endpointId: string, error: unknown): void {
+  if (!isHealthFailure(error)) {
+    return
+  }
+
   const previous = store.entries.get(endpointId)
   let status: EndpointHealthStatus = 'unreachable'
   let message = 'unreachable'

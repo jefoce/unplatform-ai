@@ -137,6 +137,7 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
     transports,
     preset,
     endpointId: endpointIdOf(record),
+    signal,
   })
 
   await recordSent(record.id, built.plan)
@@ -167,7 +168,7 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
     return
   }
 
-  const response = await send({ record, preset, uploads, transports, built })
+  const response = await send({ record, preset, uploads, transports, built, signal })
   const saved = await complete(record.id, response)
 
   if (saved) {

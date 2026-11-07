@@ -93,6 +93,24 @@ describe('endpoint health', () => {
     expect(getHealth('ep1')?.state).toBe('unreachable')
   })
 
+  it('keeps an ok endpoint open after a 400 input error', () => {
+    recordHealthOk('ep1')
+
+    recordHealthFromError(
+      'ep1',
+      new ProviderError({
+        providerId: 'custom',
+        kind: 'input',
+        message: 'bad request',
+        storedMessage: 'upai:invalid: bad request',
+        status: 400,
+        code: 'invalid',
+      }),
+    )
+
+    expect(getHealth('ep1')?.state).toBe('ok')
+  })
+
   it('clears a failure on a successful poll and keeps the limit', () => {
     recordHealthFromError('ep1', providerError(401, 'unauthorized'))
     recordHealthOk('ep1')

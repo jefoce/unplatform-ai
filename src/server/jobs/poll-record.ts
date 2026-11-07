@@ -152,6 +152,7 @@ function mergeJob(params: MergeJobParams): GenerationRecord | null {
       ...record,
       status,
       job: jobFields,
+      progress: job.progress ?? record.progress,
       error,
       errorStatus,
     },
@@ -210,7 +211,7 @@ async function finishFinal(params: FinishFinalParams): Promise<void> {
     if (status === 'completed') {
       let costed = next
 
-      if (next.provider === 'custom' && isNil(job.usage?.costUsd)) {
+      if (isUnreportedCustomCost({ record: next, job })) {
         const actual = next.cost.estimatedUsd
 
         costed = {
@@ -231,6 +232,19 @@ async function finishFinal(params: FinishFinalParams): Promise<void> {
   if (!isNil(saved) && status === 'completed') {
     await queueDownload(saved, job)
   }
+}
+
+interface UnreportedCostParams {
+  record: GenerationRecord
+  job: JobSnapshot
+}
+
+/** A custom run that reports zero is treated as unreported. */
+function isUnreportedCustomCost(params: UnreportedCostParams): boolean {
+  const { record, job } = params
+  const costUsd = job.usage?.costUsd
+
+  return record.provider === 'custom' && (isNil(costUsd) || costUsd === 0)
 }
 
 function finalizeCost(record: GenerationRecord, job: JobSnapshot): GenerationRecord {

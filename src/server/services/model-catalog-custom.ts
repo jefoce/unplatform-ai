@@ -147,10 +147,6 @@ async function endpointModels(
 ): Promise<EndpointModelCache | null> {
   const cached = await readEndpointModels(endpoint.id)
 
-  if (isNil(endpoint.lastHealth)) {
-    return cached
-  }
-
   if (!isForce && isFreshCache(cached)) {
     return cached
   }

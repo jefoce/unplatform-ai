@@ -4,7 +4,7 @@ import { isNil, isUndefined } from 'lodash-es'
 import { z } from 'zod'
 
 import { HttpError } from '../errors'
-import { getSecret, setSecrets } from '../secrets'
+import { getSecret, secretsReady, setSecrets } from '../secrets'
 
 const TOKEN_VALUE_MAX_CHARS = 4096
 
@@ -102,6 +102,7 @@ async function saveTokenValue(serialized: string): Promise<void> {
 
 /** Removes and sets tokens in one write. Fails before saving when the map is too large. */
 export async function applyEndpointTokens(params: ApplyEndpointTokensParams): Promise<void> {
+  await secretsReady()
   const next = nextTokenValues({ ...params, current: readTokenMap() })
   const serialized = JSON.stringify(next)
 

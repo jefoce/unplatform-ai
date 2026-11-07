@@ -136,6 +136,25 @@ describe('token storage', () => {
   })
 })
 
+describe('token readiness', () => {
+  it('loads the stored map before saving one token', async () => {
+    const backend = (await import('./helpers/secrets')).memoryBackend({
+      CUSTOM_ENDPOINT_TOKENS: JSON.stringify({ keep: 'keep-token' }),
+    })
+
+    secrets.__setSecretsBackendForTests(backend)
+
+    const tokens = await import('@/server/services/endpoint-tokens')
+
+    await tokens.applyEndpointTokens({
+      changes: [{ id: 'new', token: 'new-token' }],
+      removedIds: [],
+    })
+
+    expect(tokens.readTokenMap()).toEqual({ keep: 'keep-token', new: 'new-token' })
+  })
+})
+
 describe('running jobs', () => {
   it('counts active records per endpoint', async () => {
     const saved = await repo.applyEndpoints({
