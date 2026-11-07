@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,6 +49,11 @@ const HEALTH = {
 
 const { testEndpoint } = await import('@/server/services/endpoint-test')
 const { readEndpointModels } = await import('@/server/services/endpoint-model-cache')
+const { getHealth } = await import('@/server/services/endpoint-health')
+
+const SAVED_ID = 'ep-refresh'
+const UNSAVED_ID = 'ep-unsaved'
+const SAVED_URL = 'http://127.0.0.1:8188'
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -76,6 +82,21 @@ function mockFetch(): void {
 
 beforeEach(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
+
+  await fs.mkdir(path.join(ROOT, 'data'), { recursive: true })
+
+  await fs.writeFile(
+    path.join(ROOT, 'data', 'endpoints.json'),
+    JSON.stringify({
+      version: 1,
+      endpoints: [
+        { id: SAVED_ID, label: 'Studio', badge: 'CU1', baseUrl: SAVED_URL, enabled: true },
+        { id: UNSAVED_ID, label: 'Lab', badge: 'CU2', baseUrl: SAVED_URL, enabled: true },
+      ],
+      badgeCounter: 0,
+    }),
+  )
+
   catalog.clearModelCatalog.mockClear()
   registry.resetCustomProviders.mockClear()
 })
@@ -90,17 +111,31 @@ describe('endpoint test refresh', () => {
     mockFetch()
 
     const result = await testEndpoint({
-      baseUrl: 'http://127.0.0.1:8188',
-      endpointId: 'ep-refresh',
+      baseUrl: SAVED_URL,
+      endpointId: SAVED_ID,
     })
 
     expect(result.ok).toBe(true)
 
-    const cache = await readEndpointModels('ep-refresh')
+    const cache = await readEndpointModels(SAVED_ID)
 
     expect(cache?.video).toHaveLength(videoFixture.data.length)
     expect(cache?.image).toHaveLength(imageFixture.data.length)
     expect(catalog.clearModelCatalog).toHaveBeenCalled()
     expect(registry.resetCustomProviders).toHaveBeenCalled()
+  })
+
+  it('returns the draft result without writing a URL that is not saved', async () => {
+    mockFetch()
+
+    const result = await testEndpoint({
+      baseUrl: 'http://127.0.0.1:9999',
+      endpointId: UNSAVED_ID,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(getHealth(UNSAVED_ID)).toBeNull()
+    expect(await readEndpointModels(UNSAVED_ID)).toBeNull()
+    expect(catalog.clearModelCatalog).not.toHaveBeenCalled()
   })
 })

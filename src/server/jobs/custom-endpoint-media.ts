@@ -3,6 +3,7 @@ import 'server-only'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import type { Dict } from '@/core/utility-types'
 
+import { isCustomEndpointMockMode } from '../config/mock-mode'
 import { uploadPaths } from '../paths'
 import { secretsReady } from '../secrets'
 import { hashFile } from '../storage/hash'
@@ -26,11 +27,6 @@ interface HashedUpload {
   size: number
 }
 
-/** Dev submits skip the endpoint network. */
-function isCustomEndpointMock(): boolean {
-  return process.env.CUSTOM_ENDPOINT_MOCK === '1'
-}
-
 /** Uploads video and audio refs to the endpoint, keyed by upload id. */
 export async function uploadCustomRefs(params: CustomRefsParams): Promise<Dict<string>> {
   const { instanceId, uploads, signal } = params
@@ -41,7 +37,7 @@ export async function uploadCustomRefs(params: CustomRefsParams): Promise<Dict<s
 
   const hashed = await Promise.all(uploads.map(hashUpload))
 
-  if (isCustomEndpointMock()) {
+  if (isCustomEndpointMockMode()) {
     return refsFor(hashed, new Map())
   }
 

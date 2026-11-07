@@ -6,11 +6,17 @@ import { isNil } from 'lodash-es'
 import { messageOf } from '@/core/errors'
 import { type EndpointTestResult, testEndpoint } from '@/lib/api/endpoints'
 
-import { type EndpointRowDraft, tokenOf } from './endpoint-draft'
+import { type EndpointRowDraft, type TestedEndpoint, tokenOf } from './endpoint-draft'
+
+export interface EndpointTestOutcome {
+  key: string
+  tested: TestedEndpoint
+  result: EndpointTestResult
+}
 
 interface UseEndpointTestParams {
   rows: EndpointRowDraft[]
-  onResult: (key: string, result: EndpointTestResult) => void
+  onResult: (outcome: EndpointTestOutcome) => void
 }
 
 export interface EndpointTestState {
@@ -50,18 +56,18 @@ export function useEndpointTest(params: UseEndpointTestParams): EndpointTestStat
 
     setTestingKey(key)
 
-    try {
-      const token = tokenOf(row)
+    const tested = { baseUrl: row.baseUrl, token: tokenOf(row) }
 
+    try {
       const result = await testEndpoint({
-        baseUrl: row.baseUrl,
+        baseUrl: tested.baseUrl,
         endpointId: row.id,
-        token,
+        token: tested.token,
       })
 
-      params.onResult(key, result)
+      params.onResult({ key, tested, result })
     } catch (error) {
-      params.onResult(key, failedTest(messageOf(error, 'Test failed')))
+      params.onResult({ key, tested, result: failedTest(messageOf(error, 'Test failed')) })
     } finally {
       setTestingKey(null)
     }

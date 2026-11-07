@@ -13,7 +13,6 @@ import { imageCardActions } from '../actions/image-card-actions'
 import { MoreMenu } from '../actions/MoreMenu'
 import { toggleFavoriteId } from '../actions/record-actions'
 import { videoCardActions } from '../actions/video-card-actions'
-import { isCustomActiveRecord } from '../status/status-tone'
 import { CardVignette } from './CardVignette'
 
 const isTerminal = (item: HistoryItem, isCompleted: boolean): boolean => {
@@ -58,7 +57,6 @@ export function HistoryTileChrome(props: HistoryTileChromeProps) {
     return null
   }
 
-  const isRunningCustom = isVideoItem(item) && isCustomActiveRecord(item.source)
   const isTerminalItem = isTerminal(item, isCompleted)
 
   const handleFavorite = () => {
@@ -75,7 +73,7 @@ export function HistoryTileChrome(props: HistoryTileChromeProps) {
     <>
       {isCompleted && <CardVignette scope="card" />}
       {isCompleted && item.favorite && <FavoriteBadge isFavorite onToggle={handleFavorite} />}
-      {(isTerminalItem || isRunningCustom) && (
+      {isTerminalItem && (
         <CardActions
           actions={actionList(item, isTerminalItem)}
           menu={<MoreMenu item={item} className={HOVER_REVEAL_CLASSES} />}

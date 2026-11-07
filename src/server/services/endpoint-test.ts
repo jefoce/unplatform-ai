@@ -11,6 +11,7 @@ import {
   CustomEndpointLastHealthSchema,
 } from '@/core/schemas/custom-endpoint'
 
+import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { resetCustomProviders } from '../providers/registry'
 import { normalizeBaseUrl } from '../repos/endpoints'
 import { secretsReady } from '../secrets'
@@ -75,11 +76,20 @@ class EndpointTestError extends Error {
   }
 }
 
+function isSavedUrl(params: EndpointTestParams, baseUrl: string): boolean {
+  if (isNil(params.endpointId)) {
+    return true
+  }
+
+  return getEndpointSync(params.endpointId)?.baseUrl === baseUrl
+}
+
 export async function testEndpoint(params: EndpointTestParams): Promise<EndpointTestResult> {
   await secretsReady()
   const baseUrl = normalizeBaseUrl(params.baseUrl)
   const token = resolveToken(params)
   const checkedAt = new Date().toISOString()
+  const isSavedEndpoint = isSavedUrl(params, baseUrl)
 
   try {
     const health = await fetchJson({
@@ -101,14 +111,16 @@ export async function testEndpoint(params: EndpointTestParams): Promise<Endpoint
       }),
     ])
 
-    markEndpointHealth({
-      endpointId: params.endpointId,
-      status: 'ok',
-      message: null,
-      maxRunning: health.max_running,
-    })
+    if (isSavedEndpoint) {
+      markEndpointHealth({
+        endpointId: params.endpointId,
+        status: 'ok',
+        message: null,
+        maxRunning: health.max_running,
+      })
+    }
 
-    if (!isNil(params.endpointId)) {
+    if (isSavedEndpoint && !isNil(params.endpointId)) {
       await writeEndpointModels({
         endpointId: params.endpointId,
         kind: 'video',
@@ -151,11 +163,13 @@ export async function testEndpoint(params: EndpointTestParams): Promise<Endpoint
   } catch (error) {
     const failure = testFailure(error)
 
-    markEndpointHealth({
-      endpointId: params.endpointId,
-      status: failure.status,
-      message: failure.message,
-    })
+    if (isSavedEndpoint) {
+      markEndpointHealth({
+        endpointId: params.endpointId,
+        status: failure.status,
+        message: failure.message,
+      })
+    }
 
     return testFailed(failure.message)
   }

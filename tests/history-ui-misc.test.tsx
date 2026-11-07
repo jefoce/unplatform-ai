@@ -16,6 +16,7 @@ import {
   handleNoop,
   ids,
   item,
+  itemOf,
   Observer,
   record,
   setOrder,
@@ -23,6 +24,7 @@ import {
   tile,
 } from './helpers/history'
 import { required } from './helpers/required'
+import { storedRecord } from './helpers/stored-record'
 
 const apiPost = vi.hoisted(() => {
   return vi.fn()
@@ -131,6 +133,29 @@ describe('portal clicks', () => {
     for (const name of ['Like', 'Download', 'More actions']) {
       expect(within(card).getByRole('button', { name, hidden: true }).className).toContain(open)
     }
+  })
+})
+
+describe('tile menus', () => {
+  it('shows one menu trigger on a running custom tile', () => {
+    const custom = storedRecord('custom-a', {
+      provider: 'custom',
+      status: 'in_progress',
+      output: undefined,
+      source: {
+        kind: 'custom',
+        instanceId: 'ep-a',
+        badge: 'CU1',
+        presetTitle: 'Local Wan',
+        workflowName: null,
+        endpointLabel: 'Studio',
+        local: true,
+      },
+    })
+
+    render(<HistoryGrid items={[itemOf(custom)]} zoom={ZOOM_DEFAULT} onOpen={handleNoop} />)
+
+    expect(screen.getAllByRole('button', { name: 'More actions' })).toHaveLength(1)
   })
 })
 

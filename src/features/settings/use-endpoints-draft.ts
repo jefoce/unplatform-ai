@@ -18,10 +18,12 @@ import {
   type EndpointsDraft,
   isDraftValid,
   nextFreeBadge,
+  type TestedEndpoint,
   toInput,
+  tokenOf,
   toRow,
 } from './endpoint-draft'
-import { useEndpointTest } from './use-endpoint-test'
+import { type EndpointTestOutcome, useEndpointTest } from './use-endpoint-test'
 
 let rowSequence = 0
 
@@ -34,6 +36,7 @@ interface UseEndpointsDraftParams {
 interface TestResultParams {
   rows: EndpointRowDraft[]
   key: string
+  tested: TestedEndpoint
   result: EndpointTestResult
 }
 
@@ -96,10 +99,14 @@ function newRow(rows: EndpointRowDraft[], nextBadge: string): EndpointRowDraft {
 }
 
 function withTestResult(params: TestResultParams): EndpointRowDraft[] {
-  const { rows, key, result } = params
+  const { rows, key, tested, result } = params
 
   return rows.map((row) => {
     if (row.key !== key) {
+      return row
+    }
+
+    if (row.baseUrl !== tested.baseUrl || tokenOf(row) !== tested.token) {
       return row
     }
 
@@ -134,9 +141,11 @@ export function useEndpointsDraft(params: UseEndpointsDraftParams): EndpointsDra
   const currentRows = rows ?? seedRows(data)
   const nextBadge = data?.nextBadge ?? 'CU1'
 
-  const applyResult = (key: string, result: EndpointTestResult) => {
+  const applyResult = (outcome: EndpointTestOutcome) => {
+    const { key, tested, result } = outcome
+
     setRows((current) => {
-      return withTestResult({ rows: current ?? seedRows(data), key, result })
+      return withTestResult({ rows: current ?? seedRows(data), key, tested, result })
     })
 
     if (result.ok) {

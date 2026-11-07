@@ -1,4 +1,5 @@
 import type { Rule } from '../../provider-errors/types'
+import type { ProviderKindId } from '../../providers/types'
 
 /** Family rules for raw `upai:<code>: <message>` adapter text. */
 export const CUSTOM_ERROR_RULES: readonly Rule[] = [
@@ -76,3 +77,12 @@ export const CUSTOM_ERROR_RULES: readonly Rule[] = [
     kind: 'account',
   },
 ]
+
+/** Preset rules when the runtime preset is gone but the record is from a custom endpoint. */
+export function fallbackErrorRules(provider: ProviderKindId): readonly Rule[] {
+  if (provider === 'custom') {
+    return CUSTOM_ERROR_RULES
+  }
+
+  return []
+}

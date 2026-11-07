@@ -181,3 +181,40 @@ describe('endpoint draft save and cancel', () => {
     expect(result.current.rows[0]?.status).toBe('unknown')
   })
 })
+
+describe('endpoint test race', () => {
+  it('drops a result for a base URL the row no longer has', async () => {
+    let resolveTest: ((result: EndpointTestResult) => void) | null = null
+
+    mocks.test.mockImplementation(() => {
+      return new Promise<EndpointTestResult>((resolve) => {
+        resolveTest = resolve
+      })
+    })
+
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    act(() => {
+      result.current.onTest(first.key)
+    })
+
+    act(() => {
+      result.current.onChange(first.key, { baseUrl: 'http://127.0.0.1:9999' })
+    })
+
+    await act(async () => {
+      resolveTest?.(TEST_RESULT)
+    })
+
+    await waitFor(() => {
+      expect(result.current.rows[0]?.isTesting).toBe(false)
+    })
+
+    expect(result.current.rows[0]?.test).toBeNull()
+    expect(result.current.rows[0]?.lastHealth).toBeNull()
+  })
+})

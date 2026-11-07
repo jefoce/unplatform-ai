@@ -76,4 +76,12 @@ describe('custom job progress', () => {
     expect(isCustomActiveRecord(custom())).toBe(true)
     expect(isCustomActiveRecord(record)).toBe(false)
   })
+
+  it('translates a removed endpoint when the runtime preset is gone', () => {
+    const base = custom({ error: 'upai:endpoint_removed: Endpoint removed' })
+
+    const record = { ...base, input: { ...base.input, presetId: 'cu-missing' } }
+
+    expect(videoStatusView(record).error?.title).toBe('This endpoint was removed.')
+  })
 })

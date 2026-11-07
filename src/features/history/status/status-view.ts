@@ -1,6 +1,7 @@
 import type { GridItemStatus } from '@/core/feed/grid-item'
 import { isNonEmptyString, isOneOf } from '@/core/guards'
 import { videoRecordAspect } from '@/core/media/aspect'
+import { fallbackErrorRules } from '@/core/presets/custom/errors'
 import { findImagePreset } from '@/core/presets/image'
 import { friendlyError } from '@/core/provider-errors'
 import type { FriendlyError } from '@/core/provider-errors/types'
@@ -144,7 +145,7 @@ function imageFriendlyError(params: ImageFriendlyErrorParams): FriendlyError {
 
   return friendlyError({
     raw,
-    rules: findImagePreset(record.input.presetId)?.errors ?? [],
+    rules: findImagePreset(record.input.presetId)?.errors ?? fallbackErrorRules(record.provider),
     httpCode,
     httpRules: providerDescriptor(record.provider).httpRules,
   })

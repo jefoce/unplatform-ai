@@ -58,6 +58,11 @@ export interface EndpointRowPatch {
   test?: EndpointTestResult | null
 }
 
+export interface TestedEndpoint {
+  baseUrl: string
+  token: string | null | undefined
+}
+
 export interface EndpointsDraft {
   rows: EndpointRowDraft[]
   nextBadge: string

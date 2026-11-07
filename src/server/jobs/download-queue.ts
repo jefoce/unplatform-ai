@@ -21,10 +21,12 @@ import { globalState } from '../global-state'
 import { probeMedia } from '../media/ffmpeg'
 import { makePreview } from '../media/preview'
 import { downloadPaths } from '../paths'
+import { getEndpointSync } from '../providers/custom/endpoint-source'
+import { endpointRemovedError } from '../providers/custom/errors'
 import { instanceIdOf } from '../providers/custom/record-instance'
 import { getVideoProvider } from '../providers/registry'
 import { safeFetchProviderUrl } from '../providers/safe-fetch'
-import type { JobSnapshot } from '../providers/types'
+import type { JobSnapshot, VideoProvider } from '../providers/types'
 import { getGeneration, saveGeneration, updateGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
 import { buildOutput } from './download-output'
@@ -386,9 +388,11 @@ async function openContent(params: DownloadTask): Promise<Response> {
   const { record, job } = params
   const jobId = record.job?.id
   const submittedAt = record.job?.submittedAt ?? ''
-  const provider = getVideoProvider(instanceIdOf(record))
+  let provider: VideoProvider | undefined
 
   try {
+    provider = getVideoProvider(instanceIdOf(record))
+
     if (!isNonEmptyString(jobId)) {
       throw new Error('Missing provider job id')
     }
@@ -399,22 +403,53 @@ async function openContent(params: DownloadTask): Promise<Response> {
       fallback: record.input,
     })
   } catch (error) {
-    const url = job.urls?.[0]
-
-    if (!isNonEmptyString(url)) {
-      throw error
-    }
-
-    const res = await safeFetchProviderUrl({
-      url,
-      hosts: provider.contentHosts,
-      timeoutMs: FETCH_TIMEOUTS.content,
-    })
-
-    if (!res.ok) {
-      throw new Error(`Video download failed (${res.status})`)
-    }
-
-    return res
+    return await fallbackContent({ error, job, provider, record })
   }
+}
+
+interface FallbackContentParams {
+  error: unknown
+  job: JobSnapshot
+  provider: VideoProvider | undefined
+  record: GenerationRecord
+}
+
+function isRemovedEndpoint(record: GenerationRecord): boolean {
+  return record.provider === 'custom' && isNil(getEndpointSync(instanceIdOf(record)))
+}
+
+interface JobUrlParams {
+  url: string
+  provider: VideoProvider | undefined
+}
+
+async function fetchJobUrl(params: JobUrlParams): Promise<Response> {
+  const { url, provider } = params
+
+  const res = await safeFetchProviderUrl({
+    url,
+    hosts: provider?.contentHosts ?? [new URL(url).hostname],
+    timeoutMs: FETCH_TIMEOUTS.content,
+  })
+
+  if (!res.ok) {
+    throw new Error(`Video download failed (${res.status})`)
+  }
+
+  return res
+}
+
+async function fallbackContent(params: FallbackContentParams): Promise<Response> {
+  const { error, job, provider, record } = params
+  const url = job.urls?.[0]
+
+  if (isNonEmptyString(url)) {
+    return await fetchJobUrl({ url, provider })
+  }
+
+  if (isRemovedEndpoint(record)) {
+    throw endpointRemovedError()
+  }
+
+  throw error
 }
