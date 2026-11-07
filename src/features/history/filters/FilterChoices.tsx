@@ -1,9 +1,11 @@
 'use client'
 
-import { uniq } from 'lodash-es'
+import { isEmpty, isNil, uniq } from 'lodash-es'
 
+import { isOneOf } from '@/core/guards'
+import type { HistoryFacets, ModelFacet } from '@/core/history-facets'
 import { VIDEO_PRESETS } from '@/core/presets'
-import { RESOLUTIONS } from '@/core/presets/video/types'
+import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import type {
   AspectFilter,
   AudioFilter,
@@ -11,6 +13,7 @@ import type {
   ResolutionFilter,
   StatusFilter,
 } from '@/core/types'
+import { useHistoryFacets } from '@/lib/api/history-facets'
 
 import { useHistoryViewStore } from '../list/view-store'
 import { FilterChoice, type FilterOption } from './FilterChoice'
@@ -29,27 +32,91 @@ const MODE_OPTIONS: readonly FilterOption<HistoryMode>[] = [
   { value: 'references', label: 'References' },
 ]
 
-const RESOLUTION_OPTIONS: readonly FilterOption<ResolutionFilter>[] = [
-  { value: 'all', label: 'All' },
-  ...RESOLUTIONS.map((value) => {
-    return { value, label: value }
-  }),
-]
+function modelLabel(facet: ModelFacet): string {
+  let badge = ''
 
-const ASPECT_OPTIONS: readonly FilterOption<AspectFilter>[] = [
-  { value: 'all', label: 'All' },
-  { value: 'auto', label: 'Auto' },
-  ...uniq(
+  if (!isNil(facet.badge)) {
+    badge = `[${facet.badge}] `
+  }
+
+  return `${badge}${facet.title} (${facet.count})`
+}
+
+interface FacetOptionsParams {
+  facets: HistoryFacets | undefined
+}
+
+function staticModelOptions(): FilterOption<string>[] {
+  return [
+    { value: 'all', label: 'All' },
+    ...VIDEO_PRESETS.map((preset) => {
+      return { value: preset.id, label: preset.title }
+    }),
+  ]
+}
+
+function modelOptions(params: FacetOptionsParams): FilterOption<string>[] {
+  const models = params.facets?.models
+
+  if (isNil(models) || models.length === 0) {
+    return staticModelOptions()
+  }
+
+  return [
+    { value: 'all', label: 'All' },
+    ...models.map((facet) => {
+      return { value: facet.presetId, label: modelLabel(facet) }
+    }),
+  ]
+}
+
+function resolutionOptions(params: FacetOptionsParams): FilterOption<ResolutionFilter>[] {
+  const stored = params.facets?.resolutions
+  let values: readonly string[] = stored ?? RESOLUTIONS
+
+  if (values.length === 0) {
+    values = RESOLUTIONS
+  }
+
+  const options: FilterOption<ResolutionFilter>[] = [{ value: 'all', label: 'All' }]
+
+  for (const value of values) {
+    if (isOneOf(RESOLUTIONS, value)) {
+      options.push({ value, label: value })
+    }
+  }
+
+  return options
+}
+
+function aspectValues(params: FacetOptionsParams): string[] {
+  const facets = params.facets
+
+  if (!isNil(facets) && !isEmpty(facets.aspects)) {
+    return facets.aspects
+  }
+
+  return uniq(
     VIDEO_PRESETS.flatMap((preset) => {
       return preset.aspectRatios
     }),
-  ).map((value) => {
-    return {
-      value,
-      label: value,
+  )
+}
+
+function aspectOptions(params: FacetOptionsParams): FilterOption<AspectFilter>[] {
+  const options: FilterOption<AspectFilter>[] = [
+    { value: 'all', label: 'All' },
+    { value: 'auto', label: 'Auto' },
+  ]
+
+  for (const value of aspectValues(params)) {
+    if (isOneOf(ASPECT_RATIOS, value)) {
+      options.push({ value, label: value })
     }
-  }),
-]
+  }
+
+  return options
+}
 
 const AUDIO_OPTIONS = [
   { value: 'any', label: 'Any' },
@@ -59,6 +126,8 @@ const AUDIO_OPTIONS = [
 
 /** Status, mode, model, resolution, aspect and audio choice rows. */
 export function FilterChoices() {
+  const { facets } = useHistoryFacets('video')
+
   const filters = useHistoryViewStore((state) => {
     return state.filters
   })
@@ -111,24 +180,19 @@ export function FilterChoices() {
       <FilterChoice
         label="Model"
         value={filters.model ?? 'all'}
-        options={[
-          { value: 'all', label: 'All' },
-          ...VIDEO_PRESETS.map((preset) => {
-            return { value: preset.id, label: preset.title }
-          }),
-        ]}
+        options={modelOptions({ facets })}
         onChange={handleModelChange}
       />
       <FilterChoice
         label="Resolution"
         value={filters.resolution ?? 'all'}
-        options={RESOLUTION_OPTIONS}
+        options={resolutionOptions({ facets })}
         onChange={handleResolutionChange}
       />
       <FilterChoice
         label="Aspect"
         value={filters.aspect ?? 'all'}
-        options={ASPECT_OPTIONS}
+        options={aspectOptions({ facets })}
         onChange={handleAspectChange}
       />
       <FilterChoice
