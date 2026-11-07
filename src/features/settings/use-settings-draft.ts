@@ -16,7 +16,9 @@ import { toastError } from '@/lib/notify'
 import { platform } from '@/lib/platform'
 import { useAsyncAction } from '@/lib/use-async-action'
 
+import { type EndpointsDraft } from './endpoint-draft'
 import type { SettingsSection } from './settings-store'
+import { useEndpointsDraft } from './use-endpoints-draft'
 import { useSecretActions } from './use-secret-actions'
 import type { TestMessage } from './use-secrets'
 
@@ -30,6 +32,7 @@ export interface SecretChange {
 interface UseSettingsDraftParams {
   status: SecretStatus | undefined
   mock: boolean | undefined
+  isOpen: boolean
   closeSettings: () => void
 }
 
@@ -38,6 +41,8 @@ interface DraftFlagsParams {
   status: SecretStatus | undefined
   isMock: boolean | undefined
   isSaving: boolean
+  isEndpointsDirty: boolean
+  isEndpointsValid: boolean
 }
 
 interface DraftFlags {
@@ -55,6 +60,7 @@ interface ApplyChangeParams {
 
 export interface SettingsDraft {
   edits: Edits
+  endpoints: EndpointsDraft
   results: Record<SettingsSection, TestMessage | null>
   testing: SettingsSection | null
   saving: boolean
@@ -109,9 +115,9 @@ function countSetSecrets(params: CountSetSecretsParams): number {
 }
 
 function getDraftFlags(params: DraftFlagsParams): DraftFlags {
-  const { edits, status, isMock, isSaving } = params
+  const { edits, status, isMock, isSaving, isEndpointsDirty, isEndpointsValid } = params
   const changed = Object.keys(edits) as SecretName[]
-  const isDirty = !isEmpty(changed)
+  const isDirty = !isEmpty(changed) || isEndpointsDirty
 
   const isAllValid = changed.every((name) => {
     return isNull(edits[name]) || isNull(secretError(name, edits[name] ?? ''))
@@ -142,24 +148,40 @@ function getDraftFlags(params: DraftFlagsParams): DraftFlags {
   ) as Record<StorageProviderId, boolean>
 
   const isStorageValid = Object.values(storageValid).every(Boolean)
-  const canSave = isEmpty(status?.loadError) && isDirty && isAllValid && isStorageValid && !isSaving
+
+  const canSave =
+    isEmpty(status?.loadError) &&
+    isDirty &&
+    isAllValid &&
+    isStorageValid &&
+    isEndpointsValid &&
+    !isSaving
 
   return { isDirty, canSave, sectionReady, storageValid }
 }
 
 /** Draft edits, test results and save/close actions for the settings modal. */
 export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft {
-  const { status, mock: isMock, closeSettings } = params
+  const { status, mock: isMock, isOpen, closeSettings } = params
   const [edits, setEdits] = useState<Edits>({})
-  const isDirty = !isEmpty(edits)
+  const endpoints = useEndpointsDraft({ isOpen })
+  const isSecretDirty = !isEmpty(edits)
+  const isDirty = isSecretDirty || endpoints.isDirty
 
   const { results, testing, isRetrying, onTest, onRetry, resetResults } = useSecretActions({
-    isDirty,
+    isDirty: isSecretDirty,
   })
 
   const saving = useAsyncAction(async () => {
     try {
-      await saveSecrets(edits)
+      if (isSecretDirty) {
+        await saveSecrets(edits)
+      }
+
+      if (endpoints.isDirty) {
+        await endpoints.onSave()
+      }
+
       await Promise.all([refreshCredits(), refreshRemoteStatus(), refreshModels()])
       setEdits({})
       resetResults()
@@ -174,6 +196,8 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
     status,
     isMock,
     isSaving: saving.isRunning,
+    isEndpointsDirty: endpoints.isDirty,
+    isEndpointsValid: endpoints.isValid,
   })
 
   const onFieldChange = (name: SecretName, change: SecretChange) => {
@@ -194,6 +218,7 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
     closeSettings()
     setEdits({})
     resetResults()
+    endpoints.reset()
   }
 
   const onSave = async () => {
@@ -206,6 +231,7 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
 
   return {
     edits,
+    endpoints,
     results,
     testing,
     saving: saving.isRunning,
