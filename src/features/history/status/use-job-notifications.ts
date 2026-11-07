@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { HISTORY_SCROLL_DELAY_MS } from '@/core/constants'
 import type { GridItemStatus } from '@/core/feed/grid-item'
 import { isNonEmptyString } from '@/core/guards'
+import { recordSource, sourceTitle } from '@/core/record-source'
 import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
 import type { ImageRecord, ImageRecordStatus } from '@/core/schemas/image-record'
 import { canonicalPrompt } from '@/lib/feed/output-items'
@@ -51,18 +52,21 @@ interface NotifyFailureParams {
   kind: NotificationKind
   status: GridItemStatus
   description: string
+  subject?: string
 }
 
 /** Toasts the failure title shared by both generators, when that kind has one. */
 export function notifyFailure(params: NotifyFailureParams): void {
-  const { kind, status, description } = params
+  const { kind, status, description, subject } = params
   const title = FAILED_TITLES[kind][status]
 
   if (isNil(title)) {
     return
   }
 
-  toast.error(title, { description })
+  const shown = subject ?? title
+
+  toast.error(shown, { description })
 }
 
 function scrollToRecord(id: string): void {
@@ -170,9 +174,10 @@ function notifyVideoChanges(before: Map<string, JobStatus>, records: GenerationR
     }
 
     const body = truncate(canonicalPrompt(record), 80)
+    const subject = sourceTitle(recordSource(record))
 
     if (record.status === 'completed') {
-      toast.success('Video ready', {
+      toast.success(subject, {
         description: body,
         action: {
           label: 'Show',
@@ -182,10 +187,15 @@ function notifyVideoChanges(before: Map<string, JobStatus>, records: GenerationR
         },
       })
 
-      notifyHidden('Video ready', body)
+      notifyHidden(subject, body)
     }
 
-    notifyFailure({ kind: 'video', status: record.status, description: record.error ?? body })
+    notifyFailure({
+      kind: 'video',
+      status: record.status,
+      description: record.error ?? body,
+      subject,
+    })
   }
 }
 
@@ -198,13 +208,19 @@ function notifyImageChanges(before: Map<string, ImageRecordStatus>, records: Ima
     }
 
     const body = truncate(record.input.prompt, 80)
+    const subject = sourceTitle(recordSource(record))
 
     if (IMAGE_READY_STATUSES.includes(record.status)) {
-      toast.success('Image ready', { description: body })
-      notifyHidden('Image ready', body)
+      toast.success(subject, { description: body })
+      notifyHidden(subject, body)
     }
 
-    notifyFailure({ kind: 'image', status: record.status, description: record.error ?? body })
+    notifyFailure({
+      kind: 'image',
+      status: record.status,
+      description: record.error ?? body,
+      subject,
+    })
   }
 }
 
