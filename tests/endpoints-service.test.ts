@@ -129,6 +129,7 @@ describe('token storage', () => {
 
     expect(entry).toBeDefined()
     expect(entry?.tokenHint).toBe('1234')
+    expect(entry?.hasToken).toBe(true)
 
     expect(
       (await import('@/server/services/endpoint-tokens')).readEndpointToken(entry?.id ?? ''),
@@ -234,6 +235,36 @@ describe('health freshness', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('endpoint edits', () => {
+  it('clears health and last health when the base URL changes', async () => {
+    const saved = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
+    })
+
+    const id = saved.endpoints[0]?.id ?? ''
+    const health = await import('@/server/services/endpoint-health')
+
+    health.setEndpointHealth({ endpointId: id, status: 'unreachable', message: null })
+
+    expect((await service.getEndpointOverview()).endpoints[0]?.status).toBe('unreachable')
+
+    const next = await service.saveEndpoints({
+      endpoints: [
+        {
+          ...endpoint('Studio'),
+          id,
+          baseUrl: 'http://127.0.0.1:9999',
+          lastHealth: LAST_HEALTH,
+        },
+      ],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).toBeNull()
+    expect(next.endpoints[0]?.status).toBe('unknown')
+    expect(health.getHealth(id)).toBeNull()
   })
 })
 

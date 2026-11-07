@@ -34,11 +34,15 @@ export function EndpointForm(props: EndpointFormProps) {
   const badgeMessage = badgeError(row, rows)
   const urlMessage = urlError(row.baseUrl)
   const sameBadge = sameInstanceBadge(row, rows)
-  const hasToken = !isNil(row.tokenHint)
+  const hasToken = row.hasToken
   let tokenPlaceholder = 'Optional'
   let tokenDescription: string | null = null
 
   if (hasToken) {
+    tokenDescription = 'Stored'
+  }
+
+  if (!isNil(row.tokenHint)) {
     tokenPlaceholder = `•••• ${row.tokenHint}`
     tokenDescription = `Stored, ending ${row.tokenHint}`
   }

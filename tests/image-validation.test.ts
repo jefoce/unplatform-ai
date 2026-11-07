@@ -131,7 +131,7 @@ describe('custom image requirements', () => {
     }
 
     expect(validateImageInput(preset, base())).toEqual([
-      issue('This model needs 1 Image references'),
+      issue('This model needs 1 image reference'),
     ])
   })
 })

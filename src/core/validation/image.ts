@@ -93,7 +93,9 @@ const referenceProblems = (preset: ImagePreset, count: number): ValidationIssue[
   const required = preset.referencesRequired?.image ?? 0
 
   if (count < required) {
-    return issue(`This model needs ${required} Image references`)
+    const suffix = required === 1 ? '' : 's'
+
+    return issue(`This model needs ${required} image reference${suffix}`)
   }
 
   return referenceCapProblems(preset, count)

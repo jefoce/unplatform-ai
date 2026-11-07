@@ -77,7 +77,9 @@ const checkReferenceCounts = (params: CheckReferenceCountsParams): void => {
     const required = preset.referencesRequired?.[kind] ?? 0
 
     if (required > 0 && counts[kind] < required) {
-      errors.push(`This model needs ${required} ${KIND_TITLE[kind]} references`)
+      const suffix = required === 1 ? '' : 's'
+
+      errors.push(`This model needs ${required} ${kind} reference${suffix}`)
     }
   }
 }

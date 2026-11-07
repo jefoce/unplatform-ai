@@ -48,6 +48,7 @@ const VIEW: EndpointView = {
   videoCount: 0,
   imageCount: 0,
   tokenHint: null,
+  hasToken: false,
 }
 
 beforeEach(() => {

@@ -31,6 +31,7 @@ export interface EndpointRowDraft {
   status: EndpointStatus
   tokenValue: string
   isTokenRemoved: boolean
+  hasToken: boolean
   tokenHint: string | null
   isExpanded: boolean
   isRemoved: boolean
@@ -87,6 +88,7 @@ export function toRow(view: EndpointView): EndpointRowDraft {
     status: view.status,
     tokenValue: '',
     isTokenRemoved: false,
+    hasToken: view.hasToken,
     tokenHint: view.tokenHint,
     isExpanded: false,
     isRemoved: false,
@@ -112,7 +114,7 @@ export function toInput(row: EndpointRowDraft): EndpointInput {
   }
 }
 
-function tokenOf(row: EndpointRowDraft): string | null | undefined {
+export function tokenOf(row: EndpointRowDraft): string | null | undefined {
   if (row.isTokenRemoved) {
     return null
   }

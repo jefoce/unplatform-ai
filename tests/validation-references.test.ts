@@ -94,7 +94,7 @@ describe('validateInput required references', () => {
       preset: required,
     })
 
-    expect(result.errors).toContain('This model needs 2 Image references')
+    expect(result.errors).toContain('This model needs 2 image references')
   })
 
   it('accepts the required image references', () => {
@@ -124,7 +124,7 @@ describe('validateInput cross-tab requirements', () => {
     })
 
     expect(result.errors).toContain('A first frame is required')
-    expect(result.errors).toContain('This model needs 1 Image references')
+    expect(result.errors).toContain('This model needs 1 image reference')
   })
 
   it('accepts the references tab with a start frame and the required reference', () => {
@@ -151,7 +151,7 @@ describe('validateInput cross-tab requirements', () => {
       preset: requiredRefs,
     })
 
-    expect(result.errors).toContain('This model needs 1 Image references')
+    expect(result.errors).toContain('This model needs 1 image reference')
   })
 })
 

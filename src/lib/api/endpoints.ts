@@ -20,6 +20,7 @@ interface EndpointRuntime {
   videoCount: number
   imageCount: number
   tokenHint: string | null
+  hasToken: boolean
 }
 
 export type EndpointView = CustomEndpoint & EndpointRuntime

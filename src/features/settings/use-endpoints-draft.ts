@@ -68,6 +68,7 @@ function newRow(rows: EndpointRowDraft[], nextBadge: string): EndpointRowDraft {
     status: 'unknown',
     tokenValue: '',
     isTokenRemoved: false,
+    hasToken: false,
     tokenHint: null,
     isExpanded: true,
     isRemoved: false,

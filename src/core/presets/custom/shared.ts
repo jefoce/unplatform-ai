@@ -82,6 +82,8 @@ export function mapDuration(raw: UpaiDuration | undefined): DurationResult {
   }
 
   if (step > 1) {
+    duration.step = step
+
     duration.options = Array.from({ length: Math.floor((max - min) / step) + 1 }, (_, index) => {
       return min + index * step
     })

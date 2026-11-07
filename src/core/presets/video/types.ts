@@ -32,6 +32,7 @@ interface PresetDuration {
   min: number
   max: number
   default: number
+  step?: number
   options?: readonly number[]
 }
 

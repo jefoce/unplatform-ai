@@ -21,14 +21,14 @@ function removedSuffix(isRemoved: boolean): string {
 
 /** Custom details: workflow name and endpoint label from the record snapshot. */
 export function DetailsSource(props: DetailsSourceProps) {
-  const { endpoints } = useEndpointsStatus()
+  const { endpoints, isLoading } = useEndpointsStatus()
   const source = recordSource(props.record)
 
   if (source.kind !== 'custom') {
     return null
   }
 
-  const isRemoved = isNil(endpointById(endpoints, source.instanceId))
+  const isRemoved = !isLoading && isNil(endpointById(endpoints, source.instanceId))
   const removed = removedSuffix(isRemoved)
 
   return (

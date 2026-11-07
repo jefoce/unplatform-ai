@@ -127,7 +127,7 @@ describe('video mapping', () => {
     })
   })
 
-  it('rounds durations to integers and turns a step into options', () => {
+  it('rounds durations to integers and turns a step into a grid and quick picks', () => {
     const base = modelAt(VIDEO_MODELS, 1)
 
     const model: UpaiModel = {
@@ -140,7 +140,7 @@ describe('video mapping', () => {
 
     const preset = expectVideo(mapModel(model))
 
-    expect(preset.duration).toEqual({ min: 3, max: 9, default: 9, options: [3, 6, 9] })
+    expect(preset.duration).toEqual({ min: 3, max: 9, default: 9, step: 3, options: [3, 6, 9] })
   })
 
   it('drops unsupported resolutions and falls back to a kept default', () => {

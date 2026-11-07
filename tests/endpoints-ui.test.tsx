@@ -26,6 +26,7 @@ function row(overrides: Partial<EndpointRowDraft> = {}): EndpointRowDraft {
     status: 'unknown',
     tokenValue: '',
     isTokenRemoved: false,
+    hasToken: false,
     tokenHint: null,
     isExpanded: true,
     isRemoved: false,
@@ -69,7 +70,7 @@ describe('endpoint row warnings', () => {
 describe('endpoint token removal', () => {
   it('marks the stored token for removal and clears the flag when typing', () => {
     const onChange = vi.fn()
-    const withToken = row({ tokenHint: '1234' })
+    const withToken = row({ hasToken: true, tokenHint: '1234' })
 
     const first = render(
       <EndpointRow row={withToken} rows={[withToken]} onChange={onChange} onTest={vi.fn()} />,
@@ -82,7 +83,7 @@ describe('endpoint token removal', () => {
     first.unmount()
     onChange.mockClear()
 
-    const removing = row({ tokenHint: '1234', isTokenRemoved: true })
+    const removing = row({ hasToken: true, tokenHint: '1234', isTokenRemoved: true })
 
     render(<EndpointRow row={removing} rows={[removing]} onChange={onChange} onTest={vi.fn()} />)
 
@@ -94,5 +95,23 @@ describe('endpoint token removal', () => {
       tokenValue: 'new-token',
       isTokenRemoved: false,
     })
+  })
+
+  it('shows remove only when a token is stored, even without a hint', () => {
+    const hinted = row({ hasToken: false, tokenHint: '1234' })
+
+    const first = render(
+      <EndpointRow row={hinted} rows={[hinted]} onChange={vi.fn()} onTest={vi.fn()} />,
+    )
+
+    expect(screen.queryByText('Remove token')).toBeNull()
+
+    first.unmount()
+
+    const shortToken = row({ hasToken: true, tokenHint: null })
+
+    render(<EndpointRow row={shortToken} rows={[shortToken]} onChange={vi.fn()} onTest={vi.fn()} />)
+
+    expect(screen.getByText('Remove token')).toBeTruthy()
   })
 })

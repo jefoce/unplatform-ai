@@ -469,61 +469,84 @@ describe('POST /api/images', () => {
   })
 })
 
+async function addCustomImagePreset(isPromptOptional: boolean): Promise<string> {
+  const endpoints = await import('@/server/repos/endpoints')
+
+  const { file } = await endpoints.applyEndpoints({
+    entries: [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        label: 'Local',
+        baseUrl: 'http://127.0.0.1:8188',
+        enabled: true,
+        pricing: { mode: 'model', usd: 0 },
+        instanceId: null,
+        lastHealth: null,
+      },
+    ],
+  })
+
+  const endpointId = file.endpoints[0]?.id ?? ''
+  const base = presets.findImagePreset(presets.DEFAULT_IMAGE_PRESET_ID)
+
+  if (base === null) {
+    throw new Error('image preset missing')
+  }
+
+  const presetId = `custom.${endpointId}.sdxl`
+
+  const preset: ImagePreset = {
+    ...base,
+    id: presetId,
+    title: 'SDXL',
+    promptOptional: isPromptOptional,
+    resolutions: [{ value: '1K', label: '1K' }],
+    defaultResolution: '1K',
+    aspectRatios: ['1:1'],
+    defaultAspectRatio: '1:1',
+    qualities: null,
+    defaultQuality: null,
+    backgrounds: null,
+    defaultBackground: null,
+    seed: false,
+    bindings: [
+      {
+        provider: 'custom',
+        modelId: 'sdxl',
+        pricing: { formula: 'perRun', skuRules: [], fallback: { run: 0 } },
+      },
+    ],
+  }
+
+  presets.setRuntimeImagePresets([preset])
+
+  return presetId
+}
+
 describe('POST /api/images custom preset', () => {
   it('accepts a custom image preset without an OpenRouter key', async () => {
     getSecret.mockReturnValue(null)
 
-    const endpoints = await import('@/server/repos/endpoints')
-
-    const { file } = await endpoints.applyEndpoints({
-      entries: [
-        {
-          id: '11111111-1111-4111-8111-111111111111',
-          label: 'Local',
-          baseUrl: 'http://127.0.0.1:8188',
-          enabled: true,
-          pricing: { mode: 'model', usd: 0 },
-          instanceId: null,
-          lastHealth: null,
-        },
-      ],
-    })
-
-    const endpointId = file.endpoints[0]?.id ?? ''
-    const base = presets.findImagePreset(presets.DEFAULT_IMAGE_PRESET_ID)
-
-    if (base === null) {
-      throw new Error('image preset missing')
-    }
-
-    const presetId = `custom.${endpointId}.sdxl`
-
-    const preset: ImagePreset = {
-      ...base,
-      id: presetId,
-      title: 'SDXL',
-      resolutions: [{ value: '1K', label: '1K' }],
-      defaultResolution: '1K',
-      aspectRatios: ['1:1'],
-      defaultAspectRatio: '1:1',
-      qualities: null,
-      defaultQuality: null,
-      backgrounds: null,
-      defaultBackground: null,
-      seed: false,
-      bindings: [
-        {
-          provider: 'custom',
-          modelId: 'sdxl',
-          pricing: { formula: 'perRun', skuRules: [], fallback: { run: 0 } },
-        },
-      ],
-    }
-
-    presets.setRuntimeImagePresets([preset])
+    const presetId = await addCustomImagePreset(false)
 
     const response = await listRoute.POST(
       request('POST', 'http://127.0.0.1:3000/api/images', { ...submitBody, presetId }),
+    )
+
+    expect(response.status).toBe(201)
+  })
+
+  it('accepts an empty prompt when the custom model makes it optional', async () => {
+    getSecret.mockReturnValue(null)
+
+    const presetId = await addCustomImagePreset(true)
+
+    const response = await listRoute.POST(
+      request('POST', 'http://127.0.0.1:3000/api/images', {
+        ...submitBody,
+        presetId,
+        prompt: '',
+      }),
     )
 
     expect(response.status).toBe(201)

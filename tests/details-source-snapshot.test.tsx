@@ -68,6 +68,14 @@ describe('custom details source', () => {
     expect(screen.getByText('Endpoint: Studio PC (removed)')).toBeTruthy()
   })
 
+  it('does not mark a removed endpoint while the list loads', () => {
+    mockEndpoints.mockReturnValue({ endpoints: [], isLoading: true })
+
+    render(<DetailsSource record={customRecord()} />)
+
+    expect(screen.getByText('Endpoint: Studio PC')).toBeTruthy()
+  })
+
   it('renders nothing for an OpenRouter record', () => {
     const { container } = render(<DetailsSource record={storedRecord('plain')} />)
 

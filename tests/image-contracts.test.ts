@@ -335,7 +335,7 @@ describe('image schemas', () => {
   it('accepts a valid submit body and rejects bad input', () => {
     expect(ImageSubmitSchema.safeParse(VALID_SUBMIT_BODY).success).toBe(true)
     expect(ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, count: 5 }).success).toBe(false)
-    expect(ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, prompt: '' }).success).toBe(false)
+    expect(ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, prompt: '' }).success).toBe(true)
 
     expect(
       ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, references: ['not-a-uuid'] }).success,

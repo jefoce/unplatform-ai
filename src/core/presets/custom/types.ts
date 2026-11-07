@@ -11,6 +11,7 @@ export interface MappedDuration {
   min: number
   max: number
   default: number
+  step?: number
   options?: readonly number[]
 }
 

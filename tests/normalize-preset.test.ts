@@ -26,6 +26,13 @@ describe('normalizeForPreset duration', () => {
     expect(normalizeForPreset({ input: input({ duration: 8 }), preset }).notes).toEqual([])
   })
 
+  it('snaps to the nearest step after rounding and clamping', () => {
+    const preset = withPreset({ duration: { min: 5, max: 9, default: 5, step: 4 } })
+    const result = normalizeForPreset({ input: input({ duration: 7 }), preset })
+
+    expect([5, 9]).toContain(result.input.duration)
+  })
+
   it('caps duration by the total reference video time', () => {
     const result = normalizeForPreset({
       input: input({ duration: 20, references: ['v1', 'v2'] }),

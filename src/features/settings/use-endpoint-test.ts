@@ -6,7 +6,7 @@ import { isNil } from 'lodash-es'
 import { messageOf } from '@/core/errors'
 import { type EndpointTestResult, testEndpoint } from '@/lib/api/endpoints'
 
-import type { EndpointRowDraft } from './endpoint-draft'
+import { type EndpointRowDraft, tokenOf } from './endpoint-draft'
 
 interface UseEndpointTestParams {
   rows: EndpointRowDraft[]
@@ -16,20 +16,6 @@ interface UseEndpointTestParams {
 export interface EndpointTestState {
   testingKey: string | null
   onTest: (key: string) => void
-}
-
-function tokenFor(row: EndpointRowDraft): string | null | undefined {
-  if (row.isTokenRemoved) {
-    return null
-  }
-
-  const value = row.tokenValue.trim()
-
-  if (value === '') {
-    return undefined
-  }
-
-  return value
 }
 
 function failedTest(message: string): EndpointTestResult {
@@ -65,7 +51,7 @@ export function useEndpointTest(params: UseEndpointTestParams): EndpointTestStat
     setTestingKey(key)
 
     try {
-      const token = tokenFor(row)
+      const token = tokenOf(row)
 
       const result = await testEndpoint({
         baseUrl: row.baseUrl,

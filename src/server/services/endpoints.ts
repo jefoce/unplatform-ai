@@ -1,8 +1,10 @@
+/* eslint-disable max-lines -- one service owns the endpoint overview, save, token and health flow */
+
 import 'server-only'
 
 import { randomUUID } from 'node:crypto'
 
-import { isNil } from 'lodash-es'
+import { isNil, isUndefined, keyBy } from 'lodash-es'
 import { z } from 'zod'
 
 import type { EndpointHealthStatus } from '@/core/endpoints'
@@ -31,6 +33,7 @@ import {
 } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
+import { secretsReady } from '../secrets'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
 import {
   forgetEndpointHealth,
@@ -57,6 +60,7 @@ export interface EndpointRuntime {
   videoCount: number
   imageCount: number
   tokenHint: string | null
+  hasToken: boolean
 }
 
 export interface EndpointOverviewEntry extends CustomEndpoint, EndpointRuntime {}
@@ -131,6 +135,7 @@ export async function getEndpointOverview(): Promise<EndpointOverview> {
     listImages(),
   ])
 
+  await secretsReady()
   const tokenMap = readTokenMap()
 
   const endpoints = await Promise.all(
@@ -150,6 +155,24 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   assertBadges(prepared)
 
   const current = await listEndpoints()
+  const previousById = keyBy(current, 'id')
+
+  for (const item of prepared) {
+    const id = item.entry.id
+
+    if (isNil(id)) {
+      continue
+    }
+
+    const previous = previousById[id]
+
+    if (isNil(previous) || !isChanged({ previous, item })) {
+      continue
+    }
+
+    forgetEndpointHealth(id)
+    item.entry.lastHealth = null
+  }
 
   const kept = new Set(
     prepared.map((item) => {
@@ -205,6 +228,22 @@ export function markEndpointHealth(params: MarkEndpointHealthParams): void {
     message: params.message,
     maxRunning: params.maxRunning,
   })
+}
+
+interface EndpointChangeParams {
+  previous: CustomEndpoint
+  item: PreparedEndpoint
+}
+
+function isChanged(params: EndpointChangeParams): boolean {
+  const { previous, item } = params
+
+  return (
+    previous.baseUrl !== item.entry.baseUrl ||
+    previous.instanceId !== item.entry.instanceId ||
+    previous.enabled !== item.entry.enabled ||
+    !isUndefined(item.token)
+  )
 }
 
 function toEntry(input: EndpointInput): EndpointEntry {
@@ -271,6 +310,7 @@ async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry
     runningJobs: videoJobs.length + imageJobs.length,
     status: fresh?.state ?? statusFromHealth(endpoint.lastHealth),
     tokenHint: hintFor(tokenMap[endpoint.id]),
+    hasToken: !isNil(tokenMap[endpoint.id]),
   }
 }
 

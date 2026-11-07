@@ -31,8 +31,17 @@ interface ClampDurationParams {
 /** Round to a whole second and clamp inside the reference limit. */
 export const clampDuration = (params: ClampDurationParams): number => {
   const { value, preset, limit } = params
+  const min = minDuration(preset)
+  const rounded = clamp(Math.round(value), min, limit)
+  const step = preset.duration.step
 
-  return clamp(Math.round(value), minDuration(preset), limit)
+  if (isNil(step)) {
+    return rounded
+  }
+
+  const snapped = min + Math.round((rounded - min) / step) * step
+
+  return clamp(snapped, min, limit)
 }
 
 interface NormalizeAspectParams {

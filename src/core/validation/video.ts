@@ -22,6 +22,7 @@ import {
 
 function durationSchema(preset: VideoPreset) {
   const min = minDuration(preset)
+  const step = preset.duration.step
 
   return z
     .number()
@@ -30,7 +31,7 @@ function durationSchema(preset: VideoPreset) {
     .max(preset.duration.max)
     .refine(
       (value) => {
-        return isNil(preset.duration.options) || preset.duration.options.includes(value)
+        return isNil(step) || (value - min) % step === 0
       },
       { message: 'Choose an allowed duration' },
     )

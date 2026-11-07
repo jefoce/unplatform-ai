@@ -139,7 +139,7 @@ describe('duration normalization', () => {
 })
 
 describe('duration steps', () => {
-  const stepped = { ...seedance, duration: { min: 5, max: 9, default: 5, options: [5, 9] } }
+  const stepped = { ...seedance, duration: { min: 5, max: 9, default: 5, step: 4 } }
 
   it('accepts only the allowed duration steps', () => {
     const allowed = [5, 9].map((duration) => {
