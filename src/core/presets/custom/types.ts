@@ -2,7 +2,7 @@ import type { ModelAvailability } from '../../catalog'
 import type { UpaiModel, UpaiSizeMap } from '../../protocol/upai'
 import type { CustomEndpoint } from '../../schemas/custom-endpoint'
 import type { ImagePreset } from '../image/types'
-import { type AspectRatio, type Resolution ,type  VideoPreset } from '../video/types'
+import { type AspectRatio, type Resolution, type VideoPreset } from '../video/types'
 
 export type SizeByAspect = Partial<Record<AspectRatio, `${number}x${number}`>>
 export type OutputSizes = Partial<Record<Resolution, SizeByAspect>>

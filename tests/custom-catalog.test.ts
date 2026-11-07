@@ -13,7 +13,7 @@ import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
 import type { CatalogEntry } from '../src/core/catalog'
 import { CUSTOM_STALE_REASON } from '../src/core/presets/custom/shared'
 import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
-import { type CustomEndpoint,CustomEndpointSchema } from '../src/core/schemas/custom-endpoint'
+import { type CustomEndpoint, CustomEndpointSchema } from '../src/core/schemas/custom-endpoint'
 
 const ROOT = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-custom-catalog-'))
 const DATA_DIR = path.join(ROOT, 'data')
@@ -33,12 +33,18 @@ vi.mock('@/server/providers/registry', () => {
     getPricing: async () => {
       return { skus: {}, listSkus: {}, discount: 0, source: 'fallback', fetchedAt: '' }
     },
-    isConfigured: () => {return false},
+    isConfigured: () => {
+      return false
+    },
   }
 
   return {
-    getVideoProvider: () => {return provider},
-    getImageProvider: () => {return provider},
+    getVideoProvider: () => {
+      return provider
+    },
+    getImageProvider: () => {
+      return provider
+    },
   }
 })
 

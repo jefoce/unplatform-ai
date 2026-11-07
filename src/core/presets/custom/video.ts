@@ -5,7 +5,13 @@ import type { MediaKindCounts } from '../../media/media-types'
 import type { UpaiCapabilities } from '../../protocol/upai'
 import type { PresetIcon } from '../common/icon'
 import type { PresetReferenceLimits } from '../common/reference-limits'
-import { ASPECT_RATIOS, type AspectRatio, type Resolution, RESOLUTIONS,type VideoPreset  } from '../video/types'
+import {
+  ASPECT_RATIOS,
+  type AspectRatio,
+  type Resolution,
+  RESOLUTIONS,
+  type VideoPreset,
+} from '../video/types'
 import { CUSTOM_ERROR_RULES } from './errors'
 import { keepList, mapDuration, parseSize, pickDefault, presetIdFor } from './shared'
 import type {
