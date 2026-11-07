@@ -1,6 +1,11 @@
 import { isNil } from 'lodash-es'
 
-import type { JobStatus, RecordDownload, RecordSubmit } from './schemas/generation-record'
+import type {
+  JobStatus,
+  RecordDownload,
+  RecordProgress,
+  RecordSubmit,
+} from './schemas/generation-record'
 
 export const STATUS_HELP_KEYS = [
   'processing',
@@ -168,25 +173,60 @@ interface StatusHelpRecord {
   status: JobStatus
   submit?: RecordSubmit
   download?: RecordDownload
+  progress?: RecordProgress
+  error?: string
 }
 
-/** Current visual state, including submit stages and the download phase. */
+/** Waiting keys for a custom job that has not started on the model yet. */
+function waitingKey(record: StatusHelpRecord): StatusHelpKey | null {
+  const waitingOn = record.progress?.waitingOn
+
+  if (waitingOn === 'comfyui_busy') {
+    return 'waiting_comfyui'
+  }
+
+  if (waitingOn === 'pack_queue') {
+    return 'queued_n'
+  }
+
+  return null
+}
+
+function activeKey(record: StatusHelpRecord, status: JobStatus): StatusHelpKey {
+  const waiting = waitingKey(record)
+
+  if (!isNil(waiting)) {
+    return waiting
+  }
+
+  if (record.error?.includes('comfy_unavailable') === true) {
+    return 'endpoint_unreachable'
+  }
+
+  return STATUS_KEYS[status]
+}
+
+/** Current visual state, including submit stages, waiting states and the download. */
 export function statusHelpKey(record: StatusHelpRecord): StatusHelpKey {
   if (record.download) {
     return 'downloading'
   }
 
-  if (record.status !== 'submitting') {
-    return STATUS_KEYS[record.status]
+  if (record.status === 'submitting') {
+    const stage = record.submit?.stage
+
+    if (stage === 'uploading' || stage === 'sending') {
+      return stage
+    }
+
+    return 'processing'
   }
 
-  const stage = record.submit?.stage
-
-  if (stage === 'uploading' || stage === 'sending') {
-    return stage
+  if (record.status === 'pending' || record.status === 'in_progress') {
+    return activeKey(record, record.status)
   }
 
-  return 'processing'
+  return STATUS_KEYS[record.status]
 }
 
 /** Tooltip text: what is happening plus cancel, charge and quit safety. */

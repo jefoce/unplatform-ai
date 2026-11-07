@@ -4,7 +4,8 @@ import { isDownloadFailure } from '@/core/download-failure'
 import { isNonEmptyString } from '@/core/guards'
 import type { FriendlyError } from '@/core/provider-errors/types'
 import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
-import { STATUS_HELP, statusHelpKey } from '@/core/status-help'
+import { STATUS_HELP, type StatusHelpKey, statusHelpKey } from '@/core/status-help'
+import { ACTIVE_STATUSES } from '@/core/types'
 
 export type Tone = 'accent' | 'gray' | 'red'
 
@@ -40,15 +41,31 @@ export const PILL_LABEL_SHOWN_CLASSES = 'not-sr-only min-w-0 truncate'
 
 const CANCELLED_TEXT = 'Not sent, not charged.'
 
-export function statusLabel(record: GenerationRecord): string {
-  const base = STATUS_HELP[statusHelpKey(record)].label
-  const progress = record.submit?.stage === 'uploading' ? record.submit.progress : undefined
+function baseLabel(record: GenerationRecord, key: StatusHelpKey): string {
+  const queuePosition = record.progress?.queuePosition
 
-  if (isNil(progress)) {
+  if (key === 'queued_n' && !isNil(queuePosition)) {
+    return `In queue, ${queuePosition} ahead`
+  }
+
+  return STATUS_HELP[key].label
+}
+
+function isWaitingKey(key: StatusHelpKey): boolean {
+  return key === 'queued_n' || key === 'waiting_comfyui' || key === 'endpoint_unreachable'
+}
+
+export function statusLabel(record: GenerationRecord): string {
+  const key = statusHelpKey(record)
+  const base = baseLabel(record, key)
+  const submitProgress = record.submit?.stage === 'uploading' ? record.submit.progress : undefined
+  const progress = record.progress?.percent ?? submitProgress
+
+  if (isNil(progress) || isWaitingKey(key) || progress <= 0) {
     return base
   }
 
-  return `${base} ${progress}%`
+  return `${base} ${Math.round(progress)}%`
 }
 
 /** Gray while a submit stage or download is running, otherwise the status tone. */
@@ -103,4 +120,13 @@ export function isDownloadRetryable(record: GenerationRecord): boolean {
   }
 
   return isNil(expiresAt) || Date.now() <= expiresAt
+}
+
+/** A custom job past the grace window, cancellable through the endpoint. */
+export function isCustomActiveRecord(record: GenerationRecord): boolean {
+  return (
+    record.provider === 'custom' &&
+    ACTIVE_STATUSES.includes(record.status) &&
+    !isGraceRecord(record)
+  )
 }

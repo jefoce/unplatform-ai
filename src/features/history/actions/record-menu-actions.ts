@@ -11,8 +11,9 @@ import {
 } from '@/features/generator/record-input'
 import { REFERENCE_LIMIT_REACHED } from '@/features/generator/reference-rules'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { revealGeneration } from '@/lib/api/generations'
+import { cancelGenerationRequest, revealGeneration } from '@/lib/api/generations'
 import { canonicalPrompt } from '@/lib/feed/output-items'
+import { refreshHistoryFeeds } from '@/lib/history-feed-refresh'
 import { copyText, toastError } from '@/lib/notify'
 
 /** Grabs the first or last frame of a finished video and arms it as the start frame. */
@@ -85,6 +86,17 @@ export async function copySeed(record: GenerationRecord): Promise<void> {
 export async function revealRecord(record: GenerationRecord): Promise<void> {
   try {
     await revealGeneration(record.id)
+  } catch (error) {
+    toastError(error)
+  }
+}
+
+/** Stops a running custom job through the endpoint cancel route. */
+export async function stopInComfyUI(record: GenerationRecord): Promise<void> {
+  try {
+    await cancelGenerationRequest(record.id)
+    toast.success('Stopping in ComfyUI')
+    await refreshHistoryFeeds()
   } catch (error) {
     toastError(error)
   }

@@ -45,6 +45,9 @@ export interface StatusView {
   /** Media aspect when the caller does not pass a box aspect. */
   aspect?: string
 
+  /** Provider progress percent, drawn as a 2 px bar along the card bottom. */
+  progressPercent?: number
+
   /** Keeps the grace timer and clock live. */
   isLive?: boolean
 
@@ -121,6 +124,7 @@ export function videoStatusView(record: GenerationRecord, onCancel?: () => void)
     graceNotBefore,
     onCancel,
     aspect: videoRecordAspect(record),
+    progressPercent: record.progress?.percent,
     isLive: ACTIVE_STATUSES.includes(record.status),
     onRetry,
     onRerun: () => {
@@ -182,6 +186,19 @@ export function imageStatusView(item: ImageGridItem, onCancel?: () => void): Sta
     line: friendly?.hint ?? null,
     graceNotBefore,
     onCancel,
+    progressPercent: record.progress?.percent,
     isLive: item.status === 'submitting' || item.status === 'saving',
+  }
+}
+
+/** Replaces an active view with the offline label while the endpoint is down. */
+export function endpointOfflineView(view: StatusView): StatusView {
+  return {
+    ...view,
+    label: STATUS_HELP.endpoint_unreachable.label,
+    help: STATUS_HELP.endpoint_unreachable,
+    tone: 'gray',
+    error: null,
+    line: null,
   }
 }

@@ -16,8 +16,7 @@ import { MediaImage } from '@/ui/MediaImage'
 import { MediaStage, type StageBackdrop } from '@/ui/MediaStage'
 import { ZoomLayer } from '@/ui/ZoomLayer'
 
-import { videoStatusView } from '../status/status-view'
-import { StatusOverlay } from '../status/StatusOverlay'
+import { HistoryModalStatus } from './HistoryModalStatus'
 import type { HistoryNav } from './use-history-nav'
 
 interface HistoryModalMediaProps {
@@ -97,7 +96,7 @@ export function HistoryModalMedia(props: HistoryModalMediaProps) {
       )}
       {item.status !== 'completed' && item.recordKind === 'video' && (
         <div className="@container w-full max-w-2xl">
-          <StatusOverlay view={videoStatusView(item.source, props.onCancel)} />
+          <HistoryModalStatus item={item} onCancel={props.onCancel} />
         </div>
       )}
     </MediaStage>

@@ -14,12 +14,13 @@ import {
 import { revealLabel } from '@/lib/platform/reveal-label'
 import { useBoolean } from '@/lib/use-boolean'
 
+import { isCustomActiveRecord } from '../status/status-tone'
 import { ROUND_BUTTON_CLASSES } from './card-action-styles'
 import { DeleteConfirm } from './DeleteConfirm'
 import { menuEntries } from './menu-entries'
 import { MenuTrigger } from './MenuTrigger'
 import { MoreMenuContent } from './MoreMenuContent'
-import { cancelInGrace } from './record-menu-actions'
+import { cancelInGrace, stopInComfyUI } from './record-menu-actions'
 import { regenerateItem } from './regenerate-actions'
 import { imageRegenerateDescription, videoRegenerateDescription } from './regenerate-confirm'
 import { RegenerateDialog } from './RegenerateDialog'
@@ -84,6 +85,13 @@ export function MoreMenu(props: MoreMenuProps) {
   const image = isVideo ? null : item
   const isCompleted = video ? video.status === 'completed' : image?.output?.status === 'saved'
   const hasFullVideoRefs = !isNil(video) && getPreset(video.source.preset.id).references.video === 0
+  let stop: (() => void) | null = null
+
+  if (!isNil(video) && isCustomActiveRecord(video.source)) {
+    stop = () => {
+      void stopInComfyUI(video.source)
+    }
+  }
 
   const handleRemove = () => {
     if (video && cancelInGrace(video.source)) {
@@ -106,6 +114,7 @@ export function MoreMenu(props: MoreMenuProps) {
     hasFullVideoRefs,
     revealLabel: revealLabel(),
     actions,
+    stop,
   })
 
   const handleDelete = async () => {
