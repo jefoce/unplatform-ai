@@ -3,13 +3,13 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { IMAGE_SUBMIT_PARALLEL, MAX_REQUEST_MB, REQUEST_RESERVE_MB } from '@/core/constants'
-import { findImagePreset } from '@/core/presets/image'
 import { graceDelayMs } from '@/core/submit-state'
 
 import { encodeImages } from '../media/image-data-url'
 import { getImage, saveImage } from '../repos/images'
 import { getUpload } from '../repos/uploads'
 import { secretsReady } from '../secrets'
+import { findImagePresetAny } from '../services/model-catalog'
 import { createLimiter } from '../sync/limiter'
 import { withLock } from '../sync/lock'
 import { type CallOutcome, plannedCalls, type PreparedImage, submitCall } from './image-calls'
@@ -62,7 +62,7 @@ async function beginSending(id: string): Promise<PreparedImage | null> {
       return null
     }
 
-    const preset = findImagePreset(record.input.presetId)
+    const preset = await findImagePresetAny(record.input.presetId)
 
     if (!preset) {
       throw new Error('Unknown model')

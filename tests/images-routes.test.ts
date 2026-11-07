@@ -32,8 +32,13 @@ const catalog = vi.hoisted(() => {
   return { missingPresetId: null as string | null }
 })
 
-vi.mock('@/server/services/model-catalog', () => {
+vi.mock('@/server/services/model-catalog', async () => {
+  const { findImagePreset } = await import('../src/core/presets/image')
+
   return {
+    findImagePresetAny: async (presetId: string) => {
+      return findImagePreset(presetId)
+    },
     getModelCatalog: async () => {
       const entries =
         catalog.missingPresetId === null

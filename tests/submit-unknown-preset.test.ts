@@ -24,6 +24,16 @@ vi.mock('@/server/services/uploads', () => {
   return { loadUploads }
 })
 
+vi.mock('@/server/services/model-catalog', async () => {
+  const { findPreset } = await import('@/core/presets')
+
+  return {
+    findVideoPresetAny: async (presetId: string) => {
+      return findPreset(presetId)
+    },
+  }
+})
+
 vi.mock('@/server/storage/registry', () => {
   return {
     getObjectStore: () => {

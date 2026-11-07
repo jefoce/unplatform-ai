@@ -42,8 +42,13 @@ vi.mock('@/server/services/estimate-generation', async (importOriginal) => {
   }
 })
 
-vi.mock('@/server/services/model-catalog', () => {
+vi.mock('@/server/services/model-catalog', async () => {
+  const { findPreset } = await import('@/core/presets')
+
   return {
+    findVideoPresetAny: async (presetId: string) => {
+      return findPreset(presetId)
+    },
     getModelCatalog: async () => {
       return { entries: [], fetchedAt: '2026-01-01T00:00:00.000Z' }
     },

@@ -5,7 +5,6 @@ import { isNil } from 'lodash-es'
 import type { UploadsById } from '@/core/api/uploads'
 import { MAX_REQUEST_MB } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
-import { findPreset } from '@/core/presets'
 import { INTERRUPT_SENDING_TEXT } from '@/core/provider-errors/app'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { graceDelayMs, inputIds, transportsFor, withTransports } from '@/core/submit-state'
@@ -16,6 +15,7 @@ import { ProviderError, providerStatusOf } from '../providers/provider-error'
 import type { SubmittedJob } from '../providers/types'
 import { getGeneration, saveGeneration } from '../repos/generations'
 import { secretsReady } from '../secrets'
+import { findVideoPresetAny } from '../services/model-catalog'
 import { loadUploads } from '../services/uploads'
 import { getObjectStore } from '../storage/registry'
 import { withLock } from '../sync/lock'
@@ -73,7 +73,7 @@ async function beginUpload(id: string): Promise<Prepared | null> {
       return null
     }
 
-    const preset = findPreset(record.input.presetId)
+    const preset = await findVideoPresetAny(record.input.presetId)
 
     if (!preset) {
       throw new Error('Unknown model')
@@ -123,7 +123,7 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
     throw new Error(`File missing: ${gone.originalName}`)
   }
 
-  const preset = findPreset(record.input.presetId)
+  const preset = await findVideoPresetAny(record.input.presetId)
 
   if (!preset) {
     throw new Error('Unknown model')

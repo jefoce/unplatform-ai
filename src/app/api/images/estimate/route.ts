@@ -2,7 +2,6 @@ import { isEmpty, isNil } from 'lodash-es'
 
 import { ImageEstimateSchema } from '@/core/api/image'
 import { primaryBinding } from '@/core/presets/common/bindings'
-import { findImagePreset } from '@/core/presets/image'
 import { imageQuoteContext, imageUnitOf, quoteWithFallback } from '@/core/pricing/quote'
 import type { SkuTable } from '@/core/pricing/types'
 import type { ImageGenerationInput } from '@/core/schemas/image-record'
@@ -11,8 +10,10 @@ import { validateImageInput } from '@/core/validation/image'
 import { ValidationError } from '@/server/errors'
 import { errorResponse, jsonError, jsonResponse, zodError } from '@/server/http'
 import { resolveRunPricing } from '@/server/pricing/endpoints'
-import { loadLivePricing } from '@/server/pricing/live'
+import { type LivePricing, loadLivePricing } from '@/server/pricing/live'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
+import { isCustomPresetId } from '@/server/services/estimate-generation'
+import { findImagePresetAny } from '@/server/services/model-catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
       return zodError(parsed.error)
     }
 
-    const preset = findImagePreset(parsed.data.presetId)
+    const preset = await findImagePresetAny(parsed.data.presetId)
 
     if (isNil(preset)) {
       return jsonError({ status: 400, error: 'Unknown model' })
@@ -43,14 +44,18 @@ export async function POST(request: Request) {
     }
 
     const binding = primaryBinding(preset)
+    const isCustom = isCustomPresetId(preset.id)
+    let live: LivePricing | null = null
 
-    const live = await loadLivePricing({
-      provider: binding.provider,
-      kind: 'image',
-      modelId: binding.modelId,
-      fallback: binding.pricing.fallback,
-      presetId: preset.id,
-    })
+    if (!isCustom) {
+      live = await loadLivePricing({
+        provider: binding.provider,
+        kind: 'image',
+        modelId: binding.modelId,
+        fallback: binding.pricing.fallback,
+        presetId: preset.id,
+      })
+    }
 
     const pricing = await resolveRunPricing({
       presetId: preset.id,
@@ -60,7 +65,7 @@ export async function POST(request: Request) {
 
     let skus: SkuTable | undefined
 
-    if (live.source === 'live') {
+    if (live?.source === 'live') {
       skus = live.skus
     }
 

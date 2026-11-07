@@ -3,7 +3,6 @@ import { z } from 'zod'
 
 import { HISTORY_MAX_PAGE_SIZE, HISTORY_PAGE_SIZE, MAX_IDS } from '@/core/constants'
 import { applyFilters, countActive, paginate, sortRecords } from '@/core/feed/history-filters'
-import { findPreset } from '@/core/presets'
 import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { GENERATOR_TABS } from '@/core/schemas/generation-record'
 import { AUDIO_FILTERS, HISTORY_MODES, STATUS_FILTERS } from '@/core/types'
@@ -13,6 +12,7 @@ import { listGenerations } from '@/server/repos/generations'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { secretsReady } from '@/server/secrets'
 import { createGeneration } from '@/server/services/create-generation'
+import { findVideoPresetAny } from '@/server/services/model-catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       return zodError(presetId.error)
     }
 
-    const preset = findPreset(presetId.data.presetId)
+    const preset = await findVideoPresetAny(presetId.data.presetId)
 
     if (!preset) {
       return jsonError({ status: 400, error: 'Unknown model' })

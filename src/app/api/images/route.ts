@@ -4,7 +4,6 @@ import { ImageListQuerySchema, ImageSubmitSchema } from '@/core/api/image'
 import { IMAGE_MAX_ACTIVE, MAX_IDS } from '@/core/constants'
 import { paginate, sortRecords } from '@/core/feed/history-filters'
 import { isNonEmptyString } from '@/core/guards'
-import { findImagePreset } from '@/core/presets/image'
 import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
 import { issueText } from '@/core/validation/common'
 import { validateImageInput } from '@/core/validation/image'
@@ -15,6 +14,7 @@ import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { getSecret, secretsReady } from '@/server/secrets'
 import { loadCatalogEntry } from '@/server/services/estimate-generation'
 import { createImage, priceImage } from '@/server/services/image-create'
+import { findImagePresetAny } from '@/server/services/model-catalog'
 import { withLock } from '@/server/sync/lock'
 
 export const dynamic = 'force-dynamic'
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       return zodError(body.error)
     }
 
-    const preset = findImagePreset(body.data.presetId)
+    const preset = await findImagePresetAny(body.data.presetId)
 
     if (!preset) {
       return jsonError({ status: 400, error: 'Unknown model' })
