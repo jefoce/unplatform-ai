@@ -1,6 +1,6 @@
 'use client'
 
-import { isNil } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 import useSWR from 'swr'
 import { z } from 'zod'
 
@@ -56,10 +56,20 @@ const EndpointTestSchema = z.object({
   error: z.string().nullable().optional(),
 })
 
+/** Poll only while at least one endpoint exists. Zero stops SWR. */
+export function endpointRefreshInterval(latest: EndpointsOverview | undefined): number {
+  if (isNil(latest) || isEmpty(latest.endpoints)) {
+    return 0
+  }
+
+  return 15_000
+}
+
 /** Endpoint list with the last health state, read for the ready gate. */
 export function useEndpointsStatus(): EndpointsState {
   const { data, isLoading, error } = useSWR<EndpointsOverview>(ENDPOINTS_STATUS_KEY, fetcher, {
-    refreshInterval: 15_000,
+    refreshInterval: endpointRefreshInterval,
+    refreshWhenHidden: false,
     revalidateOnFocus: true,
   })
 
