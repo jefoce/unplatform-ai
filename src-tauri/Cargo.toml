@@ -1,6 +1,6 @@
 [package]
 name = "unplatform-ai"
-version = "0.4.0"
+version = "0.5.0"
 description = "Unplatform AI desktop shell"
 authors = ["jefoce"]
 edition = "2021"

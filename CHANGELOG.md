@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0 - unreleased
+
+Placeholder.
+
 ## 0.4.0 - 2026-11-03
 
 The Image workspace, the Unplatform AI name and icon, and one pricing engine for images and videos.
