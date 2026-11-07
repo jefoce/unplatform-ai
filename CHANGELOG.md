@@ -2,7 +2,25 @@
 
 ## 0.5.0 - unreleased
 
-Placeholder.
+Local image and video models from ComfyUI, with several endpoints and a badge for each.
+
+### Added
+
+- A custom endpoint provider for ComfyUI over upai/1, with no OpenRouter key for those jobs.
+- Several endpoints, each with a CU badge, a label, an optional token and a Test button.
+- Price modes: model price, free, per run and per second. A local model at zero hides its price, an override shows it.
+- Custom image and video jobs, with a progress percent and the Waiting for ComfyUI and In queue, N ahead labels.
+- Stop in ComfyUI for a running video.
+- History facets, plus stored snapshots, so old entries keep their badge, title and workflow after an endpoint or a workflow changes.
+- Deleting an endpoint warns about running jobs. Those jobs fail with "This endpoint was removed." and history keeps its badge and title.
+- A quit guard explains that ComfyUI video jobs keep running and resume on the next start.
+
+### Changed
+
+- Clips and sound for local models upload to your own ComfyUI. Pictures and frames stay inline.
+- Local jobs share a per-endpoint limit from ComfyUI.
+
+An image record has no job reference, so a running image cannot be stopped from history in 0.5.0. Stop is available for video.
 
 ## 0.4.0 - 2026-11-03
 

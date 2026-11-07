@@ -35,15 +35,20 @@ Updates run in the Rust shell. It reads `latest.json` from the GitHub release ov
 | `src/core/media` | Shared media kinds, output sizes and formatting rules. |
 | `src/core/feed` | Sorting, filtering, pagination and layout shared by the history and picker feeds. |
 | `src/core/api` | Request and response schemas shared by the image routes and the client. |
+| `src/core/protocol` | upai/1 wire schemas, error codes and job shapes, shared by client and server. |
 | `src/core/utility-types.ts` | Shared utility types `Dict` and `HasId`. |
 | `src/server` | IO: boot, route helpers, jobs, services, repos, providers, storage, secrets, media, config. |
 | `src/server/boot.ts` | Composition root. Lock, secrets, queue wiring, poller, parent watch, ffmpeg. |
 | `src/server/config` | `isMockMode`, the app-wide dev switch shared by the provider and storage registries. |
 | `src/server/jobs` | `submit-queue`, `run-submit`, `submit-media`, `submit-record`, `poller`, `download-queue`, `reconcile`, plus `image-submit-queue`, `image-run`, `image-calls`, `image-reconcile`, `image-outputs` and `image-record`. |
 | `src/server/services` | Orchestration for routes and jobs: `credits`, `model-catalog`, `remote-inputs`, `remote-cap`, `upload-probe`, `uploads`, `connection-test`, `create-generation`, `estimate-generation`, plus `image-create`, `image-actions` and `image-files`. |
+| `src/server/services/endpoints` | Endpoint list, save, tokens and runtime counts. |
+| `src/server/services/history-facets` | Incremental model, resolution and aspect facets over the record stores. |
+| `src/server/services/endpoint-health` | Endpoint health state, fresh checks and the per-instance run limit. |
 | `src/server/providers` | `VideoProvider` interface, registry, OpenRouter adapter, mock adapter, `ProviderError` kinds. |
+| `src/server/providers/custom` | upai/1 adapter per endpoint, health probe, pinned requests and record source. |
 | `src/server/storage` | `ObjectStore` interface, registry, generic S3 store, R2 config, mock store, hashing. |
-| `src/server/repos` | `generations`, `images`, `uploads`, `folders`, `json-dir-store`. |
+| `src/server/repos` | `generations`, `images`, `uploads`, `folders`, `endpoints`, `json-dir-store`. |
 | `src/server/sync` | `withLock`, the per-key serialization primitive, `createLimiter` for per-key caps, and `ttl-cache`, the `globalState` TTL cache. |
 | `src/server/media` | `image-data-url`, `image-encode`, `to-data-url`, `thumbs`, `compat`, `ffmpeg`. |
 | `src/features` | UI grouped by feature: generator, image generator, history, media picker, preview, settings, player, studio, updates. |
@@ -60,6 +65,7 @@ Updates run in the Rust shell. It reads `latest.json` from the GitHub release ov
 | `src/app` | Next routes and the page shell. |
 | `src-tauri` | Desktop shell, sidecar supervisor, window, settings and `updater.rs`. |
 | `scripts` | `prepare-desktop.mjs`, `smoke-server.mjs`, `notices.mjs`. |
+| `docs/protocol/upai-1` | Vendored upai/1 spec, schemas and fixtures, pinned in `SOURCE`. |
 | `tests` | Vitest suites. |
 
 Rules:
@@ -82,8 +88,11 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 | `status` | Lifecycle state | submit queue, poller, download queue, cancel route |
 | `input` | Exact panel state, canonical prompt slots | create route |
 | `preset` | `id`, `title`, `slug` at submit time | create route |
+| `source` | Provider kind, instance id, badge, title, workflow name and local flag at submit | create route |
+| `presetSnapshot` | Loose preset copy: id, title, family plus model fields | create route |
 | `inputsSnapshot` | Kind, name, source, transport per upload | create route, run-submit |
 | `submit` | Stage plus grace `notBefore` or progress | create route, run-submit |
+| `progress` | Percent, node, queue position and waiting reason | poller |
 | `download` | `startedAt` while the file is queued or downloading | download queue |
 | `job` | OpenRouter job id, timestamps, expiry | run-submit, poller |
 | `seedUsed`, `favorite` | Resolved seed and user flag | create route, PATCH route |
@@ -103,6 +112,10 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 
 `source: link` points at a file in a connected folder, nothing is copied. `source: file` is a copy in `uploads/`.
 
+### ImageRecord (`images/<uuid>.json`)
+
+An image record carries the same `source`, `presetSnapshot` and `progress` fields as a video record. The status set differs: `submitting`, `saving`, `completed`, `partial`, `failed` and `cancelled`.
+
 ### FolderItem (`data/folders.json`)
 
 | Field | Meaning | Writer |
@@ -111,6 +124,16 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 | `name` | Display name | folder route |
 | `path` | Absolute folder path | folder route |
 | `addedAt` | Sort key | folder route |
+
+### Custom endpoints (`data/endpoints.json`)
+
+| Field | Meaning | Writer |
+|---|---|---|
+| `version` | File format version, currently 1 | endpoints repo |
+| `endpoints` | id, label, badge, base URL, enabled, pricing, instance id and last health per endpoint | Settings save |
+| `badgeCounter` | Last badge number handed out, so a deleted number is never reused | endpoints repo |
+
+`data/endpoint-models/<id>.json` caches the upai/1 model lists for one endpoint: `fetchedAt`, `video`, `image` and `missingSince`. `CUSTOM_ENDPOINT_TOKENS` is one secret JSON map from endpoint id to bearer token. The raw token is never logged, and Settings shows only its last four characters.
 
 ### Runtime files
 
@@ -188,6 +211,8 @@ Transport comes from `preset.inputTransport[kind]`. `auto` uses `url` when R2 is
 
 If a provider rejects base64 input, submit retries once with all media as URLs. A missing R2 for a `url` transport blocks validation before submit.
 
+Custom video and audio references use `upload`: the app hashes the file, asks the endpoint for an upload, then sends video and audio to ComfyUI. Images and frames stay inline as data URLs. Every custom request is pinned to the endpoint origin: scheme, host and port must match, and a redirect is refused.
+
 ## 7. Presets
 
 `src/core/presets/` is the only model registry. Each model has one file under its family folder, shared family files hold everything that does not differ. A preset controls duration, resolutions, aspect ratios, frames, audio, reference counts and per-kind limits, transport, prompt length, seed support, output sizes, labels, pricing keys, content policy and picker hints.
@@ -200,6 +225,12 @@ If a provider rejects base64 input, submit retries once with all media as URLs. 
 | Seedance 2.5 | 4-30 s | 480p, 720p | 30 / 10 / 10 | video |
 
 Image presets live under `src/core/presets/image`, one file per family and one file per model. They define resolutions or a fixed size, aspect ratios, quality and background controls, reference limits, seed support and pricing. `IMAGE_PRESETS` in `image/index.ts` is the picker order and the source of the image model table in the README.
+
+### Custom models
+
+Custom presets are runtime data, not files. Each enabled endpoint serves its cached upai/1 model list, and `mapCustomModel` turns each model into a preset with id `custom.<endpointId>.<modelId>`. The mapper keeps only known resolutions and aspect ratios, rounds the duration to its step, maps output sizes, reference counts, frames, seed, prompt limit and count, and prices the run at `perRun` from the model price. Dropped values become warnings, and a video model missing a duration, resolution or aspect ratio produces no preset.
+
+A model is `ready`, `stale` or `invalid`. Ready is available. Stale is available with a reason and Generate is blocked until the workflow is saved again in ComfyUI. Invalid is disabled, with the reason from the pack. A model missing from a fresh model list stays selectable as missing for `CUSTOM_MISSING_KEEP_DAYS`, then disappears.
 
 Each model holds `bindings` in priority order. A binding is `provider`, `modelId` and `pricing`, plus `transport` per media kind for video. The first binding whose provider is configured wins. A record stores the chosen provider and model id at submit time, so polling and download keep using that provider after settings change.
 
@@ -227,6 +258,7 @@ Adding a model:
 | Gate | Limit | Purpose |
 |---|---|---|
 | Active generations | 4 per kind | `MAX_ACTIVE_JOBS` for video and `IMAGE_MAX_ACTIVE` for image, each checked and inserted under one lock per kind |
+| Custom submit | `max_running` per endpoint instance | Submit queue keyed by `custom:<instance>`. Endpoints that report the same `instance_id` share one limit, default 1. |
 | `withLock(key)` | 1 per key | Record, `upload:<id>`, `folders`, `secrets`, `compat:<hash>` |
 | Submit queue | 2 active | Upload and send jobs |
 | Poller | 3 parallel | OpenRouter status reads |
@@ -403,3 +435,5 @@ Routes throw `HttpError` with a status and a short message. `errorResponse` turn
 Job errors are stored on the record as `error`, never thrown to the UI after the request ended. Secrets and presigned URLs are never logged.
 
 `core/provider-errors/` turns the stored text into a plain title and hint at render time. Each preset file exports its family `errors` rules under `src/core/presets/{video,image}/<family>/errors.ts`. Those rules run first, then app errors, then the provider HTTP codes. First match wins, specific codes before parent codes, and a family table never matches the other family. Raw text stays on the record, the failed card and status overlay show the plain text, and Details exposes the raw text with Copy. Records written before a table change pick up the new text without migration.
+
+Custom adapter errors keep the raw `upai:<code>: <message>` line. `src/core/presets/custom/errors.ts` maps the code to a title and hint: unauthorized, forbidden, invalid_request, model_not_found, workflow_invalid, too_large, queue_full, job_failed, comfy_unavailable, config_invalid, timeout and endpoint_removed. The custom family never falls through to the OpenRouter rules.

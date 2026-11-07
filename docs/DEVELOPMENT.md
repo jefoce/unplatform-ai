@@ -83,6 +83,20 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 
 Mock mode keeps the Test button enabled without stored keys.
 
+### Custom endpoint provider
+
+The custom provider talks upai/1 to the ComfyUI node pack. Start the pack mock server for adapter work:
+
+```bash
+cd /Users/jefoce/Documents/AI/unplatform-ai-provider-node && .venv/bin/python -m upai_provider.mock_server --port 8190
+```
+
+Point an endpoint at `http://127.0.0.1:8190` and press Test. `CUSTOM_ENDPOINT_MOCK=1` is the fallback: the in-process mock serves `docs/protocol/upai-1/fixtures` and needs no ComfyUI or Python.
+
+The protocol copy at `docs/protocol/upai-1` is pinned in `SOURCE` to `unplatform-ai-provider-node` commit `2a30d9e`. Update the copy and the fixture drift test together.
+
+No test uses a real key. The adapter suites use the mock server or the in-process fixtures.
+
 ## 5. Adding a model
 
 1. Find the provider docs and the OpenRouter model id. Check `/api/v1/videos/models` for `supported_*` fields and `pricing_skus`.

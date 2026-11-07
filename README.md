@@ -10,6 +10,7 @@
 ## What you can do
 
 - See the price before you press Generate, and keep the real cost with every image and video.
+- Use local image and video models from ComfyUI on the same computer or your network, with no OpenRouter key for those jobs.
 - Start from text, a picture, or a start and an end picture.
 - Generate images in the Image tab, with grid and masonry views, likes, and a floating prompt bar.
 - Add reference pictures, clips or sound, and point to them in your text ("the person in Image 1").
@@ -26,6 +27,8 @@
 - GPT Image 2 / 2.5
 - FLUX 3 Klein
 
+Local models from ComfyUI appear in the picker when you add an endpoint in Settings. Their names and settings come from the workflows you save in ComfyUI.
+
 Prices come live from OpenRouter.
 
 ## What you need
@@ -33,6 +36,7 @@ Prices come live from OpenRouter.
 - A Mac (Apple Silicon), a Windows 10/11 PC, or 64-bit Linux with glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer).
 - An OpenRouter account with some credit. One account gives you many video models, and you pay only for what you generate.
 - Optional: a Cloudflare account with R2, only for models that take video or sound references. Cloudflare asks for a card to turn R2 on. The free tier is 10 GB, and the app stays under 8 GB. It deletes references it has not used for 30 days.
+- Optional: ComfyUI with the Unplatform AI node pack, for local image and video models. [Step-by-step guide](docs/user/COMFYUI.md)
 
 ## Install
 
@@ -116,8 +120,9 @@ If your keyring is locked when you save keys, Linux asks for your login password
 
 1. **OpenRouter (required).** Add credit, create a dedicated API key with a spend limit, and paste it in Settings (gear icon). [Step-by-step guide](docs/user/OPENROUTER.md)
 2. **Cloudflare R2 (only for video or sound references).** Create a bucket and a token for it, then paste four values in Settings. Free up to 10 GB, and the app stays under 8 GB. Cloudflare asks for a card. [Step-by-step guide](docs/user/CLOUDFLARE-R2.md)
+3. **ComfyUI (optional).** Install the Unplatform AI node pack, save a workflow, then add the endpoint in Settings. [Step-by-step guide](docs/user/COMFYUI.md)
 
-Both guides are also linked in the app: gear icon → **Setup guide**.
+All three guides are also linked in the app: gear icon → **Setup guide**.
 
 ## Make your first video
 
@@ -169,6 +174,7 @@ To back up or move to a new computer, copy the whole folder, then enter your key
 - Unplatform AI is free and adds no fee. The wallet pill shows what is left of your key's credit limit, or your account balance when you add a management key. The management key is optional and read-only in this app.
 - No account, no tracking, no server of ours. Keys stay in your system keychain.
 - Your text and pictures go to OpenRouter and the model's provider. Video and sound references go to your own R2 bucket as private links that expire after 2 hours.
+- ComfyUI jobs run on your own computer or network, stay there, and need no OpenRouter key.
 - R2 stays inside Cloudflare's free tier, see [the R2 guide](docs/user/CLOUDFLARE-R2.md).
 
 ## Keyboard shortcuts
@@ -190,6 +196,8 @@ To back up or move to a new computer, copy the whole folder, then enter your key
 | "needs cloud storage (R2)"                                                   | Set up R2, or use pictures instead of video or sound.                                                                                                                     |
 | "Cloud storage is full."                                                     | Wait 2 hours, or use shorter clips. Older references are removed automatically.                                                                                           |
 | "takes video references as mp4 or mov"                                       | Convert the clip to mp4.                                                                                                                                                  |
+| "This computer cannot reach ComfyUI"                                         | Enable LAN access in ComfyUI Settings > Unplatform AI, or add a token ([guide](docs/user/COMFYUI.md)).                                                                    |
+| "This server does not speak upai/1"                                          | Install or update the Unplatform AI node pack in ComfyUI, then press Test ([guide](docs/user/COMFYUI.md)).                                                                |
 | A model blocks images that look like real people                             | Use a different image, or another model.                                                                                                                                  |
 | "Waiting for keychain access"                                                | A system prompt is open, maybe behind a window. Choose Always Allow.                                                                                                      |
 | A video says Expired                                                         | Make it again with Reuse. Check OpenRouter activity for a charge.                                                                                                         |
@@ -207,7 +215,7 @@ Ideas, depending on how many people use the app: more video and image models, an
 
 ## For developers
 
-[DEVELOPMENT.md](docs/DEVELOPMENT.md) · [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [SECURITY.md](docs/SECURITY.md) · [DECISIONS.md](docs/DECISIONS.md) · [OpenRouter guide](docs/user/OPENROUTER.md) · [Cloudflare R2 guide](docs/user/CLOUDFLARE-R2.md)
+[DEVELOPMENT.md](docs/DEVELOPMENT.md) · [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [SECURITY.md](docs/SECURITY.md) · [DECISIONS.md](docs/DECISIONS.md) · [OpenRouter guide](docs/user/OPENROUTER.md) · [Cloudflare R2 guide](docs/user/CLOUDFLARE-R2.md) · [ComfyUI guide](docs/user/COMFYUI.md)
 
 Run `pnpm dev` and open the session link it prints at startup.
 
