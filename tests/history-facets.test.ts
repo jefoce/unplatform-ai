@@ -40,6 +40,12 @@ beforeAll(async () => {
 
   generations = await import('@/server/repos/generations')
   images = await import('@/server/repos/images')
+
+  vi.spyOn(generations, 'listGenerations')
+  vi.spyOn(generations, 'getGeneration')
+  vi.spyOn(images, 'listImages')
+  vi.spyOn(images, 'getImage')
+
   facets = await import('@/server/services/history-facets')
   route = await import('@/app/api/history/facets/route')
 })
@@ -267,6 +273,82 @@ describe('history facets index', () => {
         return model.presetId === 'wan-3.0'
       })?.count,
     ).toBe(1)
+  })
+
+  it('reads only the changed record after the initial load', async () => {
+    const seeded = randomUUID()
+
+    await generations.saveGeneration(videoRecord({ id: seeded }))
+    await facets.getHistoryFacets('video')
+
+    const list = vi.mocked(generations.listGenerations)
+    const get = vi.mocked(generations.getGeneration)
+
+    list.mockClear()
+    get.mockClear()
+
+    const created = randomUUID()
+
+    await generations.saveGeneration(
+      videoRecord({
+        id: created,
+        createdAt: '2026-02-01T00:00:00.000Z',
+        presetId: 'seedance-2.0',
+        title: 'Seedance 2.0',
+      }),
+    )
+
+    const afterCreate = await facets.getHistoryFacets('video')
+
+    expect(list).not.toHaveBeenCalled()
+    expect(get).toHaveBeenCalledWith(created)
+
+    expect(
+      afterCreate.models.find((model) => {
+        return model.presetId === 'seedance-2.0'
+      })?.count,
+    ).toBe(1)
+
+    get.mockClear()
+
+    await generations.saveGeneration(
+      videoRecord({
+        id: created,
+        createdAt: '2026-03-01T00:00:00.000Z',
+        presetId: 'seedance-2.0',
+        title: 'Renamed Seedance',
+      }),
+    )
+
+    const afterUpdate = await facets.getHistoryFacets('video')
+
+    expect(list).not.toHaveBeenCalled()
+    expect(get).toHaveBeenCalledWith(created)
+
+    expect(
+      afterUpdate.models.find((model) => {
+        return model.presetId === 'seedance-2.0'
+      })?.title,
+    ).toBe('Renamed Seedance')
+
+    get.mockClear()
+
+    await generations.deleteGenerationFiles(created)
+
+    const afterDelete = await facets.getHistoryFacets('video')
+
+    expect(list).not.toHaveBeenCalled()
+    expect(get).not.toHaveBeenCalled()
+
+    expect(
+      afterDelete.models.find((model) => {
+        return model.presetId === 'seedance-2.0'
+      }),
+    ).toBeUndefined()
+
+    expect(afterDelete).toEqual(
+      facets.buildHistoryFacets('video', await generations.listGenerations()),
+    )
   })
 
   it('lists only models that have records, newest first', async () => {

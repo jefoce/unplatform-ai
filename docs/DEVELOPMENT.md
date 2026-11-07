@@ -195,6 +195,7 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `UPAI_SECRETS_BACKEND` | `file` forces the file backend, for debugging keychain issues |
 | `UPAI_UPDATE_ENDPOINT` | Updater manifest URL, for packaged rc tests |
 | `LIVE_CATALOG` | `1` runs the live OpenRouter catalog test |
+| `MEASURE_FACETS` | `1` runs the 4000-record history facets measurement |
 | `E2E_SLOW_MEDIA_MS` | Holds `/api/media` responses for the thumb-first paint e2e check |
 | `WRITE_IMAGE_PRICE_FIXTURE` | `1` rewrites the image price fixture during the drift test |
 | `FFMPEG_PATH` | ffmpeg binary for the dev server and smoke runs |

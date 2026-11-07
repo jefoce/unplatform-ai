@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { isNil } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 
 import type { HistoryFacetKind, HistoryFacets, ModelFacet } from '@/core/history-facets'
 import { IMAGE_ASPECT_RATIOS, IMAGE_RESOLUTIONS } from '@/core/presets/image/types'
@@ -11,9 +11,9 @@ import { type ImageRecord, ImageRecordSchema } from '@/core/schemas/image-record
 
 import { globalState } from '../global-state'
 import { downloadPaths, DOWNLOADS_DIR, imageRecordPath, IMAGES_DIR } from '../paths'
-import { listGenerations } from '../repos/generations'
-import { listImages } from '../repos/images'
-import { jsonDirStore } from '../repos/json-dir-store'
+import { getGeneration, listGenerations } from '../repos/generations'
+import { getImage, listImages } from '../repos/images'
+import { type JsonDirChange, jsonDirStore } from '../repos/json-dir-store'
 
 type FacetRecord = GenerationRecord | ImageRecord
 
@@ -39,13 +39,15 @@ interface ModelGroup {
 interface FacetIndex {
   rows: Map<string, FacetRow>
   facets: HistoryFacets
-  dirty: boolean
+  isLoaded: boolean
+  changes: JsonDirChange[]
   pending: Promise<void> | null
 }
 
 interface FacetSource {
   list: () => Promise<FacetRecord[]>
-  subscribe: (listener: () => void) => () => void
+  get: (id: string) => Promise<FacetRecord | null>
+  subscribe: (listener: (change: JsonDirChange) => void) => () => void
 }
 
 interface FacetOrder {
@@ -79,19 +81,19 @@ const imageStore = jsonDirStore<ImageRecord>({
 })
 
 const SOURCES: Record<HistoryFacetKind, FacetSource> = {
-  video: { list: listGenerations, subscribe: subscribeVideo },
-  image: { list: listImages, subscribe: subscribeImage },
+  video: { list: listGenerations, get: getGeneration, subscribe: subscribeVideo },
+  image: { list: listImages, get: getImage, subscribe: subscribeImage },
 }
 
 const indexes = globalState<Map<HistoryFacetKind, FacetIndex>>('historyFacetIndexes', () => {
   return new Map()
 })
 
-function subscribeVideo(listener: () => void): () => void {
+function subscribeVideo(listener: (change: JsonDirChange) => void): () => void {
   return videoStore.onChange(listener)
 }
 
-function subscribeImage(listener: () => void): () => void {
+function subscribeImage(listener: (change: JsonDirChange) => void): () => void {
   return imageStore.onChange(listener)
 }
 
@@ -129,13 +131,15 @@ function ensureIndex(kind: HistoryFacetKind): FacetIndex {
   const index: FacetIndex = {
     rows: new Map(),
     facets: emptyFacets(kind),
-    dirty: false,
+    isLoaded: false,
+    changes: [],
     pending: null,
   }
 
   indexes.set(kind, index)
 
-  SOURCES[kind].subscribe(() => {
+  SOURCES[kind].subscribe((change) => {
+    index.changes.push(change)
     schedule(index, kind)
   })
 
@@ -147,43 +151,68 @@ function emptyFacets(kind: HistoryFacetKind): HistoryFacets {
 }
 
 function schedule(index: FacetIndex, kind: HistoryFacetKind): void {
-  index.dirty = true
-  index.pending ??= drain(index, kind)
+  if (!isNil(index.pending)) {
+    return
+  }
+
+  if (index.isLoaded && isEmpty(index.changes)) {
+    return
+  }
+
+  index.pending = drain(index, kind).finally(() => {
+    index.pending = null
+  })
 }
 
 async function drain(index: FacetIndex, kind: HistoryFacetKind): Promise<void> {
-  try {
-    while (index.dirty) {
-      index.dirty = false
+  if (!index.isLoaded) {
+    await loadAll(index, kind)
 
-      await syncKind(index, kind)
+    return
+  }
+
+  await drainChanges(index, kind)
+}
+
+async function drainChanges(index: FacetIndex, kind: HistoryFacetKind): Promise<void> {
+  while (!isEmpty(index.changes)) {
+    const changes = index.changes.splice(0)
+
+    for (const change of changes) {
+      if (change.kind === 'forget') {
+        index.rows.delete(change.id)
+
+        continue
+      }
+
+      const record = await SOURCES[kind].get(change.id)
+
+      if (isNil(record)) {
+        index.rows.delete(change.id)
+
+        continue
+      }
+
+      index.rows.set(record.id, rowOf(record))
     }
-  } finally {
-    index.pending = null
+
+    index.facets = facetsFromRows(kind, index.rows.values())
   }
 }
 
-/** Replaces only the rows of records that changed, then re-aggregates. */
-async function syncKind(index: FacetIndex, kind: HistoryFacetKind): Promise<void> {
+/** The only full read. Later writes reach the index through the change queue. */
+async function loadAll(index: FacetIndex, kind: HistoryFacetKind): Promise<void> {
   const records = await SOURCES[kind].list()
 
-  const ids = new Set(
+  index.rows = new Map(
     records.map((record) => {
-      return record.id
+      return [record.id, rowOf(record)]
     }),
   )
 
-  for (const record of records) {
-    index.rows.set(record.id, rowOf(record))
-  }
-
-  for (const id of index.rows.keys()) {
-    if (!ids.has(id)) {
-      index.rows.delete(id)
-    }
-  }
-
   index.facets = facetsFromRows(kind, index.rows.values())
+  index.isLoaded = true
+  index.changes.length = 0
 }
 
 function rowOf(record: FacetRecord): FacetRow {

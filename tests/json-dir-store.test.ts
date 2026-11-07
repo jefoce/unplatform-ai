@@ -6,7 +6,11 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { jsonDirStore } from '@/server/repos/json-dir-store'
+import {
+  JSON_DIR_CHANGES,
+  type JsonDirChangeKind,
+  jsonDirStore,
+} from '@/server/repos/json-dir-store'
 
 const ItemSchema = z.object({ id: z.string() })
 
@@ -82,19 +86,26 @@ describe('jsonDirStore load', () => {
 })
 
 describe('jsonDirStore onChange', () => {
-  it('notifies on remember and stops after unsubscribe', async () => {
+  it('notifies the changed id and kind, then stops after unsubscribe', async () => {
     const store = openStore()
     const listener = vi.fn()
-    const unsubscribe = store.onChange(listener)
     const id = randomUUID()
+
+    expect(JSON_DIR_CHANGES).toEqual(['remember', 'forget'] satisfies JsonDirChangeKind[])
+
+    const unsubscribe = store.onChange(listener)
 
     await store.remember({ id })
 
-    expect(listener).toHaveBeenCalledTimes(1)
+    expect(listener).toHaveBeenLastCalledWith({ id, kind: 'remember' })
 
-    unsubscribe()
     await store.forget(id)
 
-    expect(listener).toHaveBeenCalledTimes(1)
+    expect(listener).toHaveBeenLastCalledWith({ id, kind: 'forget' })
+
+    unsubscribe()
+    await store.remember({ id })
+
+    expect(listener).toHaveBeenCalledTimes(2)
   })
 })

@@ -12,11 +12,20 @@ import { listJsonFileNames, readJson } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { globalState } from '../global-state'
 
+export const JSON_DIR_CHANGES = ['remember', 'forget'] as const
+
+export type JsonDirChangeKind = (typeof JSON_DIR_CHANGES)[number]
+
+export interface JsonDirChange {
+  id: string
+  kind: JsonDirChangeKind
+}
+
 interface IndexState<T> {
   map: Map<string, T>
   dirMtimeMs: number
   loaded: boolean
-  listeners: Set<() => void>
+  listeners: Set<(change: JsonDirChange) => void>
 }
 
 export interface JsonDirStore<T extends HasId> {
@@ -24,7 +33,7 @@ export interface JsonDirStore<T extends HasId> {
   get(id: string): Promise<T | null>
   remember(item: T): Promise<void>
   forget(id: string): Promise<void>
-  onChange(listener: () => void): () => void
+  onChange(listener: (change: JsonDirChange) => void): () => void
 }
 
 interface JsonDirStoreParams<T> {
@@ -45,9 +54,9 @@ function directoryMtime(dir: string): Promise<number> {
   )
 }
 
-function notifyAll(listeners: Set<() => void>): void {
+function notifyAll(listeners: Set<(change: JsonDirChange) => void>, change: JsonDirChange): void {
   for (const listener of listeners) {
-    listener()
+    listener(change)
   }
 }
 
@@ -128,12 +137,12 @@ export function jsonDirStore<T extends HasId>(params: JsonDirStoreParams<T>): Js
     async remember(item) {
       state.map.set(item.id, item)
       await refreshMtime()
-      notifyAll(state.listeners)
+      notifyAll(state.listeners, { id: item.id, kind: 'remember' })
     },
     async forget(id) {
       state.map.delete(id)
       await refreshMtime()
-      notifyAll(state.listeners)
+      notifyAll(state.listeners, { id, kind: 'forget' })
     },
     onChange(listener) {
       state.listeners.add(listener)
