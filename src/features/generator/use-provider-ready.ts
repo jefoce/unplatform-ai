@@ -4,6 +4,7 @@ import { isNil } from 'lodash-es'
 
 import type { CatalogEntry } from '@/core/catalog'
 import type { HistoryFacetKind } from '@/core/history-facets'
+import { isCustomPresetId } from '@/core/presets/custom'
 import { useSecrets } from '@/features/settings/use-secrets'
 import { useModelEntry } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
@@ -83,7 +84,7 @@ export function useProviderReady(
   const reason = readyReason({
     entry,
     isKeyMissing,
-    isCustomId: presetId?.startsWith('custom.') === true,
+    isCustomId: !isNil(presetId) && isCustomPresetId(presetId),
   })
 
   return { isKeyMissing, isReady: isReady && isNil(reason), reason }

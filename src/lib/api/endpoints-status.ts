@@ -8,6 +8,7 @@ import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import type { HistoryFacetKind } from '@/core/history-facets'
+import { isCustomPresetId } from '@/core/presets/custom'
 import { fetcher } from '@/lib/fetcher'
 
 import { MODELS_KEY } from './swr-keys'
@@ -224,7 +225,7 @@ async function checkPreset(presetId: string): Promise<string | null> {
 
 /** Fresh check for a selected preset. Null means ready or not a custom model. */
 export async function freshPresetReason(presetId: string): Promise<string | null> {
-  if (!presetId.startsWith('custom.')) {
+  if (!isCustomPresetId(presetId)) {
     return null
   }
 

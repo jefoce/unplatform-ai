@@ -5,6 +5,7 @@ import { isNil, keyBy, uniqBy } from 'lodash-es'
 import { toast } from 'sonner'
 
 import type { UploadsById } from '@/core/api/uploads'
+import { isCustomPresetId } from '@/core/presets/custom'
 import { findImagePreset } from '@/core/presets/image'
 import type {
   ImageAspectChoice,
@@ -104,7 +105,7 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
         const preset = findImagePreset(id)
 
         if (!preset) {
-          if (id.startsWith('custom.')) {
+          if (isCustomPresetId(id)) {
             set({ presetId: id })
           }
 
@@ -257,7 +258,7 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
   normalize: (state) => {
     const found = findImagePreset(state.presetId)
 
-    if (isNil(found) && state.presetId.startsWith('custom.')) {
+    if (isNil(found) && isCustomPresetId(state.presetId)) {
       return {}
     }
 

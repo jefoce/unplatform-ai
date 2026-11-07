@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { normalizeForPreset } from '@/core/normalize-input'
 import { DEFAULT_VIDEO_PRESET_ID, findPreset, getPreset } from '@/core/presets'
+import { isCustomPresetId } from '@/core/presets/custom'
 import { canonicalizePrompt, referenceSlots } from '@/core/prompt-tokens'
 
 import { inputFromState } from './store-draft'
@@ -20,7 +21,7 @@ export function createLoadActions(set: GeneratorSetState, get: GeneratorGetState
       const cache = { ...get().uploadsById, ...keyBy(uploads, 'id') }
       const found = findPreset(input.presetId)
 
-      if (isNil(found) && input.presetId.startsWith('custom.')) {
+      if (isNil(found) && isCustomPresetId(input.presetId)) {
         set((state) => {
           return {
             ...omit(input, 'prompt'),
@@ -54,7 +55,7 @@ export function createLoadActions(set: GeneratorSetState, get: GeneratorGetState
       const state = get()
       const found = findPreset(state.presetId)
 
-      if (isNil(found) && state.presetId.startsWith('custom.')) {
+      if (isNil(found) && isCustomPresetId(state.presetId)) {
         return
       }
 

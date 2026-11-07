@@ -1,12 +1,11 @@
 import 'server-only'
 
 import { isNonEmptyString, isRecord } from '@/core/guards'
-
-const CUSTOM_PREFIX = 'custom.'
+import { isCustomPresetId } from '@/core/presets/custom'
 
 /** `custom.<endpointId>.<modelId>` per design section 4. */
 export function endpointIdFromPresetId(presetId: string): string | null {
-  if (!presetId.startsWith(CUSTOM_PREFIX)) {
+  if (!isCustomPresetId(presetId)) {
     return null
   }
 

@@ -4,6 +4,7 @@ import type { ModelAvailability } from '../../catalog'
 import { isOneOf } from '../../guards'
 import type { PricingConfig } from '../../pricing/types'
 import type { UpaiDuration, UpaiModel } from '../../protocol/upai'
+import { CUSTOM_PRESET_PREFIX } from './index'
 import type { DurationResult, KeepListParams, KeptList, MappedDuration } from './types'
 
 export const CUSTOM_STALE_REASON = 'Workflow changed in ComfyUI since the last save'
@@ -131,5 +132,5 @@ export function customPricing(model: UpaiModel): PricingConfig {
 }
 
 export function presetIdFor(endpointId: string, modelId: string): string {
-  return `custom.${endpointId}.${modelId}`
+  return `${CUSTOM_PRESET_PREFIX}${endpointId}.${modelId}`
 }

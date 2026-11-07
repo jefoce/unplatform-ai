@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { normalizeForPreset } from '@/core/normalize-input'
 import { DEFAULT_VIDEO_PRESET_ID, findPreset, getPreset } from '@/core/presets'
+import { isCustomPresetId } from '@/core/presets/custom'
 import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { FrameSlotsSchema, GENERATOR_TABS } from '@/core/schemas/generation-record'
 import { createDraftStore } from '@/lib/create-draft-store'
@@ -32,7 +33,7 @@ const DraftSchema = z.object({
 function normalizeDraft(state: GeneratorState): Partial<GeneratorState> {
   const found = findPreset(state.presetId)
 
-  if (isNil(found) && state.presetId.startsWith('custom.')) {
+  if (isNil(found) && isCustomPresetId(state.presetId)) {
     return {}
   }
 
