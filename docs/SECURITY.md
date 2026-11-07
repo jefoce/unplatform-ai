@@ -10,6 +10,7 @@ Single user, local app on macOS, Windows and Linux. It is not a server for a net
 |---|---|
 | OpenRouter keys | macOS Keychain, Windows Credential Manager, Linux Secret Service, or `secrets.json` (0600) on Linux when no keyring exists |
 | R2 credentials | Same as above |
+| Custom endpoint tokens | Same keychain or `secrets.json` entry as keys, one compact JSON map `CUSTOM_ENDPOINT_TOKENS` |
 | Prompts and media | `~/.unplatform-ai` and requests to OpenRouter or R2 |
 | Generated videos | `~/.unplatform-ai/downloads` |
 
@@ -38,7 +39,17 @@ The webview never receives key material. In desktop mode the Node server asks th
 
 The app CSP is built once in `src/lib/csp.ts` (`buildAppCsp`). `src/proxy.ts` attaches it with a fresh nonce per document, and `tauri.conf.json` repeats the same policy for the splash page.
 
-## 4. Updates
+## 4. Custom endpoints
+
+- Origin pin. A saved `baseUrl` is reduced to scheme, host and port. Every request is built from that origin. Redirects are refused. The caller abort signal and a timeout are combined.
+- http and LAN are allowed only for a saved origin. OpenRouter keeps `safeFetchProviderUrl` (https, public addresses). A user-entered endpoint does not use it.
+- Tokens. `CUSTOM_ENDPOINT_TOKENS` is one keychain or `secrets.json` entry holding compact JSON `{ endpointId: token }`, capped at 4096 characters. The UI shows the last four characters. The value is never logged.
+- Uploads. Custom video and audio go to the pack `/api/v1/uploads` with a HEAD dedupe and the health size cap and quota. Images and frames stay data URLs. Custom endpoints never use R2.
+- Pack peer policy. A loopback peer is always accepted. A LAN peer needs `allow_lan`, or `allow_remote` plus a token. A public peer needs `allow_remote` plus a token. The 403 text names the fix.
+- Delete. Deleting an endpoint removes its token and cached model list. Non-final jobs fail with `upai:endpoint_removed`. No cancel call is sent.
+- Trust. The endpoint receives prompts and reference bytes. Add only a machine you trust. A malicious endpoint can return arbitrary media. Images are size and media-type checked, and video is probed before it becomes the file.
+
+## 5. Updates
 
 `latest.json` comes over HTTPS from GitHub and carries one signature per installer. It is not itself signed. The shell checks the downloaded installer against the Ed25519 public key embedded in `tauri.conf.json`, so a changed manifest can only point at files that fail the check. The plugin installs only a version newer than the running one. A download that fails the check is rejected, and the update stops the server and restarts the app. `UPAI_UPDATE_ENDPOINT` changes which manifest is read, never the key.
 
@@ -46,7 +57,7 @@ The private signing key lives only in the GitHub secrets `TAURI_SIGNING_PRIVATE_
 
 A lost or leaked key cannot be replaced for an installed app, because the embedded public key is fixed at build time. Every user must then reinstall by hand from the Releases page. Keep a backup of the key.
 
-## 5. Known limits
+## 6. Known limits
 
 - The app is ad hoc signed. macOS can show Keychain prompts again after a rebuild or update, and Gatekeeper needs the first-open bypass. A Developer ID signature is planned. See [DEVELOPMENT.md](DEVELOPMENT.md).
 - The session cookie is host-only (no `Domain`), `HttpOnly` and `SameSite=Strict`. `Secure` is omitted because the origin is plain http on `127.0.0.1`, so the cookie cannot leave the host. The token travels in the URL fragment, which browsers never send, then a page POSTs it to `/api/session` and replaces the URL with `/`.
@@ -54,7 +65,9 @@ A lost or leaked key cannot be replaced for an installed app, because the embedd
 - Presigned R2 links work for anyone who has the URL until they expire. The app never logs them, but a copied URL is a valid read for the link lifetime.
 - If Linux has no keyring service, keys fall back to `~/.unplatform-ai/secrets.json` with mode 0600. File permissions, not the OS keyring, protect that file. macOS and Windows do not use the file fallback.
 - The R2 token can read and write the configured bucket. Create a token scoped to that bucket only.
+- Custom endpoints over plain http are unencrypted on the LAN. Use a token and a trusted network.
+- Custom endpoint tokens share the same keychain or file protection as provider keys.
 
-## 6. Reporting
+## 7. Reporting
 
 Security problems: use GitHub private vulnerability reporting (Security tab, "Report a vulnerability"). Normal bugs: open an issue. Do not include keys, account ids, presigned URLs or private media in the report.
