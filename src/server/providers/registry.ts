@@ -171,3 +171,18 @@ export function getImageProvider(instanceId: string = DEFAULT_INSTANCE_ID): Imag
 
   return provider
 }
+
+/** Drops every custom adapter so the next read uses the new endpoint file. */
+export function resetCustomProviders(): void {
+  deleteCustomKeys(state.video)
+  deleteCustomKeys(state.image)
+  deleteCustomKeys(state.imageFactories)
+}
+
+function deleteCustomKeys<Value>(map: Map<string, Value>): void {
+  for (const key of Array.from(map.keys())) {
+    if (key !== DEFAULT_INSTANCE_ID) {
+      map.delete(key)
+    }
+  }
+}

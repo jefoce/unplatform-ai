@@ -11,9 +11,12 @@ import {
   CustomEndpointLastHealthSchema,
 } from '@/core/schemas/custom-endpoint'
 
+import { resetCustomProviders } from '../providers/registry'
 import { normalizeBaseUrl } from '../repos/endpoints'
+import { writeEndpointModels } from './endpoint-model-cache'
 import { readEndpointToken } from './endpoint-tokens'
 import { markEndpointHealth } from './endpoints'
+import { clearModelCatalog } from './model-catalog'
 
 const UNAUTHORIZED_TEXT = 'Token needed or wrong'
 
@@ -97,6 +100,23 @@ export async function testEndpoint(params: EndpointTestParams): Promise<Endpoint
     ])
 
     markEndpointHealth({ endpointId: params.endpointId, status: 'ok', message: null })
+
+    if (!isNil(params.endpointId)) {
+      await writeEndpointModels({
+        endpointId: params.endpointId,
+        kind: 'video',
+        models: video.data,
+      })
+
+      await writeEndpointModels({
+        endpointId: params.endpointId,
+        kind: 'image',
+        models: image.data,
+      })
+
+      clearModelCatalog()
+      resetCustomProviders()
+    }
 
     const lastHealth = CustomEndpointLastHealthSchema.parse({
       protocol: health.protocol,

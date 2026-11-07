@@ -11,6 +11,7 @@ import { imageQuoteContext, imageUnitOf, quoteWithFallback } from '@/core/pricin
 import type { SkuTable } from '@/core/pricing/types'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { ImageCost, ImageGenerationInput, ImageRecord } from '@/core/schemas/image-record'
+import { PresetSnapshotSchema } from '@/core/schemas/preset-snapshot'
 import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { HttpError } from '../errors'
@@ -185,6 +186,7 @@ export async function createImage(params: CreateImageParams): Promise<ImageRecor
 
   if (!isNil(endpoint)) {
     record.source = customRecordSource(preset, endpoint)
+    record.presetSnapshot = PresetSnapshotSchema.parse(preset)
   }
 
   const saved = await saveImage(record)

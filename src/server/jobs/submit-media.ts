@@ -14,6 +14,7 @@ import type { Dict } from '@/core/utility-types'
 
 import { encodeImages } from '../media/image-data-url'
 import { toDataUrl } from '../media/to-data-url'
+import { instanceIdOf } from '../providers/custom/record-instance'
 import { getVideoProvider } from '../providers/registry'
 import type { ResolvedMedia, SubmittedJob } from '../providers/types'
 import { ensureRemote, presignFor } from '../services/remote-inputs'
@@ -246,7 +247,7 @@ export async function recordSent(id: string, plan: ReferencePlan): Promise<void>
 
 export async function send(params: SendParams): Promise<SubmittedJob> {
   const { record, preset, uploads, transports, built } = params
-  const provider = getVideoProvider(record.provider)
+  const provider = getVideoProvider(instanceIdOf(record))
 
   try {
     return await provider.submit({ input: record.input, preset, media: built.media })
@@ -262,7 +263,7 @@ export async function send(params: SendParams): Promise<SubmittedJob> {
       uploads,
       transports: base64Only(transports),
       preset,
-      endpointId: null,
+      endpointId: instanceIdOf(record),
     }).catch(() => {
       return null
     })

@@ -24,6 +24,7 @@ import type {
   InputSnapshot,
   PriceSource,
 } from '@/core/schemas/generation-record'
+import { PresetSnapshotSchema } from '@/core/schemas/preset-snapshot'
 
 import { HttpError } from '../errors'
 import { startSubmit } from '../jobs/submit-queue'
@@ -105,6 +106,7 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
 
   if (!isNil(endpoint)) {
     record.source = customRecordSource(preset, endpoint)
+    record.presetSnapshot = PresetSnapshotSchema.parse(preset)
   }
 
   const saved = await withLock('active-generations', async () => {

@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { isNil } from 'lodash-es'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
@@ -30,6 +30,9 @@ vi.mock('@/server/secrets', () => {
   return {
     secretsReady: async () => {},
     registerSecretsListener: () => {},
+    getSecret: () => {
+      return null
+    },
   }
 })
 
@@ -61,8 +64,12 @@ vi.mock('@/core/providers/registry', () => {
   }
 })
 
-const { clearEndpointModelCache, markEndpointUnreachable, writeEndpointModels } =
-  await import('@/server/services/endpoint-model-cache')
+const {
+  clearEndpointModelCache,
+  markEndpointUnreachable,
+  readEndpointModels,
+  writeEndpointModels,
+} = await import('@/server/services/endpoint-model-cache')
 
 const {
   clearModelCatalog,
@@ -133,6 +140,22 @@ async function writeEndpoints(endpoints: readonly CustomEndpoint[]): Promise<voi
   )
 }
 
+function mockModelFetch() {
+  const mock = vi.fn(async (input: string | URL | Request) => {
+    const url = String(input)
+    const body = url.endsWith('/videos/models') ? videoFixture : imageFixture
+
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  })
+
+  vi.stubGlobal('fetch', mock)
+
+  return mock
+}
+
 function customEntries(entries: readonly CatalogEntry[]): CatalogEntry[] {
   return entries.filter((entry) => {
     return entry.source.kind === 'custom'
@@ -154,6 +177,11 @@ function entryFor(entries: readonly CatalogEntry[], modelId: string): CatalogEnt
 beforeEach(() => {
   clearModelCatalog()
   clearEndpointModelCache()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 afterAll(async () => {
@@ -369,6 +397,64 @@ describe('custom catalog', () => {
     clearModelCatalog()
 
     expect(customEntries((await getModelCatalog()).entries)).toEqual([])
+  })
+
+  it('fetches both lists when a tested endpoint has no cache', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = healthEndpoint('cat-net-new', 'CUF', 1000)
+
+    await writeEndpoints([endpoint])
+    const fetchMock = mockModelFetch()
+
+    clearModelCatalog()
+
+    const entries = customEntries((await getModelCatalog()).entries)
+
+    expect(entryFor(entries, video.id).status).toBe('available')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(await readEndpointModels(endpoint.id)).not.toBeNull()
+  })
+
+  it('keeps the cached list when a tested endpoint fetch fails', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = healthEndpoint('cat-net-fail', 'CUG', 1000)
+
+    await writeEndpoints([endpoint])
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    vi.setSystemTime(new Date('2026-01-01T00:02:00Z'))
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      }),
+    )
+
+    const entries = customEntries((await getModelCatalog()).entries)
+
+    expect(entryFor(entries, video.id).status).toBe('unverified')
+  })
+
+  it('does not fetch when the endpoint was never tested', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-net-off', 'CUH')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    const fetchMock = vi.fn()
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const entries = customEntries((await getModelCatalog()).entries)
+
+    expect(entryFor(entries, video.id).status).toBe('available')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

@@ -2,28 +2,33 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import type {
-  CatalogEntry,
-  CatalogEntrySource,
-  ModelAvailability,
-  ModelStatus,
+import {
+  type CatalogEntry,
+  type CatalogEntrySource,
+  type ModelAvailability,
+  type ModelStatus,
 } from '@/core/catalog'
+import { FETCH_TIMEOUTS, MODEL_CATALOG_TTL_MS } from '@/core/constants'
 import { mapCustomModel } from '@/core/presets/custom/from-capabilities'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
-import type { UpaiModel } from '@/core/protocol/upai'
+import { type UpaiModel, UpaiModelListSchema } from '@/core/protocol/upai'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
 import { globalState } from '../global-state'
 import { fallbackPricing } from '../pricing/live'
+import { requestHeaders, requestJson } from '../providers/custom/http'
 import {
   type EndpointModelCache,
   type EndpointModelKind,
   isEndpointUnreachable,
   isModelMissing,
   listEnabledCustomEndpoints,
+  markEndpointReachable,
+  markEndpointUnreachable,
   readEndpointModels,
+  writeEndpointModels,
 } from './endpoint-model-cache'
 
 const MISSING_REASON = 'This workflow is gone from ComfyUI.'
@@ -104,7 +109,7 @@ export function clearCustomCatalog(): void {
 }
 
 async function loadEndpointCatalog(endpoint: CustomEndpoint): Promise<KindCatalog> {
-  const cache = await readEndpointModels(endpoint.id)
+  const cache = await endpointModels(endpoint)
 
   if (isNil(cache)) {
     return { entries: [], presets: [] }
@@ -122,6 +127,54 @@ async function loadEndpointCatalog(endpoint: CustomEndpoint): Promise<KindCatalo
     }),
     buildKindCatalog({ endpoint, cache, kind: 'image', models: cache.image, isUnreachable }),
   ])
+}
+
+/** Refreshes a reached endpoint on a stale cache, and keeps the last good list on failure. */
+async function endpointModels(endpoint: CustomEndpoint): Promise<EndpointModelCache | null> {
+  const cached = await readEndpointModels(endpoint.id)
+
+  if (isNil(endpoint.lastHealth) || isFreshCache(cached)) {
+    return cached
+  }
+
+  try {
+    const [video, image] = await Promise.all([
+      fetchModelList(endpoint, '/api/v1/videos/models'),
+      fetchModelList(endpoint, '/api/v1/images/models'),
+    ])
+
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: video })
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'image', models: image })
+    markEndpointReachable(endpoint.id)
+
+    return await readEndpointModels(endpoint.id)
+  } catch {
+    markEndpointUnreachable(endpoint.id)
+
+    return cached
+  }
+}
+
+function isFreshCache(cache: EndpointModelCache | null): boolean {
+  if (isNil(cache)) {
+    return false
+  }
+
+  return Date.now() - Date.parse(cache.fetchedAt) < MODEL_CATALOG_TTL_MS
+}
+
+async function fetchModelList(
+  endpoint: CustomEndpoint,
+  path: string,
+): Promise<readonly UpaiModel[]> {
+  const payload = await requestJson({
+    endpoint,
+    path,
+    init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
+    timeoutMs: FETCH_TIMEOUTS.meta,
+  })
+
+  return UpaiModelListSchema.parse(payload).data
 }
 
 function mergeCatalogs(catalogs: readonly KindCatalog[]): KindCatalog {

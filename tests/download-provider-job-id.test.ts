@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { queueDownload as QueueDownload } from '@/server/jobs/download-queue'
 import type { ContentRequest, JobSnapshot } from '@/server/providers/types'
@@ -17,15 +17,19 @@ const root = path.join(os.tmpdir(), `cf-provider-job-id-${process.pid}-${Date.no
 
 process.env.STORAGE_ROOT = root
 
-const fetchContent = vi.hoisted(() => {
-  return vi.fn<(request: ContentRequest) => Promise<Response>>()
+const provider = vi.hoisted(() => {
+  const fetchContent = vi.fn<(request: ContentRequest) => Promise<Response>>()
+
+  const getVideoProvider = vi.fn(() => {
+    return { fetchContent }
+  })
+
+  return { fetchContent, getVideoProvider }
 })
 
 vi.mock('@/server/providers/registry', () => {
   return {
-    getVideoProvider: () => {
-      return { fetchContent }
-    },
+    getVideoProvider: provider.getVideoProvider,
   }
 })
 
@@ -41,7 +45,9 @@ vi.mock('@/server/media/ffmpeg', async () => {
 })
 
 const ID = '33333333-3333-4333-8333-333333333333'
+const CUSTOM_ID = '44444444-4444-4444-8444-444444444444'
 const PROVIDER_JOB_ID = 'or-job-4242'
+const CUSTOM_JOB_ID = 'ep-job-4242'
 
 const JOB: JobSnapshot = {
   status: 'completed',
@@ -64,13 +70,17 @@ beforeAll(async () => {
   ;({ getGeneration, saveGeneration } = await import('@/server/repos/generations'))
 })
 
+beforeEach(() => {
+  provider.getVideoProvider.mockClear()
+})
+
 afterAll(async () => {
   await fs.rm(root, { recursive: true, force: true })
 })
 
 describe('download content', () => {
   it('fetches with the provider job id when urls is empty', async () => {
-    fetchContent.mockResolvedValue(new Response(new Uint8Array([0, 0, 0, 0])))
+    provider.fetchContent.mockResolvedValue(new Response(new Uint8Array([0, 0, 0, 0])))
 
     const record = storedRecord(ID, {
       job: { id: PROVIDER_JOB_ID, submittedAt: '2026-01-01T00:00:00.000Z' },
@@ -88,10 +98,42 @@ describe('download content', () => {
       { timeout: 5000 },
     )
 
-    const request = fetchContent.mock.calls[0]?.[0]
+    const request = provider.fetchContent.mock.calls[0]?.[0]
 
     expect(request?.job.jobId).toBe(PROVIDER_JOB_ID)
     expect(request?.job.jobId).not.toBe(ID)
-    expect(fetchContent).toHaveBeenCalledTimes(1)
+    expect(provider.fetchContent).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves the custom endpoint instance', async () => {
+    provider.fetchContent.mockResolvedValue(new Response(new Uint8Array([0, 0, 0, 0])))
+
+    const record = storedRecord(CUSTOM_ID, {
+      provider: 'custom',
+      source: {
+        kind: 'custom',
+        instanceId: 'ep-custom',
+        badge: 'CU1',
+        presetTitle: 'Local Wan',
+        workflowName: null,
+        endpointLabel: 'Studio',
+        local: true,
+      },
+      job: { id: CUSTOM_JOB_ID, submittedAt: '2026-01-01T00:00:00.000Z' },
+    })
+
+    await saveGeneration(record)
+    await queueDownload(record, JOB)
+
+    await vi.waitFor(
+      async () => {
+        const record = await getGeneration(CUSTOM_ID)
+
+        expect(record?.output?.video).toBe(`${CUSTOM_ID}.mp4`)
+      },
+      { timeout: 5000 },
+    )
+
+    expect(provider.getVideoProvider).toHaveBeenCalledWith('ep-custom')
   })
 })

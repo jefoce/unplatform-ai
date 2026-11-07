@@ -21,6 +21,7 @@ import { globalState } from '../global-state'
 import { probeMedia } from '../media/ffmpeg'
 import { makePreview } from '../media/preview'
 import { downloadPaths } from '../paths'
+import { instanceIdOf } from '../providers/custom/record-instance'
 import { getVideoProvider } from '../providers/registry'
 import { safeFetchProviderUrl } from '../providers/safe-fetch'
 import type { JobSnapshot } from '../providers/types'
@@ -385,7 +386,7 @@ async function openContent(params: DownloadTask): Promise<Response> {
   const { record, job } = params
   const jobId = record.job?.id
   const submittedAt = record.job?.submittedAt ?? ''
-  const provider = getVideoProvider(record.provider)
+  const provider = getVideoProvider(instanceIdOf(record))
 
   try {
     if (!isNonEmptyString(jobId)) {

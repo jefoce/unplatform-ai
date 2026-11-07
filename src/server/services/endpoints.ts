@@ -6,6 +6,7 @@ import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import type { EndpointHealthStatus } from '@/core/endpoints'
+import { isNonEmptyString } from '@/core/guards'
 import {
   type CustomEndpoint,
   type CustomEndpointLastHealth,
@@ -18,9 +19,10 @@ import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
 
 import { HttpError } from '../errors'
-import { readJson, removeFile } from '../fs/json-file'
+import { readJson } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { globalState } from '../global-state'
+import { resetCustomProviders } from '../providers/registry'
 import {
   applyEndpoints,
   type EndpointEntry,
@@ -31,7 +33,9 @@ import {
 } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
+import { removeEndpointModelCache } from './endpoint-model-cache'
 import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
+import { clearModelCatalog } from './model-catalog'
 
 const ModelCountsSchema = z
   .object({
@@ -188,7 +192,17 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
     health.delete(id)
   }
 
-  await Promise.all(result.removedIds.map(removeEndpointCache))
+  await Promise.all(result.removedIds.map(removeEndpointModelCache))
+
+  const preparedIds = prepared
+    .map((item) => {
+      return item.entry.id
+    })
+    .filter(isNonEmptyString)
+
+  await Promise.all(preparedIds.map(removeEndpointModelCache))
+  clearModelCatalog()
+  resetCustomProviders()
 
   return getEndpointOverview()
 }
@@ -294,12 +308,4 @@ function hintFor(token: string | undefined): string | null {
   }
 
   return token.slice(-4)
-}
-
-async function removeEndpointCache(id: string): Promise<void> {
-  if (!isUuid(id)) {
-    return
-  }
-
-  await removeFile(endpointModelsFile(id))
 }
