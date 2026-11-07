@@ -250,12 +250,15 @@ function availabilityFor(params: AvailabilityParams): ModelAvailability {
 }
 
 function sourceFor(endpoint: CustomEndpoint, model: UpaiModel): CatalogEntrySource {
+  const priceUnit = endpoint.pricing.mode === 'perSecond' ? 'second' : 'run'
+
   return {
     kind: 'custom',
     instanceId: endpoint.id,
     badge: endpoint.badge,
     workflowName: model.workflow?.name ?? null,
     local: true,
+    priceUnit,
   }
 }
 

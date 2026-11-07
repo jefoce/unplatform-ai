@@ -13,6 +13,8 @@ import type { ImagePreset } from '../src/core/presets/image/types'
 import type { VideoPreset } from '../src/core/presets/video/types'
 import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
 import { CustomEndpointSchema } from '../src/core/schemas/custom-endpoint'
+import { ImageInputSchema } from '../src/core/schemas/image-record'
+import { validateImageInput } from '../src/core/validation/image'
 
 const ENDPOINT = CustomEndpointSchema.parse({
   id: 'endpoint-1',
@@ -299,10 +301,35 @@ describe('image mapping', () => {
     expect(preset.params).toEqual([])
     expect(preset.resolutions).toBeNull()
     expect(preset.defaultResolution).toBeNull()
-    expect(preset.aspectRatios).toEqual([])
+    expect(preset.aspectRatios).toEqual(['auto'])
     expect(preset.defaultAspectRatio).toBe('auto')
     expect(preset.maxN).toBe(1)
     expect(preset.referenceMax).toBe(0)
+  })
+
+  it('validates an empty aspect list as auto', () => {
+    const base = modelAt(IMAGE_MODELS, 0)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: { ...base.capabilities, aspect_ratios: [] },
+    }
+
+    const preset = expectImage(mapModel(model))
+
+    const input = ImageInputSchema.parse({
+      presetId: preset.id,
+      prompt: 'a cat',
+      count: 1,
+      aspectRatio: 'auto',
+      resolution: preset.defaultResolution,
+      quality: null,
+      background: null,
+      references: [],
+      seed: null,
+    })
+
+    expect(validateImageInput(preset, input)).toEqual([])
   })
 
   it('maps an invalid model to a disabled preset with its status reason', () => {

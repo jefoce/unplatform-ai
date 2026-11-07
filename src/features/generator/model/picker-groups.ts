@@ -60,7 +60,9 @@ function customPrice(entry: CatalogEntry, preset: VideoPreset | ImagePreset): st
     return ''
   }
 
-  return `${formatUsd(usd)} / run`
+  const unit = entry.source.priceUnit === 'second' ? 's' : 'run'
+
+  return `${formatUsd(usd)} / ${unit}`
 }
 
 function descriptionOf(preset: VideoPreset | ImagePreset): string {

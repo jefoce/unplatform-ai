@@ -39,8 +39,14 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
   const hasResolution = !isEmpty(resolutions.kept)
   const hasAspect = !isEmpty(aspects.kept)
   const countMax = caps.count?.max ?? 0
+  let aspectRatios: readonly ImageAspectChoice[] = aspects.kept
   const defaultAspectRatio = imageDefaultAspect(aspects.kept, caps.default_aspect_ratio)
   let defaultResolution: ImageResolution | null = null
+
+  if (!hasAspect) {
+    aspectRatios = ['auto']
+  }
+
   let resolutionOptions: readonly ImageOption<ImageResolution>[] | null = null
 
   if (hasResolution) {
@@ -57,7 +63,7 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
     icon: CUSTOM_ICON,
     resolutions: resolutionOptions,
     defaultResolution,
-    aspectRatios: aspects.kept,
+    aspectRatios,
     defaultAspectRatio,
     qualities: null,
     defaultQuality: null,

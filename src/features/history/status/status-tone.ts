@@ -127,6 +127,7 @@ export function isCustomActiveRecord(record: GenerationRecord): boolean {
   return (
     record.provider === 'custom' &&
     ACTIVE_STATUSES.includes(record.status) &&
+    isNil(record.download) &&
     !isGraceRecord(record)
   )
 }

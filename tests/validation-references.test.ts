@@ -80,6 +80,34 @@ describe('validateInput reference counts', () => {
   })
 })
 
+describe('validateInput required references', () => {
+  const required = {
+    ...preset,
+    referencesRequired: { image: 2, video: 0, audio: 0 },
+  }
+
+  it('rejects fewer than the required image references', () => {
+    const result = validateInput({
+      input: input({ references: ['img'] }),
+      uploads: uploadsOf(upload('img', 'image')),
+      preset: required,
+    })
+
+    expect(result.errors).toContain('This model needs 2 Image references')
+  })
+
+  it('accepts the required image references', () => {
+    const result = validateInput({
+      input: input({ references: ['a', 'b'] }),
+      uploads: uploadsOf(upload('a', 'image'), upload('b', 'image')),
+      preset: required,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+  })
+})
+
 describe('validateInput reference storage', () => {
   it('skips the cloud storage error while remote status is unknown', () => {
     const result = validateInput({

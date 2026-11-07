@@ -24,6 +24,9 @@ export interface CatalogEntrySource {
   badge: string | null
   workflowName: string | null
   local: boolean
+
+  /** Price suffix for the picker. Static presets leave it unset. */
+  priceUnit?: 'run' | 'second'
 }
 
 export interface CatalogEntry {

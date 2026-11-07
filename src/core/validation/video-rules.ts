@@ -102,6 +102,18 @@ interface CheckFrameOrderParams extends ValidateFramesParams {
   errors: string[]
 }
 
+const checkRequiredFrames = (params: CheckFrameOrderParams): void => {
+  const { input, preset, errors } = params
+
+  if (preset.frames.startRequired === true && isNil(input.frames.start)) {
+    errors.push('A first frame is required')
+  }
+
+  if (preset.frames.endRequired === true && isNil(input.frames.end)) {
+    errors.push('A last frame is required')
+  }
+}
+
 const checkFrameOrder = (params: CheckFrameOrderParams): void => {
   const { input, preset, errors } = params
 
@@ -134,6 +146,7 @@ export function validateFrames(params: ValidateFramesParams): RuleResult {
     return { errors, warnings: [] }
   }
 
+  checkRequiredFrames({ input, uploads, preset, errors })
   checkFrameOrder({ input, uploads, preset, errors })
   checkFrameKind({ id: input.frames.start, role: 'Start frame', uploads, errors })
 

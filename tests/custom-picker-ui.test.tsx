@@ -61,8 +61,9 @@ function entry(params: {
   reason?: string | null
   badge?: string
   perRun?: number
+  priceUnit?: 'run' | 'second'
 }): CatalogEntry {
-  const { preset, status = 'available', reason = null, badge = 'CU1', perRun } = params
+  const { preset, status = 'available', reason = null, badge = 'CU1', perRun, priceUnit } = params
 
   return {
     modelId: preset.id,
@@ -86,6 +87,7 @@ function entry(params: {
       badge,
       workflowName: 'Wan 2.2 workflow',
       local: true,
+      priceUnit,
     },
     preset,
   }
@@ -261,5 +263,24 @@ describe('custom model picker', () => {
     fireEvent.click(refresh)
 
     expect(mockRefresh).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('custom model price units', () => {
+  it('labels a per-second price with / s and a per-run price with / run', () => {
+    useEntries([
+      entry({
+        preset: customPreset('custom.cu1.second', 'Second Model'),
+        perRun: 2,
+        priceUnit: 'second',
+      }),
+      entry({ preset: customPreset('custom.cu1.run', 'Run Model'), perRun: 2 }),
+    ])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+
+    expect(within(dialog).getByText('$2.00 / s')).toBeTruthy()
+    expect(within(dialog).getByText('$2.00 / run')).toBeTruthy()
   })
 })

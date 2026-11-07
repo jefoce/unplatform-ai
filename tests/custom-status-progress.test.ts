@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { STATUS_HELP, statusHelpKey } from '@/core/status-help'
+import { isCustomActiveRecord } from '@/features/history/status/status-tone'
 import { endpointOfflineView, videoStatusView } from '@/features/history/status/status-view'
 
 import { storedRecord } from './helpers/stored-record'
@@ -67,5 +68,12 @@ describe('custom job progress', () => {
     expect(view.label).toBe('ComfyUI offline, will resume')
     expect(view.tone).toBe('gray')
     expect(view.error).toBeNull()
+  })
+
+  it('is not active while the output is downloading', () => {
+    const record = custom({ download: { startedAt: '2026-01-01T00:00:00.000Z' } })
+
+    expect(isCustomActiveRecord(custom())).toBe(true)
+    expect(isCustomActiveRecord(record)).toBe(false)
   })
 })

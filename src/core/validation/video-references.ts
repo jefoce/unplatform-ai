@@ -73,6 +73,12 @@ const checkReferenceCounts = (params: CheckReferenceCountsParams): void => {
     if (counts[kind] > preset.references[kind]) {
       errors.push(`Too many ${kind}s (${counts[kind]}, max ${preset.references[kind]})`)
     }
+
+    const required = preset.referencesRequired?.[kind] ?? 0
+
+    if (required > 0 && counts[kind] < required) {
+      errors.push(`This model needs ${required} ${KIND_TITLE[kind]} references`)
+    }
   }
 }
 

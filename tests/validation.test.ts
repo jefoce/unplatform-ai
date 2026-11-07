@@ -344,3 +344,31 @@ describe('validateInput frames', () => {
     expect(result.errors).toContain('Image too small: 200 px, min 240 px (small.png)')
   })
 })
+
+describe('validateInput required frames', () => {
+  const emptyFrames = { start: null, end: null }
+
+  it('rejects a missing required first frame', () => {
+    const requiredStart = { ...preset, frames: { ...preset.frames, startRequired: true } }
+
+    const result = validateInput({
+      input: input({ tab: 'frames', prompt: 'A cat', frames: emptyFrames }),
+      uploads: {},
+      preset: requiredStart,
+    })
+
+    expect(result.errors).toContain('A first frame is required')
+  })
+
+  it('rejects a missing required last frame', () => {
+    const requiredEnd = { ...preset, frames: { ...preset.frames, endRequired: true } }
+
+    const result = validateInput({
+      input: input({ tab: 'frames', prompt: 'A cat', frames: emptyFrames }),
+      uploads: {},
+      preset: requiredEnd,
+    })
+
+    expect(result.errors).toContain('A last frame is required')
+  })
+})

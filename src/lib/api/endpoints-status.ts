@@ -57,7 +57,8 @@ const EndpointTestSchema = z.object({
 /** Endpoint list with the last health state, read for the ready gate. */
 export function useEndpointsStatus(): EndpointsState {
   const { data, isLoading } = useSWR<EndpointsOverview>(ENDPOINTS_STATUS_KEY, fetcher, {
-    revalidateOnFocus: false,
+    refreshInterval: 15_000,
+    revalidateOnFocus: true,
   })
 
   return { endpoints: data?.endpoints ?? [], isLoading }
