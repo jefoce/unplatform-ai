@@ -1,7 +1,7 @@
 'use client'
 
 import { arrayMove } from '@dnd-kit/sortable'
-import { keyBy, uniqBy } from 'lodash-es'
+import { isNil, keyBy, uniqBy } from 'lodash-es'
 import { toast } from 'sonner'
 
 import type { UploadsById } from '@/core/api/uploads'
@@ -255,7 +255,13 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
     }
   },
   normalize: (state) => {
-    return imageDraftForPreset(state, currentImagePreset(state.presetId))
+    const found = findImagePreset(state.presetId)
+
+    if (isNil(found) && state.presetId.startsWith('custom.')) {
+      return {}
+    }
+
+    return imageDraftForPreset(state, found ?? currentImagePreset(state.presetId))
   },
 })
 /* eslint-enable max-lines-per-function */

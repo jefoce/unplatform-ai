@@ -51,6 +51,10 @@ interface PromptProblems {
 
 const promptProblems = (preset: ImagePreset, prompt: string): PromptProblems => {
   if (!isNonEmptyString(prompt.trim())) {
+    if (preset.promptOptional === true) {
+      return { errors: [], warnings: [] }
+    }
+
     return { errors: issue('Prompt is required'), warnings: [] }
   }
 
@@ -77,12 +81,22 @@ const aspectProblems = (preset: ImagePreset, aspectRatio: ImageAspectChoice): Va
   return issue('Aspect ratio is not supported by this model')
 }
 
-const referenceProblems = (preset: ImagePreset, count: number): ValidationIssue[] => {
+const referenceCapProblems = (preset: ImagePreset, count: number): ValidationIssue[] => {
   if (count <= Math.min(preset.referenceMax, IMAGE_REFERENCE_MAX)) {
     return []
   }
 
   return issue('Too many references')
+}
+
+const referenceProblems = (preset: ImagePreset, count: number): ValidationIssue[] => {
+  const required = preset.referencesRequired?.image ?? 0
+
+  if (count < required) {
+    return issue(`This model needs ${required} Image references`)
+  }
+
+  return referenceCapProblems(preset, count)
 }
 
 const seedProblems = (preset: ImagePreset, seed: number | null): ValidationIssue[] => {
@@ -144,7 +158,7 @@ export function validateImagePrompt(preset: ImagePreset, prompt: string): Valida
 /** Non-blocking notices, shown under the prompt instead of a toast. */
 export function imageWarnings(preset: ImagePreset, input: ImageGenerationInput): ValidationIssue[] {
   const problems = promptProblems(preset, input.prompt)
-  const tooMany = referenceProblems(preset, input.references.length)
+  const tooMany = referenceCapProblems(preset, input.references.length)
 
   return [...problems.warnings, ...tooMany, ...mentionProblems(input)]
 }

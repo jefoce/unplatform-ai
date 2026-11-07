@@ -2,8 +2,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+/* eslint-disable max-lines -- one service suite covers tokens, health and test mapping */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ENDPOINT_HEALTH_MAX_AGE_MS } from '@/core/constants'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
 import type * as EndpointTestService from '@/server/services/endpoint-test'
 import type * as EndpointsService from '@/server/services/endpoints'
@@ -27,6 +29,16 @@ const HEALTH = {
   upload_quota_bytes: 1000,
   instance_id: '11111111-1111-4111-8111-111111111111',
   max_running: 2,
+}
+
+const LAST_HEALTH = {
+  protocol: 1,
+  serverVersion: '0.43.0',
+  maxRunning: 2,
+  lanAllowed: true,
+  authRequired: false,
+  maxUploadBytes: 100,
+  checkedAt: '2024-01-01T00:00:00.000Z',
 }
 
 async function loadSecrets() {
@@ -197,6 +209,31 @@ describe('running jobs', () => {
     health.setEndpointHealth({ endpointId: id, status: 'unauthorized', message: null })
 
     expect((await service.getEndpointOverview()).endpoints[0]?.status).toBe('unauthorized')
+  })
+})
+
+describe('health freshness', () => {
+  it('ignores a stale entry and keeps the saved last health', async () => {
+    const saved = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
+    })
+
+    const id = saved.endpoints[0]?.id ?? ''
+    const health = await import('@/server/services/endpoint-health')
+    const now = Date.now()
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    health.setEndpointHealth({ endpointId: id, status: 'unreachable', message: null })
+    vi.setSystemTime(now + ENDPOINT_HEALTH_MAX_AGE_MS + 1000)
+
+    try {
+      const overview = await service.getEndpointOverview()
+
+      expect(overview.endpoints[0]?.status).toBe('ok')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

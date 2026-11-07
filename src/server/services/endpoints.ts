@@ -35,6 +35,7 @@ import { pruneEndpointCaches } from './endpoint-cache-prune'
 import {
   forgetEndpointHealth,
   getHealth,
+  isHealthFresh,
   setEndpointHealth,
   type SetEndpointHealthParams,
 } from './endpoint-health'
@@ -261,12 +262,14 @@ async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry
   })
 
   const known = getHealth(endpoint.id)
+  const isFresh = !isNil(known) && isHealthFresh(known)
+  const fresh = isFresh ? known : null
 
   return {
     ...endpoint,
     ...counts,
     runningJobs: videoJobs.length + imageJobs.length,
-    status: known?.state ?? statusFromHealth(endpoint.lastHealth),
+    status: fresh?.state ?? statusFromHealth(endpoint.lastHealth),
     tokenHint: hintFor(tokenMap[endpoint.id]),
   }
 }

@@ -193,3 +193,36 @@ describe('custom record preset snapshot', () => {
     })
   })
 })
+
+describe('custom create price', () => {
+  it('notes a per-run price as a per-second value', async () => {
+    const input = { ...videoInput(), duration: 5 }
+
+    mocks.loadDraft.mockResolvedValue({ preset: VIDEO_PRESET, input, uploads: {} })
+
+    mocks.getEndpoint.mockResolvedValue({
+      ...ENDPOINT,
+      pricing: { mode: 'perRun', usd: 2.5 },
+    })
+
+    const record = await createGeneration(input)
+
+    expect(record.cost.estimatedUsd).toBeCloseTo(2.5)
+    expect(record.cost.pricePerSec).toBeCloseTo(0.5)
+  })
+
+  it('keeps the endpoint per-second price', async () => {
+    const input = { ...videoInput(), duration: 5 }
+
+    mocks.loadDraft.mockResolvedValue({ preset: VIDEO_PRESET, input, uploads: {} })
+
+    mocks.getEndpoint.mockResolvedValue({
+      ...ENDPOINT,
+      pricing: { mode: 'perSecond', usd: 0.4 },
+    })
+
+    const record = await createGeneration(input)
+
+    expect(record.cost.pricePerSec).toBeCloseTo(0.4)
+  })
+})

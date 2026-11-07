@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { EndpointRowDraft } from '@/features/settings/endpoint-draft'
@@ -63,5 +63,36 @@ describe('endpoint row warnings', () => {
     renderRow(first, [first, second])
 
     expect(screen.getByText('Badge CU1 is already used')).toBeTruthy()
+  })
+})
+
+describe('endpoint token removal', () => {
+  it('marks the stored token for removal and clears the flag when typing', () => {
+    const onChange = vi.fn()
+    const withToken = row({ tokenHint: '1234' })
+
+    const first = render(
+      <EndpointRow row={withToken} rows={[withToken]} onChange={onChange} onTest={vi.fn()} />,
+    )
+
+    fireEvent.click(screen.getByText('Remove token'))
+
+    expect(onChange).toHaveBeenCalledWith('row-1', { isTokenRemoved: true, tokenValue: '' })
+
+    first.unmount()
+    onChange.mockClear()
+
+    const removing = row({ tokenHint: '1234', isTokenRemoved: true })
+
+    render(<EndpointRow row={removing} rows={[removing]} onChange={onChange} onTest={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Token (optional)'), {
+      target: { value: 'new-token' },
+    })
+
+    expect(onChange).toHaveBeenCalledWith('row-1', {
+      tokenValue: 'new-token',
+      isTokenRemoved: false,
+    })
   })
 })

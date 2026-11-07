@@ -1,3 +1,4 @@
+import type { MediaKindCounts } from '../../media/media-types'
 import type { Rule } from '../../provider-errors/types'
 import type { BindingBase } from '../common/binding'
 import type { PresetIcon } from '../common/icon'
@@ -92,8 +93,12 @@ export interface ImagePreset {
   maxN: number
   referenceMax: number
   referenceLimits?: PresetReferenceLimits
+  referencesRequired?: MediaKindCounts
   seed: boolean
   promptMaxChars: number
+
+  /** False until a real run proves the model accepts an empty prompt. */
+  promptOptional?: boolean
 
   /** Model-facing label for a reference. `{n}` is the slot number. */
   refLabel: string

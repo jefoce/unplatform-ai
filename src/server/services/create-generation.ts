@@ -166,14 +166,15 @@ interface CustomPriceParams {
 
 function customPrice(params: CustomPriceParams): PriceResult {
   const { endpoint, preset, duration } = params
-  let pricePerSec = 0
+  const estimatedUsd = resolveCustomRunPrice({ endpoint, preset, duration })
 
-  if (endpoint.pricing.mode === 'perSecond') {
-    pricePerSec = endpoint.pricing.usd
-  }
+  const pricePerSec =
+    endpoint.pricing.mode === 'perSecond'
+      ? endpoint.pricing.usd
+      : estimatedUsd / Math.max(duration, 1)
 
   return {
-    estimatedUsd: resolveCustomRunPrice({ endpoint, preset, duration }),
+    estimatedUsd,
     pricePerSec,
     priceSource: 'fallback',
     referenceSeconds: undefined,

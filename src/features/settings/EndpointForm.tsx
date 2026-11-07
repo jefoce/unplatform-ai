@@ -28,6 +28,7 @@ interface EndpointFormProps {
 }
 
 /** Expanded endpoint fields, test control and inline result. */
+/* eslint-disable-next-line max-lines-per-function -- one form owns its endpoint fields and token controls */
 export function EndpointForm(props: EndpointFormProps) {
   const { row, rows } = props
   const badgeMessage = badgeError(row, rows)
@@ -59,7 +60,11 @@ export function EndpointForm(props: EndpointFormProps) {
   }
 
   const handleTokenChange = (event: ChangeEvent<HTMLInputElement>) => {
-    props.onChange(row.key, { tokenValue: event.target.value })
+    props.onChange(row.key, { tokenValue: event.target.value, isTokenRemoved: false })
+  }
+
+  const handleTokenRemove = () => {
+    props.onChange(row.key, { isTokenRemoved: true, tokenValue: '' })
   }
 
   const handlePricingChange = (pricing: CustomEndpointPricing) => {
@@ -99,6 +104,11 @@ export function EndpointForm(props: EndpointFormProps) {
           onChange={handleTokenChange}
         />
       </Field>
+      {hasToken && !row.isTokenRemoved && (
+        <Button size="sm" variant="ghost" onClick={handleTokenRemove}>
+          Remove token
+        </Button>
+      )}
       <EndpointPriceField pricing={row.pricing} onChange={handlePricingChange} />
       <Switch
         checked={row.enabled}
