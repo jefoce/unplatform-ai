@@ -1,4 +1,4 @@
-import { isEmpty } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import type { UploadsById } from '../api/uploads'
@@ -28,6 +28,12 @@ function durationSchema(preset: VideoPreset) {
     .int()
     .min(min, { message: `Minimum ${min}s` })
     .max(preset.duration.max)
+    .refine(
+      (value) => {
+        return isNil(preset.duration.options) || preset.duration.options.includes(value)
+      },
+      { message: 'Choose an allowed duration' },
+    )
 }
 
 function priceInputSchema(preset: VideoPreset) {

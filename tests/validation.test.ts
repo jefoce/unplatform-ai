@@ -157,15 +157,30 @@ describe('validateInput duration', () => {
     expect(seedanceLow.errors).toContain('duration: Minimum 4s')
   })
 
-  it('accepts any integer between the minimum and the preset max', () => {
+  it('accepts only the durations listed in options', () => {
     const optionPreset = {
       ...preset,
       duration: { min: 4, max: 8, default: 6, options: [4, 6, 8] as const },
     }
 
+    const accepted = [6, 8].map((duration) => {
+      return validateInput({ input: input({ duration }), uploads: {}, preset: optionPreset })
+    })
+
     expect(
-      validateInput({ input: input({ duration: 5 }), uploads: {}, preset: optionPreset }).ok,
+      accepted.every((result) => {
+        return result.ok
+      }),
     ).toBe(true)
+
+    const skipped = validateInput({
+      input: input({ duration: 5 }),
+      uploads: {},
+      preset: optionPreset,
+    })
+
+    expect(skipped.ok).toBe(false)
+    expect(skipped.errors).toContain('duration: Choose an allowed duration')
 
     const result = validateInput({
       input: input({ duration: 9 }),

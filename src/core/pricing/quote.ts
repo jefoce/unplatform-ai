@@ -176,7 +176,11 @@ function imageCost(params: ImageCostParams) {
   }
 
   if (pricing.formula === 'perRun') {
-    return perRunCost({ table: params.table, units: params.ctx.count })
+    return perRunCost({
+      table: params.table,
+      units: params.ctx.count,
+      runs: params.ctx.calls,
+    })
   }
 
   return null

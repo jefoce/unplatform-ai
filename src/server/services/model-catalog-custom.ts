@@ -19,6 +19,7 @@ import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import { globalState } from '../global-state'
 import { fallbackPricing } from '../pricing/live'
 import { requestHeaders, requestJson } from '../providers/custom/http'
+import { recordHealthFromError, recordHealthOk } from './endpoint-health'
 import {
   type EndpointModelCache,
   type EndpointModelKind,
@@ -160,10 +161,12 @@ async function endpointModels(
     await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: video })
     await writeEndpointModels({ endpointId: endpoint.id, kind: 'image', models: image })
     markEndpointReachable(endpoint.id)
+    recordHealthOk(endpoint.id)
 
     return await readEndpointModels(endpoint.id)
-  } catch {
+  } catch (error) {
     markEndpointUnreachable(endpoint.id)
+    recordHealthFromError(endpoint.id, error)
 
     return cached
   }

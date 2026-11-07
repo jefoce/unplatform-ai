@@ -85,7 +85,10 @@ function isHealthFailure(error: unknown): boolean {
   }
 
   return (
-    error.status === 0 || error.status === 401 || error.status === 403 || error.code === 'protocol'
+    error.code === 'comfy_unavailable' ||
+    error.code === 'protocol' ||
+    error.status === 401 ||
+    error.status === 403
   )
 }
 

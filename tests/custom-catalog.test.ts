@@ -88,6 +88,8 @@ const {
   getModelCatalog,
 } = await import('@/server/services/model-catalog')
 
+const { getHealth } = await import('@/server/services/endpoint-health')
+
 const { GET } = await import('@/app/api/models/route')
 
 const RouteBodySchema = z.object({
@@ -446,6 +448,18 @@ describe('custom catalog', () => {
     expect(await readEndpointModels(endpoint.id)).not.toBeNull()
   })
 
+  it('marks an endpoint ok after the picker fetches its models', async () => {
+    const endpoint = customEndpoint('cat-health-ok', 'CUK')
+
+    await writeEndpoints([endpoint])
+    mockModelFetch()
+    clearModelCatalog()
+
+    await getModelCatalog()
+
+    expect(getHealth(endpoint.id)?.state).toBe('ok')
+  })
+
   it('keeps the cached list when a tested endpoint fetch fails', async () => {
     const video = modelAt(VIDEO_MODELS, 0)
     const endpoint = healthEndpoint('cat-net-fail', 'CUG', 1000)
@@ -468,6 +482,7 @@ describe('custom catalog', () => {
     const entries = customEntries((await getModelCatalog()).entries)
 
     expect(entryFor(entries, video.id).status).toBe('unverified')
+    expect(getHealth(endpoint.id)?.state).toBe('unreachable')
   })
 
   it('fetches both lists for an untested endpoint with a stale cache', async () => {

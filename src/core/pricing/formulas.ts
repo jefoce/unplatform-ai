@@ -112,14 +112,16 @@ export function videoTokenCost(params: VideoCostParams): FormulaResult | null {
 interface PerRunParams {
   table: SkuTable
   units: number
+  runs?: number
 }
 
 /** One flat price per provider run. A missing key prices at 0. */
 export function perRunCost(params: PerRunParams): FormulaResult {
-  const { table, units } = params
+  const { table, units, runs = 1 } = params
   const raw = table.per_run
   const isFinitePrice = !isNil(raw) && Number.isFinite(raw)
-  const total = isFinitePrice ? raw : 0
+  const price = isFinitePrice ? raw : 0
+  const total = price * runs
   const divisor = units > 0 ? units : 1
 
   return { perUnit: total / divisor, total, isApproximate: false, unit: 'run' }

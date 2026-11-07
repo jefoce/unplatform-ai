@@ -5,6 +5,7 @@ import { randomInt, randomUUID } from 'node:crypto'
 import { isNil } from 'lodash-es'
 
 import { SEED_MAX, SUBMIT_GRACE_MS } from '@/core/constants'
+import { planImageCalls } from '@/core/plan-image-calls'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import type { ImagePreset } from '@/core/presets/image/types'
 import { imageQuoteContext, imageUnitOf, quoteWithFallback } from '@/core/pricing/quote'
@@ -64,6 +65,20 @@ async function referenceUploads(input: ImageGenerationInput): Promise<UploadItem
   })
 }
 
+interface CustomImagePriceParams {
+  endpoint: CustomEndpoint
+  preset: ImagePreset
+  count: number
+}
+
+/** A custom image bills one run per provider call, not per output. */
+function customImagePrice(params: CustomImagePriceParams): number {
+  const { endpoint, preset, count } = params
+  const runPrice = resolveCustomRunPrice({ endpoint, preset, duration: 1 })
+
+  return runPrice * planImageCalls(count, preset).length
+}
+
 /** Price of one image call, computed before the active cap lock. */
 export async function priceImage(
   params: ImagePriceParams,
@@ -73,7 +88,7 @@ export async function priceImage(
 
   if (!isNil(endpoint)) {
     return {
-      estimatedUsd: resolveCustomRunPrice({ endpoint, preset, duration: 1 }),
+      estimatedUsd: customImagePrice({ endpoint, preset, count: input.count }),
       priceSource: 'fallback',
     }
   }
@@ -159,7 +174,7 @@ export async function createImage(params: CreateImageParams): Promise<ImageRecor
   }
 
   if (!isNil(endpoint)) {
-    cost.estimatedUsd = resolveCustomRunPrice({ endpoint, preset, duration: 1 })
+    cost.estimatedUsd = customImagePrice({ endpoint, preset, count: input.count })
     cost.priceSource = 'fallback'
   }
 

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { UpaiJobSchema } from '@/core/protocol/upai'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { ProviderError as ProviderErrorType } from '@/server/providers/provider-error'
+
+import jobFailedFixture from '../docs/protocol/upai-1/fixtures/job-failed.json'
 
 const endpoints = vi.hoisted(() => {
   return [endpoint('ep1', 'pack-1'), endpoint('ep2', 'pack-1'), endpoint('ep3', 'pack-2')]
@@ -54,6 +57,7 @@ const {
 } = await import('@/server/services/endpoint-health')
 
 const { emitCustomHealth } = await import('@/server/providers/custom/health-events')
+const { jobFailureError, timeoutError } = await import('@/server/providers/custom/errors')
 const { ProviderError } = await import('@/server/providers/provider-error')
 
 function providerError(status: number, code: string): ProviderErrorType {
@@ -109,6 +113,40 @@ describe('endpoint health', () => {
     )
 
     expect(getHealth('ep1')?.state).toBe('ok')
+  })
+
+  it('keeps an ok endpoint open after a job failure or timeout', () => {
+    recordHealthOk('ep1')
+
+    recordHealthFromError('ep1', jobFailureError(UpaiJobSchema.parse(jobFailedFixture)))
+
+    expect(getHealth('ep1')?.state).toBe('ok')
+
+    recordHealthFromError('ep1', timeoutError())
+
+    expect(getHealth('ep1')?.state).toBe('ok')
+  })
+
+  it('closes an ok endpoint on a network, unavailable or auth failure', () => {
+    recordHealthOk('ep1')
+    recordHealthFromError('ep1', new TypeError('fetch failed'))
+
+    expect(getHealth('ep1')?.state).toBe('unreachable')
+
+    recordHealthOk('ep1')
+    recordHealthFromError('ep1', providerError(0, 'comfy_unavailable'))
+
+    expect(getHealth('ep1')?.state).toBe('unreachable')
+
+    recordHealthOk('ep1')
+    recordHealthFromError('ep1', providerError(401, 'unauthorized'))
+
+    expect(getHealth('ep1')?.state).toBe('unauthorized')
+
+    recordHealthOk('ep1')
+    recordHealthFromError('ep1', providerError(403, 'forbidden'))
+
+    expect(getHealth('ep1')?.state).toBe('forbidden')
   })
 
   it('clears a failure on a successful poll and keeps the limit', () => {
