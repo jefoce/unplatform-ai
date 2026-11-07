@@ -107,5 +107,9 @@ export function getEndpointToken(endpointId: string): string | null {
 
 /** Two endpoints that report the same pack instance share one queue limit. */
 export function endpointQueueKey(endpoint: CustomEndpoint): string {
-  return endpoint.instanceId ?? endpoint.id
+  if (!isNonEmptyString(endpoint.instanceId)) {
+    return endpoint.id
+  }
+
+  return endpoint.instanceId
 }
