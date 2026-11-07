@@ -58,10 +58,18 @@ const cache = createTtlCache<ModelCatalog>({
   failTtlMs: MODEL_CATALOG_TTL_MS,
 })
 
+interface LoadCatalogParams {
+  isForce: boolean
+}
+
 /** One entry per preset, with availability from the provider model list. */
-export async function getModelCatalog(): Promise<ModelCatalog> {
+export async function getModelCatalog(isForce = false): Promise<ModelCatalog> {
+  if (isForce) {
+    cache.clear()
+  }
+
   return cache.get('catalog', async () => {
-    const catalog = await loadCatalog()
+    const catalog = await loadCatalog({ isForce })
 
     return { value: catalog, isOk: true }
   })
@@ -124,13 +132,15 @@ export async function findImagePresetAny(presetId: string): Promise<ImagePreset 
   return found.preset
 }
 
-async function loadCatalog(): Promise<ModelCatalog> {
+async function loadCatalog(params: LoadCatalogParams): Promise<ModelCatalog> {
+  const { isForce } = params
+
   await secretsReady()
 
   const [videoEntries, imageEntries, custom] = await Promise.all([
     Promise.all(VIDEO_PRESETS.map(buildEntry)),
     Promise.all(IMAGE_PRESETS.map(buildImageEntry)),
-    loadCustomCatalog(),
+    loadCustomCatalog({ isForce }),
   ])
 
   const customPresets = custom.presets.map((item) => {

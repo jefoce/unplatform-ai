@@ -11,6 +11,7 @@ import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { fetcher } from '@/lib/fetcher'
 
+import { withQuery } from './query'
 import { MODELS_KEY } from './swr-keys'
 
 interface RuntimeSplit {
@@ -73,5 +74,9 @@ export function useCatalog(): CatalogState {
 
 /** Refetches the catalog, resolving once the new entries are registered. */
 export async function refreshCatalog(): Promise<void> {
-  await mutate(MODELS_KEY)
+  const catalog = await fetcher<ModelCatalog>(withQuery(MODELS_KEY, { refresh: 1 }))
+
+  registerCatalogPresets(catalog.entries)
+
+  await mutate(MODELS_KEY, catalog, { revalidate: false })
 }

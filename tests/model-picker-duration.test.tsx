@@ -12,6 +12,15 @@ import { formatRate } from '../src/core/pricing/format'
 import type { PricingInfo } from '../src/core/pricing/types'
 import { required } from './helpers/required'
 
+vi.mock('@/lib/api/catalog', () => {
+  return {
+    useCatalog: () => {
+      return { catalog: undefined, isLoading: false, isValidating: false }
+    },
+    refreshCatalog: vi.fn(async () => {}),
+  }
+})
+
 vi.mock('@/lib/api/models', () => {
   return {
     useModelEntry: vi.fn(() => {

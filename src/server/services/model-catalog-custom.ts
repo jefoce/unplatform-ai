@@ -75,15 +75,23 @@ interface EntryParams {
   availability: ModelAvailability
 }
 
+interface LoadCustomCatalogParams {
+  isForce: boolean
+}
+
 /** Custom presets and catalog entries from the cached model lists of enabled endpoints. */
-export async function loadCustomCatalog(): Promise<CustomCatalogData> {
+export async function loadCustomCatalog(
+  params: LoadCustomCatalogParams,
+): Promise<CustomCatalogData> {
+  const { isForce } = params
+
   presetIndex.clear()
 
   const endpoints = await listEnabledCustomEndpoints()
 
   const catalogs = await Promise.all(
     endpoints.map((endpoint) => {
-      return loadEndpointCatalog(endpoint)
+      return loadEndpointCatalog(endpoint, isForce)
     }),
   )
 
@@ -108,8 +116,11 @@ export function clearCustomCatalog(): void {
   presetIndex.clear()
 }
 
-async function loadEndpointCatalog(endpoint: CustomEndpoint): Promise<KindCatalog> {
-  const cache = await endpointModels(endpoint)
+async function loadEndpointCatalog(
+  endpoint: CustomEndpoint,
+  isForce: boolean,
+): Promise<KindCatalog> {
+  const cache = await endpointModels(endpoint, isForce)
 
   if (isNil(cache)) {
     return { entries: [], presets: [] }
@@ -130,10 +141,17 @@ async function loadEndpointCatalog(endpoint: CustomEndpoint): Promise<KindCatalo
 }
 
 /** Refreshes a reached endpoint on a stale cache, and keeps the last good list on failure. */
-async function endpointModels(endpoint: CustomEndpoint): Promise<EndpointModelCache | null> {
+async function endpointModels(
+  endpoint: CustomEndpoint,
+  isForce: boolean,
+): Promise<EndpointModelCache | null> {
   const cached = await readEndpointModels(endpoint.id)
 
-  if (isNil(endpoint.lastHealth) || isFreshCache(cached)) {
+  if (isNil(endpoint.lastHealth)) {
+    return cached
+  }
+
+  if (!isForce && isFreshCache(cached)) {
     return cached
   }
 

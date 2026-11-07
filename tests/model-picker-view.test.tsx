@@ -15,6 +15,15 @@ import { getPreset } from '../src/core/presets'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
 import type { PricingInfo } from '../src/core/pricing/types'
 
+vi.mock('@/lib/api/catalog', () => {
+  return {
+    useCatalog: () => {
+      return { catalog: undefined, isLoading: false, isValidating: false }
+    },
+    refreshCatalog: vi.fn(async () => {}),
+  }
+})
+
 vi.mock('@/lib/api/models', () => {
   return {
     useModelEntry: vi.fn(() => {

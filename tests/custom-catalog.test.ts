@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import { isNil } from 'lodash-es'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
@@ -32,6 +33,14 @@ vi.mock('@/server/secrets', () => {
     registerSecretsListener: () => {},
     getSecret: () => {
       return null
+    },
+  }
+})
+
+vi.mock('@/server/session', () => {
+  return {
+    hasSession: () => {
+      return true
     },
   }
 })
@@ -78,6 +87,22 @@ const {
   findVideoPresetAny,
   getModelCatalog,
 } = await import('@/server/services/model-catalog')
+
+const { GET } = await import('@/app/api/models/route')
+
+const RouteBodySchema = z.object({
+  entries: z.array(
+    z
+      .object({
+        modelId: z.string(),
+        presetId: z.string(),
+        status: z.string(),
+        reason: z.string().nullable(),
+        availability: z.object({ status: z.string(), reason: z.string().nullable() }),
+      })
+      .loose(),
+  ),
+})
 
 const VIDEO_MODELS = UpaiModelListSchema.parse(videoFixture).data
 const IMAGE_MODELS = UpaiModelListSchema.parse(imageFixture).data
@@ -159,6 +184,12 @@ function mockModelFetch() {
 function customEntries(entries: readonly CatalogEntry[]): CatalogEntry[] {
   return entries.filter((entry) => {
     return entry.source.kind === 'custom'
+  })
+}
+
+function catalogRequest(query = ''): Request {
+  return new Request(`http://127.0.0.1:3000/api/models${query}`, {
+    headers: { host: '127.0.0.1:3000' },
   })
 }
 
@@ -455,6 +486,63 @@ describe('custom catalog', () => {
 
     expect(entryFor(entries, video.id).status).toBe('available')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/models', () => {
+  it('forces a model list fetch on refresh and marks a failing endpoint unreachable', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = healthEndpoint('cat-route-force', 'CUI', 1000)
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError('fetch failed')
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await GET(catalogRequest('?refresh=1'))
+    const body = RouteBodySchema.parse(await response.json())
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    const entry = body.entries.find((item) => {
+      return item.modelId === video.id
+    })
+
+    expect(entry).toMatchObject({
+      status: 'unverified',
+      availability: { status: 'unverified', reason: 'ComfyUI is not reachable.' },
+    })
+  })
+
+  it('serves a fresh cache without a fetch when refresh is absent', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = healthEndpoint('cat-route-fresh', 'CUJ', 1000)
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    const fetchMock = vi.fn()
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await GET(catalogRequest())
+    const body = RouteBodySchema.parse(await response.json())
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const entry = body.entries.find((item) => {
+      return item.modelId === video.id
+    })
+
+    expect(entry?.status).toBe('available')
   })
 })
 
