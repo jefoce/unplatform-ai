@@ -7,9 +7,11 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ImagePresets from '@/core/presets/image'
 import type * as LivePricingModule from '@/server/pricing/live'
 
 import { IMAGE_MAX_ACTIVE } from '../src/core/constants'
+import type { ImagePreset } from '../src/core/presets/image/types'
 import { type ImageOutput, type ImageRecord, isImageActive } from '../src/core/schemas/image-record'
 
 const ROOT = path.join(os.tmpdir(), `cf-images-routes-${process.pid}-${Date.now()}`)
@@ -144,6 +146,7 @@ let files: ImageFiles
 let listRoute: ListModule
 let idRoute: IdModule
 let frameRoute: FrameModule
+let presets: typeof ImagePresets
 let pngBytes = Buffer.from('')
 let testIndex = 0
 
@@ -162,6 +165,7 @@ beforeAll(async () => {
   listRoute = await import('@/app/api/images/route')
   idRoute = await import('@/app/api/images/[id]/route')
   frameRoute = await import('@/app/api/images/[id]/outputs/[output-id]/frame/route')
+  presets = await import('@/core/presets/image')
 })
 
 beforeEach(async () => {
@@ -182,6 +186,8 @@ beforeEach(async () => {
   getSecret.mockImplementation((name: string) => {
     return name === 'OPENROUTER_API_KEY' ? 'test-key' : null
   })
+
+  presets.setRuntimeImagePresets([])
 })
 
 afterAll(async () => {
@@ -460,6 +466,67 @@ describe('POST /api/images', () => {
     )
 
     expect(wrongResolution.status).toBe(400)
+  })
+})
+
+describe('POST /api/images custom preset', () => {
+  it('accepts a custom image preset without an OpenRouter key', async () => {
+    getSecret.mockReturnValue(null)
+
+    const endpoints = await import('@/server/repos/endpoints')
+
+    const { file } = await endpoints.applyEndpoints({
+      entries: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          label: 'Local',
+          baseUrl: 'http://127.0.0.1:8188',
+          enabled: true,
+          pricing: { mode: 'model', usd: 0 },
+          instanceId: null,
+          lastHealth: null,
+        },
+      ],
+    })
+
+    const endpointId = file.endpoints[0]?.id ?? ''
+    const base = presets.findImagePreset(presets.DEFAULT_IMAGE_PRESET_ID)
+
+    if (base === null) {
+      throw new Error('image preset missing')
+    }
+
+    const presetId = `custom.${endpointId}.sdxl`
+
+    const preset: ImagePreset = {
+      ...base,
+      id: presetId,
+      title: 'SDXL',
+      resolutions: [{ value: '1K', label: '1K' }],
+      defaultResolution: '1K',
+      aspectRatios: ['1:1'],
+      defaultAspectRatio: '1:1',
+      qualities: null,
+      defaultQuality: null,
+      backgrounds: null,
+      defaultBackground: null,
+      seed: false,
+      bindings: [
+        {
+          provider: 'custom',
+          modelId: 'sdxl',
+          pricing: { formula: 'perRun', skuRules: [], fallback: { run: 0 } },
+        },
+      ],
+    }
+
+    presets.setRuntimeImagePresets([preset])
+
+    const response = await listRoute.POST(
+      request('POST', 'http://127.0.0.1:3000/api/images', { ...submitBody, presetId }),
+    )
+
+    expect(response.status).toBe(201)
   })
 })
 

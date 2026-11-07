@@ -194,6 +194,13 @@ describe('custom video job mapping', () => {
     expect(done.expiresAt).toBe(1793966400 * 1000)
     expect(done.urls).toHaveLength(1)
   })
+
+  it('stores the protocol form for a failed job error', async () => {
+    const snapshot = toJobSnapshot(UpaiJobSchema.parse(await fixture('job-failed.json')))
+
+    expect(snapshot.status).toBe('failed')
+    expect(snapshot.error).toBe('upai:job_failed: MockSampler: simulated failure')
+  })
 })
 
 describe('custom protocol errors', () => {

@@ -4,6 +4,7 @@ import { ImageListQuerySchema, ImageSubmitSchema } from '@/core/api/image'
 import { IMAGE_MAX_ACTIVE, MAX_IDS } from '@/core/constants'
 import { paginate, sortRecords } from '@/core/feed/history-filters'
 import { isNonEmptyString } from '@/core/guards'
+import { primaryBinding } from '@/core/presets/common/bindings'
 import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
 import { issueText } from '@/core/validation/common'
 import { validateImageInput } from '@/core/validation/image'
@@ -127,7 +128,13 @@ export async function POST(request: Request) {
 
     await secretsReady()
 
-    if (!isMockMode() && !isNonEmptyString(getSecret('OPENROUTER_API_KEY'))) {
+    const binding = primaryBinding(preset)
+
+    if (
+      binding.provider !== 'custom' &&
+      !isMockMode() &&
+      !isNonEmptyString(getSecret('OPENROUTER_API_KEY'))
+    ) {
       return jsonError({ status: 400, error: 'OpenRouter key is not set' })
     }
 

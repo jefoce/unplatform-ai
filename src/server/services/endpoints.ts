@@ -21,7 +21,6 @@ import { ACTIVE_STATUSES } from '@/core/types'
 import { HttpError } from '../errors'
 import { readJson } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
-import { globalState } from '../global-state'
 import { resetCustomProviders } from '../providers/registry'
 import {
   applyEndpoints,
@@ -33,6 +32,12 @@ import {
 } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
+import {
+  forgetEndpointHealth,
+  getHealth,
+  setEndpointHealth,
+  type SetEndpointHealthParams,
+} from './endpoint-health'
 import { removeEndpointModelCache } from './endpoint-model-cache'
 import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
@@ -98,12 +103,6 @@ export const EndpointInputSchema = z.object({
 
 export const SaveEndpointsBodySchema = z.object({ endpoints: z.array(EndpointInputSchema).max(50) })
 
-interface HealthEntry {
-  state: EndpointHealthStatus
-  checkedAt: string
-  message: string | null
-}
-
 interface PreparedEndpoint {
   entry: EndpointEntry
   token: string | null | undefined
@@ -116,20 +115,14 @@ interface OverviewParams {
   images: ImageRecord[]
 }
 
-interface MarkHealthParams {
+interface MarkEndpointHealthParams extends Omit<SetEndpointHealthParams, 'endpointId'> {
   endpointId: string | null
-  status: EndpointHealthStatus
-  message: string | null
 }
 
 interface ModelCounts {
   videoCount: number
   imageCount: number
 }
-
-const health = globalState<Map<string, HealthEntry>>('endpointHealth', () => {
-  return new Map()
-})
 
 export async function getEndpointOverview(): Promise<EndpointOverview> {
   const [file, generations, images] = await Promise.all([
@@ -189,7 +182,7 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   })
 
   for (const id of result.removedIds) {
-    health.delete(id)
+    forgetEndpointHealth(id)
   }
 
   await Promise.all(result.removedIds.map(removeEndpointModelCache))
@@ -207,15 +200,18 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   return getEndpointOverview()
 }
 
-export function markEndpointHealth(params: MarkHealthParams): void {
-  if (isNil(params.endpointId)) {
+export function markEndpointHealth(params: MarkEndpointHealthParams): void {
+  const { endpointId } = params
+
+  if (isNil(endpointId)) {
     return
   }
 
-  health.set(params.endpointId, {
-    state: params.status,
-    checkedAt: new Date().toISOString(),
+  setEndpointHealth({
+    endpointId,
+    status: params.status,
     message: params.message,
+    maxRunning: params.maxRunning,
   })
 }
 
@@ -273,7 +269,7 @@ async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry
     return record.preset.id.startsWith(prefix) && isImageActive(record)
   })
 
-  const known = health.get(endpoint.id)
+  const known = getHealth(endpoint.id)
 
   return {
     ...endpoint,

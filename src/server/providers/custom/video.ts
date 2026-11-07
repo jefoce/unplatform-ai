@@ -31,7 +31,7 @@ import type {
   VideoProvider,
 } from '../types'
 import { buildVideoBody } from './body'
-import { protocolError, providerErrorFromResponse } from './errors'
+import { jobFailureError, protocolError, providerErrorFromResponse } from './errors'
 import { testCustomEndpoint } from './health'
 import { customRequest, endpointHostname, requestHeaders, requestJson } from './http'
 
@@ -44,6 +44,8 @@ function contentHostsFor(endpoint: CustomEndpoint): readonly string[] {
 }
 
 export function toJobSnapshot(job: UpaiJob): JobSnapshot {
+  const error = job.status === 'failed' ? jobFailureError(job).storedMessage : job.error
+
   const snapshot: JobSnapshot = {
     status: asJobStatus(job.status) ?? 'pending',
     generationId: null,
@@ -54,7 +56,7 @@ export function toJobSnapshot(job: UpaiJob): JobSnapshot {
       isByok: false,
       usesEstimatedCost: false,
     },
-    error: job.error,
+    error,
   }
 
   if (!isNil(job.progress)) {

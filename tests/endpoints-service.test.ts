@@ -211,6 +211,12 @@ describe('running jobs', () => {
 
     expect(overview.endpoints[0]?.runningJobs).toBe(1)
     expect(overview.endpoints[0]?.status).toBe('unknown')
+
+    const health = await import('@/server/services/endpoint-health')
+
+    health.setEndpointHealth({ endpointId: id, status: 'unauthorized', message: null })
+
+    expect((await service.getEndpointOverview()).endpoints[0]?.status).toBe('unauthorized')
   })
 })
 

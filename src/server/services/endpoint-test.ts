@@ -99,7 +99,12 @@ export async function testEndpoint(params: EndpointTestParams): Promise<Endpoint
       }),
     ])
 
-    markEndpointHealth({ endpointId: params.endpointId, status: 'ok', message: null })
+    markEndpointHealth({
+      endpointId: params.endpointId,
+      status: 'ok',
+      message: null,
+      maxRunning: health.max_running,
+    })
 
     if (!isNil(params.endpointId)) {
       await writeEndpointModels({

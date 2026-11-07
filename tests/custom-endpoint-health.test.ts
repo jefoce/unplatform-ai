@@ -43,12 +43,14 @@ vi.mock('@/server/providers/custom/endpoint-source', () => {
 const {
   __resetEndpointHealthForTests: resetHealth,
   checkEndpoint,
+  forgetEndpointHealth,
   getHealth,
   getMaxRunning,
   isHealthFresh,
   recordHealthFromError,
   recordHealthOk,
   registerEndpointHealthListener,
+  setEndpointHealth,
 } = await import('@/server/services/endpoint-health')
 
 const { emitCustomHealth } = await import('@/server/providers/custom/health-events')
@@ -105,6 +107,17 @@ describe('endpoint health', () => {
 
     expect(isHealthFresh(fresh)).toBe(true)
     expect(isHealthFresh(stale)).toBe(false)
+  })
+
+  it('sets a manual entry with its limit and forgets it', () => {
+    setEndpointHealth({ endpointId: 'ep1', status: 'ok', message: 'ready', maxRunning: 3 })
+
+    expect(getHealth('ep1')).toMatchObject({ state: 'ok', message: 'ready' })
+    expect(getMaxRunning('pack-1')).toBe(3)
+
+    forgetEndpointHealth('ep1')
+
+    expect(getHealth('ep1')).toBeNull()
   })
 
   it('shares one limit for endpoints on the same pack instance', () => {

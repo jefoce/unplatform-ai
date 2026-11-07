@@ -24,6 +24,13 @@ interface HealthEntry extends EndpointHealthState {
   maxRunning: number | null
 }
 
+export interface SetEndpointHealthParams {
+  endpointId: string
+  status: EndpointHealthStatus
+  message: string | null
+  maxRunning?: number | null
+}
+
 interface EndpointHealthStore {
   entries: Map<string, HealthEntry>
   isListening: boolean
@@ -85,6 +92,22 @@ export function recordHealthFromError(endpointId: string, error: unknown): void 
     message,
     maxRunning: previous?.maxRunning ?? null,
   })
+}
+
+/** Manual health entry from Settings, endpoint test or a failed request. */
+export function setEndpointHealth(params: SetEndpointHealthParams): void {
+  const previous = store.entries.get(params.endpointId)
+
+  store.entries.set(params.endpointId, {
+    state: params.status,
+    checkedAt: now(),
+    message: params.message,
+    maxRunning: params.maxRunning ?? previous?.maxRunning ?? null,
+  })
+}
+
+export function forgetEndpointHealth(endpointId: string): void {
+  store.entries.delete(endpointId)
 }
 
 export function getHealth(endpointId: string): EndpointHealthState | null {
