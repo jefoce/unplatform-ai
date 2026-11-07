@@ -65,6 +65,7 @@ interface AvailabilityParams {
 interface EntryParams {
   preset: VideoPreset | ImagePreset
   model: UpaiModel
+  endpoint: CustomEndpoint
   source: CatalogEntrySource
   availability: ModelAvailability
 }
@@ -140,7 +141,12 @@ function buildKindCatalog(params: KindCatalogParams): KindCatalog {
   const presets: PresetSource[] = []
 
   for (const model of models) {
-    const mapped = mapCustomModel({ endpoint, model })
+    const mapped = mapCustomModel({
+      endpoint,
+      model,
+      maxUploadBytes: endpoint.lastHealth?.maxUploadBytes ?? null,
+    })
+
     const preset = mapped.preset
 
     if (isNil(preset)) {
@@ -155,7 +161,7 @@ function buildKindCatalog(params: KindCatalogParams): KindCatalog {
       isUnreachable,
     })
 
-    entries.push(entryFor({ preset, model, source, availability }))
+    entries.push(entryFor({ preset, model, endpoint, source, availability }))
     presets.push({ preset, source })
   }
 
@@ -187,7 +193,7 @@ function sourceFor(endpoint: CustomEndpoint, model: UpaiModel): CatalogEntrySour
 }
 
 function entryFor(params: EntryParams): CatalogEntry {
-  const { preset, model, source, availability } = params
+  const { preset, model, endpoint, source, availability } = params
   const status: ModelStatus = availability.status
 
   return {
@@ -196,14 +202,16 @@ function entryFor(params: EntryParams): CatalogEntry {
     provider: 'custom',
     status,
     reason: availability.reason,
-    pricing: pricingFor(model),
+    pricing: pricingFor(endpoint, model),
     availability,
     source,
+    preset,
   }
 }
 
-function pricingFor(model: UpaiModel): PricingInfo {
-  const fallback = fallbackPricing({ per_run: model.pricing.per_run_usd })
+function pricingFor(endpoint: CustomEndpoint, model: UpaiModel): PricingInfo {
+  const price = priceOf(endpoint, model)
+  const fallback = fallbackPricing({ per_run: price })
 
   return {
     skus: fallback.skus,
@@ -212,4 +220,16 @@ function pricingFor(model: UpaiModel): PricingInfo {
     source: fallback.source,
     fetchedAt: new Date().toISOString(),
   }
+}
+
+function priceOf(endpoint: CustomEndpoint, model: UpaiModel): number {
+  if (endpoint.pricing.mode === 'free') {
+    return 0
+  }
+
+  if (endpoint.pricing.mode === 'model') {
+    return model.pricing.per_run_usd
+  }
+
+  return endpoint.pricing.usd
 }

@@ -5,6 +5,7 @@ import { RESOLVED_TRANSPORTS } from '../presets/common/transport'
 import { ASPECT_RATIOS, RESOLUTIONS } from '../presets/video/types'
 import { UPAI_WAITING_ON } from '../protocol/upai'
 import { PROVIDER_KIND_IDS } from '../providers/types'
+import { PresetSnapshotSchema } from './preset-snapshot'
 import { RecordSourceSchema } from './record-source'
 import { MediaKindSchema, UploadSourceSchema } from './upload-item'
 
@@ -156,6 +157,7 @@ export const GenerationRecordSchema = z.object({
   source: RecordSourceSchema.optional(),
   input: GenerationInputSchema,
   preset: RecordPresetSchema,
+  presetSnapshot: PresetSnapshotSchema.optional(),
   inputsSnapshot: InputSnapshotSchema,
   submit: RecordSubmitSchema.optional(),
   progress: RecordProgressSchema.optional(),

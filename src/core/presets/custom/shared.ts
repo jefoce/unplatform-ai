@@ -44,7 +44,7 @@ export function pickDefault<T extends string>(kept: readonly T[], preferred: str
   return found ?? first
 }
 
-/** Preset and catalog share no invalid status, so invalid models read as missing. */
+/** Ready and stale models stay usable, invalid ones keep their own status. */
 export function availabilityForModel(model: UpaiModel): ModelAvailability {
   if (model.status === 'ready') {
     return { status: 'available', reason: null }
@@ -54,7 +54,7 @@ export function availabilityForModel(model: UpaiModel): ModelAvailability {
     return { status: 'available', reason: CUSTOM_STALE_REASON }
   }
 
-  return { status: 'missing', reason: model.status_reason ?? CUSTOM_INVALID_REASON }
+  return { status: 'invalid', reason: model.status_reason ?? CUSTOM_INVALID_REASON }
 }
 
 export function mapDuration(raw: UpaiDuration | undefined): DurationResult {

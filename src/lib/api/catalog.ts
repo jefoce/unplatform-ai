@@ -5,6 +5,7 @@ import useSWR, { mutate } from 'swr'
 
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import { setRuntimeVideoPresets } from '@/core/presets'
+import { isVideoPreset } from '@/core/presets/common/preset-kind'
 import { setRuntimeImagePresets } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
@@ -15,11 +16,6 @@ import { MODELS_KEY } from './swr-keys'
 interface RuntimeSplit {
   video: VideoPreset[]
   image: ImagePreset[]
-}
-
-/** Video presets carry a duration range, image presets do not. */
-function isVideoPreset(preset: VideoPreset | ImagePreset): preset is VideoPreset {
-  return 'duration' in preset
 }
 
 function splitPresets(entries: readonly CatalogEntry[]): RuntimeSplit {

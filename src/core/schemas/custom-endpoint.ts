@@ -20,6 +20,7 @@ export const CustomEndpointLastHealthSchema = z
     maxRunning: z.number().int(),
     lanAllowed: z.boolean(),
     authRequired: z.boolean(),
+    maxUploadBytes: z.number().int().min(0).default(0),
     checkedAt: z.string(),
   })
   .loose()

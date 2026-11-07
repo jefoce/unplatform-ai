@@ -3,7 +3,13 @@ import type { VideoPreset } from './presets/video/types'
 import type { PricingInfo } from './pricing/types'
 import type { ProviderKindId } from './providers/types'
 
-export const MODEL_STATUSES = ['available', 'unverified', 'missing', 'no_provider'] as const
+export const MODEL_STATUSES = [
+  'available',
+  'unverified',
+  'missing',
+  'invalid',
+  'no_provider',
+] as const
 
 export type ModelStatus = (typeof MODEL_STATUSES)[number]
 

@@ -65,6 +65,8 @@ export function mapVideoModel(ctx: MappedVideoContext): MappedCustomModel {
       endpointId: endpoint.id,
       modelId: model.id,
       title: model.name,
+      description: model.description,
+      workflowName: model.workflow?.name ?? null,
       caps,
       duration: duration.duration,
       resolutions: resolutions.kept,
@@ -82,6 +84,8 @@ interface BuildVideoParams {
   endpointId: string
   modelId: string
   title: string
+  description: string
+  workflowName: string | null
   caps: UpaiCapabilities
   duration: MappedDuration
   resolutions: readonly Resolution[]
@@ -96,6 +100,8 @@ function buildVideoPreset(params: BuildVideoParams): VideoPreset {
     endpointId,
     modelId,
     title,
+    description,
+    workflowName,
     caps,
     duration,
     resolutions,
@@ -109,6 +115,8 @@ function buildVideoPreset(params: BuildVideoParams): VideoPreset {
     id: presetIdFor(endpointId, modelId),
     title,
     family: 'custom',
+    description,
+    workflowName,
     icon: CUSTOM_ICON,
     duration,
     aspectRatios: aspects,

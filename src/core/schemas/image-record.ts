@@ -16,6 +16,7 @@ import {
   RecordProgressSchema,
   RecordSubmitSchema,
 } from './generation-record'
+import { PresetSnapshotSchema } from './preset-snapshot'
 import { RecordSourceSchema } from './record-source'
 
 export const IMAGE_RECORD_STATUSES = [
@@ -108,6 +109,7 @@ export const ImageRecordSchema = z.object({
   provider: z.enum(PROVIDER_KIND_IDS).default('openrouter'),
   source: RecordSourceSchema.optional(),
   preset: RecordPresetSchema,
+  presetSnapshot: PresetSnapshotSchema.optional(),
   input: ImageInputSchema,
   inputsSnapshot: InputSnapshotSchema.optional(),
   submit: RecordSubmitSchema.optional(),

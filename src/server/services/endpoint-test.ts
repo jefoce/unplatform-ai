@@ -104,6 +104,7 @@ export async function testEndpoint(params: EndpointTestParams): Promise<Endpoint
       maxRunning: health.max_running,
       lanAllowed: health.lan_allowed,
       authRequired: health.auth_required,
+      maxUploadBytes: health.max_upload_bytes,
       checkedAt,
     })
 

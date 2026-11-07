@@ -1,13 +1,15 @@
+/* eslint-disable max-lines -- one catalog owns entries, drift logging and preset lookups */
 import 'server-only'
 
 import { isEmpty, isNil } from 'lodash-es'
 
 import type { CatalogEntry, CatalogEntrySource, ModelCatalog } from '@/core/catalog'
 import { MODEL_CATALOG_TTL_MS } from '@/core/constants'
-import { findPreset, VIDEO_PRESETS } from '@/core/presets'
+import { findPreset, setRuntimeVideoPresets, VIDEO_PRESETS } from '@/core/presets'
 import type { ProviderBinding } from '@/core/presets/common/binding'
 import { activeBinding, primaryBinding } from '@/core/presets/common/bindings'
-import { findImagePreset, IMAGE_PRESETS } from '@/core/presets/image'
+import { isImagePreset, isVideoPreset } from '@/core/presets/common/preset-kind'
+import { findImagePreset, IMAGE_PRESETS, setRuntimeImagePresets } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
@@ -70,6 +72,8 @@ export function clearModelCatalog(): void {
   cache.clear()
   clearCustomCatalog()
   clearEndpointModelCache()
+  setRuntimeVideoPresets([])
+  setRuntimeImagePresets([])
 }
 
 /** Drops the cached catalog when any key changes. */
@@ -98,6 +102,28 @@ export async function findPresetAny(presetId: string): Promise<PresetSource | nu
   return findCustomPreset(presetId)
 }
 
+/** Catalog-aware video lookup. Returns null for an image preset or an unknown id. */
+export async function findVideoPresetAny(presetId: string): Promise<VideoPreset | null> {
+  const found = await findPresetAny(presetId)
+
+  if (isNil(found) || !isVideoPreset(found.preset)) {
+    return null
+  }
+
+  return found.preset
+}
+
+/** Catalog-aware image lookup. Returns null for a video preset or an unknown id. */
+export async function findImagePresetAny(presetId: string): Promise<ImagePreset | null> {
+  const found = await findPresetAny(presetId)
+
+  if (isNil(found) || !isImagePreset(found.preset)) {
+    return null
+  }
+
+  return found.preset
+}
+
 async function loadCatalog(): Promise<ModelCatalog> {
   await secretsReady()
 
@@ -106,6 +132,13 @@ async function loadCatalog(): Promise<ModelCatalog> {
     Promise.all(IMAGE_PRESETS.map(buildImageEntry)),
     loadCustomCatalog(),
   ])
+
+  const customPresets = custom.presets.map((item) => {
+    return item.preset
+  })
+
+  setRuntimeVideoPresets(customPresets.filter(isVideoPreset))
+  setRuntimeImagePresets(customPresets.filter(isImagePreset))
 
   return {
     entries: [...videoEntries, ...imageEntries, ...custom.entries],

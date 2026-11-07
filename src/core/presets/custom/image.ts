@@ -53,6 +53,7 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
     title: model.name,
     family: 'custom',
     description: model.description,
+    workflowName: model.workflow?.name ?? null,
     icon: CUSTOM_ICON,
     resolutions: resolutionOptions,
     defaultResolution,

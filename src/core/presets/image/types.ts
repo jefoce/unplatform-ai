@@ -67,6 +67,7 @@ export interface ImagePreset {
   title: string
   family: ImageFamily
   description: string
+  workflowName?: string | null
 
   /** Picker icon, from the existing preset icon set. */
   icon: PresetIcon

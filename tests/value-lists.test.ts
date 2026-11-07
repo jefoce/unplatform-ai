@@ -65,7 +65,7 @@ describe('shared value lists', () => {
       TRANSPORTS: ['base64', 'url', 'upload', 'auto'],
       VIDEO_FAMILIES: ['wan', 'seedance', 'custom'],
       PRESET_ICONS: ['sparkles', 'audio-lines'],
-      MODEL_STATUSES: ['available', 'unverified', 'missing', 'no_provider'],
+      MODEL_STATUSES: ['available', 'unverified', 'missing', 'invalid', 'no_provider'],
       STATUS_HELP_KEYS: [
         'processing',
         'uploading',

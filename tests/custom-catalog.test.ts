@@ -1,4 +1,4 @@
-/* eslint-disable max-lines-per-function -- catalog cases share one custom endpoint table */
+/* eslint-disable max-lines, max-lines-per-function -- catalog cases share one custom endpoint table */
 
 import fs from 'node:fs/promises'
 import os from 'node:os'
@@ -11,9 +11,14 @@ import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
 import type { CatalogEntry } from '../src/core/catalog'
+import { isVideoPreset } from '../src/core/presets/common/preset-kind'
 import { CUSTOM_STALE_REASON } from '../src/core/presets/custom/shared'
 import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
-import { type CustomEndpoint, CustomEndpointSchema } from '../src/core/schemas/custom-endpoint'
+import {
+  type CustomEndpoint,
+  type CustomEndpointPricing,
+  CustomEndpointSchema,
+} from '../src/core/schemas/custom-endpoint'
 
 const ROOT = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-custom-catalog-'))
 const DATA_DIR = path.join(ROOT, 'data')
@@ -59,8 +64,13 @@ vi.mock('@/core/providers/registry', () => {
 const { clearEndpointModelCache, markEndpointUnreachable, writeEndpointModels } =
   await import('@/server/services/endpoint-model-cache')
 
-const { clearModelCatalog, findPresetAny, getModelCatalog } =
-  await import('@/server/services/model-catalog')
+const {
+  clearModelCatalog,
+  findImagePresetAny,
+  findPresetAny,
+  findVideoPresetAny,
+  getModelCatalog,
+} = await import('@/server/services/model-catalog')
 
 const VIDEO_MODELS = UpaiModelListSchema.parse(videoFixture).data
 const IMAGE_MODELS = UpaiModelListSchema.parse(imageFixture).data
@@ -83,6 +93,34 @@ function customEndpoint(id: string, badge: string, isEnabled = true): CustomEndp
     badge,
     baseUrl: 'http://127.0.0.1:8188',
     enabled: isEnabled,
+  })
+}
+
+function pricedEndpoint(id: string, badge: string, pricing: CustomEndpointPricing): CustomEndpoint {
+  return CustomEndpointSchema.parse({
+    id,
+    label: id,
+    badge,
+    baseUrl: 'http://127.0.0.1:8188',
+    pricing,
+  })
+}
+
+function healthEndpoint(id: string, badge: string, maxUploadBytes: number): CustomEndpoint {
+  return CustomEndpointSchema.parse({
+    id,
+    label: id,
+    badge,
+    baseUrl: 'http://127.0.0.1:8188',
+    lastHealth: {
+      protocol: 1,
+      serverVersion: '0.43.0',
+      maxRunning: 2,
+      lanAllowed: true,
+      authRequired: false,
+      maxUploadBytes,
+      checkedAt: new Date().toISOString(),
+    },
   })
 }
 
@@ -172,6 +210,7 @@ describe('custom catalog', () => {
 
     const video: UpaiModel = {
       ...base,
+      description: 'Local Wan workflow',
       pricing: { per_run_usd: 0.25 },
       workflow: { id: 'wan22', name: 'Wan 2.2' },
     }
@@ -185,6 +224,8 @@ describe('custom catalog', () => {
     const entry = entryFor(customEntries((await getModelCatalog()).entries), video.id)
 
     expect(entry.source.workflowName).toBe('Wan 2.2')
+    expect(entry.preset?.workflowName).toBe('Wan 2.2')
+    expect(entry.preset?.description).toBe('Local Wan workflow')
     expect(entry.pricing?.skus.per_run).toBe(0.25)
   })
 
@@ -203,7 +244,66 @@ describe('custom catalog', () => {
     expect(entry.availability).toEqual({ status: 'available', reason: CUSTOM_STALE_REASON })
   })
 
-  it('marks an invalid model missing with its status reason', async () => {
+  it('carries the mapped preset on the entry', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-preset', 'CU9')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    const entry = entryFor(customEntries((await getModelCatalog()).entries), video.id)
+
+    expect(entry.preset).toMatchObject({
+      id: `custom.${endpoint.id}.${video.id}`,
+      title: video.name,
+      family: 'custom',
+    })
+  })
+
+  it('uses the endpoint price override for the entry fallback', async () => {
+    const base = modelAt(VIDEO_MODELS, 0)
+    const model: UpaiModel = { ...base, pricing: { per_run_usd: 0.25 } }
+    const free = pricedEndpoint('cat-price-free', 'CUA', { mode: 'free', usd: 3 })
+    const perRun = pricedEndpoint('cat-price-run', 'CUB', { mode: 'perRun', usd: 2 })
+    const perSecond = pricedEndpoint('cat-price-sec', 'CUC', { mode: 'perSecond', usd: 5 })
+
+    await writeEndpoints([free, perRun, perSecond])
+
+    for (const endpoint of [free, perRun, perSecond]) {
+      await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [model] })
+    }
+
+    clearModelCatalog()
+
+    const entries = customEntries((await getModelCatalog()).entries)
+
+    expect(entryFor(entries, `custom.${free.id}.${model.id}`).pricing?.skus.per_run).toBe(0)
+    expect(entryFor(entries, `custom.${perRun.id}.${model.id}`).pricing?.skus.per_run).toBe(2)
+    expect(entryFor(entries, `custom.${perSecond.id}.${model.id}`).pricing?.skus.per_run).toBe(5)
+  })
+
+  it('carries the endpoint max upload size into the reference limits', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const maxUploadBytes = 12 * 1024 * 1024
+    const endpoint = healthEndpoint('cat-upload', 'CUD', maxUploadBytes)
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    const entry = entryFor(customEntries((await getModelCatalog()).entries), video.id)
+    const preset = entry.preset
+
+    if (isNil(preset) || !isVideoPreset(preset)) {
+      throw new Error('Expected a video preset')
+    }
+
+    expect(preset.referenceLimits?.video?.maxBytes).toBe(maxUploadBytes)
+    expect(preset.referenceLimits?.audio?.maxBytes).toBe(maxUploadBytes)
+  })
+
+  it('marks an invalid model invalid with its status reason', async () => {
     const invalid = modelAt(INVALID_MODELS, 0)
     const endpoint = customEndpoint('cat-invalid', 'CU4')
 
@@ -213,7 +313,7 @@ describe('custom catalog', () => {
 
     const entry = entryFor(customEntries((await getModelCatalog()).entries), invalid.id)
 
-    expect(entry.status).toBe('missing')
+    expect(entry.status).toBe('invalid')
     expect(entry.reason).toBe('node class KSampler is not installed')
   })
 
@@ -304,5 +404,25 @@ describe('findPresetAny', () => {
 
   it('returns null for an unknown preset', async () => {
     expect(await findPresetAny('custom.unknown.model')).toBeNull()
+  })
+})
+
+describe('find preset by kind', () => {
+  it('resolves custom video and image presets and rejects the other kind', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const image = modelAt(IMAGE_MODELS, 0)
+    const endpoint = customEndpoint('cat-kind', 'CUE')
+    const videoId = `custom.${endpoint.id}.${video.id}`
+    const imageId = `custom.${endpoint.id}.${image.id}`
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'image', models: [image] })
+    clearModelCatalog()
+
+    expect((await findVideoPresetAny(videoId))?.id).toBe(videoId)
+    expect((await findImagePresetAny(imageId))?.id).toBe(imageId)
+    expect(await findVideoPresetAny(imageId)).toBeNull()
+    expect(await findImagePresetAny(videoId)).toBeNull()
   })
 })

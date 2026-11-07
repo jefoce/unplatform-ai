@@ -61,6 +61,8 @@ export interface VideoPreset {
   id: string
   title: string
   family: VideoFamily
+  description?: string
+  workflowName?: string | null
 
   /** Key the picker maps to a lucide icon. */
   icon: PresetIcon

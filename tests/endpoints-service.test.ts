@@ -206,6 +206,8 @@ describe('endpoint test mapping', () => {
       maxRunning: 2,
     })
 
+    expect(result.lastHealth?.maxUploadBytes).toBe(HEALTH.max_upload_bytes)
+
     expect(fetchMock).toHaveBeenCalledWith(
       'http://127.0.0.1:8188/upai/api/v1/health',
       expect.objectContaining({ redirect: 'error' }),

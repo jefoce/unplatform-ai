@@ -1,4 +1,4 @@
-/* eslint-disable max-lines-per-function -- mapper cases share one fixture table */
+/* eslint-disable max-lines, max-lines-per-function -- mapper cases share one fixture table */
 
 import { isNil } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
@@ -208,6 +208,21 @@ describe('video mapping', () => {
     expect(preset.referencesRequired).toEqual({ image: 1, video: 0, audio: 0 })
   })
 
+  it('carries the workflow name and description', () => {
+    const base = modelAt(VIDEO_MODELS, 0)
+
+    const model: UpaiModel = {
+      ...base,
+      description: 'Local video workflow',
+      workflow: { id: 'wan22', name: 'Wan 2.2' },
+    }
+
+    const preset = expectVideo(mapModel(model))
+
+    expect(preset.workflowName).toBe('Wan 2.2')
+    expect(preset.description).toBe('Local video workflow')
+  })
+
   it('marks a stale model available with the workflow hint', () => {
     const base = modelAt(VIDEO_MODELS, 0)
     const result = mapModel({ ...base, status: 'stale', status_reason: 'workflow is newer' })
@@ -243,6 +258,21 @@ describe('image mapping', () => {
     expect(preset.aspectRatios).toHaveLength(23)
     expect(preset.bindings[0]).toMatchObject({ provider: 'custom', modelId: model.id })
     expect(result.warnings).toEqual([])
+  })
+
+  it('carries the workflow name and description', () => {
+    const base = modelAt(IMAGE_MODELS, 0)
+
+    const model: UpaiModel = {
+      ...base,
+      description: 'Local image workflow',
+      workflow: { id: 'sdxl', name: 'SDXL' },
+    }
+
+    const preset = expectImage(mapModel(model))
+
+    expect(preset.workflowName).toBe('SDXL')
+    expect(preset.description).toBe('Local image workflow')
   })
 
   it('filters params by the declared capabilities', () => {
@@ -283,7 +313,7 @@ describe('image mapping', () => {
     expect(preset.id).toBe(`custom.endpoint-1.${model.id}`)
 
     expect(result.availability).toEqual({
-      status: 'missing',
+      status: 'invalid',
       reason: 'node class KSampler is not installed',
     })
   })
@@ -292,6 +322,6 @@ describe('image mapping', () => {
     const model = modelAt(INVALID_MODELS, 0)
     const result = mapModel({ ...model, status_reason: null })
 
-    expect(result.availability).toEqual({ status: 'missing', reason: CUSTOM_INVALID_REASON })
+    expect(result.availability).toEqual({ status: 'invalid', reason: CUSTOM_INVALID_REASON })
   })
 })
