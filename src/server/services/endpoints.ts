@@ -6,7 +6,6 @@ import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import type { EndpointHealthStatus } from '@/core/endpoints'
-import { isNonEmptyString } from '@/core/guards'
 import {
   type CustomEndpoint,
   type CustomEndpointLastHealth,
@@ -32,13 +31,13 @@ import {
 } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
+import { pruneEndpointCaches } from './endpoint-cache-prune'
 import {
   forgetEndpointHealth,
   getHealth,
   setEndpointHealth,
   type SetEndpointHealthParams,
 } from './endpoint-health'
-import { removeEndpointModelCache } from './endpoint-model-cache'
 import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
 
@@ -185,15 +184,7 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
     forgetEndpointHealth(id)
   }
 
-  await Promise.all(result.removedIds.map(removeEndpointModelCache))
-
-  const preparedIds = prepared
-    .map((item) => {
-      return item.entry.id
-    })
-    .filter(isNonEmptyString)
-
-  await Promise.all(preparedIds.map(removeEndpointModelCache))
+  await pruneEndpointCaches({ current, prepared, removedIds: result.removedIds })
   clearModelCatalog()
   resetCustomProviders()
 

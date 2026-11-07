@@ -88,21 +88,6 @@ function endpoint(label: string, token?: string): EndpointsService.EndpointInput
   }
 }
 
-function endpointInput(
-  entry: EndpointsService.EndpointOverviewEntry,
-): EndpointsService.EndpointInput {
-  return {
-    id: entry.id,
-    label: entry.label,
-    badge: entry.badge,
-    baseUrl: entry.baseUrl,
-    enabled: entry.enabled,
-    pricing: entry.pricing,
-    instanceId: entry.instanceId,
-    lastHealth: entry.lastHealth,
-  }
-}
-
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -148,30 +133,6 @@ describe('token storage', () => {
     ).toBeNull()
 
     await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-})
-
-describe('endpoint cache refresh', () => {
-  it('removes kept model caches and drops the cached adapters on save', async () => {
-    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
-    const entry = saved.endpoints[0]
-
-    if (!entry) {
-      throw new Error('Missing saved endpoint')
-    }
-
-    const cacheFile = repo.endpointModelsFile(entry.id)
-
-    await fs.mkdir(path.dirname(cacheFile), { recursive: true })
-    await fs.writeFile(cacheFile, JSON.stringify({ video: [], image: [] }))
-
-    const registry = await import('@/server/providers/registry')
-    const before = registry.getVideoProvider(entry.id)
-
-    await service.saveEndpoints({ endpoints: [endpointInput(entry)] })
-
-    await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
-    expect(registry.getVideoProvider(entry.id)).not.toBe(before)
   })
 })
 

@@ -1,5 +1,6 @@
 import { isNil } from 'lodash-es'
 
+import { CUSTOM_DESCRIPTOR } from './custom'
 import { OPENROUTER_DESCRIPTOR } from './openrouter'
 import { R2_DESCRIPTOR } from './r2'
 import {
@@ -16,6 +17,10 @@ export const PROVIDERS: readonly ProviderDescriptor[] = [OPENROUTER_DESCRIPTOR]
 export const STORAGE_PROVIDERS: readonly StorageProviderDescriptor[] = [R2_DESCRIPTOR]
 
 export function providerDescriptor(id: ProviderKindId): ProviderDescriptor {
+  if (id === 'custom') {
+    return CUSTOM_DESCRIPTOR
+  }
+
   const descriptor = PROVIDERS.find((provider) => {
     return provider.id === id
   })

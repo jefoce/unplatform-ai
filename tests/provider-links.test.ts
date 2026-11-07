@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { OPENROUTER_CREDITS_URL } from '../src/core/providers/openrouter'
-import { PROVIDERS, STORAGE_PROVIDERS } from '../src/core/providers/registry'
+import { providerDescriptor, PROVIDERS, STORAGE_PROVIDERS } from '../src/core/providers/registry'
 import type { ProviderLink } from '../src/core/providers/types'
 
 const CAPABILITIES_PATH = path.join(process.cwd(), 'src-tauri/capabilities/default.json')
@@ -61,6 +61,13 @@ async function openerGlobs(): Promise<string[]> {
     return rule.url
   })
 }
+
+describe('provider descriptor lookup', () => {
+  it('returns the custom descriptor without listing it in PROVIDERS', () => {
+    expect(providerDescriptor('custom')).toMatchObject({ id: 'custom', label: 'ComfyUI' })
+    expect(PROVIDERS).toHaveLength(1)
+  })
+})
 
 describe('provider links', () => {
   it('lists the setup guide for every provider', () => {
