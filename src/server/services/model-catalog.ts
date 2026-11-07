@@ -4,10 +4,10 @@ import { isEmpty, isNil } from 'lodash-es'
 
 import type { CatalogEntry, CatalogEntrySource, ModelCatalog } from '@/core/catalog'
 import { MODEL_CATALOG_TTL_MS } from '@/core/constants'
-import { VIDEO_PRESETS } from '@/core/presets'
+import { findPreset, VIDEO_PRESETS } from '@/core/presets'
 import type { ProviderBinding } from '@/core/presets/common/binding'
 import { activeBinding, primaryBinding } from '@/core/presets/common/bindings'
-import { IMAGE_PRESETS } from '@/core/presets/image'
+import { findImagePreset, IMAGE_PRESETS } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
@@ -20,6 +20,13 @@ import type { ProviderModel } from '../providers/types'
 import { registerSecretsListener, secretsReady } from '../secrets'
 import { createTtlCache } from '../sync/ttl-cache'
 import { catalogStatus } from './catalog-status'
+import { clearEndpointModelCache } from './endpoint-model-cache'
+import {
+  clearCustomCatalog,
+  findCustomPreset,
+  loadCustomCatalog,
+  type PresetSource,
+} from './model-catalog-custom'
 
 interface DriftState {
   logged: Set<string>
@@ -58,28 +65,50 @@ export async function getModelCatalog(): Promise<ModelCatalog> {
   })
 }
 
-/** Drops the cached catalog after settings change. */
+/** Drops the cached catalog and custom model memory after settings change. */
 export function clearModelCatalog(): void {
   cache.clear()
+  clearCustomCatalog()
+  clearEndpointModelCache()
 }
 
 /** Drops the cached catalog when any key changes. */
 export function registerModelCatalogSecretsListener(): void {
   registerSecretsListener('model-catalog', () => {
-    cache.clear()
+    clearModelCatalog()
   })
+}
+
+/** Catalog-aware preset lookup for submit, regenerate and reuse. */
+export async function findPresetAny(presetId: string): Promise<PresetSource | null> {
+  const video = findPreset(presetId)
+
+  if (!isNil(video)) {
+    return { preset: video, source: STATIC_CATALOG_SOURCE }
+  }
+
+  const image = findImagePreset(presetId)
+
+  if (!isNil(image)) {
+    return { preset: image, source: STATIC_CATALOG_SOURCE }
+  }
+
+  await getModelCatalog()
+
+  return findCustomPreset(presetId)
 }
 
 async function loadCatalog(): Promise<ModelCatalog> {
   await secretsReady()
 
-  const [videoEntries, imageEntries] = await Promise.all([
+  const [videoEntries, imageEntries, custom] = await Promise.all([
     Promise.all(VIDEO_PRESETS.map(buildEntry)),
     Promise.all(IMAGE_PRESETS.map(buildImageEntry)),
+    loadCustomCatalog(),
   ])
 
   return {
-    entries: [...videoEntries, ...imageEntries],
+    entries: [...videoEntries, ...imageEntries, ...custom.entries],
     fetchedAt: new Date().toISOString(),
   }
 }

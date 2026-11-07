@@ -12,6 +12,12 @@ import { IMAGE_PRESETS } from '../src/core/presets/image'
 import type { VideoPreset } from '../src/core/presets/video/types'
 import type { ProviderKindId } from '../src/core/providers/types'
 
+vi.hoisted(() => {
+  const os = process.getBuiltinModule('node:os')
+
+  process.env.STORAGE_ROOT = `${os.tmpdir()}/cf-model-catalog-${process.pid}`
+})
+
 const multi = vi.hoisted(() => {
   return {
     id: 'multi-binding',
