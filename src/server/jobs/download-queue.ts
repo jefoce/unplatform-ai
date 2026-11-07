@@ -420,7 +420,7 @@ function isRemovedEndpoint(record: GenerationRecord): boolean {
 
 interface JobUrlParams {
   url: string
-  provider: VideoProvider | undefined
+  provider: VideoProvider
 }
 
 async function fetchJobUrl(params: JobUrlParams): Promise<Response> {
@@ -428,7 +428,7 @@ async function fetchJobUrl(params: JobUrlParams): Promise<Response> {
 
   const res = await safeFetchProviderUrl({
     url,
-    hosts: provider?.contentHosts ?? [new URL(url).hostname],
+    hosts: provider.contentHosts,
     timeoutMs: FETCH_TIMEOUTS.content,
   })
 
@@ -443,7 +443,7 @@ async function fallbackContent(params: FallbackContentParams): Promise<Response>
   const { error, job, provider, record } = params
   const url = job.urls?.[0]
 
-  if (isNonEmptyString(url)) {
+  if (isNonEmptyString(url) && !isNil(provider)) {
     return await fetchJobUrl({ url, provider })
   }
 
