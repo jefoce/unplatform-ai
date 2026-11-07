@@ -13,17 +13,25 @@ import {
   SUBMIT_GRACE_MS,
 } from '@/core/constants'
 import type { ReferencePlan } from '@/core/media/media-types'
-import { activeBinding } from '@/core/presets/common/bindings'
+import type { ProviderBinding } from '@/core/presets/common/binding'
+import { activeBinding, primaryBinding } from '@/core/presets/common/bindings'
+import type { VideoPreset } from '@/core/presets/video/types'
+import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type {
   GenerationCost,
   GenerationInput,
   GenerationRecord,
   InputSnapshot,
+  PriceSource,
 } from '@/core/schemas/generation-record'
 
 import { HttpError } from '../errors'
 import { startSubmit } from '../jobs/submit-queue'
 import { encodeImages } from '../media/image-data-url'
+import { getEndpoint } from '../providers/custom/endpoint-source'
+import { endpointIdFromPresetId } from '../providers/custom/preset-link'
+import { resolveCustomRunPrice } from '../providers/custom/pricing'
+import { customRecordSource } from '../providers/custom/record-source'
 import { getVideoProvider } from '../providers/registry'
 import { getActiveCount, saveGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
@@ -33,12 +41,29 @@ import { snapshotItem } from './upload-snapshot'
 /** Validates, writes a grace record, then queues upload and submit in the background. */
 export async function createGeneration(raw: GenerationInput): Promise<GenerationRecord> {
   const { preset, input, uploads } = await loadDraft(raw)
+  const endpointId = endpointIdFromPresetId(preset.id)
+  let endpoint: CustomEndpoint | null = null
 
-  const estimate = await estimateGeneration({ preset, input, uploads })
-  const { estimatedUsd, pricePerSec } = estimate
+  if (!isNil(endpointId)) {
+    endpoint = await getEndpoint(endpointId)
 
-  if (estimate.priceSource === 'unknown' || isNil(estimatedUsd) || isNil(pricePerSec)) {
-    throw new HttpError(409, 'Price unavailable for this model')
+    if (isNil(endpoint)) {
+      throw new HttpError(409, 'Endpoint removed')
+    }
+  }
+
+  let binding: ProviderBinding
+  let price: PriceResult
+
+  if (isNil(endpoint)) {
+    binding = activeBinding(preset, (item) => {
+      return getVideoProvider(item.provider).isConfigured()
+    })
+
+    price = await quoteEstimate({ preset, input, uploads })
+  } else {
+    binding = primaryBinding(preset)
+    price = customPrice({ endpoint, preset, duration: input.duration })
   }
 
   const encoded = await encodeImages({
@@ -49,17 +74,13 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
 
   const now = new Date().toISOString()
 
-  const binding = activeBinding(preset, (item) => {
-    return getVideoProvider(item.provider).isConfigured()
-  })
-
   const cost: GenerationCost = {
     currency: 'USD',
-    pricePerSec,
-    priceSource: estimate.priceSource,
-    estimatedUsd,
+    pricePerSec: price.pricePerSec,
+    priceSource: price.priceSource,
+    estimatedUsd: price.estimatedUsd,
     actualUsd: null,
-    referenceSeconds: estimate.referenceSeconds,
+    referenceSeconds: price.referenceSeconds,
     isByok: null,
     billed: null,
   }
@@ -82,6 +103,10 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
     cost,
   }
 
+  if (!isNil(endpoint)) {
+    record.source = customRecordSource(preset, endpoint)
+  }
+
   const saved = await withLock('active-generations', async () => {
     if ((await getActiveCount()) >= MAX_ACTIVE_JOBS) {
       throw new HttpError(
@@ -96,6 +121,61 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
   await startSubmit(saved.id)
 
   return saved
+}
+
+interface PriceResult {
+  estimatedUsd: number
+  pricePerSec: number
+  priceSource: PriceSource
+  referenceSeconds: number | undefined
+}
+
+interface QuoteParams {
+  preset: VideoPreset
+  input: GenerationInput
+  uploads: UploadsById
+}
+
+async function quoteEstimate(params: QuoteParams): Promise<PriceResult> {
+  const { preset, input, uploads } = params
+  const estimate = await estimateGeneration({ preset, input, uploads })
+
+  if (estimate.priceSource === 'unknown' || isNil(estimate.estimatedUsd)) {
+    throw new HttpError(409, 'Price unavailable for this model')
+  }
+
+  if (isNil(estimate.pricePerSec)) {
+    throw new HttpError(409, 'Price unavailable for this model')
+  }
+
+  return {
+    estimatedUsd: estimate.estimatedUsd,
+    pricePerSec: estimate.pricePerSec,
+    priceSource: estimate.priceSource,
+    referenceSeconds: estimate.referenceSeconds,
+  }
+}
+
+interface CustomPriceParams {
+  endpoint: CustomEndpoint
+  preset: VideoPreset
+  duration: number
+}
+
+function customPrice(params: CustomPriceParams): PriceResult {
+  const { endpoint, preset, duration } = params
+  let pricePerSec = 0
+
+  if (endpoint.pricing.mode === 'perSecond') {
+    pricePerSec = endpoint.pricing.usd
+  }
+
+  return {
+    estimatedUsd: resolveCustomRunPrice({ endpoint, preset, duration }),
+    pricePerSec,
+    priceSource: 'fallback',
+    referenceSeconds: undefined,
+  }
 }
 
 function snapshot(uploads: UploadsById, plan: ReferencePlan): InputSnapshot {
