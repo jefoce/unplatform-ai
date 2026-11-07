@@ -6,8 +6,14 @@ import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import { MODELS_KEY } from '@/lib/api/swr-keys'
 import { fetcher } from '@/lib/fetcher'
 
+import { registerCatalogPresets } from './catalog'
+
 function fetchModelCatalog(): Promise<ModelCatalog> {
-  return fetcher<ModelCatalog>(MODELS_KEY)
+  return fetcher<ModelCatalog>(MODELS_KEY).then((catalog) => {
+    registerCatalogPresets(catalog.entries)
+
+    return catalog
+  })
 }
 
 interface ModelCatalogState {

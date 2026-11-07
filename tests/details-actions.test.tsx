@@ -45,6 +45,9 @@ vi.mock('@/lib/fetcher', () => {
     ApiError: class ApiError extends Error {
       status = 0
     },
+    fetcher: vi.fn(() => {
+      return Promise.resolve({ endpoints: [] })
+    }),
   }
 })
 

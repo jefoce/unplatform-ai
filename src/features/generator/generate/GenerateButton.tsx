@@ -22,6 +22,7 @@ interface GenerateButtonProps {
   disabled: boolean
   error?: string
   price: number | null
+  isPriceVisible?: boolean
   listPrice?: number | null
   discount?: number
   isApproximate?: boolean
@@ -78,15 +79,16 @@ interface PanelContentParams {
   isBusy: boolean
   isDisabled: boolean
   price: number | null
+  isPriceVisible: boolean
   listPrice: number | null
   discount: number
 }
 
 /** Full-width action for the generator panel. */
 function panelContent(params: PanelContentParams) {
-  const { isBusy: isWorking, isDisabled, price, listPrice, discount } = params
+  const { isBusy: isWorking, isDisabled, price, isPriceVisible, listPrice, discount } = params
   const tone = isDisabled ? 'muted' : 'onAccent'
-  const isPriceShown = !isNil(price) && !isWorking
+  const isPriceShown = isPriceVisible && !isNil(price) && !isWorking
   const format = isDisabled ? formatEstimate : formatUsd
 
   return (
@@ -111,15 +113,16 @@ interface CompactContentParams {
   isBusy: boolean
   isDisabled: boolean
   price: number | null
+  isPriceVisible: boolean
   isApproximate: boolean
 }
 
 /** Column action for the floating image prompt bar. */
 function compactContent(params: CompactContentParams) {
-  const { isBusy: isWorking, isDisabled, price, isApproximate } = params
+  const { isBusy: isWorking, isDisabled, price, isPriceVisible, isApproximate } = params
   const tone = isDisabled ? 'muted' : 'onAccent'
   const label = priceText({ usd: price, isApproximate })
-  const isPriceShown = !isNil(label) && !isWorking
+  const isPriceShown = isPriceVisible && !isNil(label) && !isWorking
 
   return (
     <>
@@ -139,19 +142,29 @@ interface ButtonContentParams {
   isBusy: boolean
   isDisabled: boolean
   price: number | null
+  isPriceVisible: boolean
   listPrice: number | null
   discount: number
   isApproximate: boolean
 }
 
 function buttonContent(params: ButtonContentParams) {
-  const { isCompact, isBusy, isDisabled, price, listPrice, discount, isApproximate } = params
+  const {
+    isCompact,
+    isBusy,
+    isDisabled,
+    price,
+    isPriceVisible,
+    listPrice,
+    discount,
+    isApproximate,
+  } = params
 
   if (isCompact) {
-    return compactContent({ isBusy, isDisabled, price, isApproximate })
+    return compactContent({ isBusy, isDisabled, price, isPriceVisible, isApproximate })
   }
 
-  return panelContent({ isBusy, isDisabled, price, listPrice, discount })
+  return panelContent({ isBusy, isDisabled, price, isPriceVisible, listPrice, discount })
 }
 
 interface TooltipTextParams {
@@ -209,6 +222,8 @@ export function GenerateButton(props: GenerateButtonProps) {
     price,
   } = props
 
+  const isPriceVisible = props.isPriceVisible !== false
+
   const hint = priceHint({ isPriceLoading, price })
   const isWorking = isGenerating || isPriceLoading
   const isBlocked = isDisabled || !isNil(hint)
@@ -245,6 +260,7 @@ export function GenerateButton(props: GenerateButtonProps) {
             isBusy: isWorking,
             isDisabled,
             price,
+            isPriceVisible,
             listPrice: props.listPrice ?? null,
             discount: props.discount ?? 0,
             isApproximate: props.isApproximate ?? false,

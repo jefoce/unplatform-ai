@@ -1,11 +1,13 @@
 'use client'
 
+import { isNil } from 'lodash-es'
 import { toast } from 'sonner'
 
 import { issueText } from '@/core/validation/common'
 import { validateImageInput } from '@/core/validation/image'
 import { requestNotifications } from '@/features/shared/request-notifications'
 import { refreshCredits } from '@/lib/api/credits'
+import { freshPresetReason } from '@/lib/api/endpoints-status'
 import { createImage } from '@/lib/api/images'
 import { refreshImages } from '@/lib/image-feed-refresh'
 import { toastError } from '@/lib/notify'
@@ -41,9 +43,17 @@ export function useImageSubmit(options: ImageSubmitOptions) {
       return
     }
 
-    requestNotifications()
-
     try {
+      const fresh = await freshPresetReason(state.presetId)
+
+      if (!isNil(fresh)) {
+        toast.error(fresh)
+
+        return
+      }
+
+      requestNotifications()
+
       await createImage(input)
       const message = input.count > 1 ? `Generating ${input.count} images` : 'Generating image'
 

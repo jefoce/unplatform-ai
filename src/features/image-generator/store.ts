@@ -5,6 +5,7 @@ import { keyBy, uniqBy } from 'lodash-es'
 import { toast } from 'sonner'
 
 import type { UploadsById } from '@/core/api/uploads'
+import { findImagePreset } from '@/core/presets/image'
 import type {
   ImageAspectChoice,
   ImageBackground,
@@ -100,7 +101,16 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
     return {
       ...INITIAL,
       setPreset: (id) => {
-        const preset = currentImagePreset(id)
+        const preset = findImagePreset(id)
+
+        if (!preset) {
+          if (id.startsWith('custom.')) {
+            set({ presetId: id })
+          }
+
+          return
+        }
+
         const previous = get()
         const draft = imageDraftForPreset(previous, preset)
 

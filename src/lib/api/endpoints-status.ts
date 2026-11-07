@@ -1,0 +1,242 @@
+'use client'
+
+import { isNil } from 'lodash-es'
+import useSWR from 'swr'
+import { z } from 'zod'
+
+import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
+import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
+import type { EndpointHealthStatus } from '@/core/endpoints'
+import type { HistoryFacetKind } from '@/core/history-facets'
+import { fetcher } from '@/lib/fetcher'
+
+import { MODELS_KEY } from './swr-keys'
+
+export const ENDPOINTS_STATUS_KEY = '/api/endpoints'
+
+const ENDPOINTS_TEST_PATH = `${ENDPOINTS_STATUS_KEY}/test`
+const CATALOG_PATH = MODELS_KEY
+const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
+const MISSING_REASON = 'This workflow is gone from ComfyUI.'
+
+export interface EndpointStatusEntry {
+  id: string
+  label: string
+  badge: string
+  baseUrl: string
+  enabled: boolean
+  status: EndpointHealthStatus | 'unknown'
+  videoCount: number
+  imageCount: number
+}
+
+export interface EndpointsOverview {
+  endpoints: EndpointStatusEntry[]
+}
+
+interface EndpointsState {
+  endpoints: EndpointStatusEntry[]
+  isLoading: boolean
+}
+
+interface EndpointTestResult {
+  ok: boolean
+  error: string | null
+}
+
+interface FreshCheckParams {
+  instanceId: string
+  presetId: string
+}
+
+const EndpointTestSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().nullable().optional(),
+})
+
+/** Endpoint list with the last health state, read for the ready gate. */
+export function useEndpointsStatus(): EndpointsState {
+  const { data, isLoading } = useSWR<EndpointsOverview>(ENDPOINTS_STATUS_KEY, fetcher, {
+    revalidateOnFocus: false,
+  })
+
+  return { endpoints: data?.endpoints ?? [], isLoading }
+}
+
+/** One endpoint by id, or null while loading or after a delete. */
+export function endpointById(
+  endpoints: readonly EndpointStatusEntry[],
+  instanceId: string | null,
+): EndpointStatusEntry | null {
+  if (isNil(instanceId)) {
+    return null
+  }
+
+  return (
+    endpoints.find((endpoint) => {
+      return endpoint.id === instanceId
+    }) ?? null
+  )
+}
+
+/** True when at least one enabled endpoint passed health and offers this kind. */
+export function hasReadyEndpoint(
+  endpoints: readonly EndpointStatusEntry[],
+  kind: HistoryFacetKind,
+): boolean {
+  return endpoints.some((endpoint) => {
+    if (!endpoint.enabled || endpoint.status !== 'ok') {
+      return false
+    }
+
+    if (kind === 'video') {
+      return endpoint.videoCount > 0
+    }
+
+    return endpoint.imageCount > 0
+  })
+}
+
+/** Endpoint status not `ok`, used for the offline pill. */
+export function isEndpointOffline(
+  endpoints: readonly EndpointStatusEntry[],
+  instanceId: string | null,
+): boolean {
+  const endpoint = endpointById(endpoints, instanceId)
+
+  if (isNil(endpoint)) {
+    return false
+  }
+
+  return endpoint.status !== 'ok'
+}
+
+async function testEndpointHealth(
+  instanceId: string,
+  baseUrl: string,
+): Promise<EndpointTestResult> {
+  const body = JSON.stringify({ baseUrl, endpointId: instanceId })
+
+  const response = await fetch(ENDPOINTS_TEST_PATH, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    signal: AbortSignal.timeout(CUSTOM_CHECK_TIMEOUT_MS),
+  })
+
+  const parsed: unknown = await response.json().catch(() => {
+    return null
+  })
+
+  const result = EndpointTestSchema.safeParse(parsed)
+
+  if (!result.success) {
+    return { ok: false, error: 'ComfyUI did not answer in time.' }
+  }
+
+  return { ok: result.data.ok, error: result.data.error ?? null }
+}
+
+function entryReason(entry: CatalogEntry | undefined): string | null {
+  if (isNil(entry)) {
+    return MISSING_REASON
+  }
+
+  if (entry.status === 'unverified') {
+    return entry.reason ?? 'ComfyUI is not reachable.'
+  }
+
+  if (entry.status === 'missing' || entry.status === 'no_provider') {
+    return entry.reason ?? MISSING_REASON
+  }
+
+  if (!isNil(entry.reason)) {
+    return STALE_REASON
+  }
+
+  return null
+}
+
+/** Fresh model presence check, used right before a custom generation is submitted. */
+async function checkModel(presetId: string): Promise<string | null> {
+  const catalog = await fetcher<ModelCatalog>(CATALOG_PATH)
+
+  const entry = catalog.entries.find((item) => {
+    return item.presetId === presetId
+  })
+
+  return entryReason(entry)
+}
+
+function timeoutReason(signal: AbortSignal): Promise<string> {
+  return new Promise((resolve) => {
+    signal.addEventListener(
+      'abort',
+      () => {
+        resolve('ComfyUI did not answer in time.')
+      },
+      { once: true },
+    )
+  })
+}
+
+async function checkPreset(presetId: string): Promise<string | null> {
+  const catalog = await fetcher<ModelCatalog>(CATALOG_PATH)
+
+  const entry = catalog.entries.find((item) => {
+    return item.presetId === presetId
+  })
+
+  if (isNil(entry) || entry.source.kind !== 'custom') {
+    return null
+  }
+
+  const reason = entryReason(entry)
+
+  if (!isNil(reason)) {
+    return reason
+  }
+
+  return checkCustomEndpoint({ instanceId: entry.source.instanceId, presetId })
+}
+
+/** Fresh check for a selected preset. Null means ready or not a custom model. */
+export async function freshPresetReason(presetId: string): Promise<string | null> {
+  if (!presetId.startsWith('custom.')) {
+    return null
+  }
+
+  const controller = new AbortController()
+
+  const timer = setTimeout(() => {
+    controller.abort()
+  }, CUSTOM_CHECK_TIMEOUT_MS)
+
+  try {
+    return await Promise.race([checkPreset(presetId), timeoutReason(controller.signal)])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** One fresh health and model check for a custom endpoint. Null means ready. */
+export async function checkCustomEndpoint(params: FreshCheckParams): Promise<string | null> {
+  const { instanceId, presetId } = params
+
+  const overview = await fetcher<EndpointsOverview>(ENDPOINTS_STATUS_KEY)
+
+  const endpoint = endpointById(overview.endpoints, instanceId)
+
+  if (isNil(endpoint) || !endpoint.enabled) {
+    return 'This endpoint was removed.'
+  }
+
+  const health = await testEndpointHealth(instanceId, endpoint.baseUrl)
+
+  if (!health.ok) {
+    return health.error ?? 'ComfyUI is not reachable.'
+  }
+
+  return checkModel(presetId)
+}

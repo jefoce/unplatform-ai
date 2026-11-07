@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { isNil } from 'lodash-es'
 import { toast } from 'sonner'
 
 import { inputForSubmit } from '@/core/normalize-input'
@@ -11,6 +12,7 @@ import type { ProviderKindId } from '@/core/providers/types'
 import { openSettings } from '@/features/settings/settings-store'
 import { requestNotifications } from '@/features/shared/request-notifications'
 import { refreshCredits } from '@/lib/api/credits'
+import { freshPresetReason } from '@/lib/api/endpoints-status'
 import { createGeneration } from '@/lib/api/generations'
 import { refreshHistoryFeeds } from '@/lib/history-feed-refresh'
 import { useAsyncAction } from '@/lib/use-async-action'
@@ -70,11 +72,22 @@ export function useGenerate(options: GenerateOptions = {}) {
     }
 
     resultId.current = null
-    requestNotifications()
     setError(null)
 
     try {
-      const input = inputForSubmit(inputFromState(useGeneratorStore.getState()))
+      const state = useGeneratorStore.getState()
+      const fresh = await freshPresetReason(state.presetId)
+
+      if (!isNil(fresh)) {
+        setError(fresh)
+        toast.error(fresh)
+
+        return
+      }
+
+      requestNotifications()
+
+      const input = inputForSubmit(inputFromState(state))
       const record = await createGeneration(input)
 
       resultId.current = record.id

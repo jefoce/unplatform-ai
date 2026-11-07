@@ -4,8 +4,11 @@ import { isNil } from 'lodash-es'
 import { Lock } from 'lucide-react'
 
 import { canonicalizePrompt } from '@/core/prompt-tokens'
+import { recordSource, sourceTitle } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { ImageRecord } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
+import { showPrice } from '@/features/generator/model/price-visibility'
 import { currentImagePreset } from '@/features/image-generator/preset'
 import { useImageGeneratorStore } from '@/features/image-generator/store'
 import { setWorkspaceTab } from '@/features/shared/use-workspace-tab'
@@ -24,6 +27,7 @@ import { costInfo, imageCostInfo, imageOutputSeed, imageSettingLabels } from './
 import { DetailsActions } from './DetailsActions'
 import { DetailsPrompt } from './DetailsPrompt'
 import { DetailsSettings } from './DetailsSettings'
+import { DetailsSource } from './DetailsSource'
 import { ImageActions } from './ImageActions'
 import { InputThumbs } from './InputThumbs'
 import { imageReferenceThumbItems, thumbItems } from './thumb-item'
@@ -45,17 +49,39 @@ interface PanelHeader {
   costNote: string
 }
 
-/** Model, price and its note for either kind. */
+function isLocalFree(record: GenerationRecord | ImageRecord, usd: number): boolean {
+  return !showPrice(recordSource(record), usd)
+}
+
+function costTextFor(record: GenerationRecord | ImageRecord, text: string): string {
+  const usd = record.cost.actualUsd ?? record.cost.estimatedUsd
+
+  if (isLocalFree(record, usd)) {
+    return ''
+  }
+
+  return text
+}
+
+/** Model, price and its note for either kind. Local zero prices are hidden. */
 function panelHeader(item: HistoryItem): PanelHeader {
   if (isVideoItem(item)) {
     const cost = costInfo(item.source)
 
-    return { title: item.source.preset.title, costText: cost.text, costNote: cost.note }
+    return {
+      title: sourceTitle(recordSource(item.source)),
+      costText: costTextFor(item.source, cost.text),
+      costNote: cost.note,
+    }
   }
 
   const cost = imageCostInfo(item)
 
-  return { title: item.modelTitle, costText: cost.text, costNote: cost.note }
+  return {
+    title: sourceTitle(recordSource(item.source)),
+    costText: costTextFor(item.source, cost.text),
+    costNote: cost.note,
+  }
 }
 
 interface VideoBodyParams {
@@ -163,6 +189,13 @@ interface BodyParams {
   onDeleted?: () => void
 }
 
+interface BodyParams {
+  item: HistoryItem
+  isActive: boolean
+  now: number
+  onDeleted?: () => void
+}
+
 function body(params: BodyParams) {
   if (isVideoItem(params.item)) {
     return videoBody({
@@ -189,12 +222,16 @@ export function DetailsPanel(props: DetailsPanelProps) {
         <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
           {header.title}
         </span>
-        <Tooltip content={header.costNote}>
-          <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
-            {header.costText}
-          </span>
-        </Tooltip>
+        {header.costText !== '' && (
+          <Tooltip content={header.costNote}>
+            <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
+              {header.costText}
+            </span>
+          </Tooltip>
+        )}
       </div>
+
+      <DetailsSource record={item.source} />
 
       {body({ item, isActive, now, onDeleted: props.onDeleted })}
     </div>

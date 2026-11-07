@@ -1,11 +1,15 @@
+import { isNil } from 'lodash-es'
+
 import { canCancelInGrace } from '@/core/submit-state'
+import { ACTIVE_STATUSES } from '@/core/types'
 import { errorResponse, type IdRouteContext, jsonError } from '@/server/http'
 import { cancelScheduledSubmit } from '@/server/jobs/submit-queue'
+import { getVideoProvider } from '@/server/providers/registry'
 import { deleteGenerationFiles, getGeneration } from '@/server/repos/generations'
 import { assertLocalRequest } from '@/server/request-guard'
 import { withLock } from '@/server/sync/lock'
 
-/** Cancels a generation only while it is still inside the grace window. */
+/** Cancels a grace generation, or stops a running custom job on its endpoint. */
 export async function POST(request: Request, { params }: IdRouteContext) {
   try {
     assertLocalRequest(request)
@@ -18,12 +22,29 @@ export async function POST(request: Request, { params }: IdRouteContext) {
         return 'missing'
       }
 
-      if (!canCancelInGrace(record)) {
+      if (canCancelInGrace(record)) {
+        cancelScheduledSubmit(id)
+        await deleteGenerationFiles(id)
+
+        return 'cancelled'
+      }
+
+      const job = record.job
+
+      const isCustomActive = record.provider === 'custom' && ACTIVE_STATUSES.includes(record.status)
+
+      if (!isCustomActive || isNil(job)) {
         return 'sent'
       }
 
-      cancelScheduledSubmit(id)
-      await deleteGenerationFiles(id)
+      const instanceId = record.source?.instanceId ?? record.provider
+      const provider = getVideoProvider(instanceId)
+
+      if (isNil(provider.cancel)) {
+        return 'sent'
+      }
+
+      await provider.cancel({ jobId: job.id, submittedAt: job.submittedAt })
 
       return 'cancelled'
     })

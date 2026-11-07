@@ -62,7 +62,7 @@ export function usePanelDraft() {
   const modelStatus = entry?.status ?? 'unverified'
   const modelReason = entry?.reason ?? null
   const { status: secrets } = useSecrets()
-  const provider = useProviderReady(presetId)
+  const provider = useProviderReady(presetId, 'video')
   const isKeyMissing = provider.isKeyMissing
   const isSecretsFailed = !isEmpty(secrets?.loadError)
 
@@ -99,6 +99,7 @@ export function usePanelDraft() {
     isKeyMissing,
     isSecretsFailed,
     provider,
+    entry,
     prompt,
     setPrompt,
   }

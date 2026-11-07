@@ -105,7 +105,13 @@ export function ImagePromptControls(props: ImagePromptControlsProps) {
 
         <span aria-hidden className="h-4 w-px shrink-0 bg-divider" />
 
-        <ModelPicker variant="bar" models={models} selectedId={presetId} onSelect={setPreset} />
+        <ModelPicker
+          variant="bar"
+          kind="image"
+          models={models}
+          selectedId={presetId}
+          onSelect={setPreset}
+        />
         <ImageOptionsRow preset={preset} />
         <ImageCountStepper count={count} onChange={setCount} />
       </div>

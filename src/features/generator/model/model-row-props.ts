@@ -1,8 +1,9 @@
 import type { CatalogEntry } from '@/core/catalog'
-import type { PickerModel } from '@/core/feed/picker-model'
+
+import type { PickerRow } from './picker-groups'
 
 export interface ModelRowProps {
-  model: PickerModel
+  model: PickerRow
   selected: boolean
   onSelect: (id: string) => void
 }

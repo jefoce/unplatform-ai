@@ -4,6 +4,7 @@ import { isOneOf } from '@/core/guards'
 import { TERMINAL_STATUSES } from '@/core/types'
 import { type HistoryItem, isVideoItem } from '@/lib/feed/output-items'
 
+import type { CardAction } from '../actions/card-action'
 import { HOVER_REVEAL_CLASSES } from '../actions/card-action-styles'
 import { CardActions } from '../actions/CardActions'
 import { FavoriteBadge } from '../actions/FavoriteBadge'
@@ -12,6 +13,7 @@ import { imageCardActions } from '../actions/image-card-actions'
 import { MoreMenu } from '../actions/MoreMenu'
 import { toggleFavoriteId } from '../actions/record-actions'
 import { videoCardActions } from '../actions/video-card-actions'
+import { isCustomActiveRecord } from '../status/status-tone'
 import { CardVignette } from './CardVignette'
 
 const isTerminal = (item: HistoryItem, isCompleted: boolean): boolean => {
@@ -24,6 +26,14 @@ const isTerminal = (item: HistoryItem, isCompleted: boolean): boolean => {
   }
 
   return item.status !== 'submitting' && item.status !== 'saving'
+}
+
+function actionList(item: HistoryItem, isTerminalItem: boolean): CardAction[] {
+  if (isTerminalItem) {
+    return tileActions(item)
+  }
+
+  return []
 }
 
 function tileActions(item: HistoryItem) {
@@ -48,6 +58,9 @@ export function HistoryTileChrome(props: HistoryTileChromeProps) {
     return null
   }
 
+  const isRunningCustom = isVideoItem(item) && isCustomActiveRecord(item.source)
+  const isTerminalItem = isTerminal(item, isCompleted)
+
   const handleFavorite = () => {
     if (isVideoItem(item)) {
       void toggleFavoriteId(item.id, item.favorite)
@@ -62,9 +75,9 @@ export function HistoryTileChrome(props: HistoryTileChromeProps) {
     <>
       {isCompleted && <CardVignette scope="card" />}
       {isCompleted && item.favorite && <FavoriteBadge isFavorite onToggle={handleFavorite} />}
-      {isTerminal(item, isCompleted) && (
+      {(isTerminalItem || isRunningCustom) && (
         <CardActions
-          actions={tileActions(item)}
+          actions={actionList(item, isTerminalItem)}
           menu={<MoreMenu item={item} className={HOVER_REVEAL_CLASSES} />}
           className="top-3 z-20"
         />

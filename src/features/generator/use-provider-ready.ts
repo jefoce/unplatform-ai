@@ -3,11 +3,15 @@
 import { isNil } from 'lodash-es'
 
 import type { CatalogEntry } from '@/core/catalog'
+import type { HistoryFacetKind } from '@/core/history-facets'
 import { useSecrets } from '@/features/settings/use-secrets'
 import { useCredits } from '@/lib/api/credits'
+import { hasReadyEndpoint, useEndpointsStatus } from '@/lib/api/endpoints-status'
 import { useModelEntry } from '@/lib/api/models'
 
 const PROVIDER_KEY_REASON = 'Add your OpenRouter key in Settings.'
+const UNREACHABLE_REASON = 'ComfyUI is not reachable.'
+const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
 
 export interface ProviderReady {
   isKeyMissing: boolean
@@ -15,34 +19,68 @@ export interface ProviderReady {
   reason: string | null
 }
 
-interface ProviderBlockParams {
-  entry: CatalogEntry | null
-  isKeyMissing: boolean
-}
-
-function providerBlock(params: ProviderBlockParams): string | null {
-  const { entry, isKeyMissing } = params
-  const isBlocked = entry?.status === 'missing' || entry?.status === 'no_provider'
-
-  if (isBlocked) {
-    return entry?.reason ?? PROVIDER_KEY_REASON
+/** Model-specific reason first: unreachable, missing, stale, then the key. */
+function modelReason(entry: CatalogEntry | null): string | null {
+  if (isNil(entry)) {
+    return null
   }
 
-  if (isKeyMissing) {
+  if (entry.status === 'unverified') {
+    return entry.reason ?? UNREACHABLE_REASON
+  }
+
+  if (entry.status === 'missing' || entry.status === 'no_provider') {
+    return entry.reason ?? PROVIDER_KEY_REASON
+  }
+
+  if (!isNil(entry.reason)) {
+    return STALE_REASON
+  }
+
+  return null
+}
+
+interface ReasonParams {
+  entry: CatalogEntry | null
+  isKeyMissing: boolean
+  isCustomId: boolean
+}
+
+function readyReason(params: ReasonParams): string | null {
+  const { entry, isKeyMissing, isCustomId } = params
+  const model = modelReason(entry)
+  const isOpenRouter = !isCustomId && (isNil(entry) || entry.source.kind === 'openrouter')
+
+  if (!isNil(model)) {
+    return model
+  }
+
+  if (isOpenRouter && isKeyMissing) {
     return PROVIDER_KEY_REASON
   }
 
   return null
 }
 
-/** Key and catalog readiness shared by the video and image generators. */
-export function useProviderReady(presetId?: string): ProviderReady {
+/** Ready gate: an OpenRouter key or one healthy custom endpoint for the tab kind. */
+export function useProviderReady(
+  presetId?: string,
+  kind: HistoryFacetKind = 'video',
+): ProviderReady {
   const { status } = useSecrets()
   const { credits } = useCredits()
+  const { endpoints } = useEndpointsStatus()
   const entry = useModelEntry(presetId ?? '')
   const isMock = credits?.source === 'mock'
   const isKeyMissing = !isNil(status) && !status.keys.OPENROUTER_API_KEY.set && !isMock
-  const reason = providerBlock({ entry, isKeyMissing })
+  const isCustomReady = hasReadyEndpoint(endpoints, kind)
+  const isReady = !isKeyMissing || isCustomReady
 
-  return { isKeyMissing, isReady: isNil(reason), reason }
+  const reason = readyReason({
+    entry,
+    isKeyMissing,
+    isCustomId: presetId?.startsWith('custom.') === true,
+  })
+
+  return { isKeyMissing, isReady: isReady && isNil(reason), reason }
 }

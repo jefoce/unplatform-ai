@@ -120,11 +120,11 @@ describe('job notifications away from the video tab', () => {
     await act(async () => {})
 
     expect(toast.success).toHaveBeenCalledWith(
-      'Video ready',
+      'Seedance',
       expect.objectContaining({ description: 'A cat' }),
     )
 
-    expect(notify).toHaveBeenCalledWith('Video ready', 'A cat')
+    expect(notify).toHaveBeenCalledWith('Seedance', 'A cat')
     expect(document.title).toBe('Unplatform AI')
   })
 
@@ -148,11 +148,11 @@ describe('job notifications away from the video tab', () => {
     await act(async () => {})
 
     expect(toast.success).toHaveBeenCalledWith(
-      'Image ready',
+      'Nano Banana',
       expect.objectContaining({ description: 'a cat' }),
     )
 
-    expect(notify).toHaveBeenCalledWith('Image ready', 'a cat')
+    expect(notify).toHaveBeenCalledWith('Nano Banana', 'a cat')
   })
 
   it('toasts an image that is cancelled during a watch', async () => {
@@ -173,7 +173,7 @@ describe('job notifications away from the video tab', () => {
     await act(async () => {})
 
     expect(toast.error).toHaveBeenCalledWith(
-      'Image cancelled',
+      'Nano Banana',
       expect.objectContaining({ description: 'a cat' }),
     )
   })
