@@ -38,6 +38,7 @@ import { pruneEndpointCaches } from './endpoint-cache-prune'
 import {
   forgetEndpointHealth,
   getHealth,
+  isFreshTest,
   isHealthFresh,
   setEndpointHealth,
   type SetEndpointHealthParams,
@@ -166,7 +167,7 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
 
     const previous = previousById[id]
 
-    if (isNil(previous) || !isChanged({ previous, item })) {
+    if (isNil(previous) || !isChanged({ previous, item }) || isFreshTest({ previous, item })) {
       continue
     }
 

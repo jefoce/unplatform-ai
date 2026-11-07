@@ -10,6 +10,16 @@ import type * as EndpointsService from '@/server/services/endpoints'
 const ROOT = path.join(os.tmpdir(), `cf-endpoints-cache-${process.pid}-${Date.now()}`)
 const PREVIOUS_ROOT = process.env.STORAGE_ROOT
 
+const LAST_HEALTH = {
+  protocol: 1,
+  serverVersion: '0.43.0',
+  maxRunning: 2,
+  lanAllowed: true,
+  authRequired: false,
+  maxUploadBytes: 100,
+  checkedAt: '2024-01-01T00:00:00.000Z',
+}
+
 process.env.STORAGE_ROOT = ROOT
 
 let service: typeof EndpointsService
@@ -124,6 +134,23 @@ describe('endpoint cache refresh', () => {
     await service.saveEndpoints({ endpoints: [{ ...endpointInput(entry), token: 'abcd1234' }] })
 
     await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('keeps the cache file when a fresh test covers an edited endpoint', async () => {
+    const entry = await saveStudio()
+    const cacheFile = await writeCache(entry.id)
+
+    await service.saveEndpoints({
+      endpoints: [
+        {
+          ...endpointInput(entry),
+          baseUrl: 'http://127.0.0.1:9999',
+          lastHealth: { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' },
+        },
+      ],
+    })
+
+    await expect(fs.stat(cacheFile)).resolves.toBeDefined()
   })
 
   it('has no cache file for a new endpoint', async () => {

@@ -25,6 +25,8 @@ import { useEndpointTest } from './use-endpoint-test'
 
 let rowSequence = 0
 
+const TEST_FIELDS = ['baseUrl', 'enabled', 'tokenValue', 'isTokenRemoved'] as const
+
 interface UseEndpointsDraftParams {
   isOpen: boolean
 }
@@ -39,6 +41,22 @@ function newRowKey(): string {
   rowSequence += 1
 
   return `draft-${rowSequence}`
+}
+
+function invalidatesTest(patch: EndpointRowPatch): boolean {
+  return TEST_FIELDS.some((field) => {
+    return field in patch
+  })
+}
+
+function isExpansionOnly(patch: EndpointRowPatch): boolean {
+  return Object.keys(patch).every((field) => {
+    return field === 'isExpanded'
+  })
+}
+
+function clearTest(row: EndpointRowDraft): EndpointRowDraft {
+  return { ...row, test: null, lastHealth: null, instanceId: null, status: 'unknown' }
 }
 
 function seedRows(data: EndpointOverview | undefined): EndpointRowDraft[] {
@@ -140,11 +158,19 @@ export function useEndpointsDraft(params: UseEndpointsDraftParams): EndpointsDra
           return row
         }
 
-        return { ...row, ...patch }
+        const next = { ...row, ...patch }
+
+        if (!invalidatesTest(patch)) {
+          return next
+        }
+
+        return clearTest(next)
       }),
     )
 
-    setIsDirty(true)
+    if (!isExpansionOnly(patch)) {
+      setIsDirty(true)
+    }
   }
 
   const onSave = async (): Promise<void> => {

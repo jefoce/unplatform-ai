@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useEndpointsDraft } from '@/features/settings/use-endpoints-draft'
-import type { EndpointView } from '@/lib/api/endpoints'
+import type { EndpointTestResult, EndpointView } from '@/lib/api/endpoints'
 
 import { required } from './helpers/required'
 
@@ -49,6 +49,28 @@ const VIEW: EndpointView = {
   imageCount: 0,
   tokenHint: null,
   hasToken: false,
+}
+
+const TEST_RESULT: EndpointTestResult = {
+  ok: true,
+  error: null,
+  protocol: 1,
+  serverVersion: '0.43.0',
+  videoCount: 3,
+  imageCount: 2,
+  authRequired: false,
+  lanAllowed: true,
+  instanceId: '11111111-1111-4111-8111-111111111111',
+  maxRunning: 2,
+  lastHealth: {
+    protocol: 1,
+    serverVersion: '0.43.0',
+    maxRunning: 2,
+    lanAllowed: true,
+    authRequired: false,
+    maxUploadBytes: 100,
+    checkedAt: '2024-06-01T00:00:00.000Z',
+  },
 }
 
 beforeEach(() => {
@@ -113,5 +135,49 @@ describe('endpoint draft save and cancel', () => {
 
     expect(result.current.rows[0]?.label).toBe('Studio')
     expect(result.current.isDirty).toBe(false)
+  })
+
+  it('stays clean when a row only expands', () => {
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    act(() => {
+      result.current.onChange(first.key, { isExpanded: true })
+    })
+
+    expect(result.current.rows[0]?.isExpanded).toBe(true)
+    expect(result.current.isDirty).toBe(false)
+  })
+
+  it('clears the test result when a tested field changes', async () => {
+    mocks.test.mockResolvedValue(TEST_RESULT)
+
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    await act(async () => {
+      result.current.onTest(first.key)
+    })
+
+    await waitFor(() => {
+      expect(result.current.rows[0]?.test).not.toBeNull()
+    })
+
+    expect(result.current.rows[0]?.lastHealth).toEqual(TEST_RESULT.lastHealth)
+
+    act(() => {
+      result.current.onChange(first.key, { baseUrl: 'http://127.0.0.1:9999' })
+    })
+
+    expect(result.current.rows[0]?.test).toBeNull()
+    expect(result.current.rows[0]?.lastHealth).toBeNull()
+    expect(result.current.rows[0]?.instanceId).toBeNull()
+    expect(result.current.rows[0]?.status).toBe('unknown')
   })
 })

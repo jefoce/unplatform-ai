@@ -267,6 +267,33 @@ describe('endpoint edits', () => {
     expect(health.getHealth(id)).toBeNull()
   })
 
+  it('keeps a fresh test when the endpoint was edited before Save', async () => {
+    const saved = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
+    })
+
+    const id = saved.endpoints[0]?.id ?? ''
+    const health = await import('@/server/services/endpoint-health')
+    const fresh = { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' }
+
+    health.setEndpointHealth({ endpointId: id, status: 'ok', message: null })
+
+    const next = await service.saveEndpoints({
+      endpoints: [
+        {
+          ...endpoint('Studio'),
+          id,
+          baseUrl: 'http://127.0.0.1:9999',
+          lastHealth: fresh,
+        },
+      ],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).toEqual(fresh)
+    expect(next.endpoints[0]?.status).toBe('ok')
+    expect(health.getHealth(id)).not.toBeNull()
+  })
+
   it('keeps health after a test when only the instance id changes', async () => {
     const saved = await service.saveEndpoints({
       endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],

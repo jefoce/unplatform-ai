@@ -189,13 +189,6 @@ interface BodyParams {
   onDeleted?: () => void
 }
 
-interface BodyParams {
-  item: HistoryItem
-  isActive: boolean
-  now: number
-  onDeleted?: () => void
-}
-
 function body(params: BodyParams) {
   if (isVideoItem(params.item)) {
     return videoBody({

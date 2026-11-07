@@ -2,14 +2,16 @@ import 'server-only'
 
 import { isNil, isUndefined, keyBy } from 'lodash-es'
 
-import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
+import type { CustomEndpoint, CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 
+import { isFreshTest } from './endpoint-health'
 import { removeEndpointModelCache } from './endpoint-model-cache'
 
 interface EndpointCacheEntry {
   id?: string
   baseUrl: string
   enabled: boolean
+  lastHealth: CustomEndpointLastHealth | null
 }
 
 interface EndpointCacheInput {
@@ -33,10 +35,11 @@ export async function pruneEndpointCaches(params: PruneEndpointCachesParams): Pr
       const previous = currentById[item.entry.id ?? '']
 
       return (
-        isNil(previous) ||
-        previous.baseUrl !== item.entry.baseUrl ||
-        previous.enabled !== item.entry.enabled ||
-        !isUndefined(item.token)
+        !isNil(previous) &&
+        !isFreshTest({ previous, item }) &&
+        (previous.baseUrl !== item.entry.baseUrl ||
+          previous.enabled !== item.entry.enabled ||
+          !isUndefined(item.token))
       )
     })
     .map((item) => {
