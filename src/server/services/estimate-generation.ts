@@ -18,6 +18,7 @@ import { type PriceInput, validateInput } from '@/core/validation/video'
 import { validateAspect } from '@/core/validation/video-rules'
 
 import { ValidationError } from '../errors'
+import { resolveRunPricing } from '../pricing/endpoints'
 import { loadLivePricing } from '../pricing/live'
 import { getVideoProvider } from '../providers/registry'
 import { getActiveCount } from '../repos/generations'
@@ -115,6 +116,14 @@ export async function estimateGeneration(draft: GenerationDraft): Promise<Genera
     presetId: preset.id,
   })
 
+  const pricing = await resolveRunPricing({
+    presetId: preset.id,
+    pricing: binding.pricing,
+    seconds: input.duration,
+  })
+
+  const resolved = { ...binding, pricing }
+
   const hasVideoInput =
     input.tab === 'references' &&
     input.references.some((id) => {
@@ -139,7 +148,7 @@ export async function estimateGeneration(draft: GenerationDraft): Promise<Genera
     skus = live.skus
   }
 
-  const estimate = quoteWithFallback({ preset, binding, ctx, skus })
+  const estimate = quoteWithFallback({ preset, binding: resolved, ctx, skus })
 
   if (isNil(estimate)) {
     return {
@@ -155,7 +164,7 @@ export async function estimateGeneration(draft: GenerationDraft): Promise<Genera
   let list = null
 
   if (live.discountPct > 0) {
-    list = quoteWithFallback({ preset, binding, ctx, skus: live.listSkus })
+    list = quoteWithFallback({ preset, binding: resolved, ctx, skus: live.listSkus })
   }
 
   return {

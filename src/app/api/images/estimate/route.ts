@@ -10,6 +10,7 @@ import { issueText } from '@/core/validation/common'
 import { validateImageInput } from '@/core/validation/image'
 import { ValidationError } from '@/server/errors'
 import { errorResponse, jsonError, jsonResponse, zodError } from '@/server/http'
+import { resolveRunPricing } from '@/server/pricing/endpoints'
 import { loadLivePricing } from '@/server/pricing/live'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 
@@ -51,6 +52,12 @@ export async function POST(request: Request) {
       presetId: preset.id,
     })
 
+    const pricing = await resolveRunPricing({
+      presetId: preset.id,
+      pricing: binding.pricing,
+      seconds: 1,
+    })
+
     let skus: SkuTable | undefined
 
     if (live.source === 'live') {
@@ -59,7 +66,7 @@ export async function POST(request: Request) {
 
     const result = quoteWithFallback({
       preset,
-      binding,
+      binding: { ...binding, pricing },
       ctx: imageQuoteContext(preset, { ...input, promptChars }),
       skus,
     })
@@ -71,7 +78,7 @@ export async function POST(request: Request) {
     return jsonResponse({
       perImageUsd: result.perUnit,
       usd: result.total,
-      unit: imageUnitOf(binding.pricing),
+      unit: imageUnitOf(pricing),
       isApproximate: result.isApproximate,
     })
   } catch (error) {

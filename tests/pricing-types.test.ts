@@ -21,7 +21,7 @@ describe('pricing type lists', () => {
       'perRun',
     ])
 
-    expect(QUOTE_UNITS).toEqual(['second', 'image', 'token'])
+    expect(QUOTE_UNITS).toEqual(['second', 'image', 'token', 'run'])
     expect(QUOTE_SOURCES).toEqual(['live', 'fallback'])
     expect(PRICING_KINDS).toEqual(['video', 'image'])
   })
