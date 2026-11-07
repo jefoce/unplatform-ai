@@ -208,8 +208,10 @@ async function finishFinal(params: FinishFinalParams): Promise<void> {
     }
 
     if (status === 'completed') {
+      const costed = next.provider === 'custom' ? finalizeCost(next, job) : next
+
       // The download queue owns the record until the poster and output exist.
-      return { ...next, status: 'in_progress', download: { startedAt: now } }
+      return { ...costed, status: 'in_progress', download: { startedAt: now } }
     }
 
     const fallback = status === 'expired' ? 'Job expired' : `Job ${status}`
