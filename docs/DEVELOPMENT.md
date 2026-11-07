@@ -77,6 +77,7 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 | `REMOTE_MOCK=1` | Local R2 replacement, only honored together with mock OpenRouter. Links point at the local server. |
 | `REMOTE_MOCK_MBPS` | Throttles mock uploads, default 20. |
 | `REMOTE_MOCK=fail` | Every mock upload fails. |
+| `CUSTOM_ENDPOINT_MOCK=1` | Skips the custom endpoint upload network and returns refs for the file hashes. |
 | `[fail]` in the prompt | Mock job ends as failed. |
 
 Mock mode keeps the Test button enabled without stored keys.
@@ -168,6 +169,7 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `R2_SECRET_ACCESS_KEY` | R2 token secret |
 | `R2_BUCKET` | Bucket name |
 | `CUSTOM_ENDPOINT_TOKENS` | Custom endpoint auth tokens, stored as JSON |
+| `CUSTOM_ENDPOINT_MOCK` | `1` skips the custom endpoint upload network |
 | `REMOTE_MOCK` | Local R2 mock, `1` or `fail` |
 | `REMOTE_MOCK_MBPS` | Mock upload speed |
 | `APP_TOKEN` | Session token override for dev and smoke runs. Unset reuses `$STORAGE_ROOT/browser-session` (or mints it) and prints the session URL. |
