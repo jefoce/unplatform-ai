@@ -28,7 +28,7 @@ export const PRICING_FORMULAS = [
 
 type PricingFormula = (typeof PRICING_FORMULAS)[number]
 
-export const QUOTE_UNITS = ['second', 'image', 'token'] as const
+export const QUOTE_UNITS = ['second', 'image', 'token', 'run'] as const
 
 type QuoteUnit = (typeof QUOTE_UNITS)[number]
 

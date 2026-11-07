@@ -13,6 +13,7 @@ import type { AspectChoice, Resolution, VideoPreset } from '../presets/video/typ
 import {
   imageTokenCost,
   perImageCost,
+  perRunCost,
   perSecondCost,
   perSecondRate,
   videoTokenCost,
@@ -146,6 +147,13 @@ function videoCost(params: VideoCostParams) {
     return videoTokenCost(params)
   }
 
+  if (pricing.formula === 'perRun') {
+    return perRunCost({
+      table: params.table,
+      units: Math.max(pricing.minBillableSec ?? 0, params.ctx.duration),
+    })
+  }
+
   return null
 }
 
@@ -165,6 +173,10 @@ function imageCost(params: ImageCostParams) {
 
   if (pricing.formula === 'imageTokens') {
     return imageTokenCost(params)
+  }
+
+  if (pricing.formula === 'perRun') {
+    return perRunCost({ table: params.table, units: params.ctx.count })
   }
 
   return null
