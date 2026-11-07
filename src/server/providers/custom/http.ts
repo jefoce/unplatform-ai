@@ -52,13 +52,20 @@ export async function customRequest(params: CustomRequestParams): Promise<Respon
     throw protocolError('Request outside the endpoint origin')
   }
 
+  const timeoutSignal = AbortSignal.timeout(timeoutMs)
+  let signal = timeoutSignal
+
+  if (!isNil(init.signal)) {
+    signal = AbortSignal.any([init.signal, timeoutSignal])
+  }
+
   let res: Response
 
   try {
     res = await fetch(url, {
       ...init,
       redirect: 'manual',
-      signal: AbortSignal.timeout(timeoutMs),
+      signal,
     })
   } catch (error) {
     throw networkError(error)
