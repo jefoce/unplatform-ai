@@ -8,9 +8,20 @@ import { setRuntimeVideoPresets } from '@/core/presets'
 import { isImagePreset, isVideoPreset } from '@/core/presets/common/preset-kind'
 import { setRuntimeImagePresets } from '@/core/presets/image'
 
+import { isCustomEndpointMockMode } from '../config/mock-mode'
 import { globalState } from '../global-state'
+import {
+  customMockCatalogForInstance,
+  customMockEndpoint,
+  customMockInstances,
+} from '../providers/mock/custom-mock'
 import { listEnabledCustomEndpoints } from './endpoint-model-cache'
-import { loadEndpointCatalog, type PresetSource } from './model-catalog-custom-entries'
+import {
+  catalogFromModels,
+  type KindCatalog,
+  loadEndpointCatalog,
+  type PresetSource,
+} from './model-catalog-custom-entries'
 
 export interface CustomCatalogData {
   entries: CatalogEntry[]
@@ -39,19 +50,42 @@ const cache = globalState<CustomCatalogCache>('customCatalogCache', () => {
 /** Custom presets and catalog entries from the cached model lists of enabled endpoints. */
 async function loadCustomCatalog(params: LoadCustomCatalogParams): Promise<CustomCatalogData> {
   const { isForce } = params
-  const presets = new Map<string, PresetSource>()
+  let catalogs: KindCatalog[]
 
+  if (isCustomEndpointMockMode()) {
+    catalogs = mockCatalogs()
+  } else {
+    catalogs = await liveCatalogs(isForce)
+  }
+
+  return mergeCustomCatalogs(catalogs)
+}
+
+function mockCatalogs(): KindCatalog[] {
+  return customMockInstances().map((instance) => {
+    const catalog = customMockCatalogForInstance(instance.id)
+
+    return catalogFromModels({
+      endpoint: customMockEndpoint(instance),
+      video: catalog.video,
+      image: catalog.image,
+      isUnreachable: !catalog.isReachable,
+    })
+  })
+}
+
+async function liveCatalogs(isForce: boolean): Promise<KindCatalog[]> {
   const endpoints = await listEnabledCustomEndpoints()
 
-  const catalogs = await Promise.all(
+  return Promise.all(
     endpoints.map((endpoint) => {
       return loadEndpointCatalog(endpoint, isForce)
     }),
   )
+}
 
-  const entries = catalogs.flatMap((catalog) => {
-    return catalog.entries
-  })
+function mergeCustomCatalogs(catalogs: readonly KindCatalog[]): CustomCatalogData {
+  const presets = new Map<string, PresetSource>()
 
   for (const catalog of catalogs) {
     for (const preset of catalog.presets) {
@@ -59,7 +93,12 @@ async function loadCustomCatalog(params: LoadCustomCatalogParams): Promise<Custo
     }
   }
 
-  return { entries, presets: Array.from(presets.values()) }
+  return {
+    entries: catalogs.flatMap((catalog) => {
+      return catalog.entries
+    }),
+    presets: Array.from(presets.values()),
+  }
 }
 
 /**

@@ -3,10 +3,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { isNil } from 'lodash-es'
+import { isNil, isString } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 import type { ZodType } from 'zod'
 
+import { isRecord } from '../src/core/guards'
 import {
   UPAI_ERROR_CODES,
   UPAI_JOB_KINDS,
@@ -110,6 +111,19 @@ const CONTRACT_TYPES: ProtocolTypes | null = null
 
 const ROOT = path.join(process.cwd(), 'docs/protocol/upai-1')
 const FIXTURES = path.join(ROOT, 'fixtures')
+const SCHEMAS_DIR = path.join(ROOT, 'schema')
+const DRAFT_2020_12 = 'https://json-schema.org/draft/2020-12/schema'
+const DEFS_PREFIX = '#/$defs/'
+
+const EXPECTED_SCHEMAS = [
+  'create-job.schema.json',
+  'error.schema.json',
+  'health.schema.json',
+  'job.schema.json',
+  'models.schema.json',
+  'sync-images.schema.json',
+  'upload.schema.json',
+]
 
 const EXPECTED_FIXTURES = [
   'README.md',
@@ -211,6 +225,21 @@ function readFixture(name: string): unknown {
   return JSON.parse(fs.readFileSync(path.join(FIXTURES, name), 'utf8')) as unknown
 }
 
+/** Every `$ref` string in a schema, nested objects and arrays included. */
+function localRefs(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(localRefs)
+  }
+
+  if (!isRecord(value)) {
+    return []
+  }
+
+  const own = isString(value.$ref) ? [value.$ref] : []
+
+  return [...own, ...Object.values(value).flatMap(localRefs)]
+}
+
 const jsonFixtures = EXPECTED_FIXTURES.filter((name) => {
   return name.endsWith('.json')
 })
@@ -248,6 +277,35 @@ describe('upai/1 schemas', () => {
 
     expect(source).toContain('repo: unplatform-ai-provider-node')
     expect(source).toContain('commit: 2a30d9e')
+  })
+})
+
+describe('upai/1 json schemas', () => {
+  it('keeps the vendored schema list', () => {
+    const onDisk = fs
+      .readdirSync(SCHEMAS_DIR)
+      .filter((name) => {
+        return !name.startsWith('.')
+      })
+      .sort()
+
+    expect(onDisk).toEqual(EXPECTED_SCHEMAS)
+  })
+
+  it('parses every schema and resolves its local refs', () => {
+    for (const name of EXPECTED_SCHEMAS) {
+      const raw: unknown = JSON.parse(fs.readFileSync(path.join(SCHEMAS_DIR, name), 'utf8'))
+      const schema: Record<string, unknown> = isRecord(raw) ? raw : {}
+
+      expect(schema.$schema, name).toBe(DRAFT_2020_12)
+
+      const defs = isRecord(schema.$defs) ? schema.$defs : {}
+
+      for (const ref of localRefs(schema)) {
+        expect(ref.startsWith(DEFS_PREFIX), `${name} -> ${ref}`).toBe(true)
+        expect(Object.hasOwn(defs, ref.slice(DEFS_PREFIX.length)), `${name} -> ${ref}`).toBe(true)
+      }
+    }
   })
 })
 

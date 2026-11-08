@@ -14,7 +14,13 @@ import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
 
+import { isCustomEndpointMockMode } from '../config/mock-mode'
 import { readJson } from '../fs/json-file'
+import {
+  customMockCatalogForInstance,
+  customMockEndpoint,
+  customMockInstances,
+} from '../providers/mock/custom-mock'
 import { endpointModelsFile, readEndpointFile } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
@@ -42,6 +48,10 @@ interface ModelCounts {
 }
 
 export async function getEndpointOverview(): Promise<EndpointOverview> {
+  if (isCustomEndpointMockMode()) {
+    return mockOverview()
+  }
+
   const [file, generations, images] = await Promise.all([
     readEndpointFile(),
     listGenerations(),
@@ -58,6 +68,25 @@ export async function getEndpointOverview(): Promise<EndpointOverview> {
   )
 
   return { endpoints, nextBadge: `CU${file.badgeCounter + 1}` }
+}
+
+function mockOverview(): EndpointOverview {
+  const endpoints = customMockInstances().map((instance): EndpointOverviewEntry => {
+    const catalog = customMockCatalogForInstance(instance.id)
+    const status: EndpointHealthView = catalog.isReachable ? 'ok' : 'unreachable'
+
+    return {
+      ...customMockEndpoint(instance),
+      runningJobs: 0,
+      status,
+      videoCount: catalog.video.length,
+      imageCount: catalog.image.length,
+      tokenHint: null,
+      hasToken: false,
+    }
+  })
+
+  return { endpoints, nextBadge: `CU${customMockInstances().length + 1}` }
 }
 
 async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry> {

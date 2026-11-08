@@ -12,9 +12,11 @@ import {
   CustomEndpointFileSchema,
 } from '@/core/schemas/custom-endpoint'
 
+import { isCustomEndpointMockMode } from '../../config/mock-mode'
 import { readJson } from '../../fs/json-file'
 import { STORAGE_ROOT } from '../../paths'
 import { getSecret } from '../../secrets'
+import { customMockEndpoints } from '../mock/custom-mock'
 
 /** w-settings owns the writer repo. The adapter only reads the same file. */
 export const ENDPOINTS_FILE = path.join(STORAGE_ROOT, 'data', 'endpoints.json')
@@ -41,6 +43,10 @@ export async function getEndpointFile(): Promise<CustomEndpointFile | null> {
 }
 
 export async function getEndpoints(): Promise<readonly CustomEndpoint[]> {
+  if (isCustomEndpointMockMode()) {
+    return customMockEndpoints()
+  }
+
   const file = await getEndpointFile()
 
   return file?.endpoints ?? []
@@ -58,6 +64,10 @@ export async function getEndpoint(id: string): Promise<CustomEndpoint | null> {
 
 /** Sync read for the registry, which resolves instances without an await. */
 export function getEndpointsSync(): readonly CustomEndpoint[] {
+  if (isCustomEndpointMockMode()) {
+    return customMockEndpoints()
+  }
+
   try {
     const file = parseFile(fs.readFileSync(ENDPOINTS_FILE, 'utf8'))
 

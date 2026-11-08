@@ -159,4 +159,5 @@ jobs:
           E2E_SKIP_BUILD: '1'
           OPENROUTER_MOCK: '1'
           REMOTE_MOCK: '1'
+          CUSTOM_ENDPOINT_MOCK: '1'
         run: pnpm e2e

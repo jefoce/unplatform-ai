@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { cspCases } from './cases/csp.mjs'
 import { creditsCases } from './cases/credits.mjs'
+import { customCases } from './cases/custom.mjs'
 import { failureCases } from './cases/failure.mjs'
 import { feedCases } from './cases/feed.mjs'
 import { layoutCases } from './cases/layout.mjs'
@@ -28,6 +29,7 @@ let outbound = 0
 const CASES = [
   ...cspCases,
   ...creditsCases,
+  ...customCases,
   ...feedCases,
   ...likeCases,
   ...failureCases,

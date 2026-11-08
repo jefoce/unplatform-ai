@@ -1,4 +1,5 @@
 const CUSTOM_PREFIX = 'custom.'
+const PRESETS_PATTERN = 'src/core/presets/'
 
 const noCustomPresetLiteral = {
   meta: {
@@ -9,6 +10,10 @@ const noCustomPresetLiteral = {
     },
   },
   create(context) {
+    if (context.filename.replaceAll('\\', '/').includes(PRESETS_PATTERN)) {
+      return {}
+    }
+
     return {
       Literal(node) {
         if (typeof node.value === 'string' && node.value.startsWith(CUSTOM_PREFIX)) {

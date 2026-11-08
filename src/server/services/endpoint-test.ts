@@ -7,8 +7,8 @@ import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
 import { FETCH_TIMEOUTS, MAX_JSON_BODY_BYTES } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import { UpaiHealthSchema, UpaiModelListSchema } from '@/core/protocol/upai'
-import { CustomEndpointLastHealthSchema } from '@/core/schemas/custom-endpoint'
 
+import { isCustomEndpointMockMode } from '../config/mock-mode'
 import { BodyTooLargeError, readCappedBody } from '../media/read-capped-body'
 import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { resetCustomProviders } from '../providers/registry'
@@ -16,6 +16,7 @@ import { normalizeBaseUrl } from '../repos/endpoints'
 import { secretsReady } from '../secrets'
 import { setEndpointHealth } from './endpoint-health'
 import { writeEndpointModels } from './endpoint-model-cache'
+import { lastHealthOf, mockTestResult } from './endpoint-test-mock'
 import { readEndpointToken } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
 
@@ -67,6 +68,15 @@ function isSavedUrl(params: EndpointTestBody, baseUrl: string): boolean {
 
 export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTestResult> {
   await secretsReady()
+
+  if (
+    isCustomEndpointMockMode() &&
+    !isNil(params.endpointId) &&
+    !isNil(getEndpointSync(params.endpointId))
+  ) {
+    return mockTestResult(params.endpointId)
+  }
+
   const baseUrl = normalizeBaseUrl(params.baseUrl)
   const isSavedEndpoint = isSavedUrl(params, baseUrl)
   const token = resolveToken(params, isSavedEndpoint)
@@ -116,15 +126,7 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
       resetCustomProviders()
     }
 
-    const lastHealth = CustomEndpointLastHealthSchema.parse({
-      protocol: health.protocol,
-      serverVersion: health.server_version,
-      maxRunning: health.max_running,
-      lanAllowed: health.lan_allowed,
-      authRequired: health.auth_required,
-      maxUploadBytes: health.max_upload_bytes,
-      checkedAt,
-    })
+    const lastHealth = lastHealthOf(health, checkedAt)
 
     return {
       ok: true,

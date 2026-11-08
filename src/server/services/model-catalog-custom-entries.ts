@@ -45,10 +45,18 @@ export interface KindCatalog {
 
 interface KindCatalogParams {
   endpoint: CustomEndpoint
-  cache: EndpointModelCache
+  cache: EndpointModelCache | null
   kind: EndpointModelKind
   models: readonly UpaiModel[]
   isUnreachable: boolean
+}
+
+export interface CatalogFromModelsParams {
+  endpoint: CustomEndpoint
+  video: readonly UpaiModel[]
+  image: readonly UpaiModel[]
+  isUnreachable: boolean
+  cache?: EndpointModelCache | null
 }
 
 interface AvailabilityParams {
@@ -78,15 +86,22 @@ export async function loadEndpointCatalog(
 
   const isUnreachable = isEndpointUnreachable(endpoint.id)
 
+  return catalogFromModels({
+    endpoint,
+    video: cache.video,
+    image: cache.image,
+    isUnreachable,
+    cache,
+  })
+}
+
+/** Maps a known model list into entries without touching the cache or the network. */
+export function catalogFromModels(params: CatalogFromModelsParams): KindCatalog {
+  const { endpoint, video, image, isUnreachable, cache = null } = params
+
   return mergeCatalogs([
-    buildKindCatalog({
-      endpoint,
-      cache,
-      kind: 'video',
-      models: cache.video,
-      isUnreachable,
-    }),
-    buildKindCatalog({ endpoint, cache, kind: 'image', models: cache.image, isUnreachable }),
+    buildKindCatalog({ endpoint, cache, kind: 'video', models: video, isUnreachable }),
+    buildKindCatalog({ endpoint, cache, kind: 'image', models: image, isUnreachable }),
   ])
 }
 
@@ -173,10 +188,15 @@ function buildKindCatalog(params: KindCatalogParams): KindCatalog {
     }
 
     const source = sourceFor(endpoint, model)
+    let isMissing = false
+
+    if (!isNil(cache)) {
+      isMissing = isModelMissing({ cache, kind, modelId: model.id })
+    }
 
     const availability = availabilityFor({
       fallback: mapped.availability,
-      isMissing: isModelMissing({ cache, kind, modelId: model.id }),
+      isMissing,
       isUnreachable,
     })
 
