@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { buildMedia as BuildMedia } from '@/server/jobs/submit-media'
 
 import type { UploadsById } from '../src/core/api/uploads'
+import { MAX_JSON_BODY_BYTES } from '../src/core/constants'
 import { WAN_30 } from '../src/core/presets/video/wan/wan-3.0'
 import type { ResolvedTransport } from '../src/core/transport'
 import type { Dict } from '../src/core/utility-types'
@@ -156,6 +157,30 @@ describe('custom endpoint upload transport', () => {
 
     expect(body).toBeInstanceOf(FormData)
     expect((body as FormData).get('file')).toBeInstanceOf(Blob)
+  })
+
+  it('rejects an oversized upload 201 body as a protocol error', async () => {
+    const upload = await makeVideo()
+    const sha256 = sha256Of(VIDEO_BYTES)
+
+    mockFetch([
+      healthRoute(100 * 1024 * 1024),
+      { method: 'HEAD', path: `/upai/api/v1/uploads/${sha256}`, status: 404 },
+      {
+        method: 'POST',
+        path: '/upai/api/v1/uploads',
+        status: 201,
+        body: { text: 'a'.repeat(MAX_JSON_BODY_BYTES + 1) },
+      },
+    ])
+
+    await expect(
+      runBuild({
+        uploads: { [upload.id]: upload },
+        transports: { [upload.id]: 'upload' },
+        endpointId: 'custom-1',
+      }),
+    ).rejects.toMatchObject({ code: 'protocol' })
   })
 
   it('sends one HEAD and one POST for two uploads with the same bytes', async () => {

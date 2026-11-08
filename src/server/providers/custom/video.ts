@@ -31,17 +31,15 @@ import type {
   VideoProvider,
 } from '../types'
 import { buildVideoBody } from './body'
-import { jobFailureError, protocolError, providerErrorFromResponse } from './errors'
+import { jobFailureError, protocolError } from './errors'
 import { testCustomEndpoint } from './health'
-import { customRequest, endpointHostname, requestHeaders, requestJson } from './http'
-
-function contentHostsFor(endpoint: CustomEndpoint): readonly string[] {
-  try {
-    return [endpointHostname(endpoint)]
-  } catch {
-    return []
-  }
-}
+import {
+  customRequest,
+  endpointContentHosts,
+  providerErrorFromResponse,
+  requestHeaders,
+  requestJson,
+} from './http'
 
 export function toJobSnapshot(job: UpaiJob): JobSnapshot {
   const error = job.status === 'failed' ? jobFailureError(job).storedMessage : job.error
@@ -273,7 +271,7 @@ function testConnection(endpoint: CustomEndpoint): Promise<TestResult> {
 export function createCustomVideoProvider(endpoint: CustomEndpoint): VideoProvider {
   return {
     id: 'custom',
-    contentHosts: contentHostsFor(endpoint),
+    contentHosts: endpointContentHosts(endpoint),
     isConfigured: () => {
       return true
     },

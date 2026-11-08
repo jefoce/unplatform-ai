@@ -9,9 +9,9 @@ import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { TestResult } from '@/core/types'
 
 import { ProviderError } from '../provider-error'
-import { healthStateOf, protocolError, providerErrorFromResponse } from './errors'
+import { healthStateOf, protocolError } from './errors'
 import { emitCustomHealth } from './health-events'
-import { customRequest, requestHeaders } from './http'
+import { customRequest, providerErrorFromResponse, readCustomJson, requestHeaders } from './http'
 
 interface HealthProbeOk {
   ok: true
@@ -46,11 +46,7 @@ export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthPr
       throw protocolError('This server does not speak upai/1')
     }
 
-    const parsed = UpaiHealthSchema.safeParse(
-      await res.json().catch(() => {
-        return null
-      }),
-    )
+    const parsed = UpaiHealthSchema.safeParse(await readCustomJson(res))
 
     if (!parsed.success) {
       throw protocolError('This server does not speak upai/1')

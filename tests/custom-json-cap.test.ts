@@ -13,6 +13,7 @@ vi.mock('@/server/providers/custom/endpoint-source', () => {
 })
 
 const { requestJson } = await import('@/server/providers/custom/http')
+const { runHealthProbe } = await import('@/server/providers/custom/health')
 
 const ENDPOINT: CustomEndpoint = {
   id: 'ep1',
@@ -76,5 +77,43 @@ describe('custom JSON response cap', () => {
         timeoutMs: 10_000,
       }),
     ).rejects.toMatchObject({ code: 'protocol' })
+  })
+
+  it('rejects an oversized error body as a protocol error', async () => {
+    const body = JSON.stringify({ text: 'a'.repeat(MAX_JSON_BODY_BYTES + 1) })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async () => {
+        return new Response(body, {
+          status: 500,
+          headers: { 'content-type': 'application/json', 'content-length': String(body.length) },
+        })
+      }),
+    )
+
+    await expect(
+      requestJson({
+        endpoint: ENDPOINT,
+        path: '/api/v1/jobs',
+        init: {},
+        timeoutMs: 10_000,
+      }),
+    ).rejects.toMatchObject({ code: 'protocol' })
+  })
+
+  it('reports an oversized health body as a protocol failure', async () => {
+    const body = JSON.stringify({ text: 'a'.repeat(MAX_JSON_BODY_BYTES + 1) })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async () => {
+        return new Response(body, { status: 200 })
+      }),
+    )
+
+    const probe = await runHealthProbe(ENDPOINT)
+
+    expect(probe).toMatchObject({ ok: false, state: 'protocol' })
   })
 })

@@ -21,8 +21,8 @@ vi.mock('@/server/secrets', () => {
 
 const { createCustomVideoProvider, toJobSnapshot } = await import('@/server/providers/custom/video')
 
-const { networkError, providerErrorFromResponse, protocolError } =
-  await import('@/server/providers/custom/errors')
+const { networkError, protocolError } = await import('@/server/providers/custom/errors')
+const { providerErrorFromResponse } = await import('@/server/providers/custom/http')
 
 const ROOT = 'docs/protocol/upai-1/fixtures'
 

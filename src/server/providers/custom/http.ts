@@ -3,12 +3,70 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { MAX_JSON_BODY_BYTES } from '@/core/constants'
+import { isNonEmptyString } from '@/core/guards'
+import { type UpaiError, UpaiErrorResponseSchema } from '@/core/protocol/upai'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { Dict } from '@/core/utility-types'
 
 import { BodyTooLargeError, readCappedBody } from '../../media/read-capped-body'
+import type { ProviderError, ProviderErrorKind } from '../provider-error'
 import { getEndpointToken } from './endpoint-source'
-import { networkError, protocolError, providerErrorFromResponse } from './errors'
+import { customError, networkError, protocolError } from './errors'
+
+const STATUS_CODES: Readonly<Partial<Record<number, string>>> = {
+  400: 'invalid_request',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not_found',
+  405: 'method_not_allowed',
+  413: 'too_large',
+  422: 'workflow_invalid',
+  429: 'queue_full',
+  500: 'internal',
+  502: 'job_failed',
+  503: 'comfy_unavailable',
+  504: 'timeout',
+}
+
+/** Local endpoints never bill an unknown amount, so a timeout stays a plain server error. */
+function kindForStatus(status: number): ProviderErrorKind {
+  if (status === 401 || status === 403) {
+    return 'auth'
+  }
+
+  if (status === 404) {
+    return 'not_found'
+  }
+
+  if (status === 429) {
+    return 'rate_limit'
+  }
+
+  if (status === 400 || status === 413 || status === 422 || status === 405) {
+    return 'input'
+  }
+
+  if (status >= 500) {
+    return 'server'
+  }
+
+  return 'unknown'
+}
+
+function codeForStatus(status: number): string {
+  return STATUS_CODES[status] ?? 'internal'
+}
+
+function upaiErrorText(error: UpaiError): string {
+  const base = `upai:${error.code}: ${error.message}`
+  const field = error.details.field
+
+  if (!isNonEmptyString(field)) {
+    return base
+  }
+
+  return `${base} details.field=${field}`
+}
 
 /** Scheme, host and port only. A pasted `/upai` is dropped by rebuilding the URL. */
 function endpointOrigin(endpoint: CustomEndpoint): string {
@@ -19,8 +77,17 @@ function endpointBaseUrl(endpoint: CustomEndpoint): string {
   return `${endpointOrigin(endpoint)}/upai`
 }
 
-export function endpointHostname(endpoint: CustomEndpoint): string {
+function endpointHostname(endpoint: CustomEndpoint): string {
   return new URL(endpoint.baseUrl).hostname
+}
+
+/** Hosts a job content URL may point at. Empty when the base URL is invalid. */
+export function endpointContentHosts(endpoint: CustomEndpoint): readonly string[] {
+  try {
+    return [endpointHostname(endpoint)]
+  } catch {
+    return []
+  }
 }
 
 export function requestHeaders(endpoint: CustomEndpoint, isJson: boolean): Dict<string> {
@@ -84,23 +151,21 @@ export async function customRequest(params: CustomRequestParams): Promise<Respon
   return res
 }
 
-export async function requestJson(params: CustomRequestParams): Promise<unknown> {
-  const res = await customRequest(params)
-
-  if (!res.ok) {
-    throw await providerErrorFromResponse(res)
-  }
-
+/** Reads a custom JSON body under the byte cap. Null on a parse failure. */
+export async function readCustomJson(
+  res: Response,
+  maxBytes: number = MAX_JSON_BODY_BYTES,
+): Promise<unknown> {
   const declared = res.headers.get('content-length')
 
-  if (!isNil(declared) && Number(declared) > MAX_JSON_BODY_BYTES) {
+  if (!isNil(declared) && Number(declared) > maxBytes) {
     await res.body?.cancel()
 
     throw protocolError('Response body is larger than the limit')
   }
 
   try {
-    const body = await readCappedBody(res, MAX_JSON_BODY_BYTES)
+    const body = await readCappedBody(res, maxBytes)
 
     return JSON.parse(body.toString('utf8')) as unknown
   } catch (error) {
@@ -110,4 +175,43 @@ export async function requestJson(params: CustomRequestParams): Promise<unknown>
 
     return null
   }
+}
+
+/** Every protocol error keeps the raw `upai:<code>: <message>` line for the record. */
+export async function providerErrorFromResponse(res: Response): Promise<ProviderError> {
+  const payload: unknown = await readCustomJson(res)
+
+  const parsed = UpaiErrorResponseSchema.safeParse(payload)
+
+  if (parsed.success) {
+    const code = parsed.data.error.code
+
+    return customError({
+      kind: kindForStatus(res.status),
+      status: res.status,
+      code,
+      message: upaiErrorText(parsed.data.error),
+    })
+  }
+
+  const code = codeForStatus(res.status)
+  let base = `HTTP ${res.status}`
+
+  if (isNonEmptyString(res.statusText)) {
+    base = res.statusText
+  }
+
+  const message = `upai:${code}: ${base}`
+
+  return customError({ kind: kindForStatus(res.status), status: res.status, code, message })
+}
+
+export async function requestJson(params: CustomRequestParams): Promise<unknown> {
+  const res = await customRequest(params)
+
+  if (!res.ok) {
+    throw await providerErrorFromResponse(res)
+  }
+
+  return readCustomJson(res)
 }

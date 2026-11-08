@@ -19,7 +19,7 @@ import { readCappedBody } from '../media/read-capped-body'
 import { uploadPaths } from '../paths'
 import { getEndpoint, getEndpointToken } from '../providers/custom/endpoint-source'
 import { endpointRemovedError } from '../providers/custom/errors'
-import { customRequest, requestHeaders } from '../providers/custom/http'
+import { customRequest, readCustomJson, requestHeaders } from '../providers/custom/http'
 import {
   endpointProtocolError,
   endpointResponseError,
@@ -78,9 +78,7 @@ export async function loadEndpointHealth(params: HealthParams): Promise<UpaiHeal
     throw await endpointError(res, endpoint)
   }
 
-  const payload = await res.json().catch(() => {
-    return null
-  })
+  const payload = await readCustomJson(res)
 
   const parsed = UpaiHealthSchema.safeParse(payload)
 
@@ -142,9 +140,7 @@ async function postUpload(params: PostUploadParams): Promise<string> {
     throw await endpointError(res, endpoint)
   }
 
-  const payload = await res.json().catch(() => {
-    return null
-  })
+  const payload = await readCustomJson(res)
 
   const parsed = UpaiUploadSchema.safeParse(payload)
 
