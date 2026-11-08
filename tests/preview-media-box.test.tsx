@@ -38,7 +38,7 @@ function ratioOf(width: number, height: number): string {
   return `${String(width / height)} / 1`
 }
 
-/** Rendered original image, the only `<img>` that is not the decorative thumb. */
+/** Rendered original image. */
 function imageOf(container: HTMLElement): HTMLImageElement {
   const image = container.querySelector<HTMLImageElement>('img:not([aria-hidden="true"])')
 
@@ -47,11 +47,6 @@ function imageOf(container: HTMLElement): HTMLImageElement {
   }
 
   return image
-}
-
-/** Cached thumb behind the full image. */
-function thumbOf(container: HTMLElement): HTMLImageElement | null {
-  return container.querySelector<HTMLImageElement>('img[aria-hidden="true"]')
 }
 
 /** Holds `decode()` pending so the test controls the fade. */
@@ -119,13 +114,13 @@ describe('preview image box', () => {
     expect(boxOf(container).style.aspectRatio).toBe(ratioOf(640, 480))
   })
 
-  it('keeps the thumb until the image decodes, then fades the original in', async () => {
+  it('fades the full image in after it decodes, with no thumb', async () => {
     const resolveDecode = stubDecode()
     const item = upload('faded', 'image')
     const { container } = render(<PreviewBody item={item} playerId="preview:faded" />)
     const image = imageOf(container)
 
-    expect(thumbOf(container)).not.toBeNull()
+    expect(container.querySelector('img[aria-hidden="true"]')).toBeNull()
     expect(image.getAttribute('decoding')).toBe('async')
     expect(image.classList.contains('opacity-0')).toBe(true)
     expect(image.classList.contains('opacity-100')).toBe(false)
@@ -134,7 +129,7 @@ describe('preview image box', () => {
       resolveDecode()
     })
 
-    expect(thumbOf(container)).toBeNull()
+    expect(container.querySelector('img[aria-hidden="true"]')).toBeNull()
     expect(image.classList.contains('opacity-100')).toBe(true)
     expect(image.classList.contains('opacity-0')).toBe(false)
   })

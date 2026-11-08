@@ -85,12 +85,7 @@ export function HistoryModalMedia(props: HistoryModalMediaProps) {
       {item.status === 'completed' && item.recordKind === 'image' && (
         <ZoomLayer resetKey={item.id}>
           <MediaBox aspect={aspectOf(item)}>
-            <MediaImage
-              src={item.mediaSrc}
-              thumbSrc={item.thumbSrc}
-              alt={item.prompt}
-              fit="cover"
-            />
+            <MediaImage src={item.mediaSrc} alt={item.prompt} fit="cover" />
           </MediaBox>
         </ZoomLayer>
       )}

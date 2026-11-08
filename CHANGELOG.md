@@ -45,7 +45,7 @@ The Image workspace, the Unplatform AI name and icon, and one pricing engine for
 - The image tab is full width, and the top bar fades while scrolling.
 - History thumbnails and video posters are sharper.
 - Zoomed photos pan smoothly on the GPU, and the wheel no longer zooms while you drag.
-- The viewer shows the cached thumbnail first, then fades in the full image.
+- The viewer fades in the full image after it decodes, with no thumbnail.
 - Animations stay on when the system asks for reduced motion.
 - Linux: panels and pills are solid, and the viewer backdrop is blurred on the server, so scrolling and playback render smoothly.
 - Linux: the `.deb` and `.rpm` are the recommended packages, for faster rendering and hardware video decoding. The AppImage is the portable fallback.
