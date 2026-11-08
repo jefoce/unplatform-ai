@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { z } from 'zod'
 
 import { isNonEmptyString } from '@/core/guards'
+import { r2TestText } from '@/core/provider-errors/r2'
 import { STORAGE_PROVIDER_IDS } from '@/core/providers/types'
 import type { SecretBackendKind, SecretStatus, TestResult } from '@/core/types'
 import { fetchSecrets } from '@/lib/api/settings'
@@ -67,7 +68,13 @@ function keychainLabel(): string {
 /** Turns a test response into display text. */
 export function testLine(target: SettingsSection, result: TestResult): TestMessage {
   if (!result.ok) {
-    return { tone: 'error', text: result.error ?? 'Test failed' }
+    if (!isNonEmptyString(result.error)) {
+      return { tone: 'error', text: 'Test failed' }
+    }
+
+    const text = r2TestText(result.error) ?? result.error
+
+    return { tone: 'error', text }
   }
 
   if ((STORAGE_PROVIDER_IDS as readonly string[]).includes(target)) {

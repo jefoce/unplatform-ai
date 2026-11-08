@@ -1,4 +1,5 @@
 import { REMOTE_LINK_TTL_SEC } from '../constants'
+import { R2_RULES } from './r2'
 import type { Rule } from './types'
 
 export const INTERRUPT_SENDING_TEXT =
@@ -7,6 +8,7 @@ export const INTERRUPT_SENDING_TEXT =
 export const COPY_EXPIRED_TEXT = 'OpenRouter copy expired before download'
 
 export const APP_RULES: readonly Rule[] = [
+  ...R2_RULES,
   {
     match: 'Interrupted while sending',
     title: 'The app closed while sending.',
