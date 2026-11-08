@@ -43,6 +43,7 @@ const INTERNAL = new Set([
   'NEXT_RUNTIME',
   'NODE_ENV',
   'CHROME_PATH',
+  'E2E_CHROME_MAJOR',
   'E2E_CDP_PORT',
   'E2E_KEEP_TMP',
   'E2E_SKIP_BUILD',

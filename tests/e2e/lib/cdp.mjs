@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { checkChromeMajor } from './chrome-version.mjs'
+
 const POLL_MS = 100
 const IDLE_QUIET_MS = 500
 
@@ -483,10 +485,15 @@ export async function startBrowser(width, height, options = {}) {
   const attachedPort = process.env.E2E_CDP_PORT?.trim()
 
   if (!forceLaunch && attachedPort !== undefined && attachedPort !== '') {
-    const driver = await PageDriver.attach(Number(attachedPort))
+    const port = Number(attachedPort)
+    const version = await readJson(`http://127.0.0.1:${port}/json/version`)
+
+    checkChromeMajor(version.Browser)
+
+    const driver = await PageDriver.attach(port)
     await driver.setViewport(width, height)
 
-    return { driver, process: null, attached: true, port: Number(attachedPort) }
+    return { driver, process: null, attached: true, port }
   }
 
   const binary = await findChrome()
@@ -513,11 +520,13 @@ export async function startBrowser(width, height, options = {}) {
     stderr += String(chunk)
   })
 
-  await waitForJson(
+  const version = await waitForJson(
     `http://127.0.0.1:${String(port)}/json/version`,
     20_000,
     `Chrome did not start: ${stderr}`,
   )
+
+  checkChromeMajor(version.Browser)
 
   const driver = await PageDriver.attach(port)
   await driver.setViewport(width, height)
