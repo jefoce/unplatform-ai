@@ -7,7 +7,8 @@ import { z } from 'zod'
 
 import * as bounds from '../src/core/constants'
 import { SECRET_NAMES } from '../src/core/secret-names'
-import { file, tableRows } from './helpers/docs-tables'
+import { STATUS_HELP } from '../src/core/status-help'
+import { file, sectionLines, tableRows } from './helpers/docs-tables'
 import { required } from './helpers/required'
 
 const SOURCE_ROOTS = ['src', 'src-tauri/src', 'scripts', 'tests']
@@ -59,6 +60,29 @@ const OpenerSchema = z.object({
   identifier: z.literal('opener:allow-open-url'),
   allow: z.array(z.object({ url: z.string() })),
 })
+
+const OpenPathSchema = z.object({
+  identifier: z.literal('opener:allow-open-path'),
+  allow: z.array(z.object({ path: z.string() })),
+})
+
+/** Paths allowed by the opener:allow-open-path permission. */
+function openerPaths(text: string): string[] {
+  const capability = CapabilitySchema.parse(JSON.parse(text))
+
+  const opener = required(
+    capability.permissions.flatMap((permission) => {
+      const parsed = OpenPathSchema.safeParse(permission)
+
+      return parsed.success ? [parsed.data] : []
+    })[0],
+    'opener:allow-open-path',
+  )
+
+  return opener.allow.map(({ path: openerPath }) => {
+    return openerPath
+  })
+}
 
 /** Files under a directory, recursively. */
 function sourceFiles(dir: string): string[] {
@@ -172,6 +196,72 @@ describe('security opener hosts', () => {
     for (const host of hosts) {
       expect(security, host).toContain(host)
     }
+  })
+})
+
+describe('0.5.0 documentation drift', () => {
+  it('describes removing an endpoint before Save', () => {
+    const guide = fs.readFileSync(file('docs/user/COMFYUI.md'), 'utf8')
+    const section = sectionLines(guide, 'Delete an endpoint').join('\n')
+
+    expect(section).toContain('removed.')
+    expect(section).toContain('Undo')
+    expect(section).toContain('Save')
+    expect(section).toContain('This endpoint was removed.')
+    expect(section).not.toContain('Will be removed')
+  })
+
+  it('quotes the ComfyUI queue labels and keeps progress video-only', () => {
+    const changelog = fs.readFileSync(file('CHANGELOG.md'), 'utf8')
+
+    expect(changelog).toContain(STATUS_HELP.waiting_comfyui.label)
+    expect(changelog).toContain(STATUS_HELP.queued_n.label)
+
+    const imageProgress = changelog.split(/\r?\n/).filter((line) => {
+      return /progress percent/i.test(line) && /image/i.test(line)
+    })
+
+    expect(imageProgress).toEqual([])
+  })
+
+  it('documents the bundled opener files and the error command', () => {
+    const security = fs.readFileSync(file('docs/SECURITY.md'), 'utf8')
+
+    const defaultPaths = openerPaths(
+      fs.readFileSync(file('src-tauri/capabilities/default.json'), 'utf8'),
+    )
+
+    const remotePaths = openerPaths(
+      fs.readFileSync(file('src-tauri/capability-remote.json'), 'utf8'),
+    )
+
+    for (const openerPath of ['$RESOURCE/THIRD_PARTY_NOTICES.md', '$RESOURCE/LICENSE']) {
+      expect(security, openerPath).toContain(openerPath)
+      expect(defaultPaths, openerPath).toContain(openerPath)
+      expect(remotePaths, openerPath).toContain(openerPath)
+    }
+
+    expect(security).toContain('log_client_error')
+  })
+
+  it('does not claim image records carry progress', () => {
+    const lines = fs.readFileSync(file('docs/ARCHITECTURE.md'), 'utf8').split(/\r?\n/)
+
+    const start = lines.findIndex((line) => {
+      return line.startsWith('### ImageRecord')
+    })
+
+    expect(start).toBeGreaterThan(-1)
+
+    const rest = lines.slice(start + 1)
+
+    const end = rest.findIndex((line) => {
+      return line.startsWith('### ') || line.startsWith('## ')
+    })
+
+    const section = (end === -1 ? rest : rest.slice(0, end)).join('\n')
+
+    expect(section).not.toContain('progress')
   })
 })
 

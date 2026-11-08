@@ -114,7 +114,7 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 
 ### ImageRecord (`images/<uuid>.json`)
 
-An image record carries the same `source`, `presetSnapshot` and `progress` fields as a video record. The status set differs: `submitting`, `saving`, `completed`, `partial`, `failed` and `cancelled`.
+An image record carries the same `source` and `presetSnapshot` fields as a video record. Progress is video-only. The status set differs: `submitting`, `saving`, `completed`, `partial`, `failed` and `cancelled`.
 
 ### FolderItem (`data/folders.json`)
 

@@ -303,7 +303,7 @@ Entitlements in `src-tauri/Entitlements.plist`:
 
 Signing is ad hoc (`signingIdentity: "-"`). Rebuilds count as a new program to macOS, so Keychain prompts can return.
 
-Measured on 2026-11-02, macOS arm64: DMG 34.1 MiB (35,749,578 bytes, ULMO), app bundle 82.5 MiB (86,530,330 bytes), updater archive 40.6 MiB (42,591,629 bytes). Inside the app: server archive 11.2 MiB (11,699,059 bytes), shell 8.8 MiB (9,232,080 bytes), Node sidecar 51.0 MiB (53,512,352 bytes) and ffmpeg 9.4 MiB (9,837,024 bytes). First launch extracts the server to 44.0 MiB (46,187,444 bytes), so the install total is 126.6 MiB (132,717,774 bytes). The Node sidecar is the amaro-off small-ICU 24.22.1 build (`icu_small true`, `node_use_amaro false`). `pnpm desktop:build` converts the DMG to ULMO and packs `.app.tar.gz` with `gzip -9` before the size report; the release workflow re-signs the archive when a signing key is set.
+`scripts/size-baseline.json` holds the current measured sizes on macOS arm64. `pnpm size:report` prints the current numbers for a local build. The Node sidecar is the amaro-off small-ICU 24.22.1 build (`icu_small true`, `node_use_amaro false`). `pnpm desktop:build` converts the DMG to ULMO and packs `.app.tar.gz` with `gzip -9` before the size report; the release workflow re-signs the archive when a signing key is set.
 
 Extracting the archive with `tar --zstd` into fresh temp dirs took 0.28 s, 0.27 s and 0.26 s (warm cache). This is an extraction proxy, not a full first-launch measurement.
 

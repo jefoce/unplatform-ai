@@ -74,7 +74,7 @@ Plain HTTP sends the token unencrypted. Use a trusted network or a tunnel such a
 
 ## Delete an endpoint
 
-Open the endpoint menu and press Delete, then Save. If jobs are running, the row warns that they will fail. A running job fails with "This endpoint was removed." History keeps its badge and title, so old entries stay readable. No cancel call is sent to ComfyUI.
+Press Delete on an endpoint. The row is removed at once. Until you press Save, a notice at the bottom of the section says `<badge> removed.` with Undo. When jobs run, it adds `N running jobs will fail when you save.` Save applies it, Cancel restores the row. Running jobs fail with "This endpoint was removed." History keeps the badge and title, so old entries stay readable. No cancel call is sent to ComfyUI.
 
 ## Something went wrong?
 
