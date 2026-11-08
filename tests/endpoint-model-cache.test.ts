@@ -113,6 +113,35 @@ describe('endpoint model cache', () => {
     })
   })
 
+  it('keeps both kinds when video and image writes run at once', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const image = modelAt(IMAGE_MODELS, 0)
+
+    await Promise.all([
+      writeEndpointModels({ endpointId: 'ep-race', kind: 'video', models: [video] }),
+      writeEndpointModels({ endpointId: 'ep-race', kind: 'image', models: [image] }),
+    ])
+
+    const cache = await readEndpointModels('ep-race')
+
+    expect(
+      cache?.video.map((item) => {
+        return item.id
+      }),
+    ).toEqual([video.id])
+
+    expect(
+      cache?.image.map((item) => {
+        return item.id
+      }),
+    ).toEqual([image.id])
+
+    expect(await readCacheFile('ep-race')).toMatchObject({
+      video: [{ id: video.id }],
+      image: [{ id: image.id }],
+    })
+  })
+
   it('keeps a model that disappeared from a successful fetch as missing', async () => {
     const first = modelAt(VIDEO_MODELS, 0)
     const second = modelAt(VIDEO_MODELS, 1)

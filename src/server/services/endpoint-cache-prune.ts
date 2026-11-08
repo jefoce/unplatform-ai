@@ -34,12 +34,17 @@ export async function pruneEndpointCaches(params: PruneEndpointCachesParams): Pr
     .filter((item) => {
       const previous = currentById[item.entry.id ?? '']
 
-      return (
-        !isNil(previous) &&
-        (previous.baseUrl !== item.entry.baseUrl ||
-          (!isFreshTest({ previous, item }) &&
-            (previous.enabled !== item.entry.enabled || !isUndefined(item.token))))
-      )
+      if (isNil(previous)) {
+        return false
+      }
+
+      const isLocationChange = previous.baseUrl !== item.entry.baseUrl || !isUndefined(item.token)
+
+      if (isLocationChange) {
+        return true
+      }
+
+      return previous.enabled !== item.entry.enabled && !isFreshTest({ previous, item })
     })
     .map((item) => {
       return item.entry.id ?? ''

@@ -254,6 +254,11 @@ describe('endpoint edits', () => {
 
     expect((await overviewService.getEndpointOverview()).endpoints[0]?.status).toBe('unreachable')
 
+    const cacheFile = repo.endpointModelsFile(id)
+
+    await fs.mkdir(path.dirname(cacheFile), { recursive: true })
+    await fs.writeFile(cacheFile, JSON.stringify({ video: [{}], image: [{}, {}] }))
+
     const next = await service.saveEndpoints({
       endpoints: [
         {
@@ -268,8 +273,75 @@ describe('endpoint edits', () => {
     expect(next.endpoints[0]?.lastHealth).toBeNull()
     expect(next.endpoints[0]?.status).toBe('unknown')
     expect(health.getHealth(id)).toBeNull()
+    await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+})
+
+describe('fresh test on save', () => {
+  it('writes tested health and drops the cache when the URL changed after a fresh test', async () => {
+    const saved = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
+    })
+
+    const id = saved.endpoints[0]?.id ?? ''
+    const health = await import('@/server/services/endpoint-health')
+    const cacheFile = repo.endpointModelsFile(id)
+
+    await fs.mkdir(path.dirname(cacheFile), { recursive: true })
+    await fs.writeFile(cacheFile, JSON.stringify({ video: [{}], image: [{}, {}] }))
+    health.setEndpointHealth({ endpointId: id, status: 'unreachable', message: 'stale' })
+
+    const fresh = { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' }
+
+    const next = await service.saveEndpoints({
+      endpoints: [
+        {
+          ...endpoint('Studio'),
+          id,
+          baseUrl: 'http://127.0.0.1:9999',
+          lastHealth: fresh,
+        },
+      ],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).toEqual(fresh)
+    expect(health.getHealth(id)).toMatchObject({ state: 'ok', message: null })
+    await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('keeps health and cache when only enabled changed after a fresh test', async () => {
+    const saved = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
+    })
+
+    const id = saved.endpoints[0]?.id ?? ''
+    const health = await import('@/server/services/endpoint-health')
+    const cacheFile = repo.endpointModelsFile(id)
+
+    await fs.mkdir(path.dirname(cacheFile), { recursive: true })
+    await fs.writeFile(cacheFile, JSON.stringify({ video: [{}], image: [{}, {}] }))
+    health.setEndpointHealth({ endpointId: id, status: 'ok', message: null })
+
+    const fresh = { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' }
+
+    const next = await service.saveEndpoints({
+      endpoints: [
+        {
+          ...endpoint('Studio'),
+          id,
+          enabled: false,
+          lastHealth: fresh,
+        },
+      ],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).toEqual(fresh)
+    expect(health.getHealth(id)?.state).toBe('ok')
+    await expect(fs.stat(cacheFile)).resolves.toBeDefined()
+  })
+})
+
+describe('fresh test keeps state', () => {
   it('keeps a fresh test when the endpoint was edited before Save', async () => {
     const saved = await service.saveEndpoints({
       endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],

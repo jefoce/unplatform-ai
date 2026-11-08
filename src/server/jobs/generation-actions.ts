@@ -4,12 +4,15 @@ import { isNil, isString } from 'lodash-es'
 
 import { isDownloadFailure } from '@/core/download-failure'
 import { isNonEmptyString } from '@/core/guards'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { GenerationRecord, RecordJob } from '@/core/schemas/generation-record'
 import { canCancelInGrace } from '@/core/submit-state'
 import { ACTIVE_STATUSES } from '@/core/types'
 
 import { exists } from '../fs/stat'
 import { downloadPaths } from '../paths'
+import { getEndpointSync } from '../providers/custom/endpoint-source'
+import { instanceIdOf } from '../providers/custom/record-instance'
+import { getVideoProvider } from '../providers/registry'
 import type { JobSnapshot } from '../providers/types'
 import { deleteGenerationFiles, getGeneration, saveGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
@@ -17,6 +20,15 @@ import { isDownloadQueued, queueDownload } from './download-queue'
 import { cancelScheduledSubmit } from './submit-queue'
 
 export type DeleteResult = 'deleted' | 'not_found' | 'active'
+
+export type CancelGenerationResult = 'cancelled' | 'sent' | 'not_found' | 'endpoint_removed'
+
+interface RunningCancel {
+  instanceId: string
+  job: RecordJob
+}
+
+type CancelLockedResult = CancelGenerationResult | RunningCancel
 
 export type RetryDownloadResult =
   'queued' | 'not_found' | 'not_failed' | 'not_download_failure' | 'no_job' | 'expired'
@@ -63,6 +75,52 @@ export function deleteGeneration(id: string): Promise<DeleteResult> {
 
     return 'deleted'
   })
+}
+
+/** Cancels a grace generation, or stops a running custom job after the record lock drains. */
+export async function cancelGeneration(id: string): Promise<CancelGenerationResult> {
+  const running = await withLock(id, async (): Promise<CancelLockedResult> => {
+    const record = await getGeneration(id)
+
+    if (!record) {
+      return 'not_found'
+    }
+
+    if (canCancelInGrace(record)) {
+      cancelScheduledSubmit(id)
+      await deleteGenerationFiles(id)
+
+      return 'cancelled'
+    }
+
+    const isCustomActive = record.provider === 'custom' && ACTIVE_STATUSES.includes(record.status)
+
+    if (!isCustomActive || isNil(record.job)) {
+      return 'sent'
+    }
+
+    const instanceId = instanceIdOf(record)
+
+    if (isNil(getEndpointSync(instanceId))) {
+      return 'endpoint_removed'
+    }
+
+    return { instanceId, job: record.job }
+  })
+
+  if (isString(running)) {
+    return running
+  }
+
+  const provider = getVideoProvider(running.instanceId)
+
+  if (isNil(provider.cancel)) {
+    return 'sent'
+  }
+
+  await provider.cancel({ jobId: running.job.id, submittedAt: running.job.submittedAt })
+
+  return 'cancelled'
 }
 
 /** True when the provider copy has an expiry that has passed. */

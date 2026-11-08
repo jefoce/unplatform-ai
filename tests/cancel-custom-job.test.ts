@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { GenerationRecord } from '../src/core/schemas/generation-record'
 import { storedRecord } from './helpers/stored-record'
@@ -6,6 +6,8 @@ import { storedRecord } from './helpers/stored-record'
 const state = vi.hoisted(() => {
   return {
     record: null as GenerationRecord | null,
+    endpoints: new Set<string>(),
+    getProvider: vi.fn(),
     cancel: vi.fn(),
     deleteFiles: vi.fn(),
     cancelScheduled: vi.fn(),
@@ -25,12 +27,16 @@ vi.mock('@/server/jobs/submit-queue', () => {
   return { cancelScheduledSubmit: state.cancelScheduled }
 })
 
-vi.mock('@/server/providers/registry', () => {
+vi.mock('@/server/providers/custom/endpoint-source', () => {
   return {
-    getVideoProvider: () => {
-      return { cancel: state.cancel }
+    getEndpointSync: (id: string) => {
+      return state.endpoints.has(id) ? { id } : null
     },
   }
+})
+
+vi.mock('@/server/providers/registry', () => {
+  return { getVideoProvider: state.getProvider }
 })
 
 vi.mock('@/server/session', () => {
@@ -72,11 +78,18 @@ function customRecord(overrides: Partial<GenerationRecord> = {}): GenerationReco
   })
 }
 
+beforeEach(() => {
+  state.endpoints.clear()
+  state.endpoints.add('cu1')
+  state.cancel.mockReset()
+  state.cancel.mockResolvedValue(undefined)
+  state.getProvider.mockReset()
+  state.getProvider.mockReturnValue({ cancel: state.cancel })
+})
+
 describe('POST /api/generations/[id]/cancel', () => {
   it('stops a running custom job on its endpoint', async () => {
     state.record = customRecord()
-    state.cancel.mockReset()
-    state.cancel.mockResolvedValue(undefined)
 
     const response = await POST(request(state.record.id), context(state.record.id))
 
@@ -90,14 +103,54 @@ describe('POST /api/generations/[id]/cancel', () => {
     expect(state.deleteFiles).not.toHaveBeenCalled()
   })
 
+  it('returns 409 without resolving a provider when the endpoint was removed', async () => {
+    state.record = customRecord()
+    state.endpoints.clear()
+
+    const response = await POST(request(state.record.id), context(state.record.id))
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ error: 'This endpoint was removed.' })
+    expect(state.getProvider).not.toHaveBeenCalled()
+    expect(state.cancel).not.toHaveBeenCalled()
+  })
+
+  it('releases the record lock before a slow cancel resolves', async () => {
+    state.record = customRecord()
+
+    const slowCancel = Promise.withResolvers<void>()
+
+    state.cancel.mockReset()
+    state.cancel.mockReturnValue(slowCancel.promise)
+
+    const pending = POST(request(state.record.id), context(state.record.id))
+
+    await vi.waitFor(() => {
+      expect(state.cancel).toHaveBeenCalled()
+    })
+
+    const { withLock } = await import('@/server/sync/lock')
+    let hasAcquired = false
+
+    const lockTask = withLock(state.record.id, async () => {
+      hasAcquired = true
+    })
+
+    await vi.waitFor(() => {
+      expect(hasAcquired).toBe(true)
+    })
+
+    slowCancel.resolve()
+    await lockTask
+    expect((await pending).status).toBe(204)
+  })
+
   it('refuses an OpenRouter job past the grace window', async () => {
     state.record = storedRecord('openrouter-record', {
       provider: 'openrouter',
       status: 'in_progress',
       job: { id: 'job-2', submittedAt: '2026-01-01T00:00:00.000Z' },
     })
-
-    state.cancel.mockReset()
 
     const response = await POST(request(state.record.id), context(state.record.id))
 

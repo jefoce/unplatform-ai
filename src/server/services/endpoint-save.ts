@@ -23,7 +23,7 @@ import {
   normalizeBaseUrl,
 } from '../repos/endpoints'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
-import { forgetEndpointHealth, isFreshTest } from './endpoint-health'
+import { forgetEndpointHealth, isFreshTest, setEndpointHealth } from './endpoint-health'
 import { type EndpointOverview, getEndpointOverview } from './endpoint-overview'
 import { applyEndpointTokens } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
@@ -75,6 +75,11 @@ interface EndpointChangeParams {
   item: PreparedEndpoint
 }
 
+interface SettleEndpointParams {
+  previous: CustomEndpoint
+  item: PreparedEndpoint
+}
+
 export async function saveEndpoints(params: SaveEndpointsParams): Promise<EndpointOverview> {
   const prepared = params.endpoints.map((input) => {
     return { entry: toEntry(input), token: input.token }
@@ -94,12 +99,11 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
 
     const previous = previousById[id]
 
-    if (isNil(previous) || !isChanged({ previous, item }) || isFreshTest({ previous, item })) {
+    if (isNil(previous) || !isChanged({ previous, item })) {
       continue
     }
 
-    forgetEndpointHealth(id)
-    item.entry.lastHealth = null
+    settleChangedEndpoint({ previous, item })
   }
 
   const kept = new Set(
@@ -151,6 +155,33 @@ function isChanged(params: EndpointChangeParams): boolean {
     previous.enabled !== item.entry.enabled ||
     !isUndefined(item.token)
   )
+}
+
+/**
+ * A test against the saved URL and token already wrote health and cache.
+ * Otherwise the save owns the tested state.
+ */
+function settleChangedEndpoint(params: SettleEndpointParams): void {
+  const { previous, item } = params
+  const id = item.entry.id ?? ''
+
+  if (!isFreshTest({ previous, item })) {
+    forgetEndpointHealth(id)
+    item.entry.lastHealth = null
+
+    return
+  }
+
+  if (previous.baseUrl === item.entry.baseUrl && isUndefined(item.token)) {
+    return
+  }
+
+  setEndpointHealth({
+    endpointId: id,
+    status: 'ok',
+    message: null,
+    maxRunning: item.entry.lastHealth?.maxRunning ?? null,
+  })
 }
 
 function toEntry(input: EndpointInput): EndpointEntry {

@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- one cache owns both kinds, their pruning and the missing window */
+
 import 'server-only'
 
 import path from 'node:path'
@@ -12,6 +14,7 @@ import { type CustomEndpoint, CustomEndpointFileSchema } from '@/core/schemas/cu
 import { readJson, removeFile, writeJsonAtomic } from '../fs/json-file'
 import { globalState } from '../global-state'
 import { STORAGE_ROOT } from '../paths'
+import { withLock } from '../sync/lock'
 
 export type EndpointModelKind = 'video' | 'image'
 
@@ -91,11 +94,13 @@ export async function writeEndpointModels(params: WriteEndpointModelsParams): Pr
     throw new Error(`Invalid endpoint id: ${endpointId}`)
   }
 
-  const nextFile = nextCacheFile({ previous: await readCacheFile(endpointId), kind, models })
+  await withLock(`endpoint-models:${endpointId}`, async () => {
+    const nextFile = nextCacheFile({ previous: await readCacheFile(endpointId), kind, models })
 
-  await writeJsonAtomic({ file: fileFor(endpointId), data: nextFile })
-  state.files.set(endpointId, nextFile)
-  markEndpointReachable(endpointId)
+    await writeJsonAtomic({ file: fileFor(endpointId), data: nextFile })
+    state.files.set(endpointId, nextFile)
+    markEndpointReachable(endpointId)
+  })
 }
 
 interface NextCacheFileParams {
