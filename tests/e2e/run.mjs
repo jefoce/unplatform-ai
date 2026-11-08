@@ -6,6 +6,7 @@ import { creditsCases } from './cases/credits.mjs'
 import { customCases } from './cases/custom.mjs'
 import { failureCases } from './cases/failure.mjs'
 import { feedCases } from './cases/feed.mjs'
+import { imageFirstCases } from './cases/image-first.mjs'
 import { layoutCases } from './cases/layout.mjs'
 import { likeCases } from './cases/like.mjs'
 import { menuCases } from './cases/menu.mjs'
@@ -28,6 +29,7 @@ const OUTBOUND_MARKER = '[e2e-outbound] blocked'
 let outbound = 0
 
 const CASES = [
+  ...imageFirstCases,
   ...cspCases,
   ...creditsCases,
   ...customCases,

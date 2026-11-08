@@ -52,6 +52,7 @@ export function HistoryGrid(props: HistoryGridProps) {
       ref={containerRef}
       className="grid p-1"
       style={{ gap: HISTORY_GRID_GAP, gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      data-grid-width={width}
     >
       {topHeight > 0 && <div aria-hidden style={{ gridColumn: '1 / -1', height: topHeight }} />}
       {visible.map((item) => {

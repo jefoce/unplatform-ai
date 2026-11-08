@@ -108,6 +108,8 @@ export async function startServer(options = {}) {
     cwd: ROOT,
     env,
     detached: process.platform !== 'win32',
+    // pnpm is a .cmd shim on Windows, which needs a shell to launch.
+    shell: process.platform === 'win32',
     stdio: ['pipe', 'pipe', 'pipe'],
   })
 

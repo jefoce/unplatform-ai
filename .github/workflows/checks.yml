@@ -161,3 +161,47 @@ jobs:
           REMOTE_MOCK: '1'
           CUSTOM_ENDPOINT_MOCK: '1'
         run: pnpm e2e
+
+  e2e-windows:
+    if: github.actor != 'dependabot[bot]' || github.base_ref != 'releases'
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - name: Use the ffmpeg-static binary
+        shell: pwsh
+        run: |
+          $ffmpeg = node -p "require('ffmpeg-static')"
+          "FFMPEG_PATH=$ffmpeg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Resolve Chrome
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+            "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+            "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+          )
+          $chrome = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $chrome) {
+            choco install googlechrome --no-progress -y
+            $chrome = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+          }
+          if (-not (Test-Path $chrome)) {
+            throw "No Chrome binary found"
+          }
+          "CHROME_PATH=$chrome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build
+        env:
+          OPENROUTER_MOCK: '1'
+          REMOTE_MOCK: '1'
+        run: pnpm build
+      - name: Image first open
+        env:
+          E2E_SKIP_BUILD: '1'
+          OPENROUTER_MOCK: '1'
+          REMOTE_MOCK: '1'
+          CUSTOM_ENDPOINT_MOCK: '1'
+        run: pnpm e2e -- --case=image-first
