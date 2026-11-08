@@ -9,6 +9,7 @@ import { findPreset, setRuntimeVideoPresets, VIDEO_PRESETS } from '@/core/preset
 import type { ProviderBinding } from '@/core/presets/common/binding'
 import { activeBinding, primaryBinding } from '@/core/presets/common/bindings'
 import { isImagePreset, isVideoPreset } from '@/core/presets/common/preset-kind'
+import { isCustomPresetId } from '@/core/presets/custom'
 import { findImagePreset, IMAGE_PRESETS, setRuntimeImagePresets } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
@@ -28,6 +29,7 @@ import {
   ensureCustomCatalog,
   findCustomPreset,
   type PresetSource,
+  refreshCustomCatalog,
 } from './model-catalog-custom'
 
 interface DriftState {
@@ -68,7 +70,7 @@ export async function getModelCatalog(params: GetModelCatalogParams = {}): Promi
 
   const [entries, custom] = await Promise.all([
     cache.get('static', loadStaticEntries),
-    ensureCustomCatalog({ isRefresh: isRefreshCustom, shouldAwaitLoad: false }),
+    ensureCustomCatalog({ isRefresh: isRefreshCustom }),
   ])
 
   return {
@@ -95,6 +97,10 @@ export function registerModelCatalogSecretsListener(): void {
 
 /** Catalog-aware preset lookup for submit, regenerate and reuse. */
 export async function findPresetAny(presetId: string): Promise<PresetSource | null> {
+  if (isCustomPresetId(presetId)) {
+    return findCustomPresetAfterRefresh(presetId)
+  }
+
   const video = findPreset(presetId)
 
   if (!isNil(video)) {
@@ -107,7 +113,18 @@ export async function findPresetAny(presetId: string): Promise<PresetSource | nu
     return { preset: image, source: STATIC_CATALOG_SOURCE }
   }
 
-  await ensureCustomCatalog({ isRefresh: false, shouldAwaitLoad: true })
+  return null
+}
+
+/** Checks the custom index first, then refreshes once before giving up. */
+async function findCustomPresetAfterRefresh(presetId: string): Promise<PresetSource | null> {
+  const cached = findCustomPreset(presetId)
+
+  if (!isNil(cached)) {
+    return cached
+  }
+
+  await refreshCustomCatalog()
 
   return findCustomPreset(presetId)
 }

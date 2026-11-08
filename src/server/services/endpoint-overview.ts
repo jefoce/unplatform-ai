@@ -4,6 +4,7 @@ import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import type { EndpointHealthStatus } from '@/core/endpoints'
+import { customPresetPrefix } from '@/core/presets/custom'
 import type { CustomEndpoint, CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
@@ -76,7 +77,7 @@ export async function getEndpointOverview(): Promise<EndpointOverview> {
 async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry> {
   const { endpoint, tokenMap, generations, images } = params
   const counts = await cachedCounts(endpoint.id)
-  const prefix = `custom.${endpoint.id}.`
+  const prefix = customPresetPrefix(endpoint.id)
 
   const videoJobs = generations.filter((record) => {
     return record.preset.id.startsWith(prefix) && ACTIVE_STATUSES.includes(record.status)

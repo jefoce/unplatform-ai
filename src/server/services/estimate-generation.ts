@@ -91,11 +91,6 @@ export async function loadPriceDraft(raw: PriceInput): Promise<GenerationDraft> 
   return { preset, input, uploads }
 }
 
-/** Custom presets carry the endpoint id in their preset id. */
-export function isCustomPresetId(presetId: string): boolean {
-  return !isNil(endpointIdFromPresetId(presetId))
-}
-
 /** Missing and unconfigured models fail loudly. Unverified ones proceed. */
 export async function loadCatalogEntry(presetId: string): Promise<CatalogEntry | undefined> {
   const { entries } = await getModelCatalog()

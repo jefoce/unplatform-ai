@@ -42,7 +42,7 @@ The app CSP is built once in `src/lib/csp.ts` (`buildAppCsp`). `src/proxy.ts` at
 ## 4. Custom endpoints
 
 - Origin pin. A saved `baseUrl` is reduced to scheme, host and port. Every request is built from that origin. Redirects are refused. The caller abort signal and a timeout are combined.
-- http and LAN are allowed only for a saved origin. OpenRouter keeps `safeFetchProviderUrl` (https, public addresses). A user-entered endpoint does not use it.
+- http and LAN are allowed only for a saved origin. Custom API requests use `customRequest`, pinned to the endpoint origin, and never `safeFetchProviderUrl`. A custom media URL from `job.urls` is downloaded through `safeFetchProviderUrl`, so it must be https and resolve to a public address. The protocol content route is pinned to the endpoint origin.
 - Tokens. `CUSTOM_ENDPOINT_TOKENS` is one keychain or `secrets.json` entry holding compact JSON `{ endpointId: token }`, capped at 4096 characters. The UI shows the last four characters. The value is never logged.
 - Uploads. Custom video and audio go to the pack `/api/v1/uploads` with a HEAD dedupe and the health size cap and quota. Images and frames stay data URLs. Custom endpoints never use R2.
 - Pack peer policy. A loopback peer is always accepted. A LAN peer needs `allow_lan`, or `allow_remote` plus a token. A public peer needs `allow_remote` plus a token. The 403 text names the fix.

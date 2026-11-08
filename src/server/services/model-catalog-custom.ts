@@ -51,16 +51,16 @@ export interface CustomCatalogData {
 
 interface CustomCatalogCache extends CustomCatalogData {
   isLoaded: boolean
+  loadedAtMs: number
   pending: Promise<void> | null
 }
 
 interface EnsureCustomCatalogParams {
   isRefresh: boolean
-  shouldAwaitLoad: boolean
 }
 
 const cache = globalState<CustomCatalogCache>('customCatalogCache', () => {
-  return { entries: [], presets: [], isLoaded: false, pending: null }
+  return { entries: [], presets: [], isLoaded: false, loadedAtMs: 0, pending: null }
 })
 
 interface KindCatalog {
@@ -121,19 +121,17 @@ async function loadCustomCatalog(params: LoadCustomCatalogParams): Promise<Custo
 }
 
 /**
- * Cached custom entries. A refresh with a loaded cache returns at once and
- * refreshes in the background, so callers never wait on a slow endpoint.
+ * Cached custom entries. The first call awaits the load, so a settings save or
+ * clear never returns empty entries. Later calls refresh in the background.
  */
 export async function ensureCustomCatalog(
   params: EnsureCustomCatalogParams,
 ): Promise<CustomCatalogData> {
-  const { isRefresh, shouldAwaitLoad } = params
+  const { isRefresh } = params
 
-  if (!cache.isLoaded && shouldAwaitLoad) {
+  if (!cache.isLoaded) {
     await refreshCustomCatalog()
-  } else if (!cache.isLoaded) {
-    startRefresh()
-  } else if (isRefresh) {
+  } else if (isRefresh || isCustomCacheStale()) {
     startRefresh()
   }
 
@@ -175,9 +173,14 @@ function startRefresh(): void {
   void refreshCustomCatalog()
 }
 
+function isCustomCacheStale(): boolean {
+  return Date.now() - cache.loadedAtMs >= MODEL_CATALOG_TTL_MS
+}
+
 function applyCustomCatalog(data: CustomCatalogData): void {
   cache.entries = data.entries
   cache.presets = data.presets
+  cache.loadedAtMs = Date.now()
 
   const presets = data.presets.map((item) => {
     return item.preset
@@ -199,6 +202,7 @@ export function clearCustomCatalog(): void {
   cache.entries = []
   cache.presets = []
   cache.isLoaded = false
+  cache.loadedAtMs = 0
   cache.pending = null
 }
 

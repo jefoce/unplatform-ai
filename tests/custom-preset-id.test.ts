@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isCustomPresetId } from '../src/core/presets/custom'
+import { customPresetPrefix, isCustomPresetId } from '../src/core/presets/custom'
 
 describe('isCustomPresetId', () => {
   it('accepts an id built by presetIdFor', () => {
@@ -12,5 +12,14 @@ describe('isCustomPresetId', () => {
     expect(isCustomPresetId('wan-3.0')).toBe(false)
     expect(isCustomPresetId('custom')).toBe(false)
     expect(isCustomPresetId('customx.y')).toBe(false)
+  })
+})
+
+describe('customPresetPrefix', () => {
+  it('builds the prefix that matches a preset id from that endpoint', () => {
+    const prefix = customPresetPrefix('ep-1')
+
+    expect(prefix).toBe('custom.ep-1.')
+    expect(isCustomPresetId(`${prefix}wan`)).toBe(true)
   })
 })

@@ -97,6 +97,7 @@ vi.mock('@/server/services/model-catalog-custom', () => {
         }) ?? null
       )
     },
+    refreshCustomCatalog: async () => {},
     clearCustomCatalog: () => {
       catalogState.entries = []
       catalogState.presets = []

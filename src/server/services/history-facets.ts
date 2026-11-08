@@ -167,8 +167,6 @@ function schedule(index: FacetIndex, kind: HistoryFacetKind): void {
 async function drain(index: FacetIndex, kind: HistoryFacetKind): Promise<void> {
   if (!index.isLoaded) {
     await loadAll(index, kind)
-
-    return
   }
 
   await drainChanges(index, kind)
@@ -212,7 +210,6 @@ async function loadAll(index: FacetIndex, kind: HistoryFacetKind): Promise<void>
 
   index.facets = facetsFromRows(kind, index.rows.values())
   index.isLoaded = true
-  index.changes.length = 0
 }
 
 function rowOf(record: FacetRecord): FacetRow {
