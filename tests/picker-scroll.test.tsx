@@ -9,6 +9,9 @@ import type { PickerMode } from '@/features/media-picker/picker/store'
 
 vi.mock('@/lib/api/media-urls', () => {
   return {
+    mediaUrl: () => {
+      return '/media'
+    },
     thumbUrl: () => {
       return '/thumb'
     },

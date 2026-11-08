@@ -16,6 +16,7 @@ interface FolderGridTileProps {
   folderPath: string
   file: FolderFile
   src: string
+  audioSrc: string
   mode: PickerMode
   selectedIds: string[]
   uploadsById: UploadsById
@@ -29,8 +30,18 @@ interface FolderGridTileProps {
 
 /** Folder grid tile with its live attachment and busy state. */
 export function FolderGridTile(props: FolderGridTileProps) {
-  const { folderId, folderPath, file, src, mode, selectedIds, uploadsById, slots, linkingRel } =
-    props
+  const {
+    folderId,
+    folderPath,
+    file,
+    src,
+    audioSrc,
+    mode,
+    selectedIds,
+    uploadsById,
+    slots,
+    linkingRel,
+  } = props
 
   const upload = folderFileUpload({ folderPath, rel: file.rel, selectedIds, uploadsById })
   const isSelected = !isNil(upload)
@@ -52,6 +63,7 @@ export function FolderGridTile(props: FolderGridTileProps) {
     <FolderFileTile
       file={file}
       src={src}
+      audioSrc={audioSrc}
       isBroken={props.isBroken}
       isSelected={isSelected}
       slotNumber={slotNumber}

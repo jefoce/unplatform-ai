@@ -2,6 +2,7 @@ import { isNil, keyBy } from 'lodash-es'
 import { toast } from 'sonner'
 
 import { isNonEmptyString } from '@/core/guards'
+import type { MediaKind } from '@/core/media/media-types'
 import { referenceSlots, slotLabel } from '@/core/prompt-tokens'
 import type {
   GenerationRecord,
@@ -17,6 +18,7 @@ import { toastError } from '@/lib/notify'
 
 export interface ThumbItem {
   id: string
+  kind: MediaKind
   label: string
   name: string
   missing: boolean
@@ -67,6 +69,7 @@ function thumbItem(params: ThumbItemParams): ThumbItem {
 
   return {
     id,
+    kind: item?.kind ?? 'image',
     label,
     name: item?.originalName ?? 'Deleted upload',
     missing: isNil(item),
@@ -125,7 +128,7 @@ export function imageReferenceThumbItems(record: ImageRecord): ThumbItem[] {
 
     // Records written before snapshots existed keep their old thumbs.
     if (isNil(snapshot)) {
-      return { id, label, name: 'Reference', missing: false }
+      return { id, kind: 'image', label, name: 'Reference', missing: false }
     }
 
     return thumbItem({ snapshot, id, label })

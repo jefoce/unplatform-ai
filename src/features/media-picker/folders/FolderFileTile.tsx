@@ -9,12 +9,14 @@ import { RetryImage } from '@/ui/RetryImage'
 import { Spinner } from '@/ui/Spinner'
 import { Tooltip } from '@/ui/Tooltip'
 
+import { AudioTileBody } from '../tiles/AudioTileBody'
 import { MediaTileBadges } from '../tiles/MediaTileBadges'
 import { SELECTED_TILE_CLASSES } from '../tiles/tile-classes'
 
 interface FolderFileTileProps {
   file: FolderFile
   src: string
+  audioSrc: string
   isBroken: boolean
   isSelected: boolean
   slotNumber?: number
@@ -29,19 +31,20 @@ interface FolderFileTileProps {
 interface FolderFileBodyParams {
   file: FolderFile
   src: string
+  audioSrc: string
   isBroken: boolean
 }
 
-/** Thumbnail, audio label or broken icon for a folder file. */
+/** Thumbnail, audio wave or broken icon for a folder file. */
 function folderFileBody(params: FolderFileBodyParams): ReactNode {
-  const { file, src, isBroken } = params
+  const { file, src, audioSrc, isBroken } = params
 
   if (file.kind === 'audio') {
     return (
-      <span className="flex size-full flex-col justify-between bg-white/5 p-2">
-        <span className="truncate text-sm font-medium">{file.name}</span>
-        <span className="text-xs text-fg-2 capitalize">{file.kind}</span>
-      </span>
+      <>
+        <span className="pointer-events-none absolute inset-0 bg-white/5" />
+        <AudioTileBody name={file.name} src={audioSrc} isBadgeOffset />
+      </>
     )
   }
 
@@ -83,7 +86,18 @@ function folderFileBody(params: FolderFileBodyParams): ReactNode {
 
 /** File tile in the read-only folder grid. */
 export function FolderFileTile(props: FolderFileTileProps) {
-  const { file, src, isBroken, isSelected, slotNumber, isDisabled, isBusy, disabledReason } = props
+  const {
+    file,
+    src,
+    audioSrc,
+    isBroken,
+    isSelected,
+    slotNumber,
+    isDisabled,
+    isBusy,
+    disabledReason,
+  } = props
+
   const isBlocked = isDisabled || isBusy
 
   const handleSelect = () => {
@@ -117,7 +131,7 @@ export function FolderFileTile(props: FolderFileTileProps) {
           )}
         />
 
-        {folderFileBody({ file, src, isBroken })}
+        {folderFileBody({ file, src, audioSrc, isBroken })}
 
         <MediaTileBadges isMissing={false} isLink isSelected={isSelected} slotNumber={slotNumber} />
 

@@ -23,7 +23,7 @@ vi.mock('sonner', () => {
 })
 
 function thumb(id: string): ThumbItem {
-  return { id, label: 'Reference', name: id, missing: false }
+  return { id, kind: 'image', label: 'Reference', name: id, missing: false }
 }
 
 afterEach(() => {
