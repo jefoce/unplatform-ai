@@ -175,6 +175,8 @@ describe('custom record preset snapshot', () => {
       title: VIDEO_PRESET.title,
       family: VIDEO_PRESET.family,
     })
+
+    expect(Object.keys(record.presetSnapshot ?? {}).sort()).toEqual(['family', 'id', 'title'])
   })
 
   it('writes the image preset snapshot on create', async () => {
@@ -191,6 +193,8 @@ describe('custom record preset snapshot', () => {
       title: preset.title,
       family: preset.family,
     })
+
+    expect(Object.keys(record.presetSnapshot ?? {}).sort()).toEqual(['family', 'id', 'title'])
   })
 })
 

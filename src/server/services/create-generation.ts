@@ -106,7 +106,12 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
 
   if (!isNil(endpoint)) {
     record.source = customRecordSource(preset, endpoint)
-    record.presetSnapshot = PresetSnapshotSchema.parse(preset)
+
+    record.presetSnapshot = PresetSnapshotSchema.parse({
+      id: preset.id,
+      title: preset.title,
+      family: preset.family,
+    })
   }
 
   const saved = await withLock('active-generations', async () => {
