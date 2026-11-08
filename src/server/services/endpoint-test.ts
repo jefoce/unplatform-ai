@@ -35,23 +35,31 @@ export interface LastTestParams {
   token: string | null
 }
 
-const testCache = globalState<Map<string, CustomEndpointLastHealth>>('endpointTestHealth', () => {
+interface EndpointTestEntry {
+  lastHealth: CustomEndpointLastHealth | null
+  checkedAt: string
+}
+
+const testCache = globalState<Map<string, EndpointTestEntry>>('endpointTestHealth', () => {
   return new Map()
 })
 
 function testKey(params: LastTestParams): string {
-  const { baseUrl, token } = params
-
   const hash = createHash('sha256')
-    .update(token ?? '')
+    .update(params.token ?? '')
     .digest('hex')
 
-  return `${normalizeBaseUrl(baseUrl)}\n${hash}`
+  return `${normalizeBaseUrl(params.baseUrl)}\n${hash}`
 }
 
 /** Latest successful test for one normalized URL and token. Server-owned. */
 export function lastTestFor(params: LastTestParams): CustomEndpointLastHealth | null {
-  return testCache.get(testKey(params)) ?? null
+  return testCache.get(testKey(params))?.lastHealth ?? null
+}
+
+/** When the latest test ran, success or failure. Null when no test ran. */
+export function lastTestAt(params: LastTestParams): string | null {
+  return testCache.get(testKey(params))?.checkedAt ?? null
 }
 
 export function forgetLastTest(params: LastTestParams): void {
@@ -113,7 +121,6 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
   const baseUrl = normalizeBaseUrl(params.baseUrl)
   const isSavedEndpoint = isSavedUrl(params, baseUrl)
   const token = resolveToken(params, isSavedEndpoint)
-  const checkedAt = new Date().toISOString()
 
   try {
     const health = await fetchJson({
@@ -159,9 +166,9 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
       resetCustomProviders()
     }
 
-    const lastHealth = lastHealthOf(health, checkedAt)
+    const lastHealth = lastHealthOf(health, new Date().toISOString())
 
-    testCache.set(testKey({ baseUrl, token }), lastHealth)
+    testCache.set(testKey({ baseUrl, token }), { lastHealth, checkedAt: lastHealth.checkedAt })
 
     return {
       ok: true,
@@ -176,8 +183,9 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
     }
   } catch (error) {
     const failure = testFailure(error)
+    const failedAt = new Date().toISOString()
 
-    forgetLastTest({ baseUrl, token })
+    testCache.set(testKey({ baseUrl, token }), { lastHealth: null, checkedAt: failedAt })
 
     if (isSavedEndpoint && !isNil(params.endpointId)) {
       setEndpointHealth({

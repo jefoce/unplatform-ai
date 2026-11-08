@@ -20,7 +20,7 @@ import { secretsReady } from '../secrets'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
 import { forgetEndpointHealth, setEndpointHealth } from './endpoint-health'
 import { getEndpointOverview } from './endpoint-overview'
-import { lastTestFor } from './endpoint-test'
+import { lastTestAt, lastTestFor } from './endpoint-test'
 import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
 
@@ -40,6 +40,11 @@ interface ResolveLastHealthParams {
   baseUrl: string
   token: string | null
   storedToken: string | null
+}
+
+interface ResolvedLastHealth {
+  lastHealth: CustomEndpointLastHealth | null
+  keepHealth: boolean
 }
 
 export async function saveEndpoints(params: SaveEndpointsParams): Promise<EndpointOverview> {
@@ -94,50 +99,70 @@ function settleSavedHealth(params: SettleSavedHealthParams): void {
   const token = effectiveToken({ item, tokenMap })
   const storedToken = tokenMap[id] ?? null
 
-  const lastHealth = resolveLastHealth({
+  const resolved = resolveLastHealth({
     previous,
     baseUrl: item.entry.baseUrl,
     token,
     storedToken,
   })
 
-  item.entry.lastHealth = lastHealth
+  item.entry.lastHealth = resolved.lastHealth
 
   if (isNil(item.entry.id)) {
     return
   }
 
-  if (isNil(lastHealth)) {
-    forgetEndpointHealth(item.entry.id)
+  if (!isNil(resolved.lastHealth)) {
+    setEndpointHealth({
+      endpointId: item.entry.id,
+      status: 'ok',
+      message: null,
+      maxRunning: resolved.lastHealth.maxRunning,
+    })
 
     return
   }
 
-  setEndpointHealth({
-    endpointId: item.entry.id,
-    status: 'ok',
-    message: null,
-    maxRunning: lastHealth.maxRunning,
-  })
+  if (resolved.keepHealth) {
+    return
+  }
+
+  forgetEndpointHealth(item.entry.id)
 }
 
-function resolveLastHealth(params: ResolveLastHealthParams): CustomEndpointLastHealth | null {
+/** A success wins, then a newer failure, then the unchanged-endpoint fallback. */
+function resolveLastHealth(params: ResolveLastHealthParams): ResolvedLastHealth {
   const { previous, baseUrl, token, storedToken } = params
   const tested = lastTestFor({ baseUrl, token })
 
   if (!isNil(tested)) {
-    return tested
+    return { lastHealth: tested, keepHealth: true }
+  }
+
+  const testedAt = lastTestAt({ baseUrl, token })
+
+  if (!isNil(testedAt) && beatsStoredHealth(testedAt, previous?.lastHealth?.checkedAt ?? null)) {
+    return { lastHealth: null, keepHealth: true }
   }
 
   if (isNil(previous)) {
-    return null
+    return { lastHealth: null, keepHealth: false }
   }
 
   if (previous.baseUrl !== baseUrl || token !== storedToken) {
-    return null
+    return { lastHealth: null, keepHealth: false }
   }
 
-  return previous.lastHealth
+  return { lastHealth: previous.lastHealth, keepHealth: true }
+}
+
+/** Same-millisecond failure counts, the in-memory entry already shows it. */
+function beatsStoredHealth(checkedAt: string, storedAt: string | null): boolean {
+  if (isNil(storedAt)) {
+    return true
+  }
+
+  return Date.parse(checkedAt) >= Date.parse(storedAt)
 }
 
 interface EffectiveTokenParams {

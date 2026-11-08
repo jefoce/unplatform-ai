@@ -293,6 +293,68 @@ describe('health freshness', () => {
       vi.useRealTimers()
     }
   })
+
+  it('lets a newer failed test clear the stored last health on an unchanged save', async () => {
+    mockHealthyFetch()
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: null })
+
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
+    const id = saved.endpoints[0]?.id ?? ''
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      }),
+    )
+
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: id })
+
+    const next = await service.saveEndpoints({ endpoints: [{ ...endpoint('Studio'), id }] })
+    const health = await import('@/server/services/endpoint-health')
+    const file = await repo.readEndpointFile()
+
+    expect(next.endpoints[0]?.lastHealth).toBeNull()
+    expect(health.getHealth(id)?.state).toBe('unreachable')
+
+    expect(
+      file.endpoints.find((entry) => {
+        return entry.id === id
+      })?.lastHealth,
+    ).toBeNull()
+  })
+
+  it('keeps the stored last health when the failed test is older', async () => {
+    const newerHealth = { ...LAST_HEALTH, checkedAt: '2099-01-01T00:00:00.000Z' }
+
+    const stored = await repo.applyEndpoints({
+      entries: [
+        {
+          label: 'Studio',
+          baseUrl: endpoint('Studio').baseUrl,
+          enabled: true,
+          pricing: { mode: 'model', usd: 0 },
+          instanceId: null,
+          lastHealth: newerHealth,
+        },
+      ],
+    })
+
+    const id = stored.file.endpoints[0]?.id ?? ''
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      }),
+    )
+
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: id })
+
+    const next = await service.saveEndpoints({ endpoints: [{ ...endpoint('Studio'), id }] })
+
+    expect(next.endpoints[0]?.lastHealth).toEqual(newerHealth)
+  })
 })
 
 describe('endpoint edits', () => {
