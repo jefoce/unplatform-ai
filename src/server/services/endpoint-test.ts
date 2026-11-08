@@ -67,9 +67,9 @@ function isSavedUrl(params: EndpointTestBody, baseUrl: string): boolean {
 export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTestResult> {
   await secretsReady()
   const baseUrl = normalizeBaseUrl(params.baseUrl)
-  const token = resolveToken(params)
-  const checkedAt = new Date().toISOString()
   const isSavedEndpoint = isSavedUrl(params, baseUrl)
+  const token = resolveToken(params, isSavedEndpoint)
+  const checkedAt = new Date().toISOString()
 
   try {
     const health = await fetchJson({
@@ -161,7 +161,7 @@ function instanceIdOf(value: string): string | null {
   return value
 }
 
-function resolveToken(params: EndpointTestBody): string | null {
+function resolveToken(params: EndpointTestBody, isSavedEndpoint: boolean): string | null {
   if (!isUndefined(params.token)) {
     const token = params.token?.trim() ?? ''
 
@@ -172,7 +172,7 @@ function resolveToken(params: EndpointTestBody): string | null {
     return token
   }
 
-  if (isNil(params.endpointId)) {
+  if (!isSavedEndpoint || isNil(params.endpointId)) {
     return null
   }
 

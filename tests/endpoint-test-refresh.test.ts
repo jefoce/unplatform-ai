@@ -55,6 +55,8 @@ const { clearEndpointModelCache, readEndpointModels } =
 const { __resetEndpointHealthForTests: resetEndpointHealth, getHealth } =
   await import('@/server/services/endpoint-health')
 
+const { applyEndpointTokens } = await import('@/server/services/endpoint-tokens')
+
 const SAVED_ID = 'ep-refresh'
 const UNSAVED_ID = 'ep-unsaved'
 const SAVED_URL = 'http://127.0.0.1:8188'
@@ -66,9 +68,14 @@ function jsonResponse(body: unknown): Response {
   })
 }
 
-function mockFetch(): void {
-  const mock = vi.fn(async (input: string | URL | Request) => {
+function mockFetch(): string[] {
+  const authHeaders: string[] = []
+
+  const mock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input)
+    const headers = new Headers(init?.headers)
+
+    authHeaders.push(headers.get('Authorization') ?? '')
 
     if (url.endsWith('/health')) {
       return jsonResponse(HEALTH)
@@ -82,6 +89,8 @@ function mockFetch(): void {
   })
 
   vi.stubGlobal('fetch', mock)
+
+  return authHeaders
 }
 
 beforeEach(async () => {
@@ -158,5 +167,52 @@ describe('endpoint test refresh', () => {
     expect(getHealth(UNSAVED_ID)).toBeNull()
     expect(await readEndpointModels(UNSAVED_ID)).toBeNull()
     expect(catalog.clearModelCatalog).not.toHaveBeenCalled()
+  })
+
+  it('never sends the stored token to an edited URL', async () => {
+    await applyEndpointTokens({
+      changes: [{ id: SAVED_ID, token: 'stored-token' }],
+      removedIds: [],
+    })
+
+    const authHeaders = mockFetch()
+
+    await testEndpoint({ baseUrl: 'http://127.0.0.1:9999', endpointId: SAVED_ID })
+
+    expect(authHeaders).toEqual(['', '', ''])
+  })
+
+  it('sends the stored token to its saved URL', async () => {
+    await applyEndpointTokens({
+      changes: [{ id: SAVED_ID, token: 'stored-token' }],
+      removedIds: [],
+    })
+
+    const authHeaders = mockFetch()
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(authHeaders).toEqual([
+      'Bearer stored-token',
+      'Bearer stored-token',
+      'Bearer stored-token',
+    ])
+  })
+
+  it('sends a supplied token to an edited URL', async () => {
+    await applyEndpointTokens({
+      changes: [{ id: SAVED_ID, token: 'stored-token' }],
+      removedIds: [],
+    })
+
+    const authHeaders = mockFetch()
+
+    await testEndpoint({
+      baseUrl: 'http://127.0.0.1:9999',
+      endpointId: SAVED_ID,
+      token: 'draft-token',
+    })
+
+    expect(authHeaders).toEqual(['Bearer draft-token', 'Bearer draft-token', 'Bearer draft-token'])
   })
 })
