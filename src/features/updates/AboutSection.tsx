@@ -7,7 +7,8 @@ import { platform } from '@/lib/platform'
 const LICENSE_URL = 'https://github.com/jefoce/unplatform-ai/blob/HEAD/LICENSE'
 const SOURCE_URL = 'https://github.com/jefoce/unplatform-ai'
 
-const LINK_CLASSES = 'text-xxs text-fg-2 hover:text-fg hover:underline'
+const LINK_CLASSES =
+  'text-xxs text-fg-2 hover:text-fg hover:underline focus-visible:text-fg focus-visible:underline'
 
 function handleLicense(): void {
   void platform.openExternal(LICENSE_URL).catch((error: unknown) => {

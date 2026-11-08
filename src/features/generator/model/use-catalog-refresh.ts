@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import { refreshCatalog } from '@/lib/api/catalog'
+import { toastError } from '@/lib/notify'
 
 export interface CatalogRefresh {
   isFetching: boolean
@@ -16,9 +17,13 @@ export function useCatalogRefresh(): CatalogRefresh {
   const refresh = (): void => {
     setIsRefreshing(true)
 
-    void refreshCatalog().finally(() => {
-      setIsRefreshing(false)
-    })
+    void refreshCatalog()
+      .catch((error: unknown) => {
+        toastError(error, 'Could not refresh models')
+      })
+      .finally(() => {
+        setIsRefreshing(false)
+      })
   }
 
   return { isFetching: isRefreshing, refresh }

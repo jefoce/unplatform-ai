@@ -44,6 +44,7 @@ export function Modal(props: ModalProps) {
       <DialogPrimitive.Portal>
         {shouldHideOverlay !== true && (
           <DialogPrimitive.Overlay
+            data-keep-panels={keepPanelsValue}
             className={cn('fixed inset-0 z-50 bg-backdrop', backdropClassName)}
           />
         )}
