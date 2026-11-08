@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import sharp from 'sharp'
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
+const PACKAGE = path.join(ROOT, 'package.json')
 const NOTICES = path.join(ROOT, 'THIRD_PARTY_NOTICES.md')
 const LICENSE = path.join(ROOT, 'LICENSE')
 const LICENSES = path.join(ROOT, 'licenses')
@@ -109,6 +110,17 @@ function npmSection() {
 export function checkNpmSection(text, section) {
   if (sectionText(text, START, END) !== section.trim()) {
     throw new Error('THIRD_PARTY_NOTICES.md npm section is stale, run pnpm notices')
+  }
+}
+
+/** App license line must match the package.json license field. */
+export function checkAppLicense(text, license) {
+  const expected = `Unplatform AI itself is licensed under ${license}. See [LICENSE](LICENSE).`
+  const line = text.split(/\r?\n/).find((entry) => {
+    return entry.startsWith('Unplatform AI itself')
+  })
+  if (line !== expected) {
+    throw new Error(`THIRD_PARTY_NOTICES.md app license must say "${expected}"`)
   }
 }
 
@@ -319,9 +331,11 @@ function replaceSection(text, startMark, endMark, section) {
 
 async function main() {
   const text = await fs.readFile(NOTICES, 'utf8')
+  const pkg = JSON.parse(await fs.readFile(PACKAGE, 'utf8'))
 
   if (process.argv.includes('--check')) {
     await checkBundled(text)
+    checkAppLicense(text, pkg.license)
     console.log('[notices] bundled versions, license texts and bundled-library rows match')
     checkNpmSection(text, checkedNpmSection())
     console.log('[notices] npm production dependencies match')
@@ -347,6 +361,7 @@ async function main() {
   next = replaceSection(next, GSTREAMER_START, GSTREAMER_END, gstreamerSection())
   await checkBundled(next)
   await fs.writeFile(NOTICES, next)
+  checkAppLicense(next, pkg.license)
 
   await fs.mkdir(path.join(RESOURCES, 'licenses'), { recursive: true })
   await fs.copyFile(NOTICES, path.join(RESOURCES, 'THIRD_PARTY_NOTICES.md'))

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  checkAppLicense,
   checkBundled,
   checkLicenseLinks,
   checkNpmSection,
@@ -13,8 +14,13 @@ import {
   libvipsSection,
 } from '../scripts/notices.mjs'
 
+interface PackageJson {
+  license: string
+}
+
 const NOTICES = fs.readFileSync(path.resolve('THIRD_PARTY_NOTICES.md'), 'utf8')
 const TAURI = fs.readFileSync(path.resolve('src-tauri/tauri.conf.json'), 'utf8')
+const PACKAGE = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')) as PackageJson
 const NPM_START = '<!-- npm-licenses:start -->'
 const NPM_END = '<!-- npm-licenses:end -->'
 const NPM_SECTION = '## npm production dependencies\n\n### MIT\n\n- left-pad 1.3.0'
@@ -49,6 +55,28 @@ function writeLibvipsFixture(imageDir: string, name: string): void {
 describe('third-party notices', () => {
   it('matches the bundled sharp, libvips and licensing rows', async () => {
     await expect(checkBundled(NOTICES)).resolves.toBeUndefined()
+  })
+
+  it('matches the package.json license', () => {
+    expect(() => {
+      checkAppLicense(NOTICES, PACKAGE.license)
+    }).not.toThrow()
+  })
+
+  it('passes when the app license line matches', () => {
+    const text = `Unplatform AI itself is licensed under ${PACKAGE.license}. See [LICENSE](LICENSE).`
+
+    expect(() => {
+      checkAppLicense(text, PACKAGE.license)
+    }).not.toThrow()
+  })
+
+  it('fails when the app license line disagrees', () => {
+    const text = 'Unplatform AI itself is MIT licensed. See [LICENSE](LICENSE).'
+
+    expect(() => {
+      checkAppLicense(text, PACKAGE.license)
+    }).toThrow('app license must say')
   })
 
   it('passes when the npm section is current', () => {
