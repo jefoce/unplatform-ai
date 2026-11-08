@@ -4,6 +4,7 @@ import type { PickerRow } from './picker-groups'
 
 export interface ModelRowProps {
   model: PickerRow
+  entry: CatalogEntry | null
   selected: boolean
   onSelect: (id: string) => void
 }

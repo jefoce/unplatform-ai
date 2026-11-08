@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { useModelEntry } from '@/lib/api/catalog'
+import { useCatalog, useModelEntry } from '@/lib/api/catalog'
 import { Price } from '@/ui/Price'
 
 import type { CatalogEntry } from '../src/core/catalog'
@@ -14,9 +14,9 @@ import { required } from './helpers/required'
 
 vi.mock('@/lib/api/catalog', () => {
   return {
-    useCatalog: () => {
+    useCatalog: vi.fn(() => {
       return { catalog: undefined, isLoading: false, isValidating: false }
-    },
+    }),
     refreshCatalog: vi.fn(async () => {}),
     useModelEntry: vi.fn(() => {
       return null
@@ -24,6 +24,7 @@ vi.mock('@/lib/api/catalog', () => {
   }
 })
 
+const mockUseCatalog = vi.mocked(useCatalog)
 const mockUseModelEntry = vi.mocked(useModelEntry)
 
 const PRICING: PricingInfo = {
@@ -64,6 +65,14 @@ function unavailable(status: 'missing' | 'no_provider', reason: string): Catalog
   return { ...entry(PRICING), status, reason }
 }
 
+function useEntries(entries: CatalogEntry[]): void {
+  mockUseCatalog.mockReturnValue({
+    catalog: { entries, fetchedAt: '2026-01-01T00:00:00.000Z' },
+    isLoading: false,
+    isValidating: false,
+  })
+}
+
 class Observer {
   observe() {}
   unobserve() {}
@@ -71,6 +80,7 @@ class Observer {
 }
 
 beforeEach(() => {
+  mockUseCatalog.mockReturnValue({ catalog: undefined, isLoading: false, isValidating: false })
   mockUseModelEntry.mockReturnValue(null)
   useGeneratorStore.setState({ presetId: 'wan-3.0' })
   vi.stubGlobal('ResizeObserver', Observer)
@@ -113,7 +123,7 @@ describe('ModelPicker duration badge', () => {
 
 describe('ModelPicker rows', () => {
   it('shows the struck list rate, the discounted rate and no description', () => {
-    mockUseModelEntry.mockReturnValue(entry(PRICING))
+    useEntries([entry(PRICING)])
     render(<ModelPicker />)
     fireEvent.click(screen.getByRole('button', { name: /Model/ }))
     const dialog = screen.getByRole('dialog')
@@ -127,9 +137,7 @@ describe('ModelPicker rows', () => {
 
 describe('ModelPicker unavailable rows', () => {
   it('disables a missing row with the reason and no price', () => {
-    mockUseModelEntry.mockReturnValue(
-      unavailable('missing', 'Not available on OpenRouter right now.'),
-    )
+    useEntries([unavailable('missing', 'Not available on OpenRouter right now.')])
 
     render(<ModelPicker />)
     fireEvent.click(screen.getByRole('button', { name: /Model/ }))
@@ -143,9 +151,12 @@ describe('ModelPicker unavailable rows', () => {
   })
 
   it('keeps the selection and the picker open when a disabled row is clicked', () => {
-    mockUseModelEntry.mockReturnValue(
-      unavailable('missing', 'Not available on OpenRouter right now.'),
-    )
+    const missing = unavailable('missing', 'Not available on OpenRouter right now.')
+
+    useEntries([
+      missing,
+      { ...missing, modelId: 'bytedance/seedance-2.0', presetId: 'seedance-2.0' },
+    ])
 
     render(<ModelPicker />)
     fireEvent.click(screen.getByRole('button', { name: /Model/ }))
@@ -159,7 +170,7 @@ describe('ModelPicker unavailable rows', () => {
   })
 
   it('selects an unverified row normally', () => {
-    mockUseModelEntry.mockReturnValue({ ...entry(PRICING), status: 'unverified' })
+    useEntries([{ ...entry(PRICING), status: 'unverified' }])
 
     render(<ModelPicker />)
     fireEvent.click(screen.getByRole('button', { name: /Model/ }))

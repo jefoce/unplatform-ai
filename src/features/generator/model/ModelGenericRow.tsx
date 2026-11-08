@@ -3,18 +3,13 @@
 import { isNil } from 'lodash-es'
 import { Check } from 'lucide-react'
 
-import type { CatalogEntry } from '@/core/catalog'
 import { cn } from '@/lib/cn'
 
 import { isBlockedEntry, type ModelRowProps } from './model-row-props'
 import { PRESET_ICONS } from './preset-icon'
 
-interface ModelGenericRowProps extends ModelRowProps {
-  entry?: CatalogEntry | null
-}
-
 /** Blocked rows show the catalog reason, healthy rows show the description. */
-function noteOf(params: ModelGenericRowProps, isBlocked: boolean): string | null {
+function noteOf(params: ModelRowProps, isBlocked: boolean): string | null {
   const { model, entry = null } = params
 
   if (isBlocked) {
@@ -25,7 +20,7 @@ function noteOf(params: ModelGenericRowProps, isBlocked: boolean): string | null
 }
 
 /** Image or any non-video row, showing the adapter description and price text. */
-export function ModelGenericRow(props: ModelGenericRowProps) {
+export function ModelGenericRow(props: ModelRowProps) {
   const { model, entry = null, selected: isSelected } = props
   const Icon = PRESET_ICONS[model.icon]
   const isBlocked = isBlockedEntry(entry)

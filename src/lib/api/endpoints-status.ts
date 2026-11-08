@@ -22,7 +22,7 @@ const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refr
 const MISSING_REASON = 'This workflow is gone from ComfyUI.'
 const REMOVED_REASON = 'This endpoint was removed.'
 
-interface EndpointsState {
+export interface EndpointsState {
   endpoints: EndpointOverviewEntry[]
   isLoading: boolean
   error: unknown

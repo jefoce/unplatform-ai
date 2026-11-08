@@ -1,17 +1,20 @@
 import { isEmpty } from 'lodash-es'
 
+import type { CatalogEntry } from '@/core/catalog'
+
 import { ModelRow } from './ModelRow'
 import type { PickerGroup } from './picker-groups'
 
 interface ModelGroupListProps {
   groups: readonly PickerGroup[]
+  entries: ReadonlyMap<string, CatalogEntry>
   selectedId: string
   onSelect: (id: string) => void
 }
 
 /** Provider sections with their model rows. */
 export function ModelGroupList(props: ModelGroupListProps) {
-  const { groups, selectedId } = props
+  const { groups, entries, selectedId } = props
 
   if (isEmpty(groups)) {
     return <p className="p-3 text-center text-xs text-fg-2">No models</p>
@@ -28,6 +31,7 @@ export function ModelGroupList(props: ModelGroupListProps) {
                 <ModelRow
                   key={row.id}
                   model={row}
+                  entry={entries.get(row.id) ?? null}
                   selected={row.id === selectedId}
                   onSelect={props.onSelect}
                 />

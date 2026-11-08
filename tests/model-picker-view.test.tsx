@@ -7,7 +7,6 @@ import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { ModelRow } from '@/features/generator/model/ModelRow'
 import { ModelVideoRow } from '@/features/generator/model/ModelVideoRow'
 import { videoPickerModel } from '@/features/generator/model/video-picker-model'
-import { useModelEntry } from '@/lib/api/catalog'
 
 import type { CatalogEntry } from '../src/core/catalog'
 import type { PickerModel } from '../src/core/feed/picker-model'
@@ -27,7 +26,6 @@ vi.mock('@/lib/api/catalog', () => {
   }
 })
 
-const mockUseModelEntry = vi.mocked(useModelEntry)
 const WAN = getPreset('wan-3.0')
 
 const PRICING: PricingInfo = {
@@ -55,7 +53,6 @@ class Observer {
 function handleNoop(): void {}
 
 beforeEach(() => {
-  mockUseModelEntry.mockReturnValue(null)
   vi.stubGlobal('ResizeObserver', Observer)
 
   vi.stubGlobal('matchMedia', () => {
@@ -98,7 +95,7 @@ describe('videoPickerModel', () => {
 
 describe('ModelRow generic view', () => {
   it('renders the description and the price text', () => {
-    render(<ModelRow model={IMAGE_ROW} selected={false} onSelect={vi.fn()} />)
+    render(<ModelRow model={IMAGE_ROW} entry={null} selected={false} onSelect={vi.fn()} />)
 
     expect(screen.getByText('Image Model')).toBeTruthy()
     expect(screen.getByText('A description')).toBeTruthy()
@@ -106,11 +103,13 @@ describe('ModelRow generic view', () => {
   })
 
   it('reports the selected state on the row button', () => {
-    const { rerender } = render(<ModelRow model={IMAGE_ROW} selected={false} onSelect={vi.fn()} />)
+    const { rerender } = render(
+      <ModelRow model={IMAGE_ROW} entry={null} selected={false} onSelect={vi.fn()} />,
+    )
 
     expect(screen.getByRole('button').getAttribute('aria-pressed')).toBe('false')
 
-    rerender(<ModelRow model={IMAGE_ROW} selected onSelect={vi.fn()} />)
+    rerender(<ModelRow model={IMAGE_ROW} entry={null} selected onSelect={vi.fn()} />)
 
     expect(screen.getByRole('button').getAttribute('aria-pressed')).toBe('true')
   })
@@ -121,7 +120,7 @@ describe('ModelRow image view', () => {
     const preset = IMAGE_PRESETS[0]
     const handleSelect = vi.fn()
 
-    mockUseModelEntry.mockReturnValue({
+    const entry: CatalogEntry = {
       modelId: preset.bindings[0].modelId,
       presetId: preset.id,
       provider: 'openrouter',
@@ -135,9 +134,16 @@ describe('ModelRow image view', () => {
         workflowName: null,
         local: false,
       },
-    })
+    }
 
-    render(<ModelRow model={imagePickerModel(preset)} selected={false} onSelect={handleSelect} />)
+    render(
+      <ModelRow
+        model={imagePickerModel(preset)}
+        entry={entry}
+        selected={false}
+        onSelect={handleSelect}
+      />,
+    )
 
     const row = screen.getByRole('button')
 

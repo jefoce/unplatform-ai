@@ -351,6 +351,45 @@ describe('history facets index', () => {
     )
   })
 
+  it('defers aggregation until a reader asks for the facets', async () => {
+    await facets.getHistoryFacets('video')
+
+    const get = vi.mocked(generations.getGeneration)
+
+    get.mockClear()
+
+    const sort = vi.spyOn(Array.prototype, 'sort')
+    const id = randomUUID()
+
+    await generations.saveGeneration(
+      videoRecord({
+        id,
+        createdAt: '2026-05-01T00:00:00.000Z',
+        presetId: 'seedance-2.0',
+        title: 'Seedance 2.0',
+      }),
+    )
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50)
+    })
+
+    expect(get).toHaveBeenCalledWith(id)
+    expect(sort).not.toHaveBeenCalled()
+
+    sort.mockRestore()
+
+    const result = await facets.getHistoryFacets('video')
+
+    expect(
+      result.models.find((model) => {
+        return model.presetId === 'seedance-2.0'
+      })?.count,
+    ).toBe(1)
+
+    expect(result).toEqual(facets.buildHistoryFacets('video', await generations.listGenerations()))
+  })
+
   it('lists only models that have records, newest first', async () => {
     await generations.saveGeneration(
       videoRecord({ id: randomUUID(), createdAt: '2026-01-01T00:00:00.000Z' }),

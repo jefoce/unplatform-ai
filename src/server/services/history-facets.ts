@@ -39,6 +39,7 @@ interface FacetIndex {
   rows: Map<string, FacetRow>
   facets: HistoryFacets
   isLoaded: boolean
+  isDirty: boolean
   changes: JsonDirChange[]
   pending: Promise<void> | null
 }
@@ -75,13 +76,22 @@ const indexes = globalState<Map<HistoryFacetKind, FacetIndex>>('historyFacetInde
 export async function getHistoryFacets(kind: HistoryFacetKind): Promise<HistoryFacets> {
   const index = ensureIndex(kind)
 
-  schedule(index, kind)
+  while (true) {
+    schedule(index, kind)
 
-  while (!isNil(index.pending)) {
-    await index.pending
+    if (!isNil(index.pending)) {
+      await index.pending
+
+      continue
+    }
+
+    if (!index.isDirty) {
+      return index.facets
+    }
+
+    index.facets = facetsFromRows(kind, index.rows.values())
+    index.isDirty = false
   }
-
-  return index.facets
 }
 
 /** One pass over the records. Same aggregation the incremental index runs. */
@@ -103,6 +113,7 @@ function ensureIndex(kind: HistoryFacetKind): FacetIndex {
     rows: new Map(),
     facets: emptyFacets(kind),
     isLoaded: false,
+    isDirty: false,
     changes: [],
     pending: null,
   }
@@ -165,7 +176,7 @@ async function drainChanges(index: FacetIndex, kind: HistoryFacetKind): Promise<
       index.rows.set(record.id, rowOf(record))
     }
 
-    index.facets = facetsFromRows(kind, index.rows.values())
+    index.isDirty = true
   }
 }
 
@@ -181,6 +192,7 @@ async function loadAll(index: FacetIndex, kind: HistoryFacetKind): Promise<void>
 
   index.facets = facetsFromRows(kind, index.rows.values())
   index.isLoaded = true
+  index.isDirty = false
 }
 
 function rowOf(record: FacetRecord): FacetRow {

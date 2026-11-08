@@ -2,6 +2,7 @@
 
 import { type ChangeEvent, useState } from 'react'
 
+import type { CatalogEntry } from '@/core/catalog'
 import { cn } from '@/lib/cn'
 import { Input } from '@/ui/form/Input'
 import { PopoverContent } from '@/ui/Popover'
@@ -13,6 +14,7 @@ import { contentWidth, popoverSide, searchGroups, visibleGroups } from './picker
 
 interface ModelPickerContentProps {
   groups: readonly PickerGroup[]
+  entries: ReadonlyMap<string, CatalogEntry>
   selectedId: string
   isBar: boolean
   isWide: boolean
@@ -54,7 +56,12 @@ export function ModelPickerContent(props: ModelPickerContentProps) {
         <ModelRefreshButton isFetching={props.isFetching} onRefresh={props.onRefresh} />
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
-        <ModelGroupList groups={visible} selectedId={props.selectedId} onSelect={props.onSelect} />
+        <ModelGroupList
+          groups={visible}
+          entries={props.entries}
+          selectedId={props.selectedId}
+          onSelect={props.onSelect}
+        />
       </div>
     </PopoverContent>
   )

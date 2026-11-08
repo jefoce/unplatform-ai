@@ -57,7 +57,6 @@ function rowPrice(preset: VideoPreset, entry: CatalogEntry | null): RowPrice | n
 
 interface ModelVideoRowProps extends ModelRowProps {
   preset: VideoPreset
-  entry: CatalogEntry | null
 }
 
 /** Video row with capability badges and the live rate. */

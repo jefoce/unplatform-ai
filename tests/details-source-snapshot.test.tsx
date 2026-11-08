@@ -4,18 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { EndpointOverviewEntry } from '@/core/api/endpoints'
 import { DetailsSource } from '@/features/history/details/DetailsSource'
-import type * as EndpointsStatusModule from '@/lib/api/endpoints-status'
-import { useEndpointsStatus } from '@/lib/api/endpoints-status'
+import type * as EndpointsContextModule from '@/features/shared/endpoints-status-context'
+import { useEndpointsSnapshot } from '@/features/shared/endpoints-status-context'
 
 import { storedRecord } from './helpers/stored-record'
 
-vi.mock('@/lib/api/endpoints-status', async (importOriginal) => {
-  const actual = await importOriginal<typeof EndpointsStatusModule>()
+vi.mock('@/features/shared/endpoints-status-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof EndpointsContextModule>()
 
-  return { ...actual, useEndpointsStatus: vi.fn() }
+  return { ...actual, useEndpointsSnapshot: vi.fn() }
 })
 
-const mockEndpoints = vi.mocked(useEndpointsStatus)
+const mockEndpoints = vi.mocked(useEndpointsSnapshot)
 
 function endpoint(): EndpointOverviewEntry {
   return {

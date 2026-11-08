@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { isNil } from 'lodash-es'
 
+import type { CatalogEntry } from '@/core/catalog'
 import type { PickerModel } from '@/core/feed/picker-model'
 import { VIDEO_PRESETS } from '@/core/presets'
 import { useCatalog, useModelEntry } from '@/lib/api/catalog'
@@ -59,6 +60,16 @@ export function ModelPicker(props: ModelPickerProps) {
     })
   }, [props.models, props.kind, catalog])
 
+  const entries = useMemo(() => {
+    const map = new Map<string, CatalogEntry>()
+
+    for (const entry of catalog?.entries ?? []) {
+      map.set(entry.presetId, entry)
+    }
+
+    return map
+  }, [catalog])
+
   const current = currentRow(groups, selectedId) ?? fallbackRow({ selectedId, entry })
 
   const handleOpenChange = (isOpen: boolean): void => {
@@ -88,6 +99,7 @@ export function ModelPicker(props: ModelPickerProps) {
       />
       <ModelPickerContent
         groups={groups}
+        entries={entries}
         selectedId={selectedId}
         isBar={isBar}
         isWide={isWide}

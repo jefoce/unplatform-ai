@@ -5,7 +5,6 @@ import { isNil } from 'lodash-es'
 
 import { findPreset } from '@/core/presets'
 import { findImagePreset } from '@/core/presets/image'
-import { useModelEntry } from '@/lib/api/catalog'
 
 import { imagePickerModel } from './image-picker-model'
 import type { ModelRowProps } from './model-row-props'
@@ -16,7 +15,7 @@ import { videoPickerModel } from './video-picker-model'
 
 /** One selectable row in the model picker, video or image. */
 export function ModelRow(props: ModelRowProps) {
-  const entry = useModelEntry(props.model.id)
+  const { entry } = props
   const preset = findPreset(props.model.id)
   const skus = entry?.pricing?.skus
 

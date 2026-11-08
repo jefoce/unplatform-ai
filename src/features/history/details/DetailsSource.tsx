@@ -5,7 +5,8 @@ import { isNil } from 'lodash-es'
 import { recordSource } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { ImageRecord } from '@/core/schemas/image-record'
-import { endpointById, useEndpointsStatus } from '@/lib/api/endpoints-status'
+import { useEndpointsSnapshot } from '@/features/shared/endpoints-status-context'
+import { endpointById } from '@/lib/api/endpoints-status'
 
 interface DetailsSourceProps {
   record: GenerationRecord | ImageRecord
@@ -21,7 +22,7 @@ function removedSuffix(isRemoved: boolean): string {
 
 /** Custom details: workflow name and endpoint label from the record snapshot. */
 export function DetailsSource(props: DetailsSourceProps) {
-  const { endpoints, isLoading, error } = useEndpointsStatus()
+  const { endpoints, isLoading, error } = useEndpointsSnapshot()
   const source = recordSource(props.record)
 
   if (source.kind !== 'custom') {
