@@ -12,6 +12,7 @@ import { isUuid } from '../fs/media-ref'
 import { resetCustomProviders } from '../providers/registry'
 import {
   applyEndpoints,
+  type ApplyEndpointsResult,
   type EndpointEntry,
   listEndpoints,
   normalizeBaseUrl,
@@ -21,7 +22,12 @@ import { pruneEndpointCaches } from './endpoint-cache-prune'
 import { forgetEndpointHealth, setEndpointHealth } from './endpoint-health'
 import { getEndpointOverview } from './endpoint-overview'
 import { lastTestAt, lastTestFor } from './endpoint-test'
-import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
+import {
+  planEndpointTokens,
+  readTokenMap,
+  restoreEndpointTokens,
+  writeEndpointTokens,
+} from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
 
 interface PreparedEndpoint {
@@ -47,6 +53,11 @@ interface ResolvedLastHealth {
   keepHealth: boolean
 }
 
+interface SavedHealth {
+  id: string | null
+  resolved: ResolvedLastHealth
+}
+
 export async function saveEndpoints(params: SaveEndpointsParams): Promise<EndpointOverview> {
   const prepared = params.endpoints.map((input) => {
     return { entry: toEntry(input), token: input.token }
@@ -59,18 +70,6 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   const previousById = keyBy(current, 'id')
   const tokenMap = readTokenMap()
 
-  for (const item of prepared) {
-    const previous = previousById[item.entry.id ?? '']
-
-    settleSavedHealth({ previous, item, tokenMap })
-  }
-
-  const result = await applyEndpoints({
-    entries: prepared.map((item) => {
-      return item.entry
-    }),
-  })
-
   const changes = prepared.flatMap((item) => {
     if (isNil(item.entry.id)) {
       return []
@@ -79,7 +78,48 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
     return [{ id: item.entry.id, token: item.token }]
   })
 
-  await applyEndpointTokens({ changes, removedIds: result.removedIds })
+  const preparedIds = new Set(
+    prepared.map((item) => {
+      return item.entry.id ?? ''
+    }),
+  )
+
+  const removedIds = current.flatMap((endpoint) => {
+    if (preparedIds.has(endpoint.id)) {
+      return []
+    }
+
+    return [endpoint.id]
+  })
+
+  const plan = await planEndpointTokens({ changes, removedIds })
+
+  await writeEndpointTokens(plan.serialized)
+
+  const savedHealths = prepared.map((item) => {
+    const previous = previousById[item.entry.id ?? '']
+    const resolved = resolveSavedHealth({ previous, item, tokenMap })
+
+    item.entry.lastHealth = resolved.lastHealth
+
+    return { id: item.entry.id ?? null, resolved }
+  })
+
+  let result: ApplyEndpointsResult
+
+  try {
+    result = await applyEndpoints({
+      entries: prepared.map((item) => {
+        return item.entry
+      }),
+    })
+  } catch (error) {
+    await restoreEndpointTokens(plan.current)
+
+    throw error
+  }
+
+  applySavedHealth(savedHealths)
 
   for (const id of result.removedIds) {
     forgetEndpointHealth(id)
@@ -93,41 +133,42 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
 }
 
 /** The saved health comes from the last server test, never from the client body. */
-function settleSavedHealth(params: SettleSavedHealthParams): void {
+function resolveSavedHealth(params: SettleSavedHealthParams): ResolvedLastHealth {
   const { previous, item, tokenMap } = params
   const id = item.entry.id ?? ''
   const token = effectiveToken({ item, tokenMap })
   const storedToken = tokenMap[id] ?? null
 
-  const resolved = resolveLastHealth({
+  return resolveLastHealth({
     previous,
     baseUrl: item.entry.baseUrl,
     token,
     storedToken,
   })
+}
 
-  item.entry.lastHealth = resolved.lastHealth
+/** Runs only after the endpoint file is safely written. */
+function applySavedHealth(healths: SavedHealth[]): void {
+  for (const health of healths) {
+    if (isNil(health.id)) {
+      continue
+    }
 
-  if (isNil(item.entry.id)) {
-    return
+    if (!isNil(health.resolved.lastHealth)) {
+      setEndpointHealth({
+        endpointId: health.id,
+        status: 'ok',
+        message: null,
+        maxRunning: health.resolved.lastHealth.maxRunning,
+      })
+
+      continue
+    }
+
+    if (!health.resolved.keepHealth) {
+      forgetEndpointHealth(health.id)
+    }
   }
-
-  if (!isNil(resolved.lastHealth)) {
-    setEndpointHealth({
-      endpointId: item.entry.id,
-      status: 'ok',
-      message: null,
-      maxRunning: resolved.lastHealth.maxRunning,
-    })
-
-    return
-  }
-
-  if (resolved.keepHealth) {
-    return
-  }
-
-  forgetEndpointHealth(item.entry.id)
 }
 
 /** A success wins, then a newer failure, then the unchanged-endpoint fallback. */

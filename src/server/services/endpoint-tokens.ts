@@ -20,6 +20,11 @@ interface ApplyEndpointTokensParams {
   removedIds: string[]
 }
 
+export interface EndpointTokenPlan {
+  current: string | null
+  serialized: string
+}
+
 interface NextTokenParams {
   current: Record<string, string>
   changes: EndpointTokenChange[]
@@ -100,8 +105,10 @@ async function saveTokenValue(serialized: string): Promise<void> {
   }
 }
 
-/** Removes and sets tokens in one write. Fails before saving when the map is too large. */
-export async function applyEndpointTokens(params: ApplyEndpointTokensParams): Promise<void> {
+/** Builds the next map without writing. Fails when the map is too large. */
+export async function planEndpointTokens(
+  params: ApplyEndpointTokensParams,
+): Promise<EndpointTokenPlan> {
   await secretsReady()
   const next = nextTokenValues({ ...params, current: readTokenMap() })
   const serialized = JSON.stringify(next)
@@ -110,5 +117,24 @@ export async function applyEndpointTokens(params: ApplyEndpointTokensParams): Pr
     throw new HttpError(400, 'Too many endpoint tokens')
   }
 
+  return { current: getSecret('CUSTOM_ENDPOINT_TOKENS'), serialized }
+}
+
+export async function writeEndpointTokens(serialized: string): Promise<void> {
   await saveTokenValue(serialized)
+}
+
+/** Puts back the raw secret read before the attempt. Null or empty clears it. */
+export async function restoreEndpointTokens(current: string | null): Promise<void> {
+  const isCleared = isNil(current) || current === ''
+  const serialized = isCleared ? '{}' : current
+
+  await saveTokenValue(serialized)
+}
+
+/** Removes and sets tokens in one write. Fails before saving when the map is too large. */
+export async function applyEndpointTokens(params: ApplyEndpointTokensParams): Promise<void> {
+  const plan = await planEndpointTokens(params)
+
+  await writeEndpointTokens(plan.serialized)
 }
