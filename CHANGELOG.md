@@ -20,6 +20,7 @@ Local image and video models from ComfyUI, with several endpoints and a badge fo
 - Clips and sound for local models upload to your own ComfyUI. Pictures and frames stay inline.
 - Local jobs share a per-endpoint limit from ComfyUI.
 - The app is now licensed under AGPL-3.0. Versions 0.4.0 and earlier stay MIT.
+- The viewer no longer shows a thumbnail before the full image loads.
 
 An image record has no job reference, so a running image cannot be stopped from history in 0.5.0. Stop is available for video.
 
@@ -46,7 +47,7 @@ The Image workspace, the Unplatform AI name and icon, and one pricing engine for
 - The image tab is full width, and the top bar fades while scrolling.
 - History thumbnails and video posters are sharper.
 - Zoomed photos pan smoothly on the GPU, and the wheel no longer zooms while you drag.
-- The viewer fades in the full image after it decodes, with no thumbnail.
+- The viewer shows the cached thumbnail first, then fades in the full image.
 - Animations stay on when the system asks for reduced motion.
 - Linux: panels and pills are solid, and the viewer backdrop is blurred on the server, so scrolling and playback render smoothly.
 - Linux: the `.deb` and `.rpm` are the recommended packages, for faster rendering and hardware video decoding. The AppImage is the portable fallback.
