@@ -24,7 +24,6 @@ import { IMAGE_FAMILIES } from '../src/core/presets/image/types'
 import { VIDEO_FAMILIES } from '../src/core/presets/video/types'
 import { PRICING_FORMULAS } from '../src/core/pricing/types'
 import {
-  PROVIDER_IDS,
   PROVIDER_KIND_IDS,
   PROVIDER_KINDS,
   type ProviderInstance,
@@ -63,8 +62,6 @@ const ENDPOINT_BODY = {
 describe('provider kinds', () => {
   it('keeps both kind ids and describes each kind', () => {
     expect(PROVIDER_KIND_IDS).toEqual(['openrouter', 'custom'])
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- verifies the deprecated alias
-    expect(PROVIDER_IDS).toBe(PROVIDER_KIND_IDS)
 
     const kind: ProviderKind = PROVIDER_KINDS.custom
 
@@ -229,7 +226,6 @@ describe('record source', () => {
   it('validates record progress', () => {
     const progress: RecordProgress = RecordProgressSchema.parse({
       percent: 50,
-      node: null,
       queuePosition: null,
       waitingOn: 'comfyui_busy',
     })

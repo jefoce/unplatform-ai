@@ -33,14 +33,12 @@ export const EndpointTestResultSchema = z
   .object({
     ok: z.boolean(),
     error: z.string().nullable(),
-    protocol: z.number().nullable(),
     serverVersion: z.string().nullable(),
     videoCount: z.number(),
     imageCount: z.number(),
     authRequired: z.boolean().nullable(),
     lanAllowed: z.boolean().nullable(),
     instanceId: z.string().nullable(),
-    maxRunning: z.number().nullable(),
     lastHealth: CustomEndpointLastHealthSchema.nullable(),
   })
   .loose()

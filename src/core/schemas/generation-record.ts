@@ -76,7 +76,6 @@ export type RecordSubmit = z.infer<typeof RecordSubmitSchema>
 
 export const RecordProgressSchema = z.object({
   percent: z.number().min(0).max(100),
-  node: z.string().nullable(),
   queuePosition: z.number().int().nullable(),
   waitingOn: z.enum(UPAI_WAITING_ON).nullable(),
 })

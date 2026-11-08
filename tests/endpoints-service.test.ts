@@ -417,14 +417,12 @@ describe('endpoint test mapping', () => {
     expect(result).toMatchObject({
       ok: true,
       error: null,
-      protocol: 1,
       serverVersion: '0.43.0',
       videoCount: 0,
       imageCount: 0,
       authRequired: false,
       lanAllowed: true,
       instanceId: HEALTH.instance_id,
-      maxRunning: 2,
     })
 
     expect(result.lastHealth?.maxUploadBytes).toBe(HEALTH.max_upload_bytes)

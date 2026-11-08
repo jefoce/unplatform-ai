@@ -30,7 +30,6 @@ export function fallbackRow(params: FallbackRowParams): PickerRow {
     workflowName: source?.workflowName,
     status: entry?.status,
     reason: entry?.reason,
-    availability: entry?.availability,
     isCustom: source?.kind === 'custom',
   }
 }

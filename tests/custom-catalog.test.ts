@@ -110,7 +110,6 @@ const RouteBodySchema = z.object({
         presetId: z.string(),
         status: z.string(),
         reason: z.string().nullable(),
-        availability: z.object({ status: z.string(), reason: z.string().nullable() }),
       })
       .loose(),
   ),
@@ -295,7 +294,6 @@ describe('custom catalog', () => {
       provider: 'custom',
       status: 'available',
       reason: null,
-      availability: { status: 'available', reason: null },
       source: {
         kind: 'custom',
         instanceId: endpoint.id,
@@ -355,7 +353,7 @@ describe('custom catalog', () => {
     const entry = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
 
     expect(entry.status).toBe('available')
-    expect(entry.availability).toEqual({ status: 'available', reason: CUSTOM_STALE_REASON })
+    expect(entry.reason).toBe(CUSTOM_STALE_REASON)
   })
 
   it('carries the mapped preset on the entry', async () => {
@@ -467,11 +465,7 @@ describe('custom catalog', () => {
     const entry = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
 
     expect(entry.status).toBe('unverified')
-
-    expect(entry.availability).toEqual({
-      status: 'unverified',
-      reason: 'ComfyUI is not reachable.',
-    })
+    expect(entry.reason).toBe('ComfyUI is not reachable.')
   })
 
   it('hides the presets of a disabled endpoint', async () => {

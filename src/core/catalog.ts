@@ -36,7 +36,6 @@ export interface CatalogEntry {
   status: ModelStatus
   reason: string | null
   pricing: PricingInfo | null
-  availability: ModelAvailability
   source: CatalogEntrySource
 
   /** Runtime preset for dynamic models, absent for the static ones. */

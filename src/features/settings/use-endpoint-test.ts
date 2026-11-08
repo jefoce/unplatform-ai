@@ -29,14 +29,12 @@ function failedTest(message: string): EndpointTestResult {
   return {
     ok: false,
     error: message,
-    protocol: null,
     serverVersion: null,
     videoCount: 0,
     imageCount: 0,
     authRequired: null,
     lanAllowed: null,
     instanceId: null,
-    maxRunning: null,
     lastHealth: null,
   }
 }

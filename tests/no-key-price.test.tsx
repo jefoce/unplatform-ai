@@ -173,7 +173,6 @@ function catalogEntry(status: 'missing' | 'no_provider'): CatalogEntry {
     status,
     reason: 'Add your OpenRouter key in Settings.',
     pricing: PRICING,
-    availability: { status, reason: 'Add your OpenRouter key in Settings.' },
     source: {
       kind: 'openrouter',
       instanceId: 'openrouter',

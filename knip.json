@@ -3,8 +3,5 @@
   "entry": ["src/app/**/*.{ts,tsx}", "scripts/*.mjs", "tests/**/*.test.ts"],
   "project": ["src/**/*.{ts,tsx}", "src/**/*.css", "scripts/*.mjs", "tests/**/*.ts"],
   "ignoreBinaries": ["hdiutil", "rustc"],
-  "ignoreDependencies": ["ffmpeg-static"],
-  "ignoreIssues": {
-    "src/core/providers/types.ts": ["duplicates"]
-  }
+  "ignoreDependencies": ["ffmpeg-static"]
 }

@@ -28,7 +28,7 @@ function custom(overrides: Parameters<typeof storedRecord>[1] = {}) {
 describe('custom job progress', () => {
   it('shows the provider percent in the pill', () => {
     const record = custom({
-      progress: { percent: 45, node: 'KSampler', queuePosition: null, waitingOn: null },
+      progress: { percent: 45, queuePosition: null, waitingOn: null },
     })
 
     const view = videoStatusView(record)
@@ -40,7 +40,7 @@ describe('custom job progress', () => {
   it('maps comfyui_busy to the waiting label', () => {
     const record = custom({
       status: 'pending',
-      progress: { percent: 0, node: null, queuePosition: null, waitingOn: 'comfyui_busy' },
+      progress: { percent: 0, queuePosition: null, waitingOn: 'comfyui_busy' },
     })
 
     expect(statusHelpKey(record)).toBe('waiting_comfyui')
@@ -50,7 +50,7 @@ describe('custom job progress', () => {
   it('shows the queue position when the pack reports one', () => {
     const record = custom({
       status: 'pending',
-      progress: { percent: 0, node: null, queuePosition: 2, waitingOn: 'pack_queue' },
+      progress: { percent: 0, queuePosition: 2, waitingOn: 'pack_queue' },
     })
 
     expect(videoStatusView(record).label).toBe('In queue, 2 ahead')
@@ -59,7 +59,7 @@ describe('custom job progress', () => {
   it('says In queue when the pack has no queue position', () => {
     const record = custom({
       status: 'pending',
-      progress: { percent: 0, node: null, queuePosition: null, waitingOn: 'pack_queue' },
+      progress: { percent: 0, queuePosition: null, waitingOn: 'pack_queue' },
     })
 
     expect(videoStatusView(record).label).toBe('In queue')

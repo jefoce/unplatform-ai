@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EndpointOverviewEntry } from '@/core/api/endpoints'
 import { useProviderReady } from '@/features/generator/use-provider-ready'
 import { useSecrets } from '@/features/settings/use-secrets'
-import { useModelEntry } from '@/lib/api/catalog'
+import { useCatalog } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
 import type * as EndpointsStatusModule from '@/lib/api/endpoints-status'
 import { hasReadyEndpoint, useEndpointsStatus } from '@/lib/api/endpoints-status'
@@ -21,11 +21,7 @@ vi.mock('@/lib/api/credits', () => {
 })
 
 vi.mock('@/lib/api/catalog', () => {
-  return {
-    useModelEntry: vi.fn(() => {
-      return null
-    }),
-  }
+  return { useCatalog: vi.fn() }
 })
 
 vi.mock('@/lib/api/endpoints-status', async (importOriginal) => {
@@ -36,7 +32,7 @@ vi.mock('@/lib/api/endpoints-status', async (importOriginal) => {
 
 const mockSecrets = vi.mocked(useSecrets)
 const mockCredits = vi.mocked(useCredits)
-const mockEntry = vi.mocked(useModelEntry)
+const mockCatalog = vi.mocked(useCatalog)
 const mockEndpoints = vi.mocked(useEndpointsStatus)
 
 const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
@@ -70,7 +66,6 @@ function customEntry(overrides: Partial<CatalogEntry> = {}): CatalogEntry {
     status: 'available',
     reason: null,
     pricing: null,
-    availability: { status: 'available', reason: null },
     source: {
       kind: 'custom',
       instanceId: 'cu1',
@@ -80,6 +75,14 @@ function customEntry(overrides: Partial<CatalogEntry> = {}): CatalogEntry {
     },
     ...overrides,
   }
+}
+
+function setCatalog(entries: CatalogEntry[], isLoading = false): void {
+  mockCatalog.mockReturnValue({
+    catalog: { entries, fetchedAt: '2026-01-01T00:00:00.000Z' },
+    isLoading,
+    isValidating: false,
+  })
 }
 
 function setKey(isSet: boolean): void {
@@ -95,7 +98,7 @@ function setKey(isSet: boolean): void {
 
 beforeEach(() => {
   mockCredits.mockReturnValue({ credits: null } as unknown as ReturnType<typeof useCredits>)
-  mockEntry.mockReturnValue(null)
+  setCatalog([])
   mockEndpoints.mockReturnValue({ endpoints: [], isLoading: false, error: null })
   setKey(false)
 })
@@ -116,6 +119,7 @@ describe('ready gate', () => {
 
   it('opens with one healthy custom endpoint and no OpenRouter key', () => {
     mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
+    setCatalog([customEntry()])
 
     const { result } = renderHook(() => {
       return useProviderReady('custom.cu1.wan22', 'video')
@@ -133,6 +137,8 @@ describe('ready gate', () => {
       error: null,
     })
 
+    setCatalog([customEntry({ presetId: 'custom.cu1.image' })])
+
     const { result } = renderHook(() => {
       return useProviderReady('custom.cu1.image', 'image')
     })
@@ -147,9 +153,7 @@ describe('ready gate', () => {
       error: null,
     })
 
-    mockEntry.mockReturnValue(
-      customEntry({ status: 'unverified', availability: { status: 'unverified', reason: null } }),
-    )
+    setCatalog([customEntry({ status: 'unverified' })])
 
     const { result } = renderHook(() => {
       return useProviderReady('custom.cu1.wan22', 'video')
@@ -163,13 +167,7 @@ describe('ready gate', () => {
 
     const reason = 'This workflow cannot run in ComfyUI.'
 
-    mockEntry.mockReturnValue(
-      customEntry({
-        status: 'invalid',
-        reason,
-        availability: { status: 'invalid', reason },
-      }),
-    )
+    setCatalog([customEntry({ status: 'invalid', reason })])
 
     const { result } = renderHook(() => {
       return useProviderReady('custom.cu1.wan22', 'video')
@@ -182,20 +180,24 @@ describe('ready gate', () => {
   it('reports a stale workflow with the Generate hint', () => {
     mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
 
-    mockEntry.mockReturnValue(
-      customEntry({
-        reason: 'Workflow changed in ComfyUI since the last save',
-        availability: {
-          status: 'available',
-          reason: 'Workflow changed in ComfyUI since the last save',
-        },
-      }),
-    )
+    setCatalog([customEntry({ reason: 'Workflow changed in ComfyUI since the last save' })])
 
     const { result } = renderHook(() => {
       return useProviderReady('custom.cu1.wan22', 'video')
     })
 
     expect(result.current.reason).toBe(STALE_REASON)
+  })
+
+  it('reports a custom preset gone from the catalog and closes Generate', () => {
+    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
+    setCatalog([])
+
+    const { result } = renderHook(() => {
+      return useProviderReady('custom.cu1.gone', 'video')
+    })
+
+    expect(result.current.isReady).toBe(false)
+    expect(result.current.reason).toBe('This workflow is gone from ComfyUI.')
   })
 })

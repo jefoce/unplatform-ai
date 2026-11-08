@@ -6,13 +6,14 @@ import type { CatalogEntry } from '@/core/catalog'
 import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { useSecrets } from '@/features/settings/use-secrets'
-import { useModelEntry } from '@/lib/api/catalog'
+import { useCatalog } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
 import { hasReadyEndpoint, useEndpointsStatus } from '@/lib/api/endpoints-status'
 
 const PROVIDER_KEY_REASON = 'Add your OpenRouter key in Settings.'
 const UNREACHABLE_REASON = 'ComfyUI is not reachable.'
 const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
+const GONE_REASON = 'This workflow is gone from ComfyUI.'
 
 export interface ProviderReady {
   isKeyMissing: boolean
@@ -49,15 +50,20 @@ interface ReasonParams {
   entry: CatalogEntry | null
   isKeyMissing: boolean
   isCustomId: boolean
+  isCatalogLoading: boolean
 }
 
 function readyReason(params: ReasonParams): string | null {
-  const { entry, isKeyMissing, isCustomId } = params
+  const { entry, isKeyMissing, isCustomId, isCatalogLoading } = params
   const model = modelReason(entry)
   const isOpenRouter = !isCustomId && (isNil(entry) || entry.source.kind === 'openrouter')
 
   if (!isNil(model)) {
     return model
+  }
+
+  if (isCustomId && isNil(entry) && !isCatalogLoading) {
+    return GONE_REASON
   }
 
   if (isOpenRouter && isKeyMissing) {
@@ -75,7 +81,13 @@ export function useProviderReady(
   const { status } = useSecrets()
   const { credits } = useCredits()
   const { endpoints } = useEndpointsStatus()
-  const entry = useModelEntry(presetId ?? '')
+  const { catalog, isLoading } = useCatalog()
+
+  const entry =
+    catalog?.entries.find((item) => {
+      return item.presetId === presetId
+    }) ?? null
+
   const isMock = credits?.source === 'mock'
   const isKeyMissing = !isNil(status) && !status.keys.OPENROUTER_API_KEY.set && !isMock
   const isCustomReady = hasReadyEndpoint(endpoints, kind)
@@ -85,6 +97,7 @@ export function useProviderReady(
     entry,
     isKeyMissing,
     isCustomId: !isNil(presetId) && isCustomPresetId(presetId),
+    isCatalogLoading: isLoading,
   })
 
   return { isKeyMissing, isReady: isReady && isNil(reason), reason }

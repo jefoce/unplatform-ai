@@ -4,14 +4,19 @@ import { isNil } from 'lodash-es'
 
 import { MAX_JOB_AGE_MIN } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
-import type { GenerationRecord, JobStatus, RecordJob } from '@/core/schemas/generation-record'
+import type {
+  GenerationRecord,
+  JobStatus,
+  RecordJob,
+  RecordProgress,
+} from '@/core/schemas/generation-record'
 import { ACTIVE_STATUSES, TERMINAL_STATUSES } from '@/core/types'
 
 import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { instanceIdOf } from '../providers/custom/record-instance'
 import { ProviderError, type ProviderErrorKind } from '../providers/provider-error'
 import { getVideoProvider } from '../providers/registry'
-import type { JobSnapshot } from '../providers/types'
+import type { JobProgress, JobSnapshot } from '../providers/types'
 import { updateGeneration } from '../repos/generations'
 import { recordHealthFromError, recordHealthOk } from '../services/endpoint-health'
 import { queueDownload } from './download-queue'
@@ -152,12 +157,25 @@ function mergeJob(params: MergeJobParams): GenerationRecord | null {
       ...record,
       status,
       job: jobFields,
-      progress: job.progress ?? record.progress,
+      progress: recordProgress(job.progress) ?? record.progress,
       error,
       errorStatus,
     },
     job,
   })
+}
+
+/** Provider progress without the workflow node, which the record no longer keeps. */
+function recordProgress(progress: JobProgress | undefined): RecordProgress | undefined {
+  if (isNil(progress)) {
+    return undefined
+  }
+
+  return {
+    percent: progress.percent,
+    queuePosition: progress.queuePosition,
+    waitingOn: progress.waitingOn,
+  }
 }
 
 interface ApplyUsageCostParams {

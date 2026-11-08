@@ -37,14 +37,12 @@ export function mockTestResult(endpointId: string): EndpointTestResult {
     return {
       ok: false,
       error: OFFLINE_TEXT,
-      protocol: null,
       serverVersion: null,
       videoCount: 0,
       imageCount: 0,
       authRequired: null,
       lanAllowed: null,
       instanceId: null,
-      maxRunning: null,
       lastHealth: null,
     }
   }
@@ -54,14 +52,12 @@ export function mockTestResult(endpointId: string): EndpointTestResult {
   return {
     ok: true,
     error: null,
-    protocol: health.protocol,
     serverVersion: health.server_version,
     videoCount: catalog.video.length,
     imageCount: catalog.image.length,
     authRequired: health.auth_required,
     lanAllowed: health.lan_allowed,
     instanceId: endpointId,
-    maxRunning: health.max_running,
     lastHealth: lastHealthOf(health, checkedAt),
   }
 }

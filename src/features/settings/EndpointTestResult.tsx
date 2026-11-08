@@ -25,7 +25,7 @@ export function EndpointTestResult(props: EndpointTestResultProps) {
 
   return (
     <ul className="space-y-0.5 text-xs text-fg-2">
-      <li>Protocol upai/1</li>
+      {!isNil(test.lastHealth) && <li>Protocol upai/{test.lastHealth.protocol}</li>}
       <li>ComfyUI {test.serverVersion}</li>
       <li>
         {test.videoCount} video, {test.imageCount} image models

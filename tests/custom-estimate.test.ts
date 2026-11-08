@@ -234,7 +234,6 @@ function registerPreset(
       status,
       reason,
       pricing: null,
-      availability: { status, reason },
       source,
       preset,
     },

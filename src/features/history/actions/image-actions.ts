@@ -3,7 +3,7 @@
 import { isNil } from 'lodash-es'
 import { toast } from 'sonner'
 
-import { recordSource } from '@/core/record-source'
+import { snapshotTitle } from '@/core/record-source'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { applyImageOutputReference } from '@/features/generator/media-actions'
 import { rememberPresetTitle } from '@/features/generator/model/preset-title'
@@ -134,7 +134,7 @@ export async function reuseImagePrompt(item: ImageGridItem): Promise<void> {
       uploads = await fetchUploadsByIds(input.references)
     }
 
-    rememberPresetTitle(input.presetId, recordSource(item.source).presetTitle)
+    rememberPresetTitle(input.presetId, snapshotTitle(item.source))
     store.setPreset(input.presetId)
     store.setPrompt(input.prompt)
     store.setCount(input.count)

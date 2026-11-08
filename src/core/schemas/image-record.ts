@@ -13,7 +13,6 @@ import {
   InputSnapshotSchema,
   PRICE_SOURCES,
   RecordPresetSchema,
-  RecordProgressSchema,
   RecordSubmitSchema,
 } from './generation-record'
 import { PresetSnapshotSchema } from './preset-snapshot'
@@ -113,7 +112,6 @@ export const ImageRecordSchema = z.object({
   input: ImageInputSchema,
   inputsSnapshot: InputSnapshotSchema.optional(),
   submit: RecordSubmitSchema.optional(),
-  progress: RecordProgressSchema.optional(),
   outputs: z.array(ImageOutputSchema),
   seedUsed: z.number().nullable(),
 

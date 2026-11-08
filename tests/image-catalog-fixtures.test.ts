@@ -171,7 +171,6 @@ describe('captured image catalog status', () => {
         status: status.status,
         reason: status.reason,
         pricing: null,
-        availability: { status: status.status, reason: status.reason },
         source: {
           kind: 'openrouter',
           instanceId: 'openrouter',
@@ -206,7 +205,6 @@ describe('captured image catalog status', () => {
         status: status.status,
         reason: status.reason,
         pricing: null,
-        availability: { status: status.status, reason: status.reason },
         source: {
           kind: 'openrouter',
           instanceId: 'openrouter',

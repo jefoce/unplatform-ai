@@ -1,6 +1,6 @@
 import { isNil } from 'lodash-es'
 
-import type { CatalogEntry, ModelAvailability, ModelStatus } from '@/core/catalog'
+import type { CatalogEntry, ModelStatus } from '@/core/catalog'
 import type { PickerModel } from '@/core/feed/picker-model'
 import { findPreset } from '@/core/presets'
 import { primaryBinding } from '@/core/presets/common/bindings'
@@ -19,7 +19,6 @@ export interface PickerRow extends PickerModel {
   workflowName?: string | null
   status?: ModelStatus
   reason?: string | null
-  availability?: ModelAvailability
   isCustom?: boolean
 }
 
@@ -34,8 +33,6 @@ const GROUP_TITLES: Record<ProviderKindId, string> = {
   custom: 'ComfyUI',
 }
 
-const EMPTY_AVAILABILITY: ModelAvailability = { status: 'available', reason: null }
-
 function staticRow(model: PickerModel): PickerRow {
   return {
     ...model,
@@ -44,7 +41,6 @@ function staticRow(model: PickerModel): PickerRow {
     workflowName: null,
     status: 'available',
     reason: null,
-    availability: EMPTY_AVAILABILITY,
     isCustom: false,
   }
 }
@@ -85,7 +81,6 @@ function customRow(entry: CatalogEntry, preset: VideoPreset | ImagePreset): Pick
     workflowName: entry.source.workflowName,
     status: entry.status,
     reason: entry.reason,
-    availability: entry.availability,
     isCustom: true,
   }
 }

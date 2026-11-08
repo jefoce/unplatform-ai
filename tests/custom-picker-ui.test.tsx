@@ -77,7 +77,6 @@ function entry(params: {
           source: 'fallback',
           fetchedAt: '2026-01-01T00:00:00.000Z',
         },
-    availability: { status, reason },
     source: {
       kind: 'custom',
       instanceId: 'cu1',

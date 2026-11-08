@@ -53,14 +53,12 @@ const VIEW: EndpointOverviewEntry = {
 const TEST_RESULT: EndpointTestResult = {
   ok: true,
   error: null,
-  protocol: 1,
   serverVersion: '0.43.0',
   videoCount: 3,
   imageCount: 2,
   authRequired: false,
   lanAllowed: true,
   instanceId: '11111111-1111-4111-8111-111111111111',
-  maxRunning: 2,
   lastHealth: {
     protocol: 1,
     serverVersion: '0.43.0',

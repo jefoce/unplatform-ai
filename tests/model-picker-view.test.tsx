@@ -77,7 +77,6 @@ describe('videoPickerModel', () => {
       status: 'available',
       reason: null,
       pricing: PRICING,
-      availability: { status: 'available', reason: null },
       source: {
         kind: 'openrouter',
         instanceId: 'openrouter',
@@ -129,7 +128,6 @@ describe('ModelRow image view', () => {
       status: 'missing',
       reason: 'Not available on OpenRouter right now.',
       pricing: null,
-      availability: { status: 'missing', reason: 'Not available on OpenRouter right now.' },
       source: {
         kind: 'openrouter',
         instanceId: 'openrouter',
@@ -170,7 +168,6 @@ describe('ModelVideoRow', () => {
     status: 'no_provider',
     reason: null,
     pricing: { ...PRICING, listSkus: { duration_seconds_480p: 0.06 }, discount: 0.15 },
-    availability: { status: 'no_provider', reason: null },
     source: {
       kind: 'openrouter',
       instanceId: 'openrouter',

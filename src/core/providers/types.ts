@@ -8,14 +8,6 @@ export const PROVIDER_KIND_IDS = ['openrouter', 'custom'] as const
 
 export type ProviderKindId = (typeof PROVIDER_KIND_IDS)[number]
 
-/** @deprecated Use PROVIDER_KIND_IDS. Kept for one version. */
-export const PROVIDER_IDS = PROVIDER_KIND_IDS
-
-/* eslint-disable no-restricted-syntax -- deprecated alias kept for one version after the worker migration */
-/** @deprecated Use ProviderKindId. */
-export type ProviderId = ProviderKindId
-/* eslint-enable no-restricted-syntax */
-
 export interface ProviderKind {
   id: ProviderKindId
   title: string

@@ -131,14 +131,12 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
     return {
       ok: true,
       error: null,
-      protocol: health.protocol,
       serverVersion: health.server_version,
       videoCount: video.data.length,
       imageCount: image.data.length,
       authRequired: health.auth_required,
       lanAllowed: health.lan_allowed,
       instanceId: instanceIdOf(health.instance_id),
-      maxRunning: health.max_running,
       lastHealth,
     }
   } catch (error) {
@@ -261,14 +259,12 @@ function testFailed(message: string): EndpointTestResult {
   return {
     ok: false,
     error: message,
-    protocol: null,
     serverVersion: null,
     videoCount: 0,
     imageCount: 0,
     authRequired: null,
     lanAllowed: null,
     instanceId: null,
-    maxRunning: null,
     lastHealth: null,
   }
 }

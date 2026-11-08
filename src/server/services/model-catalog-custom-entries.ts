@@ -245,7 +245,6 @@ function entryFor(params: EntryParams): CatalogEntry {
     status,
     reason: availability.reason,
     pricing: pricingFor(endpoint, model),
-    availability,
     source,
     preset,
   }

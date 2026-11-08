@@ -43,7 +43,6 @@ const ENTRY: CatalogEntry = {
   status: 'available',
   reason: null,
   pricing: null,
-  availability: { status: 'available', reason: null },
   source: {
     kind: 'custom',
     instanceId: 'cu1',

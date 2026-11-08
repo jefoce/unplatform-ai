@@ -187,7 +187,6 @@ export function imageStatusView(item: ImageGridItem, onCancel?: () => void): Sta
     line: friendly?.hint ?? null,
     graceNotBefore,
     onCancel,
-    progressPercent: record.progress?.percent,
     isLive: item.status === 'submitting' || item.status === 'saving',
   }
 }

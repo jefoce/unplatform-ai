@@ -13,6 +13,16 @@ export interface RecordSourceRecord {
   source?: RecordSource
 }
 
+export interface SnapshotTitleRecord {
+  preset: RecordSourcePreset
+  presetSnapshot?: RecordSourcePreset
+}
+
+/** Title the record showed at create time, before its preset could leave the catalog. */
+export function snapshotTitle(record: SnapshotTitleRecord): string {
+  return record.presetSnapshot?.title ?? record.preset.title
+}
+
 export function recordSource(record: RecordSourceRecord): RecordSource {
   if (record.source) {
     return record.source

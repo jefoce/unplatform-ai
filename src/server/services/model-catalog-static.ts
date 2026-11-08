@@ -71,7 +71,6 @@ async function buildEntry(preset: VideoPreset): Promise<CatalogEntry> {
       provider: null,
       status: 'no_provider',
       reason,
-      availability: { status: 'no_provider', reason },
       source: STATIC_CATALOG_SOURCE,
     }
   }
@@ -87,7 +86,6 @@ async function buildEntry(preset: VideoPreset): Promise<CatalogEntry> {
     provider: binding.provider,
     status: status.status,
     reason: status.reason,
-    availability: { status: status.status, reason: status.reason },
     source: STATIC_CATALOG_SOURCE,
   }
 }
@@ -200,7 +198,6 @@ async function buildImageEntry(preset: ImagePreset): Promise<CatalogEntry> {
       provider: null,
       status: 'no_provider',
       reason,
-      availability: { status: 'no_provider', reason },
       source: STATIC_CATALOG_SOURCE,
     }
   }
@@ -212,7 +209,6 @@ async function buildImageEntry(preset: ImagePreset): Promise<CatalogEntry> {
     provider: binding.provider,
     status: status.status,
     reason: status.reason,
-    availability: { status: status.status, reason: status.reason },
     source: STATIC_CATALOG_SOURCE,
   }
 }

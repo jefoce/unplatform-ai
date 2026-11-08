@@ -235,7 +235,6 @@ describe('custom record progress', () => {
 
     expect(saved?.progress).toEqual({
       percent: 42,
-      node: null,
       queuePosition: null,
       waitingOn: 'comfyui_busy',
     })
