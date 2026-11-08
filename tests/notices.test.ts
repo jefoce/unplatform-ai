@@ -127,7 +127,9 @@ describe('third-party notices', () => {
       fs.rmdirSync(dir)
     }
   })
+})
 
+describe('third-party notices bundle', () => {
   it('ships the GPL and LGPL license texts', () => {
     const gpl = fs.readFileSync(path.resolve('licenses/COPYING.GPLv3'), 'utf8')
     const lgpl = fs.readFileSync(path.resolve('licenses/COPYING.LGPLv2.1'), 'utf8')
