@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
+import { ProviderError } from '@/server/providers/provider-error'
 import type { JobSnapshot } from '@/server/providers/types'
 
 import { storedRecord } from './helpers/stored-record'
@@ -208,6 +209,56 @@ describe('custom record completion cost', () => {
     await processRecord(record)
 
     expect(mocks.recordHealthFromError).toHaveBeenCalledWith('ep1', expect.anything())
+  })
+})
+
+describe('auth error text', () => {
+  it('stores the text once when both parts are equal', async () => {
+    const id = '66666666-6666-4666-8666-666666666666'
+    const record = customRecord(id, 0)
+
+    mocks.getJob.mockRejectedValue(
+      new ProviderError({
+        providerId: 'custom',
+        kind: 'auth',
+        message: 'upai:unauthorized: invalid bearer token',
+        storedMessage: 'upai:unauthorized: invalid bearer token',
+        status: 401,
+        code: 'unauthorized',
+      }),
+    )
+
+    await repo.saveGeneration(record)
+    await processRecord(record)
+
+    const saved = await repo.getGeneration(id)
+
+    expect(saved?.error).toBe('upai:unauthorized: invalid bearer token')
+    expect(saved?.errorStatus).toBe(401)
+  })
+
+  it('joins the parts when they differ', async () => {
+    const id = '77777777-7777-4777-8777-777777777777'
+    const record = customRecord(id, 0)
+
+    mocks.getJob.mockRejectedValue(
+      new ProviderError({
+        providerId: 'openrouter',
+        kind: 'auth',
+        message: 'Invalid API key',
+        storedMessage: 'OpenRouter auth failed',
+        status: 401,
+        code: 'unauthorized',
+      }),
+    )
+
+    await repo.saveGeneration(record)
+    await processRecord(record)
+
+    const saved = await repo.getGeneration(id)
+
+    expect(saved?.error).toBe('OpenRouter auth failed: Invalid API key')
+    expect(saved?.errorStatus).toBe(401)
   })
 })
 

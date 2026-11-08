@@ -295,7 +295,7 @@ async function handleJobError(record: GenerationRecord, error: unknown): Promise
   }
 
   if (error.kind === 'auth' || error.kind === 'no_key') {
-    const text = `${error.storedMessage}: ${error.message}`
+    const text = errorTextOf(error)
 
     await updateGeneration(record.id, (latest) => {
       if (latest.error === text) {
@@ -309,6 +309,15 @@ async function handleJobError(record: GenerationRecord, error: unknown): Promise
   }
 
   return RETRY_KINDS.includes(error.kind)
+}
+
+/** Custom endpoints store the same text twice, so keep it single. */
+function errorTextOf(error: ProviderError): string {
+  if (error.message === '' || error.storedMessage === error.message) {
+    return error.storedMessage
+  }
+
+  return `${error.storedMessage}: ${error.message}`
 }
 
 function isAgedOut(record: GenerationRecord, status: JobStatus): boolean {
