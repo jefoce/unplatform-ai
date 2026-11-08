@@ -14,7 +14,7 @@ import type {
   saveGeneration as SaveGeneration,
 } from '@/server/repos/generations'
 
-import { CUSTOM_VIDEO_MAX_BYTES } from '../src/core/constants'
+import { CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES } from '../src/core/constants'
 import type { GenerationRecord } from '../src/core/schemas/generation-record'
 import { storedRecord } from './helpers/stored-record'
 import { waitFor } from './helpers/wait-for'
@@ -22,7 +22,7 @@ import { waitFor } from './helpers/wait-for'
 vi.mock('@/core/constants', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../src/core/constants')
 
-  return { ...actual, CUSTOM_VIDEO_MAX_BYTES: 32 * 1024 }
+  return { ...actual, CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES: 32 * 1024 }
 })
 
 const root = path.join(os.tmpdir(), `cf-download-cap-${process.pid}-${Date.now()}`)
@@ -87,10 +87,12 @@ beforeEach(() => {
   fetchContent.mockReset()
 })
 
-function record(id: string): GenerationRecord {
+function record(id: string, overrides: Partial<GenerationRecord> = {}): GenerationRecord {
   return storedRecord(id, {
+    provider: 'custom',
     status: 'in_progress',
     job: { id: 'or-job-4242', submittedAt: SUBMITTED_AT },
+    ...overrides,
   })
 }
 
@@ -110,8 +112,15 @@ async function waitForSettled(id: string): Promise<GenerationRecord> {
   })
 }
 
-async function runDownload(id: string, response: Response): Promise<GenerationRecord> {
-  const saved = record(id)
+interface RunDownloadParams {
+  id: string
+  response: Response
+  provider: 'custom' | 'openrouter'
+}
+
+async function runDownload(params: RunDownloadParams): Promise<GenerationRecord> {
+  const { id, response, provider } = params
+  const saved = record(id, { provider })
 
   fetchContent.mockResolvedValue(response)
 
@@ -123,12 +132,13 @@ async function runDownload(id: string, response: Response): Promise<GenerationRe
 
 describe('custom video download cap', () => {
   it('fails a declared body over the cap before writing', async () => {
-    const failed = await runDownload(
-      '44444444-4444-4444-8444-444444444444',
-      new Response(new Uint8Array([0]), {
-        headers: { 'content-length': String(CUSTOM_VIDEO_MAX_BYTES + 1) },
+    const failed = await runDownload({
+      id: '44444444-4444-4444-8444-444444444444',
+      provider: 'custom',
+      response: new Response(new Uint8Array([0]), {
+        headers: { 'content-length': String(CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES + 1) },
       }),
-    )
+    })
 
     expect(failed.status).toBe('failed')
     expect(failed.error).toContain('Video is larger than the limit')
@@ -136,10 +146,11 @@ describe('custom video download cap', () => {
   })
 
   it('fails a streamed body once it passes the cap', async () => {
-    const failed = await runDownload(
-      '55555555-5555-4555-8555-555555555555',
-      new Response(new Uint8Array(CUSTOM_VIDEO_MAX_BYTES + 1)),
-    )
+    const failed = await runDownload({
+      id: '55555555-5555-4555-8555-555555555555',
+      provider: 'custom',
+      response: new Response(new Uint8Array(CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES + 1)),
+    })
 
     expect(failed.status).toBe('failed')
     expect(failed.error).toContain('Video is larger than the limit')
@@ -147,13 +158,35 @@ describe('custom video download cap', () => {
   })
 
   it('completes a body under the cap', async () => {
-    const completed = await runDownload(
-      '66666666-6666-4666-8666-666666666666',
-      new Response(videoBytes),
-    )
+    const id = '66666666-6666-4666-8666-666666666666'
+
+    const completed = await runDownload({
+      id,
+      provider: 'custom',
+      response: new Response(videoBytes),
+    })
 
     expect(completed.status).toBe('completed')
-    expect(completed.output?.video).toBe('66666666-6666-4666-8666-666666666666.mp4')
+    expect(completed.output?.video).toBe(`${id}.mp4`)
+    expect(completed.error).toBeUndefined()
+  })
+
+  it('completes an OpenRouter body over the cap', async () => {
+    const id = '77777777-7777-4777-8777-777777777777'
+    const padded = new Uint8Array(videoBytes.byteLength + 12 * 1024)
+
+    padded.set(new Uint8Array(videoBytes))
+
+    const completed = await runDownload({
+      id,
+      provider: 'openrouter',
+      response: new Response(padded, {
+        headers: { 'content-length': String(padded.byteLength) },
+      }),
+    })
+
+    expect(padded.byteLength).toBeGreaterThan(CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES)
+    expect(completed.status).toBe('completed')
     expect(completed.error).toBeUndefined()
   })
 })

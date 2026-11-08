@@ -179,7 +179,7 @@ export const CUSTOM_IMAGE_MAX_WAIT_MS = 15 * 60_000
 export const CUSTOM_REF_TOTAL_SEC = 30
 
 /** Largest video download accepted from a custom endpoint. */
-export const CUSTOM_VIDEO_MAX_BYTES = 512 * 1024 * 1024
+export const CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES = 512 * 1024 * 1024
 
 /** Fresh availability check timeout on Generate. */
 export const CUSTOM_CHECK_TIMEOUT_MS = 3_000
