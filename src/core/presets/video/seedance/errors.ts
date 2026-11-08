@@ -2,6 +2,19 @@ import { matchedSubject, settingTitle } from '../../../provider-errors/helpers'
 import type { Rule } from '../../../provider-errors/types'
 
 export const SEEDANCE_ERRORS: readonly Rule[] = [
+  // Plain-text form seen in a real OpenRouter failure, no code included.
+  {
+    match: /input image\b.*may contain real person/i,
+    title: 'Seedance blocks images that look like real people, even AI-made ones.',
+    hint: 'Use a different image, or choose another model.',
+    kind: 'real_person',
+  },
+  {
+    match: /input video\b.*may contain real person/i,
+    title: 'Seedance blocks videos that show real people.',
+    hint: 'Use a different video, or choose another model.',
+    kind: 'real_person',
+  },
   {
     match: /InputImageSensitiveContentDetected\.PrivacyInformation/,
     title: 'Seedance blocks images that look like real people, even AI-made ones.',

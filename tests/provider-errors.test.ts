@@ -13,6 +13,12 @@ const REAL_PERSON =
 const REAL_PERSON_VIDEO =
   "InputVideoSensitiveContentDetected.PrivacyInformation: The request failed because the input video 'content[0]' may contain real person."
 
+const REAL_PERSON_PLAIN =
+  "The request failed because the input image 'content[1]' may contain real person. Request id: 0217925672818..."
+
+const REAL_PERSON_VIDEO_PLAIN =
+  "The request failed because the input video 'content[0]' may contain real person."
+
 const CONTROL_ROWS: Array<{ raw: string; title: string; kind: string; retry?: boolean }> = [
   {
     raw: 'InputVideoSensitiveContentDetected.PrivacyInformation: blocked',
@@ -115,6 +121,43 @@ describe('friendlyError Seedance', () => {
     })
   })
 
+  it('translates the plain-text image failure without the code', () => {
+    const friendly = friendlyError({
+      httpRules: HTTP_RULES,
+      raw: REAL_PERSON_PLAIN,
+      rules: SEEDANCE_ERRORS,
+    })
+
+    expect(friendly).toEqual({
+      title: 'Seedance blocks images that look like real people, even AI-made ones.',
+      hint: 'Use a different image, or choose another model.',
+      kind: 'real_person',
+      retry: false,
+      raw: REAL_PERSON_PLAIN,
+    })
+
+    expect(friendly.title).not.toContain('0217925672818')
+    expect(friendly.raw).toContain('0217925672818')
+  })
+
+  it('translates the plain-text video failure without the code', () => {
+    expect(
+      friendlyError({
+        httpRules: HTTP_RULES,
+        raw: REAL_PERSON_VIDEO_PLAIN,
+        rules: SEEDANCE_ERRORS,
+      }),
+    ).toEqual({
+      title: 'Seedance blocks videos that show real people.',
+      hint: 'Use a different video, or choose another model.',
+      kind: 'real_person',
+      retry: false,
+      raw: REAL_PERSON_VIDEO_PLAIN,
+    })
+  })
+})
+
+describe('friendlyError Seedance codes', () => {
   it('matches specific codes before their parent code', () => {
     expect(
       friendlyError({ httpRules: HTTP_RULES, raw: REAL_PERSON, rules: SEEDANCE_ERRORS }).kind,
