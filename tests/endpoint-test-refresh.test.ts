@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
+import { MAX_JSON_BODY_BYTES } from '../src/core/constants'
 
 const ROOT = vi.hoisted(() => {
   const os = process.getBuiltinModule('node:os')
@@ -214,5 +215,30 @@ describe('endpoint test refresh', () => {
     })
 
     expect(authHeaders).toEqual(['Bearer draft-token', 'Bearer draft-token', 'Bearer draft-token'])
+  })
+})
+
+describe('endpoint test response cap', () => {
+  it('reports an oversized response as a protocol failure', async () => {
+    const body = 'a'.repeat(MAX_JSON_BODY_BYTES + 1)
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        if (String(input).endsWith('/health')) {
+          return jsonResponse(HEALTH)
+        }
+
+        return new Response(body, {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
+
+    const result = await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('This server does not speak upai/1')
   })
 })

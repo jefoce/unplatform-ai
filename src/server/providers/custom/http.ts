@@ -2,9 +2,11 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
+import { MAX_JSON_BODY_BYTES } from '@/core/constants'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { Dict } from '@/core/utility-types'
 
+import { BodyTooLargeError, readCappedBody } from '../../media/read-capped-body'
 import { getEndpointToken } from './endpoint-source'
 import { networkError, protocolError, providerErrorFromResponse } from './errors'
 
@@ -89,7 +91,23 @@ export async function requestJson(params: CustomRequestParams): Promise<unknown>
     throw await providerErrorFromResponse(res)
   }
 
-  return res.json().catch(() => {
+  const declared = res.headers.get('content-length')
+
+  if (!isNil(declared) && Number(declared) > MAX_JSON_BODY_BYTES) {
+    await res.body?.cancel()
+
+    throw protocolError('Response body is larger than the limit')
+  }
+
+  try {
+    const body = await readCappedBody(res, MAX_JSON_BODY_BYTES)
+
+    return JSON.parse(body.toString('utf8')) as unknown
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      throw protocolError('Response body is larger than the limit')
+    }
+
     return null
-  })
+  }
 }

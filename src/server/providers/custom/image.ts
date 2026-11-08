@@ -2,7 +2,12 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import { CUSTOM_IMAGE_MAX_WAIT_MS, FETCH_TIMEOUTS } from '@/core/constants'
+import {
+  CUSTOM_IMAGE_MAX_WAIT_MS,
+  FETCH_TIMEOUTS,
+  IMAGE_COUNT_MAX,
+  IMAGE_OUTPUT_MAX_BYTES,
+} from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 import {
   UpaiCreatedJobSchema,
@@ -15,6 +20,7 @@ import {
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { TestResult } from '@/core/types'
 
+import { BodyTooLargeError, readCappedBody } from '../../media/read-capped-body'
 import type {
   EndpointSignal,
   ImageGenerateParams,
@@ -158,10 +164,22 @@ async function fetchItem(params: ImageItemsParams, index: number): Promise<Image
       throw await providerErrorFromResponse(res)
     }
 
-    const bytes = Buffer.from(await res.arrayBuffer())
+    const declared = res.headers.get('content-length')
+
+    if (!isNil(declared) && Number(declared) > IMAGE_OUTPUT_MAX_BYTES) {
+      await res.body?.cancel()
+
+      throw new BodyTooLargeError()
+    }
+
+    const bytes = await readCappedBody(res, IMAGE_OUTPUT_MAX_BYTES)
 
     return { b64: bytes.toString('base64'), mediaType: mediaTypeOf(res) }
   } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      return { error: 'upai:too_large: Image response is larger than the limit' }
+    }
+
     return { error: errorDetail(error) }
   }
 }
@@ -214,10 +232,10 @@ async function generate(
       throw jobFailureError(job)
     }
 
-    let count = params.input.count
+    let count = Math.min(params.input.count, IMAGE_COUNT_MAX)
 
     if (!isNil(job.urls)) {
-      count = job.urls.length
+      count = Math.min(job.urls.length, count)
     }
 
     const items = await imageItems({ endpoint, job, count })

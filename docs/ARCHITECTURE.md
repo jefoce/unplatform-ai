@@ -311,6 +311,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `CUSTOM_IMAGE_MAX_WAIT_MS` | 900000 | Longest wait for one custom image job |
 | `CUSTOM_MISSING_KEEP_DAYS` | 30 | Days a missing custom model stays in the cache |
 | `CUSTOM_REF_TOTAL_SEC` | 30 | Combined reference seconds custom presets advertise |
+| `CUSTOM_VIDEO_MAX_BYTES` | 536870912 | Largest video download accepted from a custom endpoint |
 | `DETAILS_MIN_WIDTH` | 240 | Minimum details panel width |
 | `DOCKED_PANEL_EDGE_GAP` | 16 | Gap between a docked panel and the viewport edges |
 | `DOCKED_PANEL_WIDTH` | 560 | Default docked panel width, the video picker size |

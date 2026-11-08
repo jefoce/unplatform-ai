@@ -4,13 +4,18 @@ import 'server-only'
 import { createWriteStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream } from 'node:stream/web'
 
 import { isNil } from 'lodash-es'
 
-import { FETCH_TIMEOUTS, MAX_DOWNLOAD_RETRIES, SUBMIT_YIELD_MS } from '@/core/constants'
+import {
+  CUSTOM_VIDEO_MAX_BYTES,
+  FETCH_TIMEOUTS,
+  MAX_DOWNLOAD_RETRIES,
+  SUBMIT_YIELD_MS,
+} from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 import { COPY_EXPIRED_TEXT } from '@/core/provider-errors/app'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
@@ -48,6 +53,7 @@ interface DownloadQueue {
 
 const DISK_FULL = 'Disk is full. Free some space, the download retries every minute.'
 const DISK_FULL_RETRY_MS = 60_000
+const VIDEO_TOO_LARGE_TEXT = 'Video is larger than the limit'
 
 /** A body that reached the disk but cannot be a complete video. */
 class DownloadIntegrityError extends Error {
@@ -55,6 +61,26 @@ class DownloadIntegrityError extends Error {
     super(message)
     this.name = 'DownloadIntegrityError'
   }
+}
+
+/** Cuts the pipeline once the body passes the cap, so it never fills the disk. */
+function cappedVideo(maxBytes: number): Transform {
+  let total = 0
+
+  return new Transform({
+    // eslint-disable-next-line @typescript-eslint/max-params -- Node's transform signature fixes the count
+    transform(chunk: Buffer, _encoding, callback) {
+      total += chunk.byteLength
+
+      if (total > maxBytes) {
+        callback(new DownloadIntegrityError(VIDEO_TOO_LARGE_TEXT))
+
+        return
+      }
+
+      callback(null, chunk)
+    },
+  })
 }
 
 const downloads = globalState<DownloadQueue>('downloadQueue', () => {
@@ -336,14 +362,25 @@ async function download(params: DownloadTask): Promise<void> {
     throw new Error('Empty video response')
   }
 
+  const declared = response.headers.get('content-length')
+
+  if (!isNil(declared) && Number(declared) > CUSTOM_VIDEO_MAX_BYTES) {
+    await response.body.cancel()
+
+    throw new DownloadIntegrityError(VIDEO_TOO_LARGE_TEXT)
+  }
+
   await fs.mkdir(path.dirname(paths.part), { recursive: true })
 
   try {
     const body = response.body as unknown as ReadableStream
 
-    await pipeline(Readable.fromWeb(body), createWriteStream(paths.part), {
-      signal: AbortSignal.timeout(FETCH_TIMEOUTS.content),
-    })
+    await pipeline(
+      Readable.fromWeb(body),
+      cappedVideo(CUSTOM_VIDEO_MAX_BYTES),
+      createWriteStream(paths.part),
+      { signal: AbortSignal.timeout(FETCH_TIMEOUTS.content) },
+    )
 
     await verifyDownload({ response, file: paths.part })
     await commitFile({ temp: paths.part, target: paths.video })

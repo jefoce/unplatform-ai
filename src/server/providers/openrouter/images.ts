@@ -12,6 +12,7 @@ import { renderPromptForApi } from '@/core/prompt-tokens'
 import { IMAGE_OUTPUT_MEDIA_TYPES } from '@/core/schemas/image-record'
 import type { TestResult } from '@/core/types'
 
+import { BodyTooLargeError, readCappedBody } from '../../media/read-capped-body'
 import { getSecret } from '../../secrets'
 import type {
   EndpointSignal,
@@ -69,37 +70,6 @@ function chargedUnknown(status: number, message: string): OpenRouterError {
   return new OpenRouterError({ message, status, code: 'charged_unknown' })
 }
 
-/** Reads at most `capBytes`, so an unbounded body never reaches the parser. */
-async function readCappedBody(res: Response, capBytes: number): Promise<Buffer> {
-  if (isNil(res.body)) {
-    return Buffer.from(await res.arrayBuffer())
-  }
-
-  const chunks: Buffer[] = []
-  let total = 0
-  const reader = res.body.getReader()
-
-  for (;;) {
-    const { done: isDone, value } = await reader.read()
-
-    if (isDone) {
-      break
-    }
-
-    total += value.byteLength
-
-    if (total > capBytes) {
-      await reader.cancel()
-
-      throw chargedUnknown(res.status, 'Image response is larger than the limit')
-    }
-
-    chunks.push(Buffer.from(value))
-  }
-
-  return Buffer.concat(chunks, total)
-}
-
 /** Parses a 200 body under the response cap. Any failure there may be billed. */
 async function readImageBody(res: Response, capBytes: number): Promise<unknown> {
   const declared = res.headers.get('content-length')
@@ -111,14 +81,14 @@ async function readImageBody(res: Response, capBytes: number): Promise<unknown> 
   try {
     const body = await readCappedBody(res, capBytes)
 
-    if (body.byteLength > capBytes) {
-      throw chargedUnknown(res.status, 'Image response is larger than the limit')
-    }
-
     return JSON.parse(body.toString('utf8'))
   } catch (error) {
     if (error instanceof OpenRouterError) {
       throw error
+    }
+
+    if (error instanceof BodyTooLargeError) {
+      throw chargedUnknown(res.status, 'Image response is larger than the limit')
     }
 
     throw chargedUnknown(res.status, 'Invalid image response')

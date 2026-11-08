@@ -4,11 +4,12 @@ import { isNil, isUndefined } from 'lodash-es'
 import type { ZodType } from 'zod'
 
 import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
-import { FETCH_TIMEOUTS } from '@/core/constants'
+import { FETCH_TIMEOUTS, MAX_JSON_BODY_BYTES } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import { UpaiHealthSchema, UpaiModelListSchema } from '@/core/protocol/upai'
 import { CustomEndpointLastHealthSchema } from '@/core/schemas/custom-endpoint'
 
+import { BodyTooLargeError, readCappedBody } from '../media/read-capped-body'
 import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { resetCustomProviders } from '../providers/registry'
 import { normalizeBaseUrl } from '../repos/endpoints'
@@ -213,10 +214,7 @@ async function fetchJson<T>(params: FetchJsonParams<T>): Promise<T> {
     })
   }
 
-  const value: unknown = await response.json().catch(() => {
-    return null
-  })
-
+  const value = await readTestJson(response)
   const parsed = params.schema.safeParse(value)
 
   if (!parsed.success) {
@@ -224,6 +222,29 @@ async function fetchJson<T>(params: FetchJsonParams<T>): Promise<T> {
   }
 
   return parsed.data
+}
+
+/** Reads a capped test body. Too large fails as a protocol answer, never as a hang. */
+async function readTestJson(response: Response): Promise<unknown> {
+  const declared = response.headers.get('content-length')
+
+  if (!isNil(declared) && Number(declared) > MAX_JSON_BODY_BYTES) {
+    await response.body?.cancel()
+
+    throw new EndpointTestError({ status: 'protocol', message: PROTOCOL_TEXT })
+  }
+
+  try {
+    const body = await readCappedBody(response, MAX_JSON_BODY_BYTES)
+
+    return JSON.parse(body.toString('utf8')) as unknown
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      throw new EndpointTestError({ status: 'protocol', message: PROTOCOL_TEXT })
+    }
+
+    return null
+  }
 }
 
 function testFailure(error: unknown): TestFailure {

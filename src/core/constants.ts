@@ -178,6 +178,9 @@ export const CUSTOM_IMAGE_MAX_WAIT_MS = 15 * 60_000
 /** Combined reference seconds custom presets advertise. */
 export const CUSTOM_REF_TOTAL_SEC = 30
 
+/** Largest video download accepted from a custom endpoint. */
+export const CUSTOM_VIDEO_MAX_BYTES = 512 * 1024 * 1024
+
 /** Fresh availability check timeout on Generate. */
 export const CUSTOM_CHECK_TIMEOUT_MS = 3_000
 

@@ -6,7 +6,7 @@ import path from 'node:path'
 import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
-import { FETCH_TIMEOUTS } from '@/core/constants'
+import { FETCH_TIMEOUTS, MAX_JSON_BODY_BYTES } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 import {
   type UpaiError,
@@ -19,6 +19,7 @@ import { CustomEndpointFileSchema } from '@/core/schemas/custom-endpoint'
 import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { readJson } from '../fs/json-file'
+import { readCappedBody } from '../media/read-capped-body'
 import { STORAGE_ROOT, uploadPaths } from '../paths'
 import { endpointRemovedError, networkError } from '../providers/custom/errors'
 import { getSecret } from '../secrets'
@@ -286,9 +287,13 @@ function authHeaders(target: EndpointTarget): HeadersInit {
 }
 
 async function endpointError(res: Response, target: EndpointTarget): Promise<Error> {
-  const payload = await res.json().catch(() => {
-    return null
-  })
+  const payload = await readCappedBody(res, MAX_JSON_BODY_BYTES)
+    .then((body) => {
+      return JSON.parse(body.toString('utf8')) as unknown
+    })
+    .catch(() => {
+      return null
+    })
 
   const parsed = UpaiErrorResponseSchema.safeParse(payload)
   let error: UpaiError | null = null
