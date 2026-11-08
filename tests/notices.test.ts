@@ -20,7 +20,7 @@ interface PackageJson {
 
 interface OpenerPermission {
   identifier: string
-  allow: { path?: string }[]
+  allow: { path?: string; url?: string }[]
 }
 
 interface CapabilityFile {
@@ -42,6 +42,25 @@ const TAURI_CONFIG = JSON.parse(TAURI) as TauriConfig
 const DEFAULT_CAPABILITY = JSON.parse(
   fs.readFileSync(path.resolve('src-tauri/capabilities/default.json'), 'utf8'),
 ) as CapabilityFile
+
+const REMOTE_CAPABILITY = JSON.parse(
+  fs.readFileSync(path.resolve('src-tauri/capability-remote.json'), 'utf8'),
+) as CapabilityFile
+
+/** Allow entries of one opener permission, paths and URLs alike. */
+function openerAllow(capability: CapabilityFile, identifier: string): string[] {
+  const permission = capability.permissions.filter(isPermissionObject).find((entry) => {
+    return entry.identifier === identifier
+  })
+
+  if (permission === undefined) {
+    throw new Error(`capability has no ${identifier}`)
+  }
+
+  return permission.allow.map((entry) => {
+    return entry.path ?? entry.url ?? ''
+  })
+}
 
 const PACKAGE = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')) as PackageJson
 const NPM_START = '<!-- npm-licenses:start -->'
@@ -180,6 +199,24 @@ describe('third-party notices bundle', () => {
     expect(TAURI_CONFIG.bundle.resources['resources/THIRD_PARTY_NOTICES.md']).toBe(
       'THIRD_PARTY_NOTICES.md',
     )
+  })
+})
+
+describe('tauri capabilities', () => {
+  it('keeps the opener allow lists equal in both capability files', () => {
+    for (const identifier of ['opener:allow-open-url', 'opener:allow-open-path']) {
+      expect(openerAllow(REMOTE_CAPABILITY, identifier)).toEqual(
+        openerAllow(DEFAULT_CAPABILITY, identifier),
+      )
+    }
+  })
+
+  it('allows the notices and license files in both capability files', () => {
+    for (const capability of [DEFAULT_CAPABILITY, REMOTE_CAPABILITY]) {
+      expect(openerAllow(capability, 'opener:allow-open-path')).toEqual(
+        expect.arrayContaining(['$RESOURCE/THIRD_PARTY_NOTICES.md', '$RESOURCE/LICENSE']),
+      )
+    }
   })
 })
 

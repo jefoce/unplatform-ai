@@ -13,6 +13,7 @@
     "allow-update-install",
     "allow-update-set-auto",
     "allow-update-open-release",
+    "allow-log-client-error",
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",
@@ -24,6 +25,10 @@
         { "url": "https://dash.cloudflare.com/*" },
         { "url": "https://github.com/jefoce/unplatform-ai*" }
       ]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$RESOURCE/THIRD_PARTY_NOTICES.md" }, { "path": "$RESOURCE/LICENSE" }]
     }
   ]
 }

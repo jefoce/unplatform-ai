@@ -65,6 +65,8 @@ export const mockPlatform: Platform = {
 
   openNotices: vi.fn(async () => {}),
 
+  openLicense: vi.fn(async () => {}),
+
   confirm: vi.fn(async () => {
     return true
   }),

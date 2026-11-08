@@ -6,7 +6,14 @@ import { messageOf } from '../src/core/errors'
 import { record } from './helpers/history'
 
 const mocks = vi.hoisted(() => {
-  return { exportBatch: vi.fn(), exportImageBatch: vi.fn(), invoke: vi.fn(), open: vi.fn() }
+  return {
+    exportBatch: vi.fn(),
+    exportImageBatch: vi.fn(),
+    invoke: vi.fn(),
+    open: vi.fn(),
+    openPath: vi.fn(),
+    resolveResource: vi.fn(),
+  }
 })
 
 vi.mock('@tauri-apps/api/core', () => {
@@ -29,8 +36,12 @@ vi.mock('@tauri-apps/plugin-notification', () => {
   return { isPermissionGranted: vi.fn(), requestPermission: vi.fn(), sendNotification: vi.fn() }
 })
 
+vi.mock('@tauri-apps/api/path', () => {
+  return { resolveResource: mocks.resolveResource }
+})
+
 vi.mock('@tauri-apps/plugin-opener', () => {
-  return { openUrl: vi.fn() }
+  return { openPath: mocks.openPath, openUrl: vi.fn() }
 })
 
 vi.mock('@/lib/api/folders', () => {
@@ -43,6 +54,38 @@ vi.mock('@/lib/api/generations', () => {
 
 vi.mock('@/lib/api/images', () => {
   return { exportImageBatch: mocks.exportImageBatch }
+})
+
+describe('desktop bundled links', () => {
+  it('opens the license by resource name', async () => {
+    const path = '/Applications/Unplatform AI.app/Contents/Resources/LICENSE'
+
+    mocks.resolveResource.mockResolvedValue(path)
+    mocks.openPath.mockResolvedValue(undefined)
+
+    await desktopPlatform.openLicense()
+
+    expect(mocks.resolveResource).toHaveBeenCalledWith('LICENSE')
+
+    expect(mocks.openPath).toHaveBeenCalledWith(path)
+  })
+
+  it('logs the resource name and rethrows when opening fails', async () => {
+    mocks.resolveResource.mockResolvedValue('/tmp/THIRD_PARTY_NOTICES.md')
+    mocks.openPath.mockRejectedValue('no handler')
+    mocks.invoke.mockResolvedValue(undefined)
+
+    const error = await desktopPlatform.openNotices().catch((caught: unknown) => {
+      return caught
+    })
+
+    expect(messageOf(error)).toBe('no handler')
+
+    expect(mocks.invoke).toHaveBeenCalledWith('log_client_error', {
+      resource: 'THIRD_PARTY_NOTICES.md',
+      message: 'no handler',
+    })
+  })
 })
 
 describe('desktop update install', () => {

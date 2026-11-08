@@ -76,6 +76,12 @@ pub fn record_panic(info: &std::panic::PanicHookInfo<'_>) {
     logs::append_desktop_log(format!("[unplatform-ai] panic: {message} at {location}").as_bytes());
 }
 
+/// Writes a webview failure to desktop.log. The caller passes a resource name, never a path.
+#[tauri::command]
+pub(crate) fn log_client_error(resource: String, message: String) {
+    logs::append_desktop_log(format!("[unplatform-ai] {resource}: {message}").as_bytes());
+}
+
 /// Shows a native fatal dialog and exits. Only the first call has an effect.
 pub fn fatal(app: &AppHandle<Wry>, message: &str) {
     let state = app.state::<State>();

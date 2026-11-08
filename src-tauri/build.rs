@@ -9,6 +9,7 @@ fn main() {
             "update_install",
             "update_set_auto",
             "update_open_release",
+            "log_client_error",
         ]));
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
 }

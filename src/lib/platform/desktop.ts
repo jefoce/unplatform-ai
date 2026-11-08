@@ -35,11 +35,30 @@ async function invokeChecked<T>(command: string, args?: InvokeArgs): Promise<T> 
   try {
     return await invoke<T>(command, args)
   } catch (error) {
-    if (error instanceof Error) {
-      throw error
-    }
+    throw asError(error)
+  }
+}
 
-    throw new Error(String(error))
+function asError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error
+  }
+
+  return new Error(String(error))
+}
+
+/** Opens a bundled resource, logs the failure without the path, then rethrows. */
+async function openResource(name: string): Promise<void> {
+  try {
+    const path = await resolveResource(name)
+
+    await openPath(path)
+  } catch (error) {
+    const failure = asError(error)
+
+    await invoke('log_client_error', { resource: name, message: failure.message }).catch(() => {})
+
+    throw failure
   }
 }
 
@@ -100,9 +119,11 @@ export const desktopPlatform: Platform = {
   },
 
   openNotices: async () => {
-    const path = await resolveResource('THIRD_PARTY_NOTICES.md')
+    await openResource('THIRD_PARTY_NOTICES.md')
+  },
 
-    await openPath(path)
+  openLicense: async () => {
+    await openResource('LICENSE')
   },
 
   confirm: async (message: string) => {

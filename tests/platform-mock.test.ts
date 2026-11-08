@@ -13,6 +13,7 @@ const PLATFORM_KEYS = {
   notify: true,
   openExternal: true,
   openNotices: true,
+  openLicense: true,
   confirm: true,
   saveVideo: true,
   saveVideos: true,

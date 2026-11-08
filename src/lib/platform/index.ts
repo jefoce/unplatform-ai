@@ -57,6 +57,9 @@ export const platform = {
   openNotices: async (): Promise<void> => {
     return (await impl()).openNotices()
   },
+  openLicense: async (): Promise<void> => {
+    return (await impl()).openLicense()
+  },
   confirm: async (message: string): Promise<boolean> => {
     return (await impl()).confirm(message)
   },

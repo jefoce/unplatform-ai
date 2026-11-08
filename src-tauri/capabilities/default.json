@@ -10,6 +10,7 @@
     "allow-update-install",
     "allow-update-set-auto",
     "allow-update-open-release",
+    "allow-log-client-error",
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",
@@ -24,7 +25,7 @@
     },
     {
       "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "$RESOURCE/THIRD_PARTY_NOTICES.md" }]
+      "allow": [{ "path": "$RESOURCE/THIRD_PARTY_NOTICES.md" }, { "path": "$RESOURCE/LICENSE" }]
     }
   ]
 }

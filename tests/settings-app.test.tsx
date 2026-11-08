@@ -16,6 +16,7 @@ const platformMock = vi.hoisted(() => {
     openReleasePage: vi.fn(),
     openExternal: vi.fn(),
     openNotices: vi.fn(),
+    openLicense: vi.fn(),
   }
 })
 
@@ -31,10 +32,12 @@ beforeEach(() => {
   platformMock.checkUpdate.mockReset()
   platformMock.openExternal.mockReset()
   platformMock.openNotices.mockReset()
+  platformMock.openLicense.mockReset()
   platformMock.setAutoCheck.mockResolvedValue(undefined)
   platformMock.openReleasePage.mockResolvedValue(undefined)
   platformMock.openExternal.mockResolvedValue(undefined)
   platformMock.openNotices.mockResolvedValue(undefined)
+  platformMock.openLicense.mockResolvedValue(undefined)
 
   useUpdateStore.setState({
     appInfo: null,
@@ -188,9 +191,7 @@ describe('AppSection about', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Licensed under AGPL-3.0' }))
 
-    expect(platformMock.openExternal).toHaveBeenCalledWith(
-      'https://github.com/jefoce/unplatform-ai/blob/HEAD/LICENSE',
-    )
+    expect(platformMock.openLicense).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Source code' }))
 
