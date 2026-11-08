@@ -70,21 +70,29 @@ describe('desktop bundled links', () => {
     expect(mocks.openPath).toHaveBeenCalledWith(path)
   })
 
-  it('logs the resource name and rethrows when opening fails', async () => {
-    mocks.resolveResource.mockResolvedValue('/tmp/THIRD_PARTY_NOTICES.md')
-    mocks.openPath.mockRejectedValue('no handler')
+  it('logs only the error name and rethrows when opening fails', async () => {
+    const path = '/Applications/Unplatform AI.app/Contents/Resources/LICENSE'
+
+    mocks.resolveResource.mockResolvedValue(path)
+    mocks.openPath.mockRejectedValue(new Error(`no handler for ${path}`))
     mocks.invoke.mockResolvedValue(undefined)
 
-    const error = await desktopPlatform.openNotices().catch((caught: unknown) => {
+    const error = await desktopPlatform.openLicense().catch((caught: unknown) => {
       return caught
     })
 
-    expect(messageOf(error)).toBe('no handler')
+    expect(messageOf(error)).toBe(`no handler for ${path}`)
 
     expect(mocks.invoke).toHaveBeenCalledWith('log_client_error', {
-      resource: 'THIRD_PARTY_NOTICES.md',
-      message: 'no handler',
+      resource: 'LICENSE',
+      message: 'Error',
     })
+
+    const logged = mocks.invoke.mock.calls.find((call) => {
+      return call[0] === 'log_client_error'
+    })
+
+    expect(String(logged?.[1].message)).not.toContain(path)
   })
 })
 

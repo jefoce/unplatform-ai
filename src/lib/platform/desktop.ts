@@ -47,7 +47,7 @@ function asError(error: unknown): Error {
   return new Error(String(error))
 }
 
-/** Opens a bundled resource, logs the failure without the path, then rethrows. */
+/** Opens a bundled resource, logs only the error name so the path stays out, then rethrows. */
 async function openResource(name: string): Promise<void> {
   try {
     const path = await resolveResource(name)
@@ -56,7 +56,7 @@ async function openResource(name: string): Promise<void> {
   } catch (error) {
     const failure = asError(error)
 
-    await invoke('log_client_error', { resource: name, message: failure.message }).catch(() => {})
+    await invoke('log_client_error', { resource: name, message: failure.name }).catch(() => {})
 
     throw failure
   }
