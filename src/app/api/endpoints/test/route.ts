@@ -1,11 +1,12 @@
+import { EndpointTestBodySchema } from '@/core/api/endpoints'
 import { errorResponse, jsonResponse, zodError } from '@/server/http'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
-import { testEndpoint, TestEndpointBodySchema } from '@/server/services/endpoint-test'
+import { testEndpoint } from '@/server/services/endpoint-test'
 
 export async function POST(request: Request) {
   try {
     assertLocalRequest(request)
-    const body = TestEndpointBodySchema.safeParse(await readJsonBody(request))
+    const body = EndpointTestBodySchema.safeParse(await readJsonBody(request))
 
     if (!body.success) {
       return zodError(body.error)

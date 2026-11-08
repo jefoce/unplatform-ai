@@ -1,23 +1,21 @@
 import 'server-only'
 
 import { isNil, isUndefined } from 'lodash-es'
-import { z, type ZodType } from 'zod'
+import type { ZodType } from 'zod'
 
+import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
 import { FETCH_TIMEOUTS } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import { UpaiHealthSchema, UpaiModelListSchema } from '@/core/protocol/upai'
-import {
-  type CustomEndpointLastHealth,
-  CustomEndpointLastHealthSchema,
-} from '@/core/schemas/custom-endpoint'
+import { CustomEndpointLastHealthSchema } from '@/core/schemas/custom-endpoint'
 
 import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { resetCustomProviders } from '../providers/registry'
 import { normalizeBaseUrl } from '../repos/endpoints'
 import { secretsReady } from '../secrets'
+import { setEndpointHealth } from './endpoint-health'
 import { writeEndpointModels } from './endpoint-model-cache'
 import { readEndpointToken } from './endpoint-tokens'
-import { markEndpointHealth } from './endpoints'
 import { clearModelCatalog } from './model-catalog'
 
 const UNAUTHORIZED_TEXT = 'Token needed or wrong'
@@ -28,32 +26,6 @@ const FORBIDDEN_TEXT =
 const OFFLINE_TEXT = 'Start ComfyUI, then test again'
 
 const PROTOCOL_TEXT = 'This server does not speak upai/1'
-
-export interface EndpointTestParams {
-  baseUrl: string
-  endpointId: string | null
-  token?: string | null
-}
-
-export interface EndpointTestResult {
-  ok: boolean
-  error: string | null
-  protocol: number | null
-  serverVersion: string | null
-  videoCount: number
-  imageCount: number
-  authRequired: boolean | null
-  lanAllowed: boolean | null
-  instanceId: string | null
-  maxRunning: number | null
-  lastHealth: CustomEndpointLastHealth | null
-}
-
-export const TestEndpointBodySchema = z.object({
-  baseUrl: z.string(),
-  endpointId: z.string().nullable().default(null),
-  token: z.string().trim().max(4096).nullable().optional(),
-})
 
 interface FetchJsonParams<T> {
   url: string
@@ -76,7 +48,7 @@ class EndpointTestError extends Error {
   }
 }
 
-function isSavedUrl(params: EndpointTestParams, baseUrl: string): boolean {
+function isSavedUrl(params: EndpointTestBody, baseUrl: string): boolean {
   if (isNil(params.endpointId)) {
     return true
   }
@@ -92,7 +64,7 @@ function isSavedUrl(params: EndpointTestParams, baseUrl: string): boolean {
   return true
 }
 
-export async function testEndpoint(params: EndpointTestParams): Promise<EndpointTestResult> {
+export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTestResult> {
   await secretsReady()
   const baseUrl = normalizeBaseUrl(params.baseUrl)
   const token = resolveToken(params)
@@ -119,16 +91,14 @@ export async function testEndpoint(params: EndpointTestParams): Promise<Endpoint
       }),
     ])
 
-    if (isSavedEndpoint) {
-      markEndpointHealth({
+    if (isSavedEndpoint && !isNil(params.endpointId)) {
+      setEndpointHealth({
         endpointId: params.endpointId,
         status: 'ok',
         message: null,
         maxRunning: health.max_running,
       })
-    }
 
-    if (isSavedEndpoint && !isNil(params.endpointId)) {
       await writeEndpointModels({
         endpointId: params.endpointId,
         kind: 'video',
@@ -171,8 +141,8 @@ export async function testEndpoint(params: EndpointTestParams): Promise<Endpoint
   } catch (error) {
     const failure = testFailure(error)
 
-    if (isSavedEndpoint) {
-      markEndpointHealth({
+    if (isSavedEndpoint && !isNil(params.endpointId)) {
+      setEndpointHealth({
         endpointId: params.endpointId,
         status: failure.status,
         message: failure.message,
@@ -191,7 +161,7 @@ function instanceIdOf(value: string): string | null {
   return value
 }
 
-function resolveToken(params: EndpointTestParams): string | null {
+function resolveToken(params: EndpointTestBody): string | null {
   if (!isUndefined(params.token)) {
     const token = params.token?.trim() ?? ''
 

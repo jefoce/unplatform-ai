@@ -2,7 +2,7 @@
 
 import { isNil } from 'lodash-es'
 
-import type { EndpointTestResult as EndpointTestData } from '@/lib/api/endpoints'
+import type { EndpointTestResult as EndpointTestData } from '@/core/api/endpoints'
 
 interface EndpointTestResultProps {
   test: EndpointTestData | null

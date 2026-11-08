@@ -2,6 +2,7 @@
 
 import { mutate } from 'swr'
 
+import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
 import type {
   CustomEndpoint,
   CustomEndpointLastHealth,
@@ -46,26 +47,6 @@ export interface SaveEndpointsParams {
   endpoints: EndpointInput[]
 }
 
-export interface EndpointTestParams {
-  baseUrl: string
-  endpointId: string | null
-  token?: string | null
-}
-
-export interface EndpointTestResult {
-  ok: boolean
-  error: string | null
-  protocol: number | null
-  serverVersion: string | null
-  videoCount: number
-  imageCount: number
-  authRequired: boolean | null
-  lanAllowed: boolean | null
-  instanceId: string | null
-  maxRunning: number | null
-  lastHealth: CustomEndpointLastHealth | null
-}
-
 export function fetchEndpoints(): Promise<EndpointOverview> {
   return fetcher<EndpointOverview>(ENDPOINTS_KEY)
 }
@@ -82,7 +63,7 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   return next
 }
 
-export function testEndpoint(params: EndpointTestParams): Promise<EndpointTestResult> {
+export function testEndpoint(params: EndpointTestBody): Promise<EndpointTestResult> {
   return apiPost<EndpointTestResult>(`${ENDPOINTS_KEY}/test`, params)
 }
 

@@ -1,5 +1,3 @@
-/* eslint-disable max-lines -- one service owns the endpoint overview, save, token and health flow */
-
 import 'server-only'
 
 import { randomUUID } from 'node:crypto'
@@ -7,7 +5,6 @@ import { randomUUID } from 'node:crypto'
 import { isNil, isUndefined, keyBy } from 'lodash-es'
 import { z } from 'zod'
 
-import type { EndpointHealthStatus } from '@/core/endpoints'
 import {
   type CustomEndpoint,
   type CustomEndpointLastHealth,
@@ -15,61 +12,21 @@ import {
   type CustomEndpointPricing,
   CustomEndpointPricingSchema,
 } from '@/core/schemas/custom-endpoint'
-import type { GenerationRecord } from '@/core/schemas/generation-record'
-import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
-import { ACTIVE_STATUSES } from '@/core/types'
 
 import { HttpError } from '../errors'
-import { readJson } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { resetCustomProviders } from '../providers/registry'
 import {
   applyEndpoints,
   type EndpointEntry,
-  endpointModelsFile,
   listEndpoints,
   normalizeBaseUrl,
-  readEndpointFile,
 } from '../repos/endpoints'
-import { listGenerations } from '../repos/generations'
-import { listImages } from '../repos/images'
-import { secretsReady } from '../secrets'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
-import {
-  forgetEndpointHealth,
-  getHealth,
-  isFreshTest,
-  isHealthFresh,
-  setEndpointHealth,
-  type SetEndpointHealthParams,
-} from './endpoint-health'
-import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
+import { forgetEndpointHealth, isFreshTest } from './endpoint-health'
+import { type EndpointOverview, getEndpointOverview } from './endpoint-overview'
+import { applyEndpointTokens } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
-
-const ModelCountsSchema = z
-  .object({
-    video: z.array(z.unknown()).default([]),
-    image: z.array(z.unknown()).default([]),
-  })
-  .loose()
-
-export type EndpointHealthView = EndpointHealthStatus | 'unknown'
-
-export interface EndpointRuntime {
-  runningJobs: number
-  status: EndpointHealthView
-  videoCount: number
-  imageCount: number
-  tokenHint: string | null
-  hasToken: boolean
-}
-
-export interface EndpointOverviewEntry extends CustomEndpoint, EndpointRuntime {}
-
-export interface EndpointOverview {
-  endpoints: EndpointOverviewEntry[]
-  nextBadge: string
-}
 
 export interface EndpointInput {
   id: string | null
@@ -113,39 +70,9 @@ interface PreparedEndpoint {
   token: string | null | undefined
 }
 
-interface OverviewParams {
-  endpoint: CustomEndpoint
-  tokenMap: Record<string, string>
-  generations: GenerationRecord[]
-  images: ImageRecord[]
-}
-
-interface MarkEndpointHealthParams extends Omit<SetEndpointHealthParams, 'endpointId'> {
-  endpointId: string | null
-}
-
-interface ModelCounts {
-  videoCount: number
-  imageCount: number
-}
-
-export async function getEndpointOverview(): Promise<EndpointOverview> {
-  const [file, generations, images] = await Promise.all([
-    readEndpointFile(),
-    listGenerations(),
-    listImages(),
-  ])
-
-  await secretsReady()
-  const tokenMap = readTokenMap()
-
-  const endpoints = await Promise.all(
-    file.endpoints.map((endpoint) => {
-      return toOverview({ endpoint, tokenMap, generations, images })
-    }),
-  )
-
-  return { endpoints, nextBadge: `CU${file.badgeCounter + 1}` }
+interface EndpointChangeParams {
+  previous: CustomEndpoint
+  item: PreparedEndpoint
 }
 
 export async function saveEndpoints(params: SaveEndpointsParams): Promise<EndpointOverview> {
@@ -216,26 +143,6 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   return getEndpointOverview()
 }
 
-export function markEndpointHealth(params: MarkEndpointHealthParams): void {
-  const { endpointId } = params
-
-  if (isNil(endpointId)) {
-    return
-  }
-
-  setEndpointHealth({
-    endpointId,
-    status: params.status,
-    message: params.message,
-    maxRunning: params.maxRunning,
-  })
-}
-
-interface EndpointChangeParams {
-  previous: CustomEndpoint
-  item: PreparedEndpoint
-}
-
 function isChanged(params: EndpointChangeParams): boolean {
   const { previous, item } = params
 
@@ -285,57 +192,4 @@ function assertBadges(prepared: PreparedEndpoint[]): void {
 
     used.add(badge)
   }
-}
-
-async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry> {
-  const { endpoint, tokenMap, generations, images } = params
-  const counts = await cachedCounts(endpoint.id)
-  const prefix = `custom.${endpoint.id}.`
-
-  const videoJobs = generations.filter((record) => {
-    return record.preset.id.startsWith(prefix) && ACTIVE_STATUSES.includes(record.status)
-  })
-
-  const imageJobs = images.filter((record) => {
-    return record.preset.id.startsWith(prefix) && isImageActive(record)
-  })
-
-  const known = getHealth(endpoint.id)
-  const isFresh = !isNil(known) && isHealthFresh(known)
-  const fresh = isFresh ? known : null
-
-  return {
-    ...endpoint,
-    ...counts,
-    runningJobs: videoJobs.length + imageJobs.length,
-    status: fresh?.state ?? statusFromHealth(endpoint.lastHealth),
-    tokenHint: hintFor(tokenMap[endpoint.id]),
-    hasToken: !isNil(tokenMap[endpoint.id]),
-  }
-}
-
-async function cachedCounts(id: string): Promise<ModelCounts> {
-  const data = await readJson(endpointModelsFile(id), ModelCountsSchema)
-
-  if (isNil(data)) {
-    return { videoCount: 0, imageCount: 0 }
-  }
-
-  return { videoCount: data.video.length, imageCount: data.image.length }
-}
-
-function statusFromHealth(lastHealth: CustomEndpointLastHealth | null): EndpointHealthView {
-  if (isNil(lastHealth)) {
-    return 'unknown'
-  }
-
-  return 'ok'
-}
-
-function hintFor(token: string | undefined): string | null {
-  if (isNil(token) || token.length < 4) {
-    return null
-  }
-
-  return token.slice(-4)
 }

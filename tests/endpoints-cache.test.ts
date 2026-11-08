@@ -5,7 +5,8 @@ import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import type * as EndpointsRepo from '@/server/repos/endpoints'
-import type * as EndpointsService from '@/server/services/endpoints'
+import type * as EndpointOverviewService from '@/server/services/endpoint-overview'
+import type * as EndpointSaveService from '@/server/services/endpoint-save'
 
 const ROOT = path.join(os.tmpdir(), `cf-endpoints-cache-${process.pid}-${Date.now()}`)
 const PREVIOUS_ROOT = process.env.STORAGE_ROOT
@@ -22,10 +23,10 @@ const LAST_HEALTH = {
 
 process.env.STORAGE_ROOT = ROOT
 
-let service: typeof EndpointsService
+let service: typeof EndpointSaveService
 let repo: typeof EndpointsRepo
 
-function endpoint(): EndpointsService.EndpointInput {
+function endpoint(): EndpointSaveService.EndpointInput {
   return {
     id: null,
     label: 'Studio',
@@ -39,8 +40,8 @@ function endpoint(): EndpointsService.EndpointInput {
 }
 
 function endpointInput(
-  entry: EndpointsService.EndpointOverviewEntry,
-): EndpointsService.EndpointInput {
+  entry: EndpointOverviewService.EndpointOverviewEntry,
+): EndpointSaveService.EndpointInput {
   return {
     id: entry.id,
     label: entry.label,
@@ -53,7 +54,7 @@ function endpointInput(
   }
 }
 
-async function saveStudio(): Promise<EndpointsService.EndpointOverviewEntry> {
+async function saveStudio(): Promise<EndpointOverviewService.EndpointOverviewEntry> {
   const saved = await service.saveEndpoints({ endpoints: [endpoint()] })
   const entry = saved.endpoints[0]
 
@@ -79,7 +80,7 @@ beforeAll(async () => {
   secrets.__setSecretsBackendForTests((await import('./helpers/secrets')).memoryBackend())
   await secrets.secretsReady()
 
-  service = await import('@/server/services/endpoints')
+  service = await import('@/server/services/endpoint-save')
   repo = await import('@/server/repos/endpoints')
 })
 

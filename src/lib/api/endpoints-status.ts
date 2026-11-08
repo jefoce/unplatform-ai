@@ -2,8 +2,8 @@
 
 import { isEmpty, isNil } from 'lodash-es'
 import useSWR from 'swr'
-import { z } from 'zod'
 
+import { EndpointTestResultSchema } from '@/core/api/endpoints'
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
@@ -42,20 +42,17 @@ interface EndpointsState {
   error: unknown
 }
 
-interface EndpointTestResult {
-  ok: boolean
-  error: string | null
-}
-
 interface FreshCheckParams {
   instanceId: string
   presetId: string
 }
 
-const EndpointTestSchema = z.object({
-  ok: z.boolean(),
-  error: z.string().nullable().optional(),
-})
+interface EndpointTestHealth {
+  ok: boolean
+  error: string | null
+}
+
+const EndpointTestHealthSchema = EndpointTestResultSchema.pick({ ok: true, error: true })
 
 /** Poll only while at least one endpoint exists. Zero stops SWR. */
 export function endpointRefreshInterval(latest: EndpointsOverview | undefined): number {
@@ -128,7 +125,7 @@ export function isEndpointOffline(
 async function testEndpointHealth(
   instanceId: string,
   baseUrl: string,
-): Promise<EndpointTestResult> {
+): Promise<EndpointTestHealth> {
   const body = JSON.stringify({ baseUrl, endpointId: instanceId })
 
   const response = await fetch(ENDPOINTS_TEST_PATH, {
@@ -143,7 +140,7 @@ async function testEndpointHealth(
     return null
   })
 
-  const result = EndpointTestSchema.safeParse(parsed)
+  const result = EndpointTestHealthSchema.safeParse(parsed)
 
   if (!result.success) {
     return { ok: false, error: 'ComfyUI did not answer in time.' }

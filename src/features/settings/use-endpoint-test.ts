@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { isNil } from 'lodash-es'
 
+import type { EndpointTestResult } from '@/core/api/endpoints'
 import { messageOf } from '@/core/errors'
-import { type EndpointTestResult, testEndpoint } from '@/lib/api/endpoints'
+import { testEndpoint } from '@/lib/api/endpoints'
 
 import { type EndpointRowDraft, type TestedEndpoint, tokenOf } from './endpoint-draft'
 

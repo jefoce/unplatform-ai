@@ -107,7 +107,7 @@ describe('badge allocation', () => {
     expect(saved.file.endpoints[0]?.badge).toBe('CU9')
     expect(saved.file.badgeCounter).toBe(9)
 
-    const service = await import('@/server/services/endpoints')
+    const service = await import('@/server/services/endpoint-overview')
 
     await repo.applyEndpoints({ entries: [] })
 

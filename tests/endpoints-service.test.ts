@@ -7,8 +7,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { ENDPOINT_HEALTH_MAX_AGE_MS } from '@/core/constants'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
+import type * as EndpointOverviewService from '@/server/services/endpoint-overview'
+import type * as EndpointSaveService from '@/server/services/endpoint-save'
 import type * as EndpointTestService from '@/server/services/endpoint-test'
-import type * as EndpointsService from '@/server/services/endpoints'
 
 import { storedRecord } from './helpers/stored-record'
 
@@ -49,7 +50,8 @@ type SecretsPromise = ReturnType<typeof loadSecrets>
 
 type SecretsModule = Awaited<SecretsPromise>
 
-let service: typeof EndpointsService
+let service: typeof EndpointSaveService
+let overviewService: typeof EndpointOverviewService
 let testService: typeof EndpointTestService
 let repo: typeof EndpointsRepo
 let secrets: SecretsModule
@@ -59,7 +61,8 @@ beforeAll(async () => {
   secrets.__setSecretsBackendForTests((await import('./helpers/secrets')).memoryBackend())
   await secrets.secretsReady()
 
-  service = await import('@/server/services/endpoints')
+  service = await import('@/server/services/endpoint-save')
+  overviewService = await import('@/server/services/endpoint-overview')
   testService = await import('@/server/services/endpoint-test')
   repo = await import('@/server/repos/endpoints')
 })
@@ -86,7 +89,7 @@ afterAll(async () => {
   process.env.STORAGE_ROOT = PREVIOUS_ROOT
 })
 
-function endpoint(label: string, token?: string): EndpointsService.EndpointInput {
+function endpoint(label: string, token?: string): EndpointSaveService.EndpointInput {
   return {
     id: null,
     label,
@@ -200,7 +203,7 @@ describe('running jobs', () => {
 
     await fs.utimes(downloads, future, future)
 
-    const overview = await service.getEndpointOverview()
+    const overview = await overviewService.getEndpointOverview()
 
     expect(overview.endpoints[0]?.runningJobs).toBe(1)
     expect(overview.endpoints[0]?.status).toBe('unknown')
@@ -209,7 +212,7 @@ describe('running jobs', () => {
 
     health.setEndpointHealth({ endpointId: id, status: 'unauthorized', message: null })
 
-    expect((await service.getEndpointOverview()).endpoints[0]?.status).toBe('unauthorized')
+    expect((await overviewService.getEndpointOverview()).endpoints[0]?.status).toBe('unauthorized')
   })
 })
 
@@ -229,7 +232,7 @@ describe('health freshness', () => {
     vi.setSystemTime(now + ENDPOINT_HEALTH_MAX_AGE_MS + 1000)
 
     try {
-      const overview = await service.getEndpointOverview()
+      const overview = await overviewService.getEndpointOverview()
 
       expect(overview.endpoints[0]?.status).toBe('ok')
     } finally {
@@ -249,7 +252,7 @@ describe('endpoint edits', () => {
 
     health.setEndpointHealth({ endpointId: id, status: 'unreachable', message: null })
 
-    expect((await service.getEndpointOverview()).endpoints[0]?.status).toBe('unreachable')
+    expect((await overviewService.getEndpointOverview()).endpoints[0]?.status).toBe('unreachable')
 
     const next = await service.saveEndpoints({
       endpoints: [

@@ -2,8 +2,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { EndpointTestResult } from '@/core/api/endpoints'
 import { useEndpointsDraft } from '@/features/settings/use-endpoints-draft'
-import type { EndpointTestResult, EndpointView } from '@/lib/api/endpoints'
+import type { EndpointView } from '@/lib/api/endpoints'
 
 import { required } from './helpers/required'
 
