@@ -74,11 +74,10 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 | Variable | Effect |
 |---|---|
 | `OPENROUTER_MOCK=1` | Local timeline. Pending for 3 s (`MOCK_QUEUE_MS`), in progress for 6 s (`MOCK_GENERATE_MS`), then a locally generated video. No API key needed and no cost. |
-| `CUSTOM_ENDPOINT_MOCK=1` | In-process upai/1 endpoint mock read from `docs/protocol/upai-1/fixtures`. No ComfyUI or Python. |
+| `CUSTOM_ENDPOINT_MOCK=1` | In-process upai/1 endpoint mock read from `docs/protocol/upai-1/fixtures`, and it skips the custom endpoint upload network. No ComfyUI or Python. |
 | `REMOTE_MOCK=1` | Local R2 replacement, only honored together with mock OpenRouter. Links point at the local server. |
 | `REMOTE_MOCK_MBPS` | Throttles mock uploads, default 20. |
 | `REMOTE_MOCK=fail` | Every mock upload fails. |
-| `CUSTOM_ENDPOINT_MOCK=1` | Skips the custom endpoint upload network and returns refs for the file hashes. |
 | `[fail]` in the prompt | Mock job ends as failed. |
 
 Mock mode keeps the Test button enabled without stored keys.
@@ -88,7 +87,7 @@ Mock mode keeps the Test button enabled without stored keys.
 The custom provider talks upai/1 to the ComfyUI node pack. Start the pack mock server for adapter work:
 
 ```bash
-cd /Users/jefoce/Documents/AI/unplatform-ai-provider-node && .venv/bin/python -m upai_provider.mock_server --port 8190
+cd ../unplatform-ai-provider-node && .venv/bin/python -m upai_provider.mock_server --port 8190
 ```
 
 Point an endpoint at `http://127.0.0.1:8190` and press Test. `CUSTOM_ENDPOINT_MOCK=1` is the fallback: the in-process mock serves `docs/protocol/upai-1/fixtures` and needs no ComfyUI or Python.
@@ -177,14 +176,13 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `OPENROUTER_API_KEY` | Required for real generation |
 | `OPENROUTER_MANAGEMENT_KEY` | Optional, adds balance to the credits pill |
 | `OPENROUTER_MOCK` | `1` turns on the mock provider |
-| `CUSTOM_ENDPOINT_MOCK` | `1` turns on the in-process custom endpoint mock |
+| `CUSTOM_ENDPOINT_MOCK` | `1` turns on the in-process custom endpoint mock and skips the custom endpoint upload network |
 | `STORAGE_ROOT` | Data folder, default `~/.unplatform-ai` |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_ACCESS_KEY_ID` | R2 token access key |
 | `R2_SECRET_ACCESS_KEY` | R2 token secret |
 | `R2_BUCKET` | Bucket name |
 | `CUSTOM_ENDPOINT_TOKENS` | Custom endpoint auth tokens, stored as JSON |
-| `CUSTOM_ENDPOINT_MOCK` | `1` skips the custom endpoint upload network |
 | `REMOTE_MOCK` | Local R2 mock, `1` or `fail` |
 | `REMOTE_MOCK_MBPS` | Mock upload speed |
 | `APP_TOKEN` | Session token override for dev and smoke runs. Unset reuses `$STORAGE_ROOT/browser-session` (or mints it) and prints the session URL. |

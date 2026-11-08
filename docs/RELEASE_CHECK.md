@@ -1,6 +1,6 @@
 # Release check
 
-Run this on an installed rc build, not a dev build. Use mock providers only (`OPENROUTER_MOCK=1`, `REMOTE_MOCK=1`). Record pass or fail and the evidence for every line. Any fail blocks the release.
+Run this on an installed rc build, not a dev build. Use mock providers only (`OPENROUTER_MOCK=1`, `REMOTE_MOCK=1`, `CUSTOM_ENDPOINT_MOCK=1`). Record pass or fail and the evidence for every line. Any fail blocks the release.
 
 ## Steps
 
@@ -10,6 +10,7 @@ Run this on an installed rc build, not a dev build. Use mock providers only (`OP
 4. Measure the installed size: the app plus the extracted runtime folder.
 5. On Windows, run a Defender scan on the installer and on the installed app.
 6. Generate one cheap image and confirm the balance updates within about 20 s.
+7. Add a custom endpoint, press Test, mock-generate one image, then delete the endpoint and confirm the warning.
 
 ## Desktop checks not run by automation
 
@@ -20,6 +21,7 @@ Run these by hand on the installed rc, with mock providers only.
 | First launch extracts the runtime, and the folder holds only the server and the build stamp | | |
 | Second launch reuses the runtime without extracting | | |
 | Settings: mock key, mock-generate 1 video and 1 image, both finish with tile, viewer, like, delete and Reference | | |
+| Settings: custom endpoint added, Test passes, mock image generated, delete warns | | |
 | Upload a mov, mp3 and webp, each gets a thumbnail, probe and poster | | |
 | A second instance refuses cleanly while the first runs | | |
 | `codesign -v --deep` passes, and `xattr -r` shows no quarantine on the runtime | | |

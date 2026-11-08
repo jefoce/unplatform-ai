@@ -13,7 +13,7 @@ Local image and video models from ComfyUI, with several endpoints and a badge fo
 - Stop in ComfyUI for a running video.
 - History facets, plus stored snapshots, so old entries keep their badge, title and workflow after an endpoint or a workflow changes.
 - Deleting an endpoint warns about running jobs. Those jobs fail with "This endpoint was removed." and history keeps its badge and title.
-- A quit guard explains that ComfyUI video jobs keep running and resume on the next start.
+- A quit guard explains that ComfyUI keeps running the jobs and the app picks them up while ComfyUI keeps running.
 
 ### Changed
 

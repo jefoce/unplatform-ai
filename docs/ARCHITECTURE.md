@@ -42,7 +42,7 @@ Updates run in the Rust shell. It reads `latest.json` from the GitHub release ov
 | `src/server/config` | `isMockMode`, the app-wide dev switch shared by the provider and storage registries. |
 | `src/server/jobs` | `submit-queue`, `run-submit`, `submit-media`, `submit-record`, `poller`, `download-queue`, `reconcile`, plus `image-submit-queue`, `image-run`, `image-calls`, `image-reconcile`, `image-outputs` and `image-record`. |
 | `src/server/services` | Orchestration for routes and jobs: `credits`, `model-catalog`, `remote-inputs`, `remote-cap`, `upload-probe`, `uploads`, `connection-test`, `create-generation`, `estimate-generation`, plus `image-create`, `image-actions` and `image-files`. |
-| `src/server/services/endpoints` | Endpoint list, save, tokens and runtime counts. |
+| `src/server/services/endpoint-overview.ts`, `endpoint-save.ts`, `endpoint-tokens.ts` | Endpoint list, save, tokens and runtime counts. |
 | `src/server/services/history-facets` | Incremental model, resolution and aspect facets over the record stores. |
 | `src/server/services/endpoint-health` | Endpoint health state, fresh checks and the per-instance run limit. |
 | `src/server/providers` | `VideoProvider` interface, registry, OpenRouter adapter, mock adapter, `ProviderError` kinds. |

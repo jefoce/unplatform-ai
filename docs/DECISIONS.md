@@ -46,7 +46,7 @@ Why: the user owns the endpoint and the warning names the cost. A cancel call to
 
 ## 2026-11-07 - Custom submits limit per endpoint instance
 
-Decision: custom submits use one queue per pack instance, keyed by `instanceId`. The limit is the highest fresh `max_running` from health, default 1. Two endpoints that report the same `instance_id` share one queue and one limit.
+Decision: custom submits use one queue per pack instance, keyed by `instanceId`. The limit is the smallest fresh `max_running` from health, default 1. Two endpoints that report the same `instance_id` share one queue and one limit.
 
 Why: one ComfyUI install runs one set of jobs, and two badges for the same install must not double the load.
 

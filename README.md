@@ -34,7 +34,7 @@ Prices come live from OpenRouter.
 ## What you need
 
 - A Mac (Apple Silicon), a Windows 10/11 PC, or 64-bit Linux with glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer).
-- An OpenRouter account with some credit. One account gives you many video models, and you pay only for what you generate.
+- An OpenRouter account with some credit, only for OpenRouter models. One account gives you many video models, and you pay only for what you generate. Custom ComfyUI jobs need no OpenRouter key.
 - Optional: a Cloudflare account with R2, only for models that take video or sound references. Cloudflare asks for a card to turn R2 on. The free tier is 10 GB, and the app stays under 8 GB. It deletes references it has not used for 30 days.
 - Optional: ComfyUI with the Unplatform AI node pack, for local image and video models. [Step-by-step guide](docs/user/COMFYUI.md)
 
@@ -118,7 +118,7 @@ If your keyring is locked when you save keys, Linux asks for your login password
 
 ## First setup
 
-1. **OpenRouter (required).** Add credit, create a dedicated API key with a spend limit, and paste it in Settings (gear icon). [Step-by-step guide](docs/user/OPENROUTER.md)
+1. **OpenRouter (required only for OpenRouter models).** Add credit, create a dedicated API key with a spend limit, and paste it in Settings (gear icon). Custom ComfyUI jobs need no key. [Step-by-step guide](docs/user/OPENROUTER.md)
 2. **Cloudflare R2 (only for video or sound references).** Create a bucket and a token for it, then paste four values in Settings. Free up to 10 GB, and the app stays under 8 GB. Cloudflare asks for a card. [Step-by-step guide](docs/user/CLOUDFLARE-R2.md)
 3. **ComfyUI (optional).** Install the Unplatform AI node pack, save a workflow, then add the endpoint in Settings. [Step-by-step guide](docs/user/COMFYUI.md)
 
