@@ -3,11 +3,12 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { SUBMIT_QUEUE_CONCURRENCY, SUBMIT_YIELD_MS } from '@/core/constants'
-import { isNonEmptyString } from '@/core/guards'
+import { isOneOf } from '@/core/guards'
+import { PROVIDER_KIND_IDS, type ProviderKindId } from '@/core/providers/types'
 import { graceDelayMs } from '@/core/submit-state'
 
 import { globalState } from '../global-state'
-import { endpointQueueKey, getEndpointSync } from '../providers/custom/endpoint-source'
+import { submitQueueKeyOf } from '../providers/custom/record-instance'
 import { getMaxRunning } from '../services/endpoint-health'
 
 export type SubmitStage = 'uploading' | 'sending'
@@ -114,27 +115,6 @@ class SubmitQueueImpl implements SubmitQueue {
     return this.state.timers.has(id) || this.state.pending.has(id) || this.state.active.has(id)
   }
 
-  /** Pack instance for a custom endpoint, so two endpoints on one ComfyUI share a limit. */
-  private queueKeyOf(record: QueuedRecord): string {
-    if (record.provider !== 'custom') {
-      return 'openrouter'
-    }
-
-    const endpointId = record.source?.instanceId
-
-    if (!isNonEmptyString(endpointId)) {
-      return 'custom'
-    }
-
-    const endpoint = getEndpointSync(endpointId)
-
-    if (isNil(endpoint)) {
-      return `custom:${endpointId}`
-    }
-
-    return `custom:${endpointQueueKey(endpoint)}`
-  }
-
   private limitFor(key: string): number {
     if (!key.startsWith('custom:')) {
       return this.maxConcurrent
@@ -204,10 +184,16 @@ class SubmitQueueImpl implements SubmitQueue {
       return
     }
 
+    let provider: ProviderKindId = 'openrouter'
+
+    if (isOneOf(PROVIDER_KIND_IDS, record.provider)) {
+      provider = record.provider
+    }
+
     this.schedule({
       id,
       delayMs: graceDelayMs(record.submit.notBefore),
-      key: this.queueKeyOf(record),
+      key: submitQueueKeyOf({ provider, source: record.source }),
     })
   }
 

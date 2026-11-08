@@ -2,15 +2,19 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
+import { isNonEmptyString } from '@/core/guards'
 import type { ProviderKindId } from '@/core/providers/types'
-import type { RecordSource } from '@/core/schemas/record-source'
 
-import { getEndpointSync } from './endpoint-source'
+import { endpointQueueKey, getEndpointSync } from './endpoint-source'
 import { endpointRemovedError } from './errors'
+
+interface RecordRefSource {
+  instanceId?: string
+}
 
 export interface ProviderRecordRef {
   provider: ProviderKindId
-  source?: RecordSource
+  source?: RecordRefSource
 }
 
 /** Record provider kind plus the custom endpoint id. */
@@ -20,6 +24,27 @@ export function instanceIdOf(record: ProviderRecordRef): string {
   }
 
   return record.provider
+}
+
+/** Queue key shared by video and image records: openrouter, custom, or custom:<instance>. */
+export function submitQueueKeyOf(record: ProviderRecordRef): string {
+  if (record.provider !== 'custom') {
+    return 'openrouter'
+  }
+
+  const endpointId = record.source?.instanceId
+
+  if (!isNonEmptyString(endpointId)) {
+    return 'custom'
+  }
+
+  const endpoint = getEndpointSync(endpointId)
+
+  if (isNil(endpoint)) {
+    return `custom:${endpointId}`
+  }
+
+  return `custom:${endpointQueueKey(endpoint)}`
 }
 
 /** A custom preset whose endpoint is gone reports the endpoint, not the model. */
