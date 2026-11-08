@@ -3,11 +3,12 @@ import { isNil } from 'lodash-es'
 import type { ImagePreset } from './presets/image/types'
 import type { VideoPreset } from './presets/video/types'
 import type { PricingInfo } from './pricing/types'
+import { CUSTOM_MISSING_MESSAGE, CUSTOM_STALE_MESSAGE } from './providers/custom-messages'
 import type { ProviderKindId } from './providers/types'
 
 export const CATALOG_UNREACHABLE_REASON = 'ComfyUI is not reachable.'
-export const CATALOG_MISSING_REASON = 'This workflow is gone from ComfyUI.'
-export const CATALOG_STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
+export const CATALOG_MISSING_REASON = CUSTOM_MISSING_MESSAGE
+export const CATALOG_STALE_REASON = CUSTOM_STALE_MESSAGE
 
 export const MODEL_STATUSES = [
   'available',

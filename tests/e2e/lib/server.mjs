@@ -76,7 +76,12 @@ export async function startServer(options = {}) {
   const env = { ...process.env }
 
   for (const name of Object.keys(env)) {
-    if (name.startsWith('OPENROUTER_') || name.startsWith('R2_') || name === 'REMOTE_MOCK') {
+    if (
+      name.startsWith('OPENROUTER_') ||
+      name.startsWith('R2_') ||
+      name === 'REMOTE_MOCK' ||
+      name === 'CUSTOM_ENDPOINT_MOCK'
+    ) {
       delete env[name]
     }
   }
@@ -91,6 +96,7 @@ export async function startServer(options = {}) {
     STORAGE_ROOT: storageRoot,
     OPENROUTER_MOCK: '1',
     REMOTE_MOCK: '1',
+    CUSTOM_ENDPOINT_MOCK: '1',
     NODE_ENV: 'production',
     FFMPEG_PATH: ffmpeg,
     NODE_OPTIONS: nodeOptions,

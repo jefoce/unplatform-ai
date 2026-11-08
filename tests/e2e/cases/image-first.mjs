@@ -47,6 +47,18 @@ async function imageFirstOpen(context) {
       `image-first ${String(width)}: ${JSON.stringify({ width: first.width, key: first.key, status })}`,
     )
 
+    if (!(first.width > 0)) {
+      throw new Error(`The first image render has width ${String(first.width)}`)
+    }
+
+    if (first.key === null) {
+      throw new Error('The first image render has no page key')
+    }
+
+    if (status !== 200) {
+      throw new Error(`The first image page returned ${String(status)}`)
+    }
+
     await driver.waitFor(
       `window.__e2e.all('[id^="history-item-"]').length >= 1`,
       10_000,

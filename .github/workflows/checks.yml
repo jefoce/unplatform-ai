@@ -176,21 +176,18 @@ jobs:
         run: |
           $ffmpeg = node -p "require('ffmpeg-static')"
           "FFMPEG_PATH=$ffmpeg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Resolve Chrome
+      - name: Use the runner image Chrome
         shell: pwsh
         run: |
+          # The windows-2025 image pins Chrome; installing another copy would drift.
           $candidates = @(
             "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
             "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
             "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
           )
           $chrome = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $chrome) {
-            choco install googlechrome --no-progress -y
-            $chrome = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
-          }
           if (-not (Test-Path $chrome)) {
-            throw "No Chrome binary found"
+            throw "The runner image has no Chrome at $($candidates -join ', ')"
           }
           "CHROME_PATH=$chrome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Build

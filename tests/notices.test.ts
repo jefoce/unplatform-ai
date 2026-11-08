@@ -18,8 +18,31 @@ interface PackageJson {
   license: string
 }
 
+interface OpenerPermission {
+  identifier: string
+  allow: { path?: string }[]
+}
+
+interface CapabilityFile {
+  permissions: (string | OpenerPermission)[]
+}
+
+interface TauriConfig {
+  bundle: { resources: Record<string, string> }
+}
+
+function isPermissionObject(value: string | OpenerPermission): value is OpenerPermission {
+  return typeof value !== 'string'
+}
+
 const NOTICES = fs.readFileSync(path.resolve('THIRD_PARTY_NOTICES.md'), 'utf8')
 const TAURI = fs.readFileSync(path.resolve('src-tauri/tauri.conf.json'), 'utf8')
+const TAURI_CONFIG = JSON.parse(TAURI) as TauriConfig
+
+const DEFAULT_CAPABILITY = JSON.parse(
+  fs.readFileSync(path.resolve('src-tauri/capabilities/default.json'), 'utf8'),
+) as CapabilityFile
+
 const PACKAGE = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')) as PackageJson
 const NPM_START = '<!-- npm-licenses:start -->'
 const NPM_END = '<!-- npm-licenses:end -->'
@@ -135,6 +158,26 @@ describe('third-party notices', () => {
 
   it('keeps the media framework in the AppImage', () => {
     expect(TAURI).toContain('"bundleMediaFramework": true')
+  })
+
+  it('allows opening the bundled notices file', () => {
+    const opener = DEFAULT_CAPABILITY.permissions.filter(isPermissionObject).find((permission) => {
+      return permission.identifier === 'opener:allow-open-path'
+    })
+
+    if (opener === undefined) {
+      throw new Error('default.json has no opener:allow-open-path')
+    }
+
+    expect(
+      opener.allow.map((entry) => {
+        return entry.path
+      }),
+    ).toContain('$RESOURCE/THIRD_PARTY_NOTICES.md')
+
+    expect(TAURI_CONFIG.bundle.resources['resources/THIRD_PARTY_NOTICES.md']).toBe(
+      'THIRD_PARTY_NOTICES.md',
+    )
   })
 })
 

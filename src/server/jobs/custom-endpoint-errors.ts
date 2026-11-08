@@ -3,6 +3,11 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import type { UpaiError } from '@/core/protocol/upai'
+import {
+  CUSTOM_FORBIDDEN_MESSAGE,
+  CUSTOM_PROTOCOL_MESSAGE,
+  CUSTOM_QUOTA_MESSAGE,
+} from '@/core/providers/custom-messages'
 
 import { ProviderError, type ProviderErrorKind } from '../providers/provider-error'
 
@@ -67,10 +72,7 @@ function endpointForbiddenError(): ProviderError {
     kind: 'auth',
     status: 403,
     code: 'forbidden',
-    message: upaiMessage(
-      'forbidden',
-      'This computer cannot reach ComfyUI. Enable LAN access in ComfyUI Settings > Unplatform AI, or add a token.',
-    ),
+    message: upaiMessage('forbidden', CUSTOM_FORBIDDEN_MESSAGE),
   })
 }
 
@@ -79,7 +81,7 @@ function endpointQuotaError(): ProviderError {
     kind: 'input',
     status: 413,
     code: 'too_large',
-    message: upaiMessage('too_large', 'ComfyUI upload space is full'),
+    message: upaiMessage('too_large', CUSTOM_QUOTA_MESSAGE),
   })
 }
 
@@ -116,7 +118,7 @@ export function endpointProtocolError(): ProviderError {
     kind: 'server',
     status: 0,
     code: 'protocol',
-    message: upaiMessage('internal', 'This server does not speak upai/1.'),
+    message: upaiMessage('internal', CUSTOM_PROTOCOL_MESSAGE),
   })
 }
 

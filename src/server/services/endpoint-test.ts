@@ -9,6 +9,12 @@ import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
 import { FETCH_TIMEOUTS, MAX_JSON_BODY_BYTES } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import { UpaiHealthSchema, UpaiModelListSchema } from '@/core/protocol/upai'
+import {
+  CUSTOM_FORBIDDEN_MESSAGE,
+  CUSTOM_OFFLINE_MESSAGE,
+  CUSTOM_PROTOCOL_MESSAGE,
+  CUSTOM_TOKEN_MESSAGE,
+} from '@/core/providers/custom-messages'
 import type { CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 
 import { isCustomEndpointMockMode } from '../config/mock-mode'
@@ -23,15 +29,6 @@ import { writeEndpointModels } from './endpoint-model-cache'
 import { lastHealthOf, mockTestResult } from './endpoint-test-mock'
 import { readEndpointToken } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
-
-const UNAUTHORIZED_TEXT = 'Token needed or wrong'
-
-const FORBIDDEN_TEXT =
-  'This computer cannot reach ComfyUI: enable LAN access in ComfyUI Settings > Unplatform AI, or add a token'
-
-const OFFLINE_TEXT = 'Start ComfyUI, then test again'
-
-const PROTOCOL_TEXT = 'This server does not speak upai/1'
 
 export interface LastTestParams {
   baseUrl: string
@@ -236,15 +233,15 @@ async function fetchJson<T>(params: FetchJsonParams<T>): Promise<T> {
       signal: AbortSignal.timeout(FETCH_TIMEOUTS.meta),
     })
   } catch {
-    throw new EndpointTestError({ status: 'unreachable', message: OFFLINE_TEXT })
+    throw new EndpointTestError({ status: 'unreachable', message: CUSTOM_OFFLINE_MESSAGE })
   }
 
   if (response.status === 401) {
-    throw new EndpointTestError({ status: 'unauthorized', message: UNAUTHORIZED_TEXT })
+    throw new EndpointTestError({ status: 'unauthorized', message: CUSTOM_TOKEN_MESSAGE })
   }
 
   if (response.status === 403) {
-    throw new EndpointTestError({ status: 'forbidden', message: FORBIDDEN_TEXT })
+    throw new EndpointTestError({ status: 'forbidden', message: CUSTOM_FORBIDDEN_MESSAGE })
   }
 
   if (!response.ok) {
@@ -258,7 +255,7 @@ async function fetchJson<T>(params: FetchJsonParams<T>): Promise<T> {
   const parsed = params.schema.safeParse(value)
 
   if (!parsed.success) {
-    throw new EndpointTestError({ status: 'protocol', message: PROTOCOL_TEXT })
+    throw new EndpointTestError({ status: 'protocol', message: CUSTOM_PROTOCOL_MESSAGE })
   }
 
   return parsed.data
@@ -271,7 +268,7 @@ async function readTestJson(response: Response): Promise<unknown> {
   if (!isNil(declared) && Number(declared) > MAX_JSON_BODY_BYTES) {
     await response.body?.cancel()
 
-    throw new EndpointTestError({ status: 'protocol', message: PROTOCOL_TEXT })
+    throw new EndpointTestError({ status: 'protocol', message: CUSTOM_PROTOCOL_MESSAGE })
   }
 
   try {
@@ -280,7 +277,7 @@ async function readTestJson(response: Response): Promise<unknown> {
     return JSON.parse(body.toString('utf8')) as unknown
   } catch (error) {
     if (error instanceof BodyTooLargeError) {
-      throw new EndpointTestError({ status: 'protocol', message: PROTOCOL_TEXT })
+      throw new EndpointTestError({ status: 'protocol', message: CUSTOM_PROTOCOL_MESSAGE })
     }
 
     return null
@@ -292,7 +289,7 @@ function testFailure(error: unknown): TestFailure {
     return { status: error.status, message: error.message }
   }
 
-  return { status: 'unreachable', message: OFFLINE_TEXT }
+  return { status: 'unreachable', message: CUSTOM_OFFLINE_MESSAGE }
 }
 
 function testFailed(message: string): EndpointTestResult {

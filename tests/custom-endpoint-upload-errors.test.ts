@@ -158,7 +158,7 @@ describe('custom endpoint upload failures', () => {
       status: 403,
       code: 'forbidden',
       storedMessage:
-        'upai:forbidden: This computer cannot reach ComfyUI. Enable LAN access in ComfyUI Settings > Unplatform AI, or add a token.',
+        'upai:forbidden: This computer cannot reach ComfyUI: enable LAN access in ComfyUI Settings > Unplatform AI, or add a token',
     },
   ])('stores a $code upload with the upai prefix', async ({ status, code, storedMessage }) => {
     const upload = await makeVideo()
@@ -201,7 +201,7 @@ describe('custom endpoint upload failures', () => {
       }),
     ).rejects.toMatchObject({
       code: 'protocol',
-      storedMessage: 'upai:internal: This server does not speak upai/1.',
+      storedMessage: 'upai:internal: This server does not speak upai/1',
     })
   })
 
