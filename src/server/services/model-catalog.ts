@@ -93,7 +93,11 @@ async function findCustomPresetAfterRefresh(presetId: string): Promise<PresetSou
     return cached
   }
 
-  await refreshCustomCatalog()
+  const data = await refreshCustomCatalog()
+
+  if (isNil(data)) {
+    await refreshCustomCatalog()
+  }
 
   return findCustomPreset(presetId)
 }

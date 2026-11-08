@@ -14,6 +14,7 @@ import { type CustomEndpoint, CustomEndpointFileSchema } from '@/core/schemas/cu
 import { readJson, removeFile, writeJsonAtomic } from '../fs/json-file'
 import { globalState } from '../global-state'
 import { STORAGE_ROOT } from '../paths'
+import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { withLock } from '../sync/lock'
 
 export type EndpointModelKind = 'video' | 'image'
@@ -95,6 +96,10 @@ export async function writeEndpointModels(params: WriteEndpointModelsParams): Pr
   }
 
   await withLock(`endpoint-models:${endpointId}`, async () => {
+    if (isNil(getEndpointSync(endpointId))) {
+      return
+    }
+
     const nextFile = nextCacheFile({ previous: await readCacheFile(endpointId), kind, models })
 
     await writeJsonAtomic({ file: fileFor(endpointId), data: nextFile })
@@ -139,9 +144,11 @@ export async function removeEndpointModelCache(endpointId: string): Promise<void
     return
   }
 
-  await removeFile(fileFor(endpointId))
-  state.files.delete(endpointId)
-  state.unreachable.delete(endpointId)
+  await withLock(`endpoint-models:${endpointId}`, async () => {
+    await removeFile(fileFor(endpointId))
+    state.files.delete(endpointId)
+    state.unreachable.delete(endpointId)
+  })
 }
 
 /** Drops memory only. Files stay, so the next read reloads them. */

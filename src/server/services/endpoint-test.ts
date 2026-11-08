@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { createHash } from 'node:crypto'
+
 import { isNil, isUndefined } from 'lodash-es'
 import type { ZodType } from 'zod'
 
@@ -7,8 +9,10 @@ import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
 import { FETCH_TIMEOUTS, MAX_JSON_BODY_BYTES } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import { UpaiHealthSchema, UpaiModelListSchema } from '@/core/protocol/upai'
+import type { CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 
 import { isCustomEndpointMockMode } from '../config/mock-mode'
+import { globalState } from '../global-state'
 import { BodyTooLargeError, readCappedBody } from '../media/read-capped-body'
 import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { resetCustomProviders } from '../providers/registry'
@@ -28,6 +32,38 @@ const FORBIDDEN_TEXT =
 const OFFLINE_TEXT = 'Start ComfyUI, then test again'
 
 const PROTOCOL_TEXT = 'This server does not speak upai/1'
+
+export interface LastTestParams {
+  baseUrl: string
+  token: string | null
+}
+
+const testCache = globalState<Map<string, CustomEndpointLastHealth>>('endpointTestHealth', () => {
+  return new Map()
+})
+
+function testKey(params: LastTestParams): string {
+  const { baseUrl, token } = params
+
+  const hash = createHash('sha256')
+    .update(token ?? '')
+    .digest('hex')
+
+  return `${normalizeBaseUrl(baseUrl)}\n${hash}`
+}
+
+/** Latest successful test for one normalized URL and token. Server-owned. */
+export function lastTestFor(params: LastTestParams): CustomEndpointLastHealth | null {
+  return testCache.get(testKey(params)) ?? null
+}
+
+export function forgetLastTest(params: LastTestParams): void {
+  testCache.delete(testKey(params))
+}
+
+export function __resetEndpointTestsForTests(): void {
+  testCache.clear()
+}
 
 interface FetchJsonParams<T> {
   url: string
@@ -128,6 +164,8 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
 
     const lastHealth = lastHealthOf(health, checkedAt)
 
+    testCache.set(testKey({ baseUrl, token }), lastHealth)
+
     return {
       ok: true,
       error: null,
@@ -141,6 +179,8 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
     }
   } catch (error) {
     const failure = testFailure(error)
+
+    forgetLastTest({ baseUrl, token })
 
     if (isSavedEndpoint && !isNil(params.endpointId)) {
       setEndpointHealth({

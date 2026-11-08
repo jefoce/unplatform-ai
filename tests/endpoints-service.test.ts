@@ -71,6 +71,11 @@ beforeEach(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
   await fs.mkdir(path.join(ROOT, 'data'), { recursive: true })
   await secrets.setSecrets({ CUSTOM_ENDPOINT_TOKENS: null })
+
+  const health = await import('@/server/services/endpoint-health')
+
+  health.__resetEndpointHealthForTests()
+  testService.__resetEndpointTestsForTests()
 })
 
 afterEach(() => {
@@ -110,8 +115,21 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
+function mockHealthyFetch(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: string | URL | Request) => {
+      if (String(input).endsWith('/health')) {
+        return jsonResponse(HEALTH)
+      }
+
+      return jsonResponse({ data: [] })
+    }),
+  )
+}
+
 describe('token storage', () => {
-  it('rejects a token map over the secret limit before writing the file', async () => {
+  it('rejects a token map over the secret limit without saving tokens', async () => {
     const endpoints = Array.from({ length: 50 }, (_, index) => {
       return endpoint(`Endpoint ${index}`, 'x'.repeat(100))
     })
@@ -121,9 +139,9 @@ describe('token storage', () => {
       message: 'Too many endpoint tokens',
     })
 
-    const files = await fs.readdir(path.join(ROOT, 'data'))
+    const tokens = await import('@/server/services/endpoint-tokens')
 
-    expect(files).toEqual([])
+    expect(tokens.readTokenMap()).toEqual({})
   })
 
   it('stores a token, shows the last four and removes it with the endpoint', async () => {
@@ -218,10 +236,10 @@ describe('running jobs', () => {
 
 describe('health freshness', () => {
   it('ignores a stale entry and keeps the saved last health', async () => {
-    const saved = await service.saveEndpoints({
-      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
-    })
+    mockHealthyFetch()
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: null })
 
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
     const id = saved.endpoints[0]?.id ?? ''
     const health = await import('@/server/services/endpoint-health')
     const now = Date.now()
@@ -243,12 +261,12 @@ describe('health freshness', () => {
 
 describe('endpoint edits', () => {
   it('clears health and last health when the base URL changes', async () => {
-    const saved = await service.saveEndpoints({
-      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
-    })
-
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
     const id = saved.endpoints[0]?.id ?? ''
     const health = await import('@/server/services/endpoint-health')
+
+    mockHealthyFetch()
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: id })
 
     health.setEndpointHealth({ endpointId: id, status: 'unreachable', message: null })
 
@@ -275,23 +293,39 @@ describe('endpoint edits', () => {
     expect(health.getHealth(id)).toBeNull()
     await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('drops the server test when the token changes without a new test', async () => {
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
+    const id = saved.endpoints[0]?.id ?? ''
+
+    mockHealthyFetch()
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: id })
+
+    const next = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio', 'new-token'), id, lastHealth: LAST_HEALTH }],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).toBeNull()
+    expect(next.endpoints[0]?.status).toBe('unknown')
+  })
 })
 
 describe('fresh test on save', () => {
   it('writes tested health and drops the cache when the URL changed after a fresh test', async () => {
-    const saved = await service.saveEndpoints({
-      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
-    })
-
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
     const id = saved.endpoints[0]?.id ?? ''
     const health = await import('@/server/services/endpoint-health')
     const cacheFile = repo.endpointModelsFile(id)
 
     await fs.mkdir(path.dirname(cacheFile), { recursive: true })
     await fs.writeFile(cacheFile, JSON.stringify({ video: [{}], image: [{}, {}] }))
-    health.setEndpointHealth({ endpointId: id, status: 'unreachable', message: 'stale' })
 
-    const fresh = { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' }
+    mockHealthyFetch()
+
+    const tested = await testService.testEndpoint({
+      baseUrl: 'http://127.0.0.1:9999',
+      endpointId: id,
+    })
 
     const next = await service.saveEndpoints({
       endpoints: [
@@ -299,59 +333,75 @@ describe('fresh test on save', () => {
           ...endpoint('Studio'),
           id,
           baseUrl: 'http://127.0.0.1:9999',
-          lastHealth: fresh,
+          lastHealth: LAST_HEALTH,
         },
       ],
     })
 
-    expect(next.endpoints[0]?.lastHealth).toEqual(fresh)
+    expect(next.endpoints[0]?.lastHealth).toEqual(tested.lastHealth)
     expect(health.getHealth(id)).toMatchObject({ state: 'ok', message: null })
     await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('keeps health and cache when only enabled changed after a fresh test', async () => {
-    const saved = await service.saveEndpoints({
-      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
-    })
-
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
     const id = saved.endpoints[0]?.id ?? ''
     const health = await import('@/server/services/endpoint-health')
     const cacheFile = repo.endpointModelsFile(id)
 
     await fs.mkdir(path.dirname(cacheFile), { recursive: true })
     await fs.writeFile(cacheFile, JSON.stringify({ video: [{}], image: [{}, {}] }))
-    health.setEndpointHealth({ endpointId: id, status: 'ok', message: null })
 
-    const fresh = { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' }
+    mockHealthyFetch()
 
-    const next = await service.saveEndpoints({
-      endpoints: [
-        {
-          ...endpoint('Studio'),
-          id,
-          enabled: false,
-          lastHealth: fresh,
-        },
-      ],
+    const tested = await testService.testEndpoint({
+      baseUrl: endpoint('Studio').baseUrl,
+      endpointId: id,
     })
 
-    expect(next.endpoints[0]?.lastHealth).toEqual(fresh)
+    const next = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), id, enabled: false, lastHealth: LAST_HEALTH }],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).toEqual(tested.lastHealth)
     expect(health.getHealth(id)?.state).toBe('ok')
     await expect(fs.stat(cacheFile)).resolves.toBeDefined()
+  })
+
+  it('ignores a forged client last health for the same URL and token', async () => {
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
+    const id = saved.endpoints[0]?.id ?? ''
+
+    mockHealthyFetch()
+
+    const tested = await testService.testEndpoint({
+      baseUrl: endpoint('Studio').baseUrl,
+      endpointId: id,
+    })
+
+    const forged = { ...LAST_HEALTH, maxRunning: 8, checkedAt: '2099-01-01T00:00:00.000Z' }
+
+    const next = await service.saveEndpoints({
+      endpoints: [{ ...endpoint('Studio'), id, lastHealth: forged }],
+    })
+
+    expect(next.endpoints[0]?.lastHealth).toEqual(tested.lastHealth)
+    expect(next.endpoints[0]?.lastHealth?.maxRunning).toBe(HEALTH.max_running)
   })
 })
 
 describe('fresh test keeps state', () => {
   it('keeps a fresh test when the endpoint was edited before Save', async () => {
-    const saved = await service.saveEndpoints({
-      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
-    })
-
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
     const id = saved.endpoints[0]?.id ?? ''
     const health = await import('@/server/services/endpoint-health')
-    const fresh = { ...LAST_HEALTH, checkedAt: '2024-06-01T00:00:00.000Z' }
 
-    health.setEndpointHealth({ endpointId: id, status: 'ok', message: null })
+    mockHealthyFetch()
+
+    const tested = await testService.testEndpoint({
+      baseUrl: 'http://127.0.0.1:9999',
+      endpointId: id,
+    })
 
     const next = await service.saveEndpoints({
       endpoints: [
@@ -359,22 +409,31 @@ describe('fresh test keeps state', () => {
           ...endpoint('Studio'),
           id,
           baseUrl: 'http://127.0.0.1:9999',
-          lastHealth: fresh,
+          lastHealth: LAST_HEALTH,
         },
       ],
     })
 
-    expect(next.endpoints[0]?.lastHealth).toEqual(fresh)
+    expect(next.endpoints[0]?.lastHealth).toEqual(tested.lastHealth)
     expect(next.endpoints[0]?.status).toBe('ok')
     expect(health.getHealth(id)).not.toBeNull()
   })
 
   it('keeps health after a test when only the instance id changes', async () => {
-    const saved = await service.saveEndpoints({
-      endpoints: [{ ...endpoint('Studio'), lastHealth: LAST_HEALTH }],
+    const saved = await repo.applyEndpoints({
+      entries: [
+        {
+          label: 'Studio',
+          baseUrl: endpoint('Studio').baseUrl,
+          enabled: true,
+          pricing: { mode: 'model', usd: 0 },
+          instanceId: null,
+          lastHealth: LAST_HEALTH,
+        },
+      ],
     })
 
-    const id = saved.endpoints[0]?.id ?? ''
+    const id = saved.file.endpoints[0]?.id ?? ''
     const health = await import('@/server/services/endpoint-health')
 
     health.setEndpointHealth({ endpointId: id, status: 'ok', message: null })
@@ -390,9 +449,39 @@ describe('fresh test keeps state', () => {
       ],
     })
 
-    expect(next.endpoints[0]?.lastHealth).not.toBeNull()
+    expect(next.endpoints[0]?.lastHealth).toEqual(LAST_HEALTH)
     expect(next.endpoints[0]?.status).toBe('ok')
     expect(health.getHealth(id)).not.toBeNull()
+  })
+
+  it('keeps a draft test for a new endpoint saved with the same URL and token', async () => {
+    mockHealthyFetch()
+
+    const tested = await testService.testEndpoint({
+      baseUrl: endpoint('Studio').baseUrl,
+      endpointId: null,
+      token: 'draft-token',
+    })
+
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio', 'draft-token')] })
+
+    expect(saved.endpoints[0]?.lastHealth).toEqual(tested.lastHealth)
+    expect(saved.endpoints[0]?.status).toBe('ok')
+  })
+
+  it('drops a draft test for a new endpoint saved with a different token', async () => {
+    mockHealthyFetch()
+
+    await testService.testEndpoint({
+      baseUrl: endpoint('Studio').baseUrl,
+      endpointId: null,
+      token: 'draft-token',
+    })
+
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio', 'other-token')] })
+
+    expect(saved.endpoints[0]?.lastHealth).toBeNull()
+    expect(saved.endpoints[0]?.status).toBe('unknown')
   })
 })
 

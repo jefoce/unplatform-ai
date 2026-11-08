@@ -4,7 +4,6 @@ import { isNil } from 'lodash-es'
 
 import { ENDPOINT_HEALTH_MAX_AGE_MS } from '@/core/constants'
 import type { EndpointHealthState, EndpointHealthStatus } from '@/core/endpoints'
-import type { CustomEndpoint, CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 import type { TestResult } from '@/core/types'
 
 import { globalState } from '../global-state'
@@ -151,35 +150,6 @@ export function isHealthFresh(entry: EndpointHealthState): boolean {
   }
 
   return Date.now() - checkedAt <= ENDPOINT_HEALTH_MAX_AGE_MS
-}
-
-interface FreshTestEntry {
-  lastHealth: CustomEndpointLastHealth | null
-}
-
-interface FreshTestItem {
-  entry: FreshTestEntry
-}
-
-interface FreshTestParams {
-  previous: CustomEndpoint
-  item: FreshTestItem
-}
-
-/** True when a test newer than the saved one already covers the edited endpoint. */
-export function isFreshTest(params: FreshTestParams): boolean {
-  const { previous, item } = params
-  const next = item.entry.lastHealth
-
-  if (isNil(next)) {
-    return false
-  }
-
-  if (isNil(previous.lastHealth)) {
-    return true
-  }
-
-  return Date.parse(next.checkedAt) > Date.parse(previous.lastHealth.checkedAt)
 }
 
 /** Smallest fresh cap across endpoints that report the same pack instance. */

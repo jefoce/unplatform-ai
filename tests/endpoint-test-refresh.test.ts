@@ -56,6 +56,12 @@ const { clearEndpointModelCache, readEndpointModels } =
 const { __resetEndpointHealthForTests: resetEndpointHealth, getHealth } =
   await import('@/server/services/endpoint-health')
 
+const {
+  __resetEndpointTestsForTests: resetEndpointTests,
+  forgetLastTest,
+  lastTestFor,
+} = await import('@/server/services/endpoint-test')
+
 const { applyEndpointTokens } = await import('@/server/services/endpoint-tokens')
 
 const SAVED_ID = 'ep-refresh'
@@ -96,7 +102,9 @@ function mockFetch(): string[] {
 
 beforeEach(async () => {
   resetEndpointHealth()
+  resetEndpointTests()
   clearEndpointModelCache()
+  await applyEndpointTokens({ changes: [], removedIds: [SAVED_ID, UNSAVED_ID] })
   await fs.rm(ROOT, { recursive: true, force: true })
 
   await fs.mkdir(path.join(ROOT, 'data'), { recursive: true })
@@ -215,6 +223,42 @@ describe('endpoint test refresh', () => {
     })
 
     expect(authHeaders).toEqual(['Bearer draft-token', 'Bearer draft-token', 'Bearer draft-token'])
+  })
+})
+
+describe('server-owned test health', () => {
+  it('keeps the last successful test per URL and token', async () => {
+    mockFetch()
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).not.toBeNull()
+    expect(lastTestFor({ baseUrl: SAVED_URL, token: 'other-token' })).toBeNull()
+  })
+
+  it('forgets the cached test after a failed one', async () => {
+    mockFetch()
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      }),
+    )
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).toBeNull()
+  })
+
+  it('drops one cached test on demand', async () => {
+    mockFetch()
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    forgetLastTest({ baseUrl: SAVED_URL, token: null })
+
+    expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).toBeNull()
   })
 })
 

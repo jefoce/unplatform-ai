@@ -71,8 +71,14 @@ async function readCacheFile(endpointId: string): Promise<unknown> {
   return JSON.parse(text)
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   clearEndpointModelCache()
+
+  await writeEndpointsFile(
+    ['ep-write', 'ep-race', 'ep-missing', 'ep-expiry', 'ep-reach', 'ep-remove'].map((id) => {
+      return endpoint(id, true)
+    }),
+  )
 })
 
 afterEach(() => {
@@ -212,6 +218,22 @@ describe('endpoint model cache', () => {
     })
 
     await removeEndpointModelCache('ep-remove')
+
+    expect(await readEndpointModels('ep-remove')).toBeNull()
+    await expect(readCacheFile('ep-remove')).rejects.toThrow()
+  })
+
+  it('does not recreate a removed cache file from a concurrent write', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const second = modelAt(VIDEO_MODELS, 1)
+
+    await writeEndpointModels({ endpointId: 'ep-remove', kind: 'video', models: [first] })
+    await writeEndpointsFile([])
+
+    await Promise.all([
+      removeEndpointModelCache('ep-remove'),
+      writeEndpointModels({ endpointId: 'ep-remove', kind: 'video', models: [second] }),
+    ])
 
     expect(await readEndpointModels('ep-remove')).toBeNull()
     await expect(readCacheFile('ep-remove')).rejects.toThrow()

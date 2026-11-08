@@ -2,11 +2,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { EndpointOverviewEntry } from '@/core/api/endpoints'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
 import type * as EndpointSaveService from '@/server/services/endpoint-save'
+import type * as EndpointTestService from '@/server/services/endpoint-test'
 
 const ROOT = path.join(os.tmpdir(), `cf-endpoints-cache-${process.pid}-${Date.now()}`)
 const PREVIOUS_ROOT = process.env.STORAGE_ROOT
@@ -25,6 +26,21 @@ process.env.STORAGE_ROOT = ROOT
 
 let service: typeof EndpointSaveService
 let repo: typeof EndpointsRepo
+let testService: typeof EndpointTestService
+
+const HEALTH = {
+  protocol: 1,
+  server: 'comfyui',
+  server_version: '0.43.0',
+  implementation: 'unplatform-ai-provider-node',
+  implementation_version: '0.1.0',
+  auth_required: false,
+  lan_allowed: true,
+  max_upload_bytes: 100,
+  upload_quota_bytes: 1000,
+  instance_id: '11111111-1111-4111-8111-111111111111',
+  max_running: 2,
+}
 
 function endpoint(): EndpointSaveService.EndpointInput {
   return {
@@ -72,6 +88,20 @@ async function writeCache(id: string): Promise<string> {
   return cacheFile
 }
 
+function mockHealthyFetch(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: string | URL | Request) => {
+      const body = String(input).endsWith('/health') ? HEALTH : { data: [] }
+
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }),
+  )
+}
+
 beforeAll(async () => {
   const secrets = await import('@/server/secrets')
 
@@ -80,6 +110,7 @@ beforeAll(async () => {
 
   service = await import('@/server/services/endpoint-save')
   repo = await import('@/server/repos/endpoints')
+  testService = await import('@/server/services/endpoint-test')
 })
 
 beforeEach(async () => {
@@ -87,8 +118,16 @@ beforeEach(async () => {
   await fs.mkdir(path.join(ROOT, 'data'), { recursive: true })
 
   const secrets = await import('@/server/secrets')
+  const health = await import('@/server/services/endpoint-health')
 
   await secrets.setSecrets({ CUSTOM_ENDPOINT_TOKENS: null })
+
+  health.__resetEndpointHealthForTests()
+  testService.__resetEndpointTestsForTests()
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 afterAll(async () => {
@@ -139,6 +178,9 @@ describe('endpoint cache refresh', () => {
     const entry = await saveStudio()
     const cacheFile = await writeCache(entry.id)
 
+    mockHealthyFetch()
+    await testService.testEndpoint({ baseUrl: entry.baseUrl, endpointId: entry.id })
+
     await service.saveEndpoints({
       endpoints: [
         {
@@ -152,9 +194,27 @@ describe('endpoint cache refresh', () => {
     await expect(fs.stat(cacheFile)).resolves.toBeDefined()
   })
 
+  it('removes the cache file when enabled changes without a fresh test', async () => {
+    const entry = await saveStudio()
+    const cacheFile = await writeCache(entry.id)
+
+    await service.saveEndpoints({
+      endpoints: [{ ...endpointInput(entry), enabled: false }],
+    })
+
+    await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('removes the cache file when a fresh test still changes the base URL', async () => {
     const entry = await saveStudio()
     const cacheFile = await writeCache(entry.id)
+
+    mockHealthyFetch()
+
+    await testService.testEndpoint({
+      baseUrl: 'http://127.0.0.1:9999',
+      endpointId: entry.id,
+    })
 
     await service.saveEndpoints({
       endpoints: [

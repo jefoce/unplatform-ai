@@ -23,10 +23,12 @@ import {
   listEndpoints,
   normalizeBaseUrl,
 } from '../repos/endpoints'
+import { secretsReady } from '../secrets'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
-import { forgetEndpointHealth, isFreshTest, setEndpointHealth } from './endpoint-health'
+import { forgetEndpointHealth, setEndpointHealth } from './endpoint-health'
 import { getEndpointOverview } from './endpoint-overview'
-import { applyEndpointTokens } from './endpoint-tokens'
+import { lastTestFor } from './endpoint-test'
+import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
 
 export interface EndpointInput {
@@ -71,14 +73,17 @@ interface PreparedEndpoint {
   token: string | null | undefined
 }
 
-interface EndpointChangeParams {
-  previous: CustomEndpoint
+interface SettleSavedHealthParams {
+  previous: CustomEndpoint | undefined
   item: PreparedEndpoint
+  tokenMap: Record<string, string>
 }
 
-interface SettleEndpointParams {
-  previous: CustomEndpoint
-  item: PreparedEndpoint
+interface ResolveLastHealthParams {
+  previous: CustomEndpoint | undefined
+  baseUrl: string
+  token: string | null
+  storedToken: string | null
 }
 
 export async function saveEndpoints(params: SaveEndpointsParams): Promise<EndpointOverview> {
@@ -87,38 +92,22 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   })
 
   assertBadges(prepared)
+  await secretsReady()
 
   const current = await listEndpoints()
   const previousById = keyBy(current, 'id')
+  const tokenMap = readTokenMap()
 
   for (const item of prepared) {
-    const id = item.entry.id
+    const previous = previousById[item.entry.id ?? '']
 
-    if (isNil(id)) {
-      continue
-    }
-
-    const previous = previousById[id]
-
-    if (isNil(previous) || !isChanged({ previous, item })) {
-      continue
-    }
-
-    settleChangedEndpoint({ previous, item })
+    settleSavedHealth({ previous, item, tokenMap })
   }
 
-  const kept = new Set(
-    prepared.map((item) => {
-      return item.entry.id
+  const result = await applyEndpoints({
+    entries: prepared.map((item) => {
+      return item.entry
     }),
-  )
-
-  const removed = current.filter((endpoint) => {
-    return !kept.has(endpoint.id)
-  })
-
-  const removedIds = removed.map((endpoint) => {
-    return endpoint.id
   })
 
   const changes = prepared.flatMap((item) => {
@@ -129,13 +118,7 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
     return [{ id: item.entry.id, token: item.token }]
   })
 
-  await applyEndpointTokens({ changes, removedIds })
-
-  const result = await applyEndpoints({
-    entries: prepared.map((item) => {
-      return item.entry
-    }),
-  })
+  await applyEndpointTokens({ changes, removedIds: result.removedIds })
 
   for (const id of result.removedIds) {
     forgetEndpointHealth(id)
@@ -148,41 +131,78 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   return getEndpointOverview()
 }
 
-function isChanged(params: EndpointChangeParams): boolean {
-  const { previous, item } = params
-
-  return (
-    previous.baseUrl !== item.entry.baseUrl ||
-    previous.enabled !== item.entry.enabled ||
-    !isUndefined(item.token)
-  )
-}
-
-/**
- * A test against the saved URL and token already wrote health and cache.
- * Otherwise the save owns the tested state.
- */
-function settleChangedEndpoint(params: SettleEndpointParams): void {
-  const { previous, item } = params
+/** The saved health comes from the last server test, never from the client body. */
+function settleSavedHealth(params: SettleSavedHealthParams): void {
+  const { previous, item, tokenMap } = params
   const id = item.entry.id ?? ''
+  const token = effectiveToken({ item, tokenMap })
+  const storedToken = tokenMap[id] ?? null
 
-  if (!isFreshTest({ previous, item })) {
-    forgetEndpointHealth(id)
-    item.entry.lastHealth = null
+  const lastHealth = resolveLastHealth({
+    previous,
+    baseUrl: item.entry.baseUrl,
+    token,
+    storedToken,
+  })
 
+  item.entry.lastHealth = lastHealth
+
+  if (isNil(item.entry.id)) {
     return
   }
 
-  if (previous.baseUrl === item.entry.baseUrl && isUndefined(item.token)) {
+  if (isNil(lastHealth)) {
+    forgetEndpointHealth(item.entry.id)
+
     return
   }
 
   setEndpointHealth({
-    endpointId: id,
+    endpointId: item.entry.id,
     status: 'ok',
     message: null,
-    maxRunning: item.entry.lastHealth?.maxRunning ?? null,
+    maxRunning: lastHealth.maxRunning,
   })
+}
+
+function resolveLastHealth(params: ResolveLastHealthParams): CustomEndpointLastHealth | null {
+  const { previous, baseUrl, token, storedToken } = params
+  const tested = lastTestFor({ baseUrl, token })
+
+  if (!isNil(tested)) {
+    return tested
+  }
+
+  if (isNil(previous)) {
+    return null
+  }
+
+  if (previous.baseUrl !== baseUrl || token !== storedToken) {
+    return null
+  }
+
+  return previous.lastHealth
+}
+
+interface EffectiveTokenParams {
+  item: PreparedEndpoint
+  tokenMap: Record<string, string>
+}
+
+function effectiveToken(params: EffectiveTokenParams): string | null {
+  const { item, tokenMap } = params
+
+  if (!isUndefined(item.token)) {
+    const token = item.token?.trim() ?? ''
+
+    if (token === '') {
+      return null
+    }
+
+    return token
+  }
+
+  return tokenMap[item.entry.id ?? ''] ?? null
 }
 
 function toEntry(input: EndpointInput): EndpointEntry {

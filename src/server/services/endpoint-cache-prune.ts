@@ -2,16 +2,16 @@ import 'server-only'
 
 import { isNil, isUndefined, keyBy } from 'lodash-es'
 
-import type { CustomEndpoint, CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
+import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
-import { isFreshTest } from './endpoint-health'
 import { removeEndpointModelCache } from './endpoint-model-cache'
+import { lastTestFor } from './endpoint-test'
+import { readEndpointToken } from './endpoint-tokens'
 
 interface EndpointCacheEntry {
   id?: string
   baseUrl: string
   enabled: boolean
-  lastHealth: CustomEndpointLastHealth | null
 }
 
 interface EndpointCacheInput {
@@ -38,17 +38,22 @@ export async function pruneEndpointCaches(params: PruneEndpointCachesParams): Pr
         return false
       }
 
-      const isLocationChange = previous.baseUrl !== item.entry.baseUrl || !isUndefined(item.token)
-
-      if (isLocationChange) {
+      if (previous.baseUrl !== item.entry.baseUrl || !isUndefined(item.token)) {
         return true
       }
 
-      return previous.enabled !== item.entry.enabled && !isFreshTest({ previous, item })
+      return previous.enabled !== item.entry.enabled && !hasServerTest(item)
     })
     .map((item) => {
       return item.entry.id ?? ''
     })
 
   await Promise.all([...removedIds, ...staleIds].map(removeEndpointModelCache))
+}
+
+/** A test of the saved URL and token already refreshed the cache. */
+function hasServerTest(item: EndpointCacheInput): boolean {
+  const token = readEndpointToken(item.entry.id ?? '')
+
+  return !isNil(lastTestFor({ baseUrl: item.entry.baseUrl, token }))
 }
