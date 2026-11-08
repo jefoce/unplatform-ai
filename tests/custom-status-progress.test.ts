@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { CUSTOM_ERROR_RULES } from '@/core/presets/custom/errors'
+import { friendlyError } from '@/core/provider-errors'
 import { STATUS_HELP, statusHelpKey } from '@/core/status-help'
 import { isCustomActiveRecord } from '@/features/history/status/status-tone'
 import { endpointOfflineView, videoStatusView } from '@/features/history/status/status-view'
@@ -24,6 +26,34 @@ function custom(overrides: Parameters<typeof storedRecord>[1] = {}) {
     ...overrides,
   })
 }
+
+interface CustomRuleCase {
+  raw: string
+  title: string
+  hint: string
+  kind: string
+}
+
+const RULE_CASES: readonly CustomRuleCase[] = [
+  {
+    raw: 'upai:job_not_found: unknown job',
+    title: 'ComfyUI lost this job.',
+    hint: 'ComfyUI was restarted or the job was cleaned up. Generate again.',
+    kind: 'provider',
+  },
+]
+
+describe('custom error rules', () => {
+  it('translates job_not_found as a provider error', () => {
+    for (const row of RULE_CASES) {
+      const friendly = friendlyError({ raw: row.raw, rules: CUSTOM_ERROR_RULES, httpRules: null })
+
+      expect(friendly.title, row.raw).toBe(row.title)
+      expect(friendly.hint, row.raw).toBe(row.hint)
+      expect(friendly.kind, row.raw).toBe(row.kind)
+    }
+  })
+})
 
 describe('custom job progress', () => {
   it('shows the provider percent in the pill', () => {

@@ -47,6 +47,12 @@ export const CUSTOM_ERROR_RULES: readonly Rule[] = [
     retry: true,
   },
   {
+    match: 'upai:job_not_found',
+    title: 'ComfyUI lost this job.',
+    hint: 'ComfyUI was restarted or the job was cleaned up. Generate again.',
+    kind: 'provider',
+  },
+  {
     match: 'upai:job_failed',
     title: 'ComfyUI failed this job.',
     kind: 'provider',
