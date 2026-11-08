@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { cleanup, renderHook } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { EndpointOverviewEntry } from '@/core/api/endpoints'
+import type { HistoryFacetKind } from '@/core/history-facets'
 import { useProviderReady } from '@/features/generator/use-provider-ready'
 import { useSecrets } from '@/features/settings/use-secrets'
+import { EndpointsStatusProvider } from '@/features/shared/endpoints-status-context'
 import { useCatalog } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
 import type * as EndpointsStatusModule from '@/lib/api/endpoints-status'
@@ -37,6 +40,21 @@ const mockEndpoints = vi.mocked(useEndpointsStatus)
 
 const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
 const KEY_REASON = 'Add your OpenRouter key in Settings.'
+
+function Wrapper(props: { children: ReactNode }) {
+  const { children } = props
+
+  return <EndpointsStatusProvider>{children}</EndpointsStatusProvider>
+}
+
+function renderReady(presetId: string, kind: HistoryFacetKind) {
+  return renderHook(
+    () => {
+      return useProviderReady(presetId, kind)
+    },
+    { wrapper: Wrapper },
+  )
+}
 
 function endpoint(overrides: Partial<EndpointOverviewEntry> = {}): EndpointOverviewEntry {
   return {
@@ -109,9 +127,7 @@ afterEach(() => {
 
 describe('ready gate', () => {
   it('stays closed without a key or a healthy endpoint', () => {
-    const { result } = renderHook(() => {
-      return useProviderReady('wan-3.0', 'video')
-    })
+    const { result } = renderReady('wan-3.0', 'video')
 
     expect(result.current.isReady).toBe(false)
     expect(result.current.reason).toBe(KEY_REASON)
@@ -121,9 +137,7 @@ describe('ready gate', () => {
     mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
     setCatalog([customEntry()])
 
-    const { result } = renderHook(() => {
-      return useProviderReady('custom.cu1.wan22', 'video')
-    })
+    const { result } = renderReady('custom.cu1.wan22', 'video')
 
     expect(hasReadyEndpoint([endpoint()], 'video')).toBe(true)
     expect(result.current.isReady).toBe(true)
@@ -139,9 +153,7 @@ describe('ready gate', () => {
 
     setCatalog([customEntry({ presetId: 'custom.cu1.image' })])
 
-    const { result } = renderHook(() => {
-      return useProviderReady('custom.cu1.image', 'image')
-    })
+    const { result } = renderReady('custom.cu1.image', 'image')
 
     expect(result.current.isReady).toBe(false)
   })
@@ -155,9 +167,7 @@ describe('ready gate', () => {
 
     setCatalog([customEntry({ status: 'unverified' })])
 
-    const { result } = renderHook(() => {
-      return useProviderReady('custom.cu1.wan22', 'video')
-    })
+    const { result } = renderReady('custom.cu1.wan22', 'video')
 
     expect(result.current.reason).toBe('ComfyUI is not reachable.')
   })
@@ -169,9 +179,7 @@ describe('ready gate', () => {
 
     setCatalog([customEntry({ status: 'invalid', reason })])
 
-    const { result } = renderHook(() => {
-      return useProviderReady('custom.cu1.wan22', 'video')
-    })
+    const { result } = renderReady('custom.cu1.wan22', 'video')
 
     expect(result.current.isReady).toBe(false)
     expect(result.current.reason).toBe(reason)
@@ -182,9 +190,7 @@ describe('ready gate', () => {
 
     setCatalog([customEntry({ reason: 'Workflow changed in ComfyUI since the last save' })])
 
-    const { result } = renderHook(() => {
-      return useProviderReady('custom.cu1.wan22', 'video')
-    })
+    const { result } = renderReady('custom.cu1.wan22', 'video')
 
     expect(result.current.reason).toBe(STALE_REASON)
   })
@@ -193,9 +199,7 @@ describe('ready gate', () => {
     mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
     setCatalog([])
 
-    const { result } = renderHook(() => {
-      return useProviderReady('custom.cu1.gone', 'video')
-    })
+    const { result } = renderReady('custom.cu1.gone', 'video')
 
     expect(result.current.isReady).toBe(false)
     expect(result.current.reason).toBe('This workflow is gone from ComfyUI.')

@@ -6,9 +6,10 @@ import { CATALOG_MISSING_REASON, type CatalogEntry, catalogEntryReason } from '@
 import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { useSecrets } from '@/features/settings/use-secrets'
+import { useEndpointsSnapshot } from '@/features/shared/endpoints-status-context'
 import { useCatalog } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
-import { hasReadyEndpoint, useEndpointsStatus } from '@/lib/api/endpoints-status'
+import { hasReadyEndpoint } from '@/lib/api/endpoints-status'
 
 const PROVIDER_KEY_REASON = 'Add your OpenRouter key in Settings.'
 
@@ -61,7 +62,7 @@ export function useProviderReady(
 ): ProviderReady {
   const { status } = useSecrets()
   const { credits } = useCredits()
-  const { endpoints } = useEndpointsStatus()
+  const { endpoints } = useEndpointsSnapshot()
   const { catalog, isLoading } = useCatalog()
 
   const entry =
