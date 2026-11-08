@@ -46,11 +46,17 @@ vi.mock('@/server/session', () => {
   }
 })
 
+const providerMocks = vi.hoisted(() => {
+  return {
+    getPricing: vi.fn(async () => {
+      return { skus: {}, listSkus: {}, discount: 0, source: 'fallback', fetchedAt: '' }
+    }),
+  }
+})
+
 vi.mock('@/server/providers/registry', () => {
   const provider = {
-    getPricing: async () => {
-      return { skus: {}, listSkus: {}, discount: 0, source: 'fallback', fetchedAt: '' }
-    },
+    getPricing: providerMocks.getPricing,
     isConfigured: () => {
       return false
     },
@@ -89,7 +95,7 @@ const {
   getModelCatalog,
 } = await import('@/server/services/model-catalog')
 
-const { ensureCustomCatalog, refreshCustomCatalog } =
+const { clearCustomCatalog, ensureCustomCatalog, refreshCustomCatalog } =
   await import('@/server/services/model-catalog-custom')
 
 const { getHealth } = await import('@/server/services/endpoint-health')
@@ -199,15 +205,19 @@ function mockListFetch(params: ListFetchParams) {
     const url = String(input)
     const data = url.endsWith('/videos/models') ? video : image
 
-    return new Response(JSON.stringify({ version: 1, data }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    })
+    return jsonResponse({ version: 1, data })
   })
 
   vi.stubGlobal('fetch', mock)
 
   return mock
+}
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
 }
 
 function customEntries(entries: readonly CatalogEntry[]): CatalogEntry[] {
@@ -216,28 +226,17 @@ function customEntries(entries: readonly CatalogEntry[]): CatalogEntry[] {
   })
 }
 
+function idsOf(entries: readonly CatalogEntry[]): string[] {
+  return entries.map((entry) => {
+    return entry.modelId
+  })
+}
+
 /** Loads the custom catalog the way an awaited lookup does, then reads the catalog. */
 async function getLoadedCatalog(): Promise<ModelCatalog> {
   await ensureCustomCatalog({ isRefresh: false })
 
   return getModelCatalog()
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          reject(new Error('catalog request waited on a custom endpoint'))
-        }, ms)
-      }),
-    ])
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 function catalogRequest(query = ''): Request {
@@ -261,6 +260,7 @@ function entryFor(entries: readonly CatalogEntry[], modelId: string): CatalogEnt
 beforeEach(() => {
   clearModelCatalog()
   clearEndpointModelCache()
+  providerMocks.getPricing.mockClear()
 })
 
 afterEach(() => {
@@ -518,7 +518,7 @@ describe('custom catalog', () => {
     expect(catalog.entries[0]?.presetId).toBe(`custom.${endpoint.id}.${video.id}`)
   })
 
-  it('refreshes a cache older than the TTL in the background', async () => {
+  it('refreshes a stale cache behind a normal request', async () => {
     const first = modelAt(VIDEO_MODELS, 0)
     const second = modelAt(VIDEO_MODELS, 1)
     const endpoint = customEndpoint('cat-stale-cache', 'CUU')
@@ -530,19 +530,25 @@ describe('custom catalog', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
     mockListFetch({ video: [first] })
-    await ensureCustomCatalog({ isRefresh: false })
+
+    const cold = await getModelCatalog()
+
+    expect(idsOf(customEntries(cold.entries))).toContain(first.id)
 
     vi.setSystemTime(new Date(Date.now() + MODEL_CATALOG_TTL_MS + 1))
     const fetchMock = mockListFetch({ video: [first, second] })
 
-    await ensureCustomCatalog({ isRefresh: false })
+    const cached = await getModelCatalog()
+
+    expect(idsOf(customEntries(cached.entries))).not.toContain(second.id)
+
     await refreshCustomCatalog()
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
 
-    const after = await ensureCustomCatalog({ isRefresh: false })
+    const after = await getModelCatalog()
 
-    expect(customEntries(after.entries)).toHaveLength(2)
+    expect(idsOf(customEntries(after.entries))).toContain(second.id)
   })
 
   it('marks an endpoint ok after the picker fetches its models', async () => {
@@ -602,33 +608,10 @@ describe('custom catalog', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns cached entries without waiting for a slow custom refresh', async () => {
-    const video = modelAt(VIDEO_MODELS, 0)
-    const endpoint = customEndpoint('cat-slow', 'CUS')
-
-    await writeEndpoints([endpoint])
-    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
-    clearModelCatalog()
-    mockListFetch({ video: [video] })
-    await ensureCustomCatalog({ isRefresh: false })
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => {
-        return new Promise<Response>(() => {})
-      }),
-    )
-
-    const catalog = await withTimeout(getModelCatalog({ isRefreshCustom: true }), 500)
-    const entry = entryFor(customEntries(catalog.entries), video.id)
-
-    expect(entry.status).toBe('available')
-  })
-
-  it('updates the cached entries after a background refresh', async () => {
+  it('returns fresh entries on an explicit refresh', async () => {
     const first = modelAt(VIDEO_MODELS, 0)
     const second = modelAt(VIDEO_MODELS, 1)
-    const endpoint = customEndpoint('cat-bg-update', 'CUT')
+    const endpoint = customEndpoint('cat-explicit', 'CUS')
 
     await writeEndpoints([endpoint])
     await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
@@ -636,27 +619,89 @@ describe('custom catalog', () => {
     mockListFetch({ video: [first] })
     await ensureCustomCatalog({ isRefresh: false })
 
-    const fetchMock = mockModelFetch()
+    const fetchMock = mockListFetch({ video: [first, second] })
+    const data = await ensureCustomCatalog({ isRefresh: true })
 
-    const before = await getModelCatalog({ isRefreshCustom: true })
+    expect(idsOf(customEntries(data.entries))).toContain(second.id)
+    expect(entryFor(data.entries, second.id).status).toBe('available')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 
-    expect(customEntries(before.entries)).toHaveLength(1)
+  it('reloads when a clear lands during a cold load', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const second = modelAt(VIDEO_MODELS, 1)
+    const endpoint = customEndpoint('cat-clear-race', 'CUW')
 
-    await refreshCustomCatalog()
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
 
-    const after = await getModelCatalog()
+    const deferred: Array<(response: Response) => void> = []
+    let hasCleared = false
 
-    const ids = customEntries(after.entries).map((entry) => {
-      return entry.modelId
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        if (!hasCleared) {
+          return new Promise<Response>((resolve) => {
+            deferred.push(resolve)
+          })
+        }
+
+        const url = String(input)
+        const data = url.endsWith('/videos/models') ? [second] : []
+
+        return jsonResponse({ version: 1, data })
+      }),
+    )
+
+    const pendingCatalog = ensureCustomCatalog({ isRefresh: false })
+
+    await vi.waitFor(() => {
+      expect(deferred).toHaveLength(2)
     })
 
-    expect(ids).toContain(second.id)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    clearCustomCatalog()
+    hasCleared = true
+
+    for (const resolve of deferred) {
+      resolve(jsonResponse({ version: 1, data: [] }))
+    }
+
+    const data = await pendingCatalog
+
+    expect(idsOf(customEntries(data.entries))).toContain(second.id)
+    expect(customEntries(data.entries)).not.toHaveLength(0)
   })
 })
 
 describe('GET /api/models', () => {
-  it('serves cached entries on refresh and refreshes the endpoint in the background', async () => {
+  it('returns a changed custom model on ?refresh=1', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const second = modelAt(VIDEO_MODELS, 1)
+    const endpoint = customEndpoint('cat-route-changed', 'CUI', true)
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
+    mockListFetch({ video: [first] })
+    await ensureCustomCatalog({ isRefresh: false })
+
+    mockListFetch({ video: [first, second] })
+
+    const response = await GET(catalogRequest('?refresh=1'))
+    const body = RouteBodySchema.parse(await response.json())
+
+    expect(response.status).toBe(200)
+
+    const entry = body.entries.find((item) => {
+      return item.modelId === second.id
+    })
+
+    expect(entry?.status).toBe('available')
+  })
+
+  it('awaits the custom refresh and reports the unreachable endpoint', async () => {
     const video = modelAt(VIDEO_MODELS, 0)
     const endpoint = healthEndpoint('cat-route-force', 'CUI', 1000)
 
@@ -676,17 +721,14 @@ describe('GET /api/models', () => {
     const body = RouteBodySchema.parse(await response.json())
 
     expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalled()
+    expect(getHealth(endpoint.id)?.state).toBe('unreachable')
 
     const entry = body.entries.find((item) => {
       return item.modelId === video.id
     })
 
-    expect(entry?.status).toBe('available')
-
-    await refreshCustomCatalog()
-
-    expect(fetchMock).toHaveBeenCalled()
-    expect(getHealth(endpoint.id)?.state).toBe('unreachable')
+    expect(entry?.status).toBe('unverified')
   })
 
   it('serves a fresh cache without a fetch when refresh is absent', async () => {

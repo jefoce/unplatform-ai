@@ -52,7 +52,8 @@ export interface CustomCatalogData {
 interface CustomCatalogCache extends CustomCatalogData {
   isLoaded: boolean
   loadedAtMs: number
-  pending: Promise<void> | null
+  pending: Promise<CustomCatalogData | null> | null
+  revision: number
 }
 
 interface EnsureCustomCatalogParams {
@@ -60,7 +61,7 @@ interface EnsureCustomCatalogParams {
 }
 
 const cache = globalState<CustomCatalogCache>('customCatalogCache', () => {
-  return { entries: [], presets: [], isLoaded: false, loadedAtMs: 0, pending: null }
+  return { entries: [], presets: [], isLoaded: false, loadedAtMs: 0, pending: null, revision: 0 }
 })
 
 interface KindCatalog {
@@ -121,42 +122,72 @@ async function loadCustomCatalog(params: LoadCustomCatalogParams): Promise<Custo
 }
 
 /**
- * Cached custom entries. The first call awaits the load, so a settings save or
- * clear never returns empty entries. Later calls refresh in the background.
+ * Cached custom entries. A cold load or a refresh awaits the load, so a settings
+ * save or clear never returns empty entries. A stale cache refreshes behind.
  */
 export async function ensureCustomCatalog(
   params: EnsureCustomCatalogParams,
 ): Promise<CustomCatalogData> {
   const { isRefresh } = params
 
-  if (!cache.isLoaded) {
-    await refreshCustomCatalog()
-  } else if (isRefresh || isCustomCacheStale()) {
+  if (!cache.isLoaded || isRefresh) {
+    const data = await loadUntilStable()
+
+    if (!isNil(data)) {
+      return data
+    }
+
+    return currentCustomCatalog()
+  }
+
+  if (isCustomCacheStale()) {
     startRefresh()
   }
 
+  return currentCustomCatalog()
+}
+
+/** A clear during a load restarts it once, so a save never sees empty entries. */
+async function loadUntilStable(): Promise<CustomCatalogData | null> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const data = await refreshCustomCatalog()
+
+    if (!isNil(data)) {
+      return data
+    }
+  }
+
+  return null
+}
+
+function currentCustomCatalog(): CustomCatalogData {
   return { entries: cache.entries, presets: cache.presets }
 }
 
-/** Deduped custom catalog load. Never rejects, so a background call is safe. */
-export function refreshCustomCatalog(): Promise<void> {
+/** Deduped custom catalog load. Never rejects; null means a clear superseded it. */
+export function refreshCustomCatalog(): Promise<CustomCatalogData | null> {
   const running = cache.pending
 
   if (!isNil(running)) {
     return running
   }
 
+  const revision = cache.revision
+
   const pending = loadCustomCatalog({ isForce: true })
     .then((data) => {
-      if (cache.pending !== pending) {
-        return
+      if (cache.pending !== pending || cache.revision !== revision) {
+        return null
       }
 
       applyCustomCatalog(data)
       cache.isLoaded = true
+
+      return data
     })
     .catch(() => {
       // Keep the previous entries. The next request retries.
+      return null
     })
     .finally(() => {
       if (cache.pending === pending) {
@@ -204,6 +235,7 @@ export function clearCustomCatalog(): void {
   cache.isLoaded = false
   cache.loadedAtMs = 0
   cache.pending = null
+  cache.revision += 1
 }
 
 async function loadEndpointCatalog(
