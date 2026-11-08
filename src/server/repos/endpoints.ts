@@ -25,7 +25,7 @@ export const ENDPOINT_MODELS_DIR = path.join(STORAGE_ROOT, 'data', 'endpoint-mod
 
 const BADGE_NUMBER = /^CU(\d+)$/
 
-const EMPTY_FILE: CustomEndpointFile = { version: 1, endpoints: [], badgeCounter: 0 }
+const EMPTY_FILE: CustomEndpointFile = { endpoints: [], badgeCounter: 0 }
 
 export interface EndpointEntry {
   id?: string
@@ -134,7 +134,6 @@ async function writeEndpoints(params: ApplyEndpointsParams): Promise<ApplyEndpoi
   })
 
   const file = CustomEndpointFileSchema.parse({
-    version: 1,
     endpoints,
     badgeCounter: state.counter,
   })

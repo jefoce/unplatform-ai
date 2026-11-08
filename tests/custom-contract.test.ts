@@ -149,12 +149,13 @@ describe('custom endpoint schemas', () => {
     )
   })
 
-  it('fills the file defaults', () => {
+  it('fills the file defaults and drops a legacy version', () => {
     const file: CustomEndpointFile = CustomEndpointFileSchema.parse({
+      version: 1,
       endpoints: [ENDPOINT_BODY],
     })
 
-    expect(file.version).toBe(1)
+    expect(file).not.toHaveProperty('version')
     expect(file.badgeCounter).toBe(0)
     expect(file.endpoints).toHaveLength(1)
   })

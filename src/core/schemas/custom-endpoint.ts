@@ -44,10 +44,15 @@ export type CustomEndpoint = z.infer<typeof CustomEndpointSchema>
 
 export const CustomEndpointFileSchema = z
   .object({
-    version: z.literal(1).default(1),
     endpoints: z.array(CustomEndpointSchema),
     badgeCounter: z.number().int().min(0).default(0),
   })
   .loose()
+  .transform((file) => {
+    // loose() keeps unknown keys, so drop the legacy version by hand
+    const { version: _version, ...rest } = file
+
+    return rest
+  })
 
 export type CustomEndpointFile = z.infer<typeof CustomEndpointFileSchema>

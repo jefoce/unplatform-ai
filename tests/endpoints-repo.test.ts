@@ -164,8 +164,10 @@ describe('file writes', () => {
   it('writes one valid file and leaves no temp file', async () => {
     const saved = await repo.applyEndpoints({ entries: [entry('One')] })
     const names = await fs.readdir(DATA)
+    const raw = await readFile()
 
-    expect(await readFile()).toEqual(saved.file)
+    expect(raw).toEqual(saved.file)
+    expect(raw).not.toHaveProperty('version')
     expect(names).toEqual(['endpoints.json'])
   })
 
