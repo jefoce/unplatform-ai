@@ -14,6 +14,7 @@ import {
   CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES,
   FETCH_TIMEOUTS,
   MAX_DOWNLOAD_RETRIES,
+  OPENROUTER_VIDEO_MAX_BYTES,
   SUBMIT_YIELD_MS,
 } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
@@ -362,11 +363,13 @@ async function download(params: DownloadTask): Promise<void> {
     throw new Error('Empty video response')
   }
 
-  // The cap guards custom endpoints only. OpenRouter downloads keep their old behavior.
-  const cap = record.provider === 'custom' ? CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES : null
+  // Every provider has a cap: custom endpoints 512 MiB, OpenRouter 2 GiB.
+  const cap =
+    record.provider === 'custom' ? CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES : OPENROUTER_VIDEO_MAX_BYTES
+
   const declared = response.headers.get('content-length')
 
-  if (!isNil(cap) && !isNil(declared) && Number(declared) > cap) {
+  if (!isNil(declared) && Number(declared) > cap) {
     await response.body.cancel()
 
     throw new DownloadIntegrityError(VIDEO_TOO_LARGE_TEXT)
@@ -376,13 +379,12 @@ async function download(params: DownloadTask): Promise<void> {
 
   try {
     const body = response.body as unknown as ReadableStream
-    const streams: Array<NodeJS.ReadableStream | NodeJS.WritableStream> = [Readable.fromWeb(body)]
 
-    if (!isNil(cap)) {
-      streams.push(cappedVideo(cap))
-    }
-
-    streams.push(createWriteStream(paths.part))
+    const streams: Array<NodeJS.ReadableStream | NodeJS.WritableStream> = [
+      Readable.fromWeb(body),
+      cappedVideo(cap),
+      createWriteStream(paths.part),
+    ]
 
     await pipeline(streams, { signal: AbortSignal.timeout(FETCH_TIMEOUTS.content) })
 

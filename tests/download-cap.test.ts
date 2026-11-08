@@ -14,7 +14,8 @@ import type {
   saveGeneration as SaveGeneration,
 } from '@/server/repos/generations'
 
-import { CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES } from '../src/core/constants'
+import type * as ConstantsModule from '../src/core/constants'
+import { CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES, OPENROUTER_VIDEO_MAX_BYTES } from '../src/core/constants'
 import type { GenerationRecord } from '../src/core/schemas/generation-record'
 import { storedRecord } from './helpers/stored-record'
 import { waitFor } from './helpers/wait-for'
@@ -22,7 +23,11 @@ import { waitFor } from './helpers/wait-for'
 vi.mock('@/core/constants', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../src/core/constants')
 
-  return { ...actual, CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES: 32 * 1024 }
+  return {
+    ...actual,
+    CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES: 32 * 1024,
+    OPENROUTER_VIDEO_MAX_BYTES: 64 * 1024,
+  }
 })
 
 const root = path.join(os.tmpdir(), `cf-download-cap-${process.pid}-${Date.now()}`)
@@ -171,7 +176,7 @@ describe('custom video download cap', () => {
     expect(completed.error).toBeUndefined()
   })
 
-  it('completes an OpenRouter body over the cap', async () => {
+  it('completes an OpenRouter body over the custom cap', async () => {
     const id = '77777777-7777-4777-8777-777777777777'
     const padded = new Uint8Array(videoBytes.byteLength + 12 * 1024)
 
@@ -186,7 +191,45 @@ describe('custom video download cap', () => {
     })
 
     expect(padded.byteLength).toBeGreaterThan(CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES)
+    expect(padded.byteLength).toBeLessThan(OPENROUTER_VIDEO_MAX_BYTES)
     expect(completed.status).toBe('completed')
     expect(completed.error).toBeUndefined()
+  })
+})
+
+describe('OpenRouter video download cap', () => {
+  it('fails a declared body over the OpenRouter cap before writing', async () => {
+    const failed = await runDownload({
+      id: '88888888-8888-4888-8888-888888888888',
+      provider: 'openrouter',
+      response: new Response(new Uint8Array([0]), {
+        headers: { 'content-length': String(OPENROUTER_VIDEO_MAX_BYTES + 1) },
+      }),
+    })
+
+    expect(failed.status).toBe('failed')
+    expect(failed.error).toContain('Video is larger than the limit')
+    expect(failed.output).toBeUndefined()
+  })
+
+  it('fails a streamed body once it passes the OpenRouter cap', async () => {
+    const failed = await runDownload({
+      id: '99999999-9999-4999-8999-999999999999',
+      provider: 'openrouter',
+      response: new Response(new Uint8Array(OPENROUTER_VIDEO_MAX_BYTES + 1)),
+    })
+
+    expect(failed.status).toBe('failed')
+    expect(failed.error).toContain('Video is larger than the limit')
+    expect(failed.output).toBeUndefined()
+  })
+})
+
+describe('download cap constants', () => {
+  it('keeps the real download caps', async () => {
+    const actual = await vi.importActual<typeof ConstantsModule>('../src/core/constants')
+
+    expect(actual.CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES).toBe(512 * 1024 * 1024)
+    expect(actual.OPENROUTER_VIDEO_MAX_BYTES).toBe(2 * 1024 ** 3)
   })
 })

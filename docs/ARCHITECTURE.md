@@ -367,6 +367,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `MODEL_LIST_MAX_PAGES` | 20 | Model list pages followed before the list is incomplete |
 | `MOCK_GENERATE_MS` | 6000 | Mock generation duration |
 | `MOCK_QUEUE_MS` | 3000 | Mock queue duration |
+| `OPENROUTER_VIDEO_MAX_BYTES` | 2147483648 | Largest video download accepted from OpenRouter |
 | `POLL_INTERVAL_MS` | 8000 | Job polling interval |
 | `POLL_PARALLEL` | 3 | Parallel status polls |
 | `PREVIEW_AT_SEC` | 0.5 | Preview frame time |

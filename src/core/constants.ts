@@ -181,6 +181,9 @@ export const CUSTOM_REF_TOTAL_SEC = 30
 /** Largest video download accepted from a custom endpoint. */
 export const CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES = 512 * 1024 * 1024
 
+/** Largest video download accepted from OpenRouter. */
+export const OPENROUTER_VIDEO_MAX_BYTES = 2 * 1024 ** 3
+
 /** Fresh availability check timeout on Generate. */
 export const CUSTOM_CHECK_TIMEOUT_MS = 3_000
 
