@@ -19,6 +19,12 @@ const PNG_BASE64 = (
 const JPG_BASE64 = (
   await fs.readFile(new URL('../../fixtures/media/sample.jpg', import.meta.url))
 ).toString('base64')
+const AAC_BYTES = await fs.readFile(new URL('../../fixtures/media/sample.aac', import.meta.url))
+const AAC_BASE64 = AAC_BYTES.toString('base64')
+const AAC_NEXT_BASE64 = Buffer.concat([AAC_BYTES, Buffer.from([0, 0])]).toString('base64')
+const MP4_BASE64 = (
+  await fs.readFile(new URL('../../fixtures/media/sample.mp4', import.meta.url))
+).toString('base64')
 
 async function waitImageRefs(driver, expected) {
   await driver.waitFor(
@@ -398,6 +404,271 @@ async function videoCardAndViewerReference(context) {
   await waitVideoRefs(driver, 2)
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function centerOf(rect) {
+  return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+}
+
+async function selectVideoPreset(driver, title) {
+  const opened = await driver.evaluate(`(() => {
+    const button = window.__e2e.all('button').find((node) => /^Model\\b/.test(node.innerText.trim()))
+    if (button === undefined) return false
+    button.click()
+    return true
+  })()`)
+
+  if (!opened) {
+    throw new Error('No model picker trigger')
+  }
+
+  await driver.waitFor(
+    `window.__e2e.exists('[aria-label="Search models"]')`,
+    15_000,
+    'the model picker',
+  )
+
+  const selected = await driver.evaluate(`(() => {
+    const row = window.__e2e.all('button').find((node) => node.innerText.trim().startsWith(${JSON.stringify(title)}))
+    if (row === undefined) return false
+    row.click()
+    return true
+  })()`)
+
+  if (!selected) {
+    throw new Error(`No model row: ${title}`)
+  }
+
+  await driver.waitFor(
+    `!window.__e2e.exists('[aria-label="Search models"]')`,
+    15_000,
+    'the model picker to close',
+  )
+  await driver.waitFor(
+    `document.body.innerText.includes(${JSON.stringify(title)})`,
+    15_000,
+    `the ${title} trigger`,
+  )
+}
+
+/** Every reference tile with its id, kind and current box. */
+async function referenceRects(driver) {
+  return driver.evaluate(`(() => {
+    return window.__e2e.all('[data-references-box] [data-reference-id]').map((node) => {
+      const rect = node.getBoundingClientRect()
+      return {
+        id: node.getAttribute('data-reference-id'),
+        kind: node.getAttribute('data-reference-kind'),
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y,
+      }
+    })
+  })()`)
+}
+
+function logSizes(label, rects) {
+  console.log(`# ${label}`)
+
+  for (const tile of rects) {
+    console.log(
+      `#   ${String(tile.kind).padEnd(5)} ${String(tile.id).slice(0, 8)} ${tile.width.toFixed(2)}x${tile.height.toFixed(2)}`,
+    )
+  }
+}
+
+function assertKeptSizes(before, during, skippedId) {
+  const current = new Map(
+    during.map((tile) => {
+      return [tile.id, tile]
+    }),
+  )
+
+  for (const tile of before) {
+    if (tile.id === skippedId) {
+      continue
+    }
+
+    const now = current.get(tile.id)
+
+    if (now === undefined) {
+      throw new Error(`Reference tile ${tile.id} vanished during the drag`)
+    }
+
+    if (Math.abs(now.width - tile.width) > 1 || Math.abs(now.height - tile.height) > 1) {
+      throw new Error(
+        `Reference tile ${tile.id} changed size while dragging: ${tile.width.toFixed(2)}x${tile.height.toFixed(2)} -> ${now.width.toFixed(2)}x${now.height.toFixed(2)}`,
+      )
+    }
+  }
+}
+
+async function audioDragCase(context) {
+  const { driver, width } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:draft'])
+  await gotoTab(driver, 'Video')
+  await selectVideoPreset(driver, 'Seedance 2.5')
+  await driver.clickText('References')
+  await driver.waitFor(
+    `window.__e2e.exists('[data-references-box]')`,
+    10_000,
+    'the video references box',
+  )
+
+  await dropFile(driver, 'drag-image-a.png', 'image/png', PNG_BASE64)
+  await waitVideoRefs(driver, 1)
+  await dropFile(driver, 'drag-image-b.jpg', 'image/jpeg', JPG_BASE64)
+  await waitVideoRefs(driver, 2)
+  await dropFile(driver, 'drag-video.mp4', 'video/mp4', MP4_BASE64)
+  await waitVideoRefs(driver, 3)
+  await dropFile(driver, 'drag-audio-a.aac', 'audio/aac', AAC_BASE64)
+  await waitVideoRefs(driver, 4)
+  await dropFile(driver, 'drag-audio-b.aac', 'audio/aac', AAC_NEXT_BASE64)
+  await waitVideoRefs(driver, 5)
+  await driver.waitFor(
+    `window.__e2e.all('[data-references-box] [data-reference-kind="audio"]').length === 2`,
+    15_000,
+    'two audio reference tiles',
+  )
+
+  const before = await referenceRects(driver)
+  const audio = before.filter((tile) => {
+    return tile.kind === 'audio'
+  })
+
+  if (audio.length !== 2) {
+    throw new Error(`Expected 2 audio tiles, got ${String(audio.length)}`)
+  }
+
+  const [firstAudio, secondAudio] = audio
+
+  logSizes(`reference sizes before drag (width ${String(width)})`, before)
+  console.log(
+    `# screenshot ${await driver.captureScreenshot(`references-drag-before-${String(width)}`)}`,
+  )
+
+  const start = centerOf(firstAudio)
+  const end = centerOf(secondAudio)
+
+  await driver.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: start.x, y: start.y })
+  await driver.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: start.x,
+    y: start.y,
+    button: 'left',
+    clickCount: 1,
+  })
+  await sleep(80)
+  await driver.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: start.x + 12,
+    y: start.y,
+    button: 'left',
+    buttons: 1,
+  })
+  await sleep(120)
+  await driver.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: end.x,
+    y: end.y,
+    button: 'left',
+    buttons: 1,
+  })
+  await sleep(250)
+  await driver.waitFor(`window.__e2e.exists('[data-reference-overlay]')`, 5_000, 'the drag overlay')
+  await driver.waitFor(
+    `window.__e2e.exists('[data-reference-dragging="true"]')`,
+    5_000,
+    'the dragged tile marker',
+  )
+
+  const during = await referenceRects(driver)
+
+  assertKeptSizes(before, during, firstAudio.id)
+
+  const overlay = await driver.evaluate(`(() => {
+    const node = document.querySelector('[data-reference-overlay]')
+    if (node === null) return null
+    const rect = node.getBoundingClientRect()
+    return { width: rect.width, height: rect.height }
+  })()`)
+
+  if (overlay === null) {
+    throw new Error('No drag overlay to measure')
+  }
+
+  logSizes(`reference sizes during drag (width ${String(width)})`, during)
+  console.log(
+    `# overlay ${overlay.width.toFixed(2)}x${overlay.height.toFixed(2)} audio ${firstAudio.width.toFixed(2)}x${firstAudio.height.toFixed(2)}`,
+  )
+
+  if (
+    Math.abs(overlay.width - firstAudio.width) > 1 ||
+    Math.abs(overlay.height - firstAudio.height) > 1
+  ) {
+    throw new Error(
+      `Drag overlay is ${overlay.width.toFixed(2)}x${overlay.height.toFixed(2)}, audio tile is ${firstAudio.width.toFixed(2)}x${firstAudio.height.toFixed(2)}`,
+    )
+  }
+
+  await driver.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: end.x,
+    y: end.y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+  })
+  await driver.waitFor(
+    `!window.__e2e.exists('[data-reference-overlay]')`,
+    10_000,
+    'the drag overlay to close',
+  )
+  await driver.waitFor(
+    `(() => {
+      const tiles = window.__e2e.all('[data-references-box] [data-reference-kind="audio"]')
+      return tiles.length === 2 && tiles[0].getAttribute('data-reference-id') === ${JSON.stringify(secondAudio.id)}
+    })()`,
+    10_000,
+    'audio 2 before audio 1',
+  )
+
+  const after = await referenceRects(driver)
+  const afterAudio = after.filter((tile) => {
+    return tile.kind === 'audio'
+  })
+
+  if (afterAudio[0]?.id !== secondAudio.id || afterAudio[1]?.id !== firstAudio.id) {
+    throw new Error(`Audio order after drag is ${afterAudio.map((tile) => tile.id).join(', ')}`)
+  }
+
+  const beforeOthers = before.filter((tile) => {
+    return tile.kind !== 'audio'
+  })
+  const afterOthers = after.filter((tile) => {
+    return tile.kind !== 'audio'
+  })
+
+  if (
+    JSON.stringify(beforeOthers.map((tile) => tile.id)) !==
+    JSON.stringify(afterOthers.map((tile) => tile.id))
+  ) {
+    throw new Error('Image or video order changed after the audio drag')
+  }
+
+  logSizes(`reference sizes after drag (width ${String(width)})`, after)
+  console.log(
+    `# screenshot ${await driver.captureScreenshot(`references-drag-after-${String(width)}`)}`,
+  )
+}
+
 export const referenceCases = [
   {
     name: 'references/viewer-card-picker-drop-paste',
@@ -418,5 +689,9 @@ export const referenceCases = [
   {
     name: 'references/picker-preview-video',
     run: videoPickerPreviewCase,
+  },
+  {
+    name: 'references/audio-drag-sizes',
+    run: audioDragCase,
   },
 ]
