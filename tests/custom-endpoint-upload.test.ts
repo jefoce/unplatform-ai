@@ -62,9 +62,8 @@ beforeAll(async () => {
 
   await fs.writeFile(path.join(ROOT, 'data', 'endpoints.json'), JSON.stringify(ENDPOINTS))
 
-  ;({ UPLOADS_DIR: uploadsDir } = await import('@/server/paths'))
-
-  ;({ buildMedia } = await import('@/server/jobs/submit-media'))
+  uploadsDir = (await import('@/server/paths')).UPLOADS_DIR
+  buildMedia = (await import('@/server/jobs/submit-media')).buildMedia
 })
 
 afterAll(async () => {
@@ -125,6 +124,10 @@ describe('custom endpoint upload transport', () => {
 
     expect(built.media[upload.id]?.url).toBe(`upai-upload:${sha256}`)
     expect(fetch).toHaveBeenCalledTimes(2)
+
+    const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers
+
+    expect(headers).toMatchObject({ Authorization: 'Bearer token-abc' })
   })
 
   it('uploads a missing hash and uses the returned ref', async () => {

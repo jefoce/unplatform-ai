@@ -42,8 +42,8 @@ export async function uploadCustomRefs(params: CustomRefsParams): Promise<Dict<s
   }
 
   await secretsReady()
-  const target = await loadUploadTarget(instanceId)
-  const health = await loadEndpointHealth({ target, signal })
+  const endpoint = await loadUploadTarget(instanceId)
+  const health = await loadEndpointHealth({ endpoint, signal })
   const unique = uniqueBySha(hashed)
 
   for (const item of unique) {
@@ -56,7 +56,7 @@ export async function uploadCustomRefs(params: CustomRefsParams): Promise<Dict<s
     signal?.throwIfAborted()
 
     const ref = await ensureUploadRef({
-      target,
+      endpoint,
       upload: item.upload,
       sha256: item.sha256,
       signal,

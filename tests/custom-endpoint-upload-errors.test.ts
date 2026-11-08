@@ -144,6 +144,66 @@ describe('custom endpoint upload errors', () => {
 
     expect(fetch).toHaveBeenCalledTimes(1)
   })
+})
+
+describe('custom endpoint upload failures', () => {
+  it.each([
+    {
+      status: 401,
+      code: 'unauthorized',
+      storedMessage:
+        'upai:unauthorized: The endpoint token is not valid. Open Settings and paste the token.',
+    },
+    {
+      status: 403,
+      code: 'forbidden',
+      storedMessage:
+        'upai:forbidden: This computer cannot reach ComfyUI. Enable LAN access in ComfyUI Settings > Unplatform AI, or add a token.',
+    },
+  ])('stores a $code upload with the upai prefix', async ({ status, code, storedMessage }) => {
+    const upload = await makeVideo()
+    const sha256 = sha256Of(VIDEO_BYTES)
+
+    mockFetch([
+      healthRoute(100 * 1024 * 1024),
+      {
+        method: 'HEAD',
+        path: `/upai/api/v1/uploads/${sha256}`,
+        status,
+        body: { error: { code, message: 'denied', details: {} } },
+      },
+    ])
+
+    await expect(
+      runBuild({
+        uploads: { [upload.id]: upload },
+        transports: { [upload.id]: 'upload' },
+        endpointId: 'custom-1',
+      }),
+    ).rejects.toMatchObject({ code, storedMessage })
+  })
+
+  it('stores a malformed upload response as upai:internal', async () => {
+    const upload = await makeVideo()
+    const sha256 = sha256Of(VIDEO_BYTES)
+
+    mockFetch([
+      healthRoute(100 * 1024 * 1024),
+      { method: 'HEAD', path: `/upai/api/v1/uploads/${sha256}`, status: 404 },
+      { method: 'POST', path: '/upai/api/v1/uploads', status: 201, body: {} },
+    ])
+
+    await expect(
+      runBuild({
+        uploads: { [upload.id]: upload },
+        transports: { [upload.id]: 'upload' },
+        endpointId: 'custom-1',
+      }),
+    ).rejects.toMatchObject({
+      code: 'protocol',
+      storedMessage: 'upai:internal: This server does not speak upai/1.',
+    })
+  })
 
   it('reports a removed endpoint as a provider error', async () => {
     const upload = await makeVideo()

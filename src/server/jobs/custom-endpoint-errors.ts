@@ -28,7 +28,7 @@ function upaiMessage(code: string, message: string): string {
   return `upai:${code}: ${message}`
 }
 
-export function customEndpointError(params: CustomErrorParams): ProviderError {
+function customEndpointError(params: CustomErrorParams): ProviderError {
   const { kind, message, status, code } = params
 
   return new ProviderError({
@@ -47,7 +47,7 @@ function endpointUnauthorizedError(isMissingToken: boolean): ProviderError {
       kind: 'auth',
       status: 401,
       code: 'unauthorized',
-      message: 'The endpoint needs a token. Add it in Settings.',
+      message: upaiMessage('unauthorized', 'The endpoint needs a token. Add it in Settings.'),
     })
   }
 
@@ -55,7 +55,10 @@ function endpointUnauthorizedError(isMissingToken: boolean): ProviderError {
     kind: 'auth',
     status: 401,
     code: 'unauthorized',
-    message: 'The endpoint token is not valid. Open Settings and paste the token.',
+    message: upaiMessage(
+      'unauthorized',
+      'The endpoint token is not valid. Open Settings and paste the token.',
+    ),
   })
 }
 
@@ -64,8 +67,10 @@ function endpointForbiddenError(): ProviderError {
     kind: 'auth',
     status: 403,
     code: 'forbidden',
-    message:
+    message: upaiMessage(
+      'forbidden',
       'This computer cannot reach ComfyUI. Enable LAN access in ComfyUI Settings > Unplatform AI, or add a token.',
+    ),
   })
 }
 
@@ -111,7 +116,7 @@ export function endpointProtocolError(): ProviderError {
     kind: 'server',
     status: 0,
     code: 'protocol',
-    message: 'This server does not speak upai/1.',
+    message: upaiMessage('internal', 'This server does not speak upai/1.'),
   })
 }
 
@@ -136,7 +141,8 @@ export function endpointResponseError(params: ResponseErrorParams): ProviderErro
     kind = 'server'
   }
 
-  let message = `Upload failed (HTTP ${status})`
+  const code = error?.code ?? 'internal'
+  let message = upaiMessage(code, `Upload failed (HTTP ${status})`)
 
   if (!isNil(error)) {
     message = upaiMessage(error.code, error.message)
@@ -145,7 +151,7 @@ export function endpointResponseError(params: ResponseErrorParams): ProviderErro
   return customEndpointError({
     kind,
     status,
-    code: error?.code ?? null,
+    code,
     message,
   })
 }
