@@ -1,34 +1,15 @@
-import { closestCenter, type CollisionDetection, rectIntersection } from '@dnd-kit/core'
-import { isNil } from 'lodash-es'
+import { closestCenter, type CollisionDetection, pointerWithin } from '@dnd-kit/core'
 
 /**
- * Collision detection limited to droppables of the active item's kind.
- * Audio prefers an overlapping tile, every kind falls back to the closest center.
+ * Pointer hit first, closest center for keyboard sorting and pointer misses.
+ * Every kind shares the same droppable set.
  */
 export const referenceCollisionDetection: CollisionDetection = (args) => {
-  const kind: unknown = args.active.data.current?.kind
+  const hits = pointerWithin(args)
 
-  if (isNil(kind)) {
-    return closestCenter(args)
+  if (hits.length > 0) {
+    return hits
   }
 
-  const droppableContainers = args.droppableContainers.filter((container) => {
-    return container.data.current?.kind === kind
-  })
-
-  if (droppableContainers.length === 0) {
-    return []
-  }
-
-  const filtered = { ...args, droppableContainers }
-
-  if (kind === 'audio') {
-    const hits = rectIntersection(filtered)
-
-    if (hits.length > 0) {
-      return hits
-    }
-  }
-
-  return closestCenter(filtered)
+  return closestCenter(args)
 }

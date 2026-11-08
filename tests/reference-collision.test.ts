@@ -1,5 +1,4 @@
 import type { Active, ClientRect, CollisionDetection, DroppableContainer } from '@dnd-kit/core'
-import { isNil } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 
 import { referenceCollisionDetection } from '@/features/generator/references/reference-collision'
@@ -13,8 +12,9 @@ interface ContainerSpec {
 }
 
 interface ArgsSpec {
-  kind?: string
+  activeKind?: string
   collisionRect: ClientRect
+  pointerCoordinates?: { x: number; y: number } | null
   containers: ContainerSpec[]
 }
 
@@ -51,7 +51,7 @@ function collisionArgs(spec: ArgsSpec): CollisionArgs {
 
   const active: Active = {
     id: 'active',
-    data: { current: isNil(spec.kind) ? undefined : { kind: spec.kind } },
+    data: { current: spec.activeKind === undefined ? undefined : { kind: spec.activeKind } },
     rect: { current: { initial: spec.collisionRect, translated: spec.collisionRect } },
   }
 
@@ -60,7 +60,7 @@ function collisionArgs(spec: ArgsSpec): CollisionArgs {
     collisionRect: spec.collisionRect,
     droppableRects,
     droppableContainers,
-    pointerCoordinates: null,
+    pointerCoordinates: spec.pointerCoordinates ?? null,
   }
 }
 
@@ -71,55 +71,43 @@ function ids(args: CollisionArgs): (string | number)[] {
 }
 
 describe('reference collision detection', () => {
-  it('keeps an audio drag on audio containers even when an image is closer', () => {
+  it('returns the container under the pointer', () => {
     const args = collisionArgs({
-      kind: 'audio',
       collisionRect: rect(0, 0, 10, 10),
-      containers: [
-        { id: 'audio', kind: 'audio', rect: rect(1000, 1000, 10, 10) },
-        { id: 'image', kind: 'image', rect: rect(0, 0, 10, 10) },
-      ],
-    })
-
-    expect(ids(args)).toEqual(['audio'])
-  })
-
-  it('filters audio and video containers out of an image drag', () => {
-    const args = collisionArgs({
-      kind: 'image',
-      collisionRect: rect(0, 0, 10, 10),
+      pointerCoordinates: { x: 5, y: 5 },
       containers: [
         { id: 'image', kind: 'image', rect: rect(0, 0, 10, 10) },
-        { id: 'audio', kind: 'audio', rect: rect(20, 0, 10, 10) },
-        { id: 'video', kind: 'video', rect: rect(40, 0, 10, 10) },
+        { id: 'audio', kind: 'audio', rect: rect(100, 0, 10, 10) },
       ],
     })
 
     expect(ids(args)).toEqual(['image'])
   })
 
-  it('falls back to the unfiltered closest center without kind data', () => {
+  it('falls back to the closest center without a pointer hit', () => {
     const args = collisionArgs({
       collisionRect: rect(0, 0, 10, 10),
+      pointerCoordinates: { x: 500, y: 500 },
       containers: [
         { id: 'image', kind: 'image', rect: rect(0, 0, 10, 10) },
-        { id: 'audio', kind: 'audio', rect: rect(500, 500, 10, 10) },
+        { id: 'audio', kind: 'audio', rect: rect(100, 0, 10, 10) },
       ],
     })
 
     expect(ids(args)).toEqual(['image', 'audio'])
   })
 
-  it('prefers an overlapping audio container over a closer center', () => {
+  it('lets an image drag collide with an audio container', () => {
     const args = collisionArgs({
-      kind: 'audio',
-      collisionRect: rect(0, 0, 100, 100),
+      activeKind: 'image',
+      collisionRect: rect(20, 0, 10, 10),
+      pointerCoordinates: { x: 25, y: 5 },
       containers: [
-        { id: 'overlap', kind: 'audio', rect: rect(95, 95, 100, 100) },
-        { id: 'closer', kind: 'audio', rect: rect(0, 120, 100, 100) },
+        { id: 'image', kind: 'image', rect: rect(1000, 0, 10, 10) },
+        { id: 'audio', kind: 'audio', rect: rect(20, 0, 10, 10) },
       ],
     })
 
-    expect(ids(args)).toEqual(['overlap'])
+    expect(ids(args)).toEqual(['audio'])
   })
 })

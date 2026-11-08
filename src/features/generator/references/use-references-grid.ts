@@ -49,6 +49,7 @@ export function useReferencesGrid(preset: VideoPreset) {
     removeReference,
     activeId,
     activeSize,
+    order,
     sensors,
     handleDragStart,
     handleDragOver,

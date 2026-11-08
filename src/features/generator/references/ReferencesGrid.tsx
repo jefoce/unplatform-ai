@@ -1,11 +1,9 @@
 'use client'
 
 import { DndContext } from '@dnd-kit/core'
-import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
-import { groupBy } from 'lodash-es'
+import { SortableContext, type SortingStrategy } from '@dnd-kit/sortable'
 
 import type { KindExtensions } from '@/core/media/media-kinds'
-import { MEDIA_KINDS } from '@/core/media/media-types'
 import type { VideoPreset } from '@/core/presets/video/types'
 
 import { AddReferenceTile } from './AddReferenceTile'
@@ -24,16 +22,16 @@ interface ReferencesGridProps {
   onPick: () => void
 }
 
+/** Grid tiles keep their natural slots, no transform shifting during drag. */
+const noSortStrategy: SortingStrategy = () => {
+  return null
+}
+
 /** Sortable reference grid with counters and drag reorder. */
 export function ReferencesGrid(props: ReferencesGridProps) {
   const { preset, extensions, max, isUploadsLoading } = props
 
   const grid = useReferencesGrid(preset)
-
-  // Pending uploads render as images until their kind resolves.
-  const groups = groupBy(grid.references, (id) => {
-    return grid.uploadsById[id]?.kind ?? 'image'
-  })
 
   return (
     <DndContext
@@ -48,32 +46,26 @@ export function ReferencesGrid(props: ReferencesGridProps) {
         <ReferenceCounters counts={grid.counts} preset={preset} plan={grid.plan} />
         <div className="grid grid-cols-4 justify-center gap-2">
           {max > 0 && <AddReferenceTile onPick={props.onPick} />}
-          {MEDIA_KINDS.map((kind) => {
-            const ids = groups[kind] ?? []
-
-            return (
-              <SortableContext key={kind} items={ids} strategy={rectSortingStrategy}>
-                {ids.map((id) => {
-                  return (
-                    <ReferenceItem
-                      key={id}
-                      id={id}
-                      upload={grid.uploadsById[id]}
-                      label={labelFor(grid.slots, id)}
-                      note={noteFor({ id, planned: grid.planned })}
-                      isUploadsLoading={isUploadsLoading}
-                      previewUploads={grid.previewUploads}
-                      slots={grid.slots}
-                      extensions={extensions}
-                      onSelectSlot={grid.insertMention}
-                      onReplace={grid.replaceReference}
-                      onRemove={grid.removeReference}
-                    />
-                  )
-                })}
-              </SortableContext>
-            )
-          })}
+          <SortableContext items={grid.order} strategy={noSortStrategy}>
+            {grid.order.map((id) => {
+              return (
+                <ReferenceItem
+                  key={id}
+                  id={id}
+                  upload={grid.uploadsById[id]}
+                  label={labelFor(grid.slots, id)}
+                  note={noteFor({ id, planned: grid.planned })}
+                  isUploadsLoading={isUploadsLoading}
+                  previewUploads={grid.previewUploads}
+                  slots={grid.slots}
+                  extensions={extensions}
+                  onSelectSlot={grid.insertMention}
+                  onReplace={grid.replaceReference}
+                  onRemove={grid.removeReference}
+                />
+              )
+            })}
+          </SortableContext>
         </div>
       </div>
       <ReferenceDragOverlay

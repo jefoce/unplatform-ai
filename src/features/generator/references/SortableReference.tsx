@@ -25,7 +25,6 @@ export function SortableReference(props: SortableReferenceProps) {
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
-    data: { kind: upload?.kind ?? 'image' },
   })
 
   const isAudio = upload?.kind === 'audio'
