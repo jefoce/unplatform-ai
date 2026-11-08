@@ -1,3 +1,6 @@
+import os from 'node:os'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import type { CatalogEntrySource, ModelAvailability } from '../src/core/catalog'
@@ -50,7 +53,10 @@ import { type RecordProgress, RecordProgressSchema } from '../src/core/schemas/g
 import { type RecordSource, RecordSourceSchema } from '../src/core/schemas/record-source'
 import { STATUS_HELP, STATUS_HELP_KEYS } from '../src/core/status-help'
 import { HISTORY_FACETS_PATH } from '../src/lib/api/swr-keys'
-import { instanceKind, listInstances } from '../src/server/providers/registry'
+
+process.env.STORAGE_ROOT = path.join(os.tmpdir(), `cf-contract-${process.pid}-${Date.now()}`)
+
+const { instanceKind, listInstances } = await import('../src/server/providers/registry')
 
 const ENDPOINT_BODY = {
   id: 'custom-1',

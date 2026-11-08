@@ -1,4 +1,7 @@
-/* eslint-disable max-lines, max-lines-per-function -- mock scenarios share one fixture set */
+/* eslint-disable max-lines-per-function -- mock scenarios share one fixture set */
+
+import os from 'node:os'
+import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -8,21 +11,26 @@ import type { BindingBase } from '../src/core/presets/common/binding'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
 import type { GenerationInput } from '../src/core/schemas/generation-record'
 import type { ImageGenerationInput } from '../src/core/schemas/image-record'
-import { isCustomEndpointMockMode } from '../src/server/config/mock-mode'
-import { customMockFixtures } from '../src/server/providers/mock/custom-fixtures'
-import { createCustomMockImageProvider } from '../src/server/providers/mock/custom-image'
-import {
-  CUSTOM_MOCK_STALE_REASON,
-  customMockCatalog,
-} from '../src/server/providers/mock/custom-models'
-import { createCustomMockVideoProvider } from '../src/server/providers/mock/custom-video'
-import {
-  getImageProvider,
-  getVideoProvider,
-  instanceKind,
-  listInstances,
-} from '../src/server/providers/registry'
-import { catalogStatus } from '../src/server/services/catalog-status'
+
+const ROOT = path.join(os.tmpdir(), `cf-custom-mock-${process.pid}-${Date.now()}`)
+
+process.env.STORAGE_ROOT = ROOT
+
+const { isCustomEndpointMockMode } = await import('../src/server/config/mock-mode')
+
+const { createCustomMockImageProvider } = await import('../src/server/providers/mock/custom-image')
+
+const { customMockFixtures } = await import('../src/server/providers/mock/custom-fixtures')
+
+const { CUSTOM_MOCK_STALE_REASON, customMockCatalog } =
+  await import('../src/server/providers/mock/custom-models')
+
+const { createCustomMockVideoProvider } = await import('../src/server/providers/mock/custom-video')
+
+const { getImageProvider, getVideoProvider, instanceKind, listInstances } =
+  await import('../src/server/providers/registry')
+
+const { catalogStatus } = await import('../src/server/services/catalog-status')
 
 const START = Date.parse('2026-11-07T00:00:00.000Z')
 const PRESET = VIDEO_PRESETS[0]
