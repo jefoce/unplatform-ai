@@ -20,9 +20,6 @@ vi.mock('@/lib/api/catalog', () => {
       return { catalog: undefined, isLoading: false, isValidating: false }
     },
     refreshCatalog: vi.fn(async () => {}),
-    useModelEntry: vi.fn(() => {
-      return null
-    }),
   }
 })
 

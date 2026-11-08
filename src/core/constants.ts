@@ -256,3 +256,6 @@ export const DOCKED_PANEL_WIDTH = 560
 
 /** Gap kept between a docked panel and the viewport edges. */
 export const DOCKED_PANEL_EDGE_GAP = 16
+
+/** Frames the media width hook retries a zero measurement before it stops. */
+export const MEDIA_WIDTH_RETRY_FRAMES = 30

@@ -3,6 +3,8 @@
 import { type RefObject, useEffect, useLayoutEffect, useState } from 'react'
 import { isNil } from 'lodash-es'
 
+import { MEDIA_WIDTH_RETRY_FRAMES } from '@/core/constants'
+
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 /** Live content width, remeasured until the layout reports a non-zero value. */
@@ -17,9 +19,11 @@ export function useMediaWidth(ref: RefObject<HTMLDivElement | null>): number {
     }
 
     let frame = 0
+    let attempts = 0
     let observer: ResizeObserver | null = null
 
     const measure = (): void => {
+      frame = 0
       const next = node.getBoundingClientRect().width
 
       if (next > 0) {
@@ -29,6 +33,11 @@ export function useMediaWidth(ref: RefObject<HTMLDivElement | null>): number {
       }
 
       // WebView2 can report 0 before the first layout pass; retry next frame.
+      if (attempts >= MEDIA_WIDTH_RETRY_FRAMES) {
+        return
+      }
+
+      attempts += 1
       frame = window.requestAnimationFrame(measure)
     }
 
@@ -49,6 +58,13 @@ export function useMediaWidth(ref: RefObject<HTMLDivElement | null>): number {
 
       if (next > 0) {
         setWidth(next)
+
+        return
+      }
+
+      if (frame === 0) {
+        attempts = 0
+        measure()
       }
     }
 

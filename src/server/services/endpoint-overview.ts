@@ -1,50 +1,36 @@
 import 'server-only'
 
 import { isNil } from 'lodash-es'
-import { z } from 'zod'
 
 import type {
   EndpointHealthView,
   EndpointOverview,
   EndpointOverviewEntry,
 } from '@/core/api/endpoints'
-import { customPresetPrefix } from '@/core/presets/custom'
+import { endpointIdFromPresetId } from '@/core/presets/custom'
 import type { CustomEndpoint, CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
 
 import { isCustomEndpointMockMode } from '../config/mock-mode'
-import { readJson } from '../fs/json-file'
 import {
   customMockCatalogForInstance,
   customMockEndpoint,
   customMockInstances,
 } from '../providers/mock/custom-mock'
-import { endpointModelsFile, readEndpointFile } from '../repos/endpoints'
+import { readEndpointFile } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
 import { secretsReady } from '../secrets'
 import { getHealth, isHealthFresh } from './endpoint-health'
+import { readEndpointModels } from './endpoint-model-cache'
 import { readTokenMap } from './endpoint-tokens'
-
-const ModelCountsSchema = z
-  .object({
-    video: z.array(z.unknown()).default([]),
-    image: z.array(z.unknown()).default([]),
-  })
-  .loose()
 
 interface OverviewParams {
   endpoint: CustomEndpoint
   tokenMap: Record<string, string>
-  generations: GenerationRecord[]
-  images: ImageRecord[]
-}
-
-interface ModelCounts {
-  videoCount: number
-  imageCount: number
+  runningJobs: Map<string, number>
 }
 
 export async function getEndpointOverview(): Promise<EndpointOverview> {
@@ -60,10 +46,11 @@ export async function getEndpointOverview(): Promise<EndpointOverview> {
 
   await secretsReady()
   const tokenMap = readTokenMap()
+  const runningJobs = countRunningJobs(generations, images)
 
   const endpoints = await Promise.all(
     file.endpoints.map((endpoint) => {
-      return toOverview({ endpoint, tokenMap, generations, images })
+      return toOverview({ endpoint, tokenMap, runningJobs })
     }),
   )
 
@@ -90,17 +77,8 @@ function mockOverview(): EndpointOverview {
 }
 
 async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry> {
-  const { endpoint, tokenMap, generations, images } = params
-  const counts = await cachedCounts(endpoint.id)
-  const prefix = customPresetPrefix(endpoint.id)
-
-  const videoJobs = generations.filter((record) => {
-    return record.preset.id.startsWith(prefix) && ACTIVE_STATUSES.includes(record.status)
-  })
-
-  const imageJobs = images.filter((record) => {
-    return record.preset.id.startsWith(prefix) && isImageActive(record)
-  })
+  const { endpoint, tokenMap, runningJobs } = params
+  const models = await readEndpointModels(endpoint.id)
 
   const known = getHealth(endpoint.id)
   const isFresh = !isNil(known) && isHealthFresh(known)
@@ -108,22 +86,45 @@ async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry
 
   return {
     ...endpoint,
-    ...counts,
-    runningJobs: videoJobs.length + imageJobs.length,
+    videoCount: models?.video.length ?? 0,
+    imageCount: models?.image.length ?? 0,
+    runningJobs: runningJobs.get(endpoint.id) ?? 0,
     status: fresh?.state ?? statusFromHealth(endpoint.lastHealth),
     tokenHint: hintFor(tokenMap[endpoint.id]),
     hasToken: !isNil(tokenMap[endpoint.id]),
   }
 }
 
-async function cachedCounts(id: string): Promise<ModelCounts> {
-  const data = await readJson(endpointModelsFile(id), ModelCountsSchema)
+/** One pass over both record lists, keyed by endpoint id. */
+function countRunningJobs(
+  generations: readonly GenerationRecord[],
+  images: readonly ImageRecord[],
+): Map<string, number> {
+  const counts = new Map<string, number>()
 
-  if (isNil(data)) {
-    return { videoCount: 0, imageCount: 0 }
+  const add = (presetId: string): void => {
+    const endpointId = endpointIdFromPresetId(presetId)
+
+    if (isNil(endpointId)) {
+      return
+    }
+
+    counts.set(endpointId, (counts.get(endpointId) ?? 0) + 1)
   }
 
-  return { videoCount: data.video.length, imageCount: data.image.length }
+  for (const record of generations) {
+    if (ACTIVE_STATUSES.includes(record.status)) {
+      add(record.preset.id)
+    }
+  }
+
+  for (const record of images) {
+    if (isImageActive(record)) {
+      add(record.preset.id)
+    }
+  }
+
+  return counts
 }
 
 function statusFromHealth(lastHealth: CustomEndpointLastHealth | null): EndpointHealthView {

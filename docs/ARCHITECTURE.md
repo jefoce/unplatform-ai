@@ -367,6 +367,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `MAX_REQUEST_MB` | 64 | Total encoded request cap |
 | `MAX_UPLOAD_BYTES` | 67108864 | Multipart request cap |
 | `MAX_UPLOAD_FILES` | 20 | Files accepted in one multipart upload |
+| `MEDIA_WIDTH_RETRY_FRAMES` | 30 | Frames the media width hook retries a zero measurement |
 | `MODEL_CATALOG_TTL_MS` | 60000 | Model catalog cache lifetime |
 | `MODEL_LIST_MAX_PAGES` | 20 | Model list pages followed before the list is incomplete |
 | `MOCK_GENERATE_MS` | 6000 | Mock generation duration |

@@ -79,11 +79,53 @@ async function saveStudio(): Promise<EndpointOverviewEntry> {
   return entry
 }
 
+function upaiModel(id: string, kind: 'video' | 'image'): unknown {
+  return {
+    id,
+    name: 'Model',
+    description: '',
+    kind,
+    status: 'ready',
+    status_reason: null,
+    updated_at: '2026-01-01T00:00:00.000Z',
+    pricing: { per_run_usd: 0 },
+    capabilities: {
+      prompt: { required: true, max_chars: 1000 },
+      negative_prompt: false,
+      references: {
+        image: { max: 0, required: 0 },
+        video: { max: 0, required: 0 },
+        audio: { max: 0, required: 0 },
+      },
+      resolutions: [],
+      default_resolution: '',
+      aspect_ratios: [],
+      default_aspect_ratio: '',
+      sizes: {},
+      seed: false,
+      reference_limits: { image: { max_bytes: 0, formats: [] } },
+    },
+    workflow: null,
+  }
+}
+
 async function writeCache(id: string): Promise<string> {
   const cacheFile = repo.endpointModelsFile(id)
 
   await fs.mkdir(path.dirname(cacheFile), { recursive: true })
-  await fs.writeFile(cacheFile, JSON.stringify({ video: [{}], image: [{}, {}] }))
+
+  await fs.writeFile(
+    cacheFile,
+    JSON.stringify({
+      fetchedAt: '2026-01-01T00:00:00.000Z',
+      video: [upaiModel('wan', 'video')],
+      image: [upaiModel('flux', 'image'), upaiModel('sdxl', 'image')],
+    }),
+  )
+
+  const cache = await import('@/server/services/endpoint-model-cache')
+
+  cache.clearEndpointModelCache()
 
   return cacheFile
 }

@@ -6,7 +6,7 @@ import { isNil } from 'lodash-es'
 import type { CatalogEntry } from '@/core/catalog'
 import type { PickerModel } from '@/core/feed/picker-model'
 import { VIDEO_PRESETS } from '@/core/presets'
-import { useCatalog, useModelEntry } from '@/lib/api/catalog'
+import { useCatalog } from '@/lib/api/catalog'
 import { useBoolean } from '@/lib/use-boolean'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { Popover } from '@/ui/Popover'
@@ -46,7 +46,6 @@ export function ModelPicker(props: ModelPickerProps) {
   })
 
   const { catalog, isValidating } = useCatalog()
-  const entry = useModelEntry(props.selectedId ?? presetId)
 
   const selectedId = props.selectedId ?? presetId
   const isBar = props.variant === 'bar'
@@ -70,6 +69,7 @@ export function ModelPicker(props: ModelPickerProps) {
     return map
   }, [catalog])
 
+  const entry = entries.get(selectedId) ?? null
   const current = currentRow(groups, selectedId) ?? fallbackRow({ selectedId, entry })
 
   const handleOpenChange = (isOpen: boolean): void => {

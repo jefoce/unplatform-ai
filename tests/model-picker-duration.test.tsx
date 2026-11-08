@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { useCatalog, useModelEntry } from '@/lib/api/catalog'
+import { useCatalog } from '@/lib/api/catalog'
 import { Price } from '@/ui/Price'
 
 import type { CatalogEntry } from '../src/core/catalog'
@@ -18,14 +18,10 @@ vi.mock('@/lib/api/catalog', () => {
       return { catalog: undefined, isLoading: false, isValidating: false }
     }),
     refreshCatalog: vi.fn(async () => {}),
-    useModelEntry: vi.fn(() => {
-      return null
-    }),
   }
 })
 
 const mockUseCatalog = vi.mocked(useCatalog)
-const mockUseModelEntry = vi.mocked(useModelEntry)
 
 const PRICING: PricingInfo = {
   skus: {
@@ -81,7 +77,6 @@ class Observer {
 
 beforeEach(() => {
   mockUseCatalog.mockReturnValue({ catalog: undefined, isLoading: false, isValidating: false })
-  mockUseModelEntry.mockReturnValue(null)
   useGeneratorStore.setState({ presetId: 'wan-3.0' })
   vi.stubGlobal('ResizeObserver', Observer)
 
@@ -185,7 +180,7 @@ describe('ModelPicker unavailable rows', () => {
 
 describe('ModelPicker header', () => {
   it('shows only the percent off next to the Model label', () => {
-    mockUseModelEntry.mockReturnValue(entry(PRICING))
+    useEntries([entry(PRICING)])
     render(<ModelPicker />)
     const trigger = screen.getByRole('button', { name: /Model/ })
 

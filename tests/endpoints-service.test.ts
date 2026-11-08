@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import type { EndpointInput } from '@/core/api/endpoints'
 import { ENDPOINT_HEALTH_MAX_AGE_MS } from '@/core/constants'
+import type { JobStatus } from '@/core/schemas/generation-record'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
 import type * as EndpointOverviewService from '@/server/services/endpoint-overview'
 import type * as EndpointSaveService from '@/server/services/endpoint-save'
@@ -268,6 +269,60 @@ describe('running jobs', () => {
     health.setEndpointHealth({ endpointId: id, status: 'unauthorized', message: null })
 
     expect((await overviewService.getEndpointOverview()).endpoints[0]?.status).toBe('unauthorized')
+  })
+
+  it('splits running counts per endpoint from one records list', async () => {
+    const firstId = '44444444-4444-4444-8444-444444444444'
+    const secondId = '55555555-5555-4555-8555-555555555555'
+
+    await repo.applyEndpoints({
+      entries: [
+        {
+          id: firstId,
+          label: 'First',
+          baseUrl: 'http://127.0.0.1:8188',
+          enabled: true,
+          pricing: { mode: 'model', usd: 0 },
+          instanceId: HEALTH.instance_id,
+          lastHealth: null,
+        },
+        {
+          id: secondId,
+          label: 'Second',
+          baseUrl: 'http://127.0.0.1:8188',
+          enabled: true,
+          pricing: { mode: 'model', usd: 0 },
+          instanceId: HEALTH.instance_id,
+          lastHealth: null,
+        },
+      ],
+    })
+
+    const downloads = path.join(ROOT, 'downloads')
+
+    await fs.mkdir(downloads, { recursive: true })
+
+    const write = async (id: string, endpointId: string, status: JobStatus): Promise<void> => {
+      const record = storedRecord(id, {
+        status,
+        preset: { id: `custom.${endpointId}.wan`, title: 'Wan', slug: 'wan' },
+      })
+
+      await fs.writeFile(path.join(downloads, `${id}.json`), JSON.stringify(record))
+    }
+
+    await write('66666666-6666-4666-8666-666666666661', firstId, 'in_progress')
+    await write('66666666-6666-4666-8666-666666666662', secondId, 'in_progress')
+    await write('66666666-6666-4666-8666-666666666663', secondId, 'completed')
+
+    const future = new Date(Date.now() + 5000)
+
+    await fs.utimes(downloads, future, future)
+
+    const overview = await overviewService.getEndpointOverview()
+
+    expect(overview.endpoints[0]?.runningJobs).toBe(1)
+    expect(overview.endpoints[1]?.runningJobs).toBe(1)
   })
 })
 

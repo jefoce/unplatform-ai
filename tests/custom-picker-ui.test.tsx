@@ -7,7 +7,7 @@ import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { useGeneratorStore } from '@/features/generator/store/store'
-import { refreshCatalog, useCatalog, useModelEntry } from '@/lib/api/catalog'
+import { refreshCatalog, useCatalog } from '@/lib/api/catalog'
 
 import { getPreset } from '../src/core/presets'
 
@@ -15,15 +15,11 @@ vi.mock('@/lib/api/catalog', () => {
   return {
     useCatalog: vi.fn(),
     refreshCatalog: vi.fn(),
-    useModelEntry: vi.fn(() => {
-      return null
-    }),
   }
 })
 
 const mockCatalog = vi.mocked(useCatalog)
 const mockRefresh = vi.mocked(refreshCatalog)
-const mockEntry = vi.mocked(useModelEntry)
 
 class Observer {
   observe() {}
@@ -136,7 +132,6 @@ beforeEach(() => {
 
   mockRefresh.mockReset()
   mockRefresh.mockResolvedValue(undefined)
-  mockEntry.mockReturnValue(null)
   useGeneratorStore.setState({ presetId: 'wan-3.0' })
 })
 
@@ -235,7 +230,6 @@ describe('custom model picker', () => {
 
   it('keeps a missing selected model in the trigger with its snapshot title', () => {
     useEntries([MISSING])
-    mockEntry.mockReturnValue({ ...MISSING, preset: MISSING.preset })
 
     render(<ModelPicker selectedId={MISSING.presetId} />)
 

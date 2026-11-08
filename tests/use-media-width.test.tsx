@@ -3,11 +3,17 @@ import { useRef } from 'react'
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MEDIA_WIDTH_RETRY_FRAMES } from '@/core/constants'
 import { useMediaWidth } from '@/lib/use-media-width'
 
 import { required } from './helpers/required'
 
 type FrameCallback = FrameRequestCallback
+
+interface PendingFrame {
+  id: number
+  callback: FrameCallback
+}
 
 class WidthObserver {
   static callback: ResizeObserverCallback | null = null
@@ -22,7 +28,8 @@ class WidthObserver {
 }
 
 let rectWidth = 0
-let frame: FrameCallback | null = null
+let pending: PendingFrame[] = []
+let frameCount = 0
 
 function rect(width: number): DOMRect {
   return {
@@ -51,19 +58,43 @@ function probeWidth(container: HTMLElement): string | null {
   return required(container.firstElementChild, 'probe').getAttribute('data-width')
 }
 
+function runFrames(): void {
+  act(() => {
+    while (pending.length > 0) {
+      const next = pending.shift()
+
+      next?.callback(0)
+    }
+  })
+}
+
+function runNextFrame(): void {
+  act(() => {
+    const next = pending.shift()
+
+    next?.callback(0)
+  })
+}
+
 beforeEach(() => {
   rectWidth = 0
-  frame = null
+  pending = []
+  frameCount = 0
 
   vi.stubGlobal('ResizeObserver', WidthObserver)
 
   vi.stubGlobal('requestAnimationFrame', (callback: FrameCallback) => {
-    frame = callback
+    frameCount += 1
+    pending.push({ id: frameCount, callback })
 
-    return 1
+    return frameCount
   })
 
-  vi.stubGlobal('cancelAnimationFrame', () => {})
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    pending = pending.filter((frame) => {
+      return frame.id !== id
+    })
+  })
 
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => {
     return rect(rectWidth)
@@ -83,12 +114,48 @@ describe('useMediaWidth', () => {
     expect(probeWidth(container)).toBe('0')
 
     rectWidth = 800
-
-    act(() => {
-      frame?.(0)
-    })
+    runNextFrame()
 
     expect(probeWidth(container)).toBe('800')
+  })
+
+  it('stops after the retry frame cap while the width stays zero', () => {
+    const { container } = render(<Probe />)
+
+    runFrames()
+
+    expect(frameCount).toBe(MEDIA_WIDTH_RETRY_FRAMES)
+    expect(pending).toHaveLength(0)
+    expect(probeWidth(container)).toBe('0')
+  })
+
+  it('restarts the retries when a resize still reports zero', () => {
+    const { container } = render(<Probe />)
+
+    runFrames()
+
+    expect(frameCount).toBe(MEDIA_WIDTH_RETRY_FRAMES)
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(frameCount).toBe(MEDIA_WIDTH_RETRY_FRAMES + 1)
+
+    rectWidth = 720
+    runNextFrame()
+
+    expect(probeWidth(container)).toBe('720')
+  })
+
+  it('sets a non-zero width without scheduling frames', () => {
+    rectWidth = 640
+
+    const { container } = render(<Probe />)
+
+    expect(probeWidth(container)).toBe('640')
+    expect(frameCount).toBe(0)
+    expect(pending).toHaveLength(0)
   })
 
   it('ignores a zero width from the resize observer', () => {
