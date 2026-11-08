@@ -99,6 +99,13 @@ export const IMAGE_SUBMIT_PARALLEL = 2
 export const IMAGE_GRID_GAP = 4
 export const HISTORY_GRID_GAP = 12
 export const IMAGE_ROW_MAX_HEIGHT = 640
+
+/** Shortest masonry row. Shorter justified rows crop the tile instead. */
+export const IMAGE_ROW_MIN_HEIGHT = 150
+
+/** Tiles shorter than this use compact card actions. */
+export const CARD_COMPACT_HEIGHT = 220
+
 export const IMAGE_ROW_OVERSCAN = 2
 export const IMAGE_REFERENCE_MAX = 16
 export const IMAGE_REFERENCE_MAX_SIDE_PX = 2048

@@ -32,6 +32,7 @@ import {
   IMAGE_REFERENCE_MAX_MB,
   IMAGE_REFERENCE_MAX_SIDE_PX,
   IMAGE_ROW_MAX_HEIGHT,
+  IMAGE_ROW_MIN_HEIGHT,
   IMAGE_ROW_OVERSCAN,
   IMAGE_SUBMIT_PARALLEL,
 } from '../src/core/constants'
@@ -378,10 +379,11 @@ describe('image shared contracts', () => {
       IMAGE_SUBMIT_PARALLEL,
       IMAGE_GRID_GAP,
       IMAGE_ROW_MAX_HEIGHT,
+      IMAGE_ROW_MIN_HEIGHT,
       IMAGE_ROW_OVERSCAN,
       IMAGE_REFERENCE_MAX_SIDE_PX,
       IMAGE_REFERENCE_MAX_MB,
-    ]).toEqual([4, 2, 4, 640, 2, 2048, 5])
+    ]).toEqual([4, 2, 4, 640, 150, 2, 2048, 5])
 
     expect(imageRecordPath('x').endsWith('x.json')).toBe(true)
     expect(imageTempPath({ id: 'x', index: 1, ext: '.png' })).toContain('.tmp-')

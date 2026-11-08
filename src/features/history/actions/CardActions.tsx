@@ -12,18 +12,27 @@ interface CardActionsProps {
   actions: readonly CardAction[]
   menu?: ReactNode
   className?: string
+  isCompact?: boolean
 }
 
 /** Action stack shared by the list row, video tile and image tile. */
 export function CardActions(props: CardActionsProps) {
-  const { actions, menu } = props
+  const { actions, menu, isCompact = false } = props
   const { handleSelect, confirmDialog } = useCardActions()
+  const gapClass = isCompact ? 'gap-1' : 'gap-1.5'
 
   return (
     <>
-      <div className={cn('absolute right-3 flex flex-col gap-1.5', props.className)}>
+      <div className={cn('absolute right-3 flex flex-col', gapClass, props.className)}>
         {actions.map((action) => {
-          return <CardActionButton key={action.key} action={action} onSelect={handleSelect} />
+          return (
+            <CardActionButton
+              key={action.key}
+              action={action}
+              onSelect={handleSelect}
+              isCompact={isCompact}
+            />
+          )
         })}
         {menu}
       </div>

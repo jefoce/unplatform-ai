@@ -15,7 +15,7 @@ import { revealLabel } from '@/lib/platform/reveal-label'
 import { useBoolean } from '@/lib/use-boolean'
 
 import { isCustomActiveRecord } from '../status/status-tone'
-import { ROUND_BUTTON_CLASSES } from './card-action-styles'
+import { COMPACT_ROUND_BUTTON_CLASSES, ROUND_BUTTON_CLASSES } from './card-action-styles'
 import { DeleteConfirm } from './DeleteConfirm'
 import { menuEntries } from './menu-entries'
 import { MenuTrigger } from './MenuTrigger'
@@ -26,12 +26,14 @@ import { imageRegenerateDescription, videoRegenerateDescription } from './regene
 import { RegenerateDialog } from './RegenerateDialog'
 import { deleteMenuItem, useMoreMenuActions } from './use-more-menu-actions'
 
-function triggerClassOf(variant: 'overlay' | 'panel'): string {
+function triggerClassOf(variant: 'overlay' | 'panel', isCompact: boolean): string {
   if (variant === 'panel') {
     return 'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-fg-2 transition hover:bg-hover'
   }
 
-  return ROUND_BUTTON_CLASSES
+  const overlayClass = isCompact ? COMPACT_ROUND_BUTTON_CLASSES : ROUND_BUTTON_CLASSES
+
+  return overlayClass
 }
 
 interface MoreMenuProps {
@@ -39,6 +41,7 @@ interface MoreMenuProps {
   onDeleted?: () => void
   className?: string
   variant?: 'overlay' | 'panel'
+  isCompact?: boolean
 }
 
 interface DeleteCopy {
@@ -78,6 +81,7 @@ function deleteCopy(isVideo: boolean): DeleteCopy {
 /** Record actions: frame capture, reference copy, clipboard, reveal, delete. */
 export function MoreMenu(props: MoreMenuProps) {
   const { item, className, variant = 'overlay' } = props
+  const isCompact = props.isCompact === true
   const confirmDialog = useBoolean()
   const regenerateDialog = useBoolean()
   const isVideo = isVideoItem(item)
@@ -125,7 +129,7 @@ export function MoreMenu(props: MoreMenuProps) {
     await regenerateItem(item)
   }
 
-  const triggerClass = triggerClassOf(variant)
+  const triggerClass = triggerClassOf(variant, isCompact)
   const copy = deleteCopy(!isNil(video))
   const description = regenerateDescription(video, image)
 

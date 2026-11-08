@@ -1,6 +1,6 @@
 import { chunk, isNil } from 'lodash-es'
 
-import { IMAGE_ROW_MAX_HEIGHT } from '../constants'
+import { IMAGE_ROW_MAX_HEIGHT, IMAGE_ROW_MIN_HEIGHT } from '../constants'
 import type { JustifyRowsParams, MasonryItem, MasonryRow, MasonryRowItem } from './masonry-types'
 
 const PARTIAL_ROW_GROWTH = 1.25
@@ -51,18 +51,20 @@ interface RowLayoutParams {
 function layoutRow(items: readonly MasonryItem[], params: RowLayoutParams): RowLayout {
   const { y, width, gap, height: fixedHeight, isJustified = false } = params
   const fillHeight = fillHeightOf({ items, width, gap })
-  let height = fillHeight
+  let layoutHeight = fillHeight
 
   if (!isNil(fixedHeight)) {
-    height = Math.min(fixedHeight, fillHeight)
+    layoutHeight = Math.min(fixedHeight, fillHeight)
   }
+
+  const height = Math.max(layoutHeight, IMAGE_ROW_MIN_HEIGHT)
 
   let x = 0
 
   const placed = items.map((item, index) => {
     const isLast = index === items.length - 1
     const startX = Math.round(x)
-    const naturalEnd = x + aspectOf(item.aspect) * height
+    const naturalEnd = x + aspectOf(item.aspect) * layoutHeight
     let endX = Math.round(naturalEnd)
 
     if (isJustified && isLast) {

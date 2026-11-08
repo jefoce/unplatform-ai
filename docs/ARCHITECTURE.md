@@ -301,6 +301,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `BLUR_SATURATION` | 1.5 | Saturation applied to the pre-blurred stage backdrop |
 | `BLUR_SIGMA` | 8 | Gaussian sigma of the pre-blurred stage backdrop |
 | `BLUR_WIDTH` | 96 | Pre-blurred stage backdrop width |
+| `CARD_COMPACT_HEIGHT` | 220 | Tiles shorter than this use compact card actions |
 | `CREDITS_FOCUS_STALE_MS` | 30000 | Focus refresh when the last credits fetch is older |
 | `CREDITS_POLL_MS` | 60000 | Credit balance refresh interval |
 | `CREDITS_SETTLE_MS` | 15000 | Follow-up credits refresh after a job finishes |
@@ -348,6 +349,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `IMAGE_REFERENCE_MAX_MB` | 5 | Reference image size cap |
 | `IMAGE_REFERENCE_MAX_SIDE_PX` | 2048 | Reference image side cap |
 | `IMAGE_ROW_MAX_HEIGHT` | 640 | Masonry row height cap |
+| `IMAGE_ROW_MIN_HEIGHT` | 150 | Shortest masonry row, shorter rows crop the tile |
 | `IMAGE_ROW_OVERSCAN` | 2 | Masonry rows rendered outside the viewport |
 | `IMAGE_SUBMIT_PARALLEL` | 2 | Image submit calls running at once |
 | `LOCK_BOOT_GRACE_MS` | 60000 | Live owner with a younger lock is still starting |

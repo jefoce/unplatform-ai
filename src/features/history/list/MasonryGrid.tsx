@@ -97,6 +97,7 @@ export function MasonryGrid(props: MasonryGridProps) {
                 onOpen={props.onOpen}
                 variant="masonry"
                 mediaWidth={tile.width}
+                tileHeight={tile.height}
               />
             </div>
           )
