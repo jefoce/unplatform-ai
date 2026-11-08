@@ -171,6 +171,41 @@ describe('token storage', () => {
   })
 })
 
+describe('endpoint removal', () => {
+  it('drops the endpoint from the file and fails its running job', async () => {
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
+    const id = saved.endpoints[0]?.id ?? ''
+    const recordId = '77777777-7777-4777-8777-777777777777'
+    const generations = await import('@/server/repos/generations')
+
+    await generations.saveGeneration(
+      storedRecord(recordId, {
+        provider: 'custom',
+        status: 'in_progress',
+        source: {
+          kind: 'custom',
+          instanceId: id,
+          badge: 'CU1',
+          presetTitle: 'Wan',
+          workflowName: null,
+          endpointLabel: 'Studio',
+          local: true,
+        },
+        job: { id: 'job-1', submittedAt: '2026-01-01T00:00:00.000Z' },
+      }),
+    )
+
+    const next = await service.saveEndpoints({ endpoints: [] })
+
+    expect(next.endpoints).toEqual([])
+    expect((await repo.readEndpointFile()).endpoints).toEqual([])
+
+    const actions = await import('@/server/jobs/generation-actions')
+
+    await expect(actions.cancelGeneration(recordId)).resolves.toBe('endpoint_removed')
+  })
+})
+
 describe('token readiness', () => {
   it('loads the stored map before saving one token', async () => {
     const backend = (await import('./helpers/secrets')).memoryBackend({

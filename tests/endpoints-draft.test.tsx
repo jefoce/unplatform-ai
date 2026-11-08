@@ -179,6 +179,52 @@ describe('endpoint draft save and cancel', () => {
   })
 })
 
+describe('endpoint draft removal', () => {
+  it('brings a removed row back on reset', () => {
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    act(() => {
+      result.current.onChange(first.key, { isRemoved: true })
+    })
+
+    expect(result.current.rows[0]?.isRemoved).toBe(true)
+    expect(result.current.isDirty).toBe(true)
+
+    act(() => {
+      result.current.reset()
+    })
+
+    expect(result.current.rows[0]?.isRemoved).toBe(false)
+    expect(result.current.isDirty).toBe(false)
+  })
+
+  it('leaves removed rows out of the save payload', async () => {
+    mocks.save.mockResolvedValue({ endpoints: [], nextBadge: 'CU1' })
+
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    act(() => {
+      result.current.onChange(first.key, { isRemoved: true })
+    })
+
+    await act(async () => {
+      await result.current.onSave()
+    })
+
+    expect(mocks.save).toHaveBeenCalledWith({ endpoints: [] })
+    expect(result.current.rows).toEqual([])
+    expect(result.current.isDirty).toBe(false)
+  })
+})
+
 describe('endpoint test race', () => {
   it('drops a result for a base URL the row no longer has', async () => {
     let resolveTest: ((result: EndpointTestResult) => void) | null = null

@@ -41,13 +41,6 @@ function renderRow(target: EndpointRowDraft, rows: EndpointRowDraft[] = [target]
 }
 
 describe('endpoint row warnings', () => {
-  it('shows how many running jobs a delete will fail', () => {
-    renderRow(row({ isRemoved: true, runningJobs: 2 }))
-
-    expect(screen.getByText('Will be removed')).toBeTruthy()
-    expect(screen.getByText('2 running jobs on this endpoint will fail')).toBeTruthy()
-  })
-
   it('shows the same ComfyUI instance as the other badge', () => {
     const first = row({ instanceId: 'same', isExpanded: true })
     const second = row({ key: 'row-2', id: null, badge: 'CU2', instanceId: 'same' })

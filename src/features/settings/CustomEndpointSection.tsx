@@ -1,11 +1,12 @@
 'use client'
 
+import { isEmpty } from 'lodash-es'
 import type { RefObject } from 'react'
 
 import { GUIDE_BASE, PROVIDER_KINDS } from '@/core/providers/types'
 import { Button } from '@/ui/Button'
 
-import type { EndpointsDraft } from './endpoint-draft'
+import type { EndpointRowDraft, EndpointsDraft } from './endpoint-draft'
 import { EndpointRow } from './EndpointRow'
 import { ProviderLinkButton } from './ProviderLinkButton'
 
@@ -16,9 +17,47 @@ interface CustomEndpointSectionProps {
   draft: EndpointsDraft
 }
 
+function noticeName(row: EndpointRowDraft): string {
+  const badge = row.badge.trim()
+
+  if (!isEmpty(badge)) {
+    return badge.toUpperCase()
+  }
+
+  const label = row.label.trim()
+
+  if (!isEmpty(label)) {
+    return label
+  }
+
+  return 'Endpoint'
+}
+
+function removedText(row: EndpointRowDraft): string {
+  const name = noticeName(row)
+
+  if (row.runningJobs === 0) {
+    return `${name} removed.`
+  }
+
+  if (row.runningJobs === 1) {
+    return `${name} removed. 1 running job will fail when you save.`
+  }
+
+  return `${name} removed. ${row.runningJobs} running jobs will fail when you save.`
+}
+
 /** ComfyUI endpoints: add, edit, test and remove before Save. */
 export function CustomEndpointSection(props: CustomEndpointSectionProps) {
   const { sectionRef, draft } = props
+
+  const visibleRows = draft.rows.filter((row) => {
+    return !row.isRemoved
+  })
+
+  const removedRows = draft.rows.filter((row) => {
+    return row.isRemoved
+  })
 
   const handleAdd = () => {
     draft.onAdd()
@@ -44,7 +83,7 @@ export function CustomEndpointSection(props: CustomEndpointSectionProps) {
           <ProviderLinkButton link={COMFYUI_GUIDE} />
         </div>
       )}
-      {draft.rows.map((row) => {
+      {visibleRows.map((row) => {
         return (
           <EndpointRow
             key={row.key}
@@ -53,6 +92,24 @@ export function CustomEndpointSection(props: CustomEndpointSectionProps) {
             onChange={draft.onChange}
             onTest={draft.onTest}
           />
+        )
+      })}
+      {removedRows.map((row) => {
+        const handleUndo = () => {
+          draft.onChange(row.key, { isRemoved: false })
+        }
+
+        return (
+          <div
+            key={row.key}
+            data-endpoint-removed=""
+            className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2"
+          >
+            <p className="text-xs text-fg-2">{removedText(row)}</p>
+            <Button size="sm" variant="ghost" onClick={handleUndo}>
+              Undo
+            </Button>
+          </div>
         )
       })}
     </section>

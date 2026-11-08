@@ -10,7 +10,6 @@ const MENU_ITEM_CLASSES =
 
 interface EndpointMenuProps {
   isEnabled: boolean
-  isRemoved: boolean
   onRetest: () => void
   onToggleEnabled: () => void
   onRemove: () => void
@@ -18,7 +17,7 @@ interface EndpointMenuProps {
 
 /** Row menu: retest, enable or disable, remove. */
 export function EndpointMenu(props: EndpointMenuProps) {
-  const { isEnabled, isRemoved } = props
+  const { isEnabled } = props
   const [isOpen, setIsOpen] = useState(false)
 
   const handleRetest = () => {
@@ -37,7 +36,6 @@ export function EndpointMenu(props: EndpointMenuProps) {
   }
 
   const enabledLabel = isEnabled ? 'Disable' : 'Enable'
-  const removeLabel = isRemoved ? 'Keep' : 'Delete'
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -58,7 +56,7 @@ export function EndpointMenu(props: EndpointMenuProps) {
           {enabledLabel}
         </button>
         <button type="button" className={MENU_ITEM_CLASSES} onClick={handleRemove}>
-          {removeLabel}
+          Delete
         </button>
       </PopoverContent>
     </Popover>

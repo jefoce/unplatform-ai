@@ -33,14 +33,6 @@ interface EndpointRowProps {
   onTest: (key: string) => void
 }
 
-function runningText(count: number): string {
-  if (count === 1) {
-    return '1 running job on this endpoint will fail'
-  }
-
-  return `${count} running jobs on this endpoint will fail`
-}
-
 /** One endpoint row that expands into its form. */
 export function EndpointRow(props: EndpointRowProps) {
   const { row, rows } = props
@@ -61,7 +53,7 @@ export function EndpointRow(props: EndpointRowProps) {
   }
 
   const handleRemove = () => {
-    props.onChange(row.key, { isRemoved: !row.isRemoved })
+    props.onChange(row.key, { isRemoved: true })
   }
 
   return (
@@ -85,15 +77,10 @@ export function EndpointRow(props: EndpointRowProps) {
               </span>
             </span>
             <span className="block truncate text-xs text-fg-2">{summary}</span>
-            {row.isRemoved && <span className="block text-xs text-danger">Will be removed</span>}
-            {row.isRemoved && row.runningJobs > 0 && (
-              <span className="block text-xs text-warn">{runningText(row.runningJobs)}</span>
-            )}
           </span>
         </button>
         <EndpointMenu
           isEnabled={row.enabled}
-          isRemoved={row.isRemoved}
           onRetest={handleRetest}
           onToggleEnabled={handleToggleEnabled}
           onRemove={handleRemove}

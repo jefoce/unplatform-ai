@@ -86,9 +86,9 @@ async function removeFirstRow(driver) {
   )
   await driver.clickText('Delete')
   await driver.waitFor(
-    `document.body.innerText.includes('Will be removed')`,
+    `window.__e2e.exists('[data-endpoint-removed]')`,
     WAIT_MS,
-    'the removed marker',
+    'the removed notice',
   )
 }
 
@@ -119,9 +119,81 @@ async function endpointAlignment(context) {
   await shoot(driver, `settings-endpoints-removed-${suffix}`)
 }
 
+async function rowCount(driver) {
+  return driver.evaluate(`window.__e2e.all('[data-endpoint-row]').length`)
+}
+
+async function firstBadge(driver) {
+  return driver.evaluate(
+    `(window.__e2e.text('[data-endpoint-row] [data-endpoint-badge]') ?? '').trim()`,
+  )
+}
+
+async function removeAndUndo(context) {
+  const { driver, width } = context
+  const suffix = String(width)
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:view', 'unplatform-ai:draft'])
+  await clickLabelPrefix(driver, 'Settings')
+  await driver.waitFor(`window.__e2e.exists('[data-endpoint-row]')`, WAIT_MS, 'the endpoint rows')
+  await scrollRow(driver, 0)
+
+  const before = await rowCount(driver)
+  const badge = await firstBadge(driver)
+
+  if (before === 0) {
+    throw new Error('No endpoint rows before delete')
+  }
+
+  if (badge === '') {
+    throw new Error('First endpoint row has no badge')
+  }
+
+  await removeFirstRow(driver)
+  await driver.waitFor(
+    `window.__e2e.all('[data-endpoint-row]').length === ${String(before - 1)}`,
+    WAIT_MS,
+    'the row to leave the list',
+  )
+  await driver.waitFor(
+    `(window.__e2e.text('[data-endpoint-removed]') ?? '').includes(${JSON.stringify(`${badge} removed.`)})`,
+    WAIT_MS,
+    'the removed notice text',
+  )
+  await shoot(driver, `settings-endpoint-removed-${suffix}`)
+
+  const undone = await driver.evaluate(`(() => {
+    const button = window.__e2e.all('button').find((node) => node.innerText.trim() === 'Undo')
+    if (button === undefined) return false
+    button.click()
+    return true
+  })()`)
+
+  if (!undone) {
+    throw new Error('No Undo button in the removed notice')
+  }
+
+  await driver.waitFor(
+    `window.__e2e.all('[data-endpoint-row]').length === ${String(before)}`,
+    WAIT_MS,
+    'the row to return',
+  )
+  await driver.waitFor(
+    `!window.__e2e.exists('[data-endpoint-removed]')`,
+    WAIT_MS,
+    'the notice to disappear',
+  )
+  await shoot(driver, `settings-endpoint-restored-${suffix}`)
+}
+
 export const settingsCases = [
   {
     name: 'settings/endpoint-alignment',
     run: endpointAlignment,
+  },
+  {
+    name: 'settings/endpoint-remove',
+    run: removeAndUndo,
   },
 ]
