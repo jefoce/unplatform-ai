@@ -85,7 +85,11 @@ describe('endpoint removal notice', () => {
     fireEvent.click(await screen.findByText('Delete'))
 
     expect(screen.queryByText('Studio')).toBeNull()
-    expect(screen.getByText('CU1 removed. 2 running jobs will fail when you save.')).toBeTruthy()
+
+    const notice = screen.getByRole('status')
+
+    expect(notice.textContent).toContain('CU1 removed. 2 running jobs will fail when you save.')
+    expect(document.activeElement).toBe(screen.getByText('Undo'))
   })
 
   it('counts zero, one and many running jobs', () => {

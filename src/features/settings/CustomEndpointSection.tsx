@@ -1,7 +1,7 @@
 'use client'
 
-import { isEmpty } from 'lodash-es'
-import type { RefObject } from 'react'
+import { type RefObject, useEffect, useRef } from 'react'
+import { compact, difference, isEmpty, isNil, partition } from 'lodash-es'
 
 import { GUIDE_BASE, PROVIDER_KINDS } from '@/core/providers/types'
 import { Button } from '@/ui/Button'
@@ -47,17 +47,48 @@ function removedText(row: EndpointRowDraft): string {
   return `${name} removed. ${row.runningJobs} running jobs will fail when you save.`
 }
 
+function focusLatestRemoved(sectionRef: RefObject<HTMLElement | null>): void {
+  const notices = sectionRef.current?.querySelectorAll('[data-endpoint-removed]')
+  const lastNotice = notices?.item(notices.length - 1)
+  const undoButton = lastNotice?.querySelector('button')
+
+  undoButton?.focus()
+}
+
 /** ComfyUI endpoints: add, edit, test and remove before Save. */
 export function CustomEndpointSection(props: CustomEndpointSectionProps) {
   const { sectionRef, draft } = props
 
-  const visibleRows = draft.rows.filter((row) => {
+  const [visibleRows, removedRows] = partition(draft.rows, (row) => {
     return !row.isRemoved
   })
 
-  const removedRows = draft.rows.filter((row) => {
-    return row.isRemoved
-  })
+  const removedSignature = removedRows
+    .map((row) => {
+      return row.key
+    })
+    .join('|')
+
+  const previousRemoved = useRef<string[] | null>(null)
+
+  useEffect(() => {
+    const currentKeys = compact(removedSignature.split('|'))
+    const previous = previousRemoved.current
+
+    previousRemoved.current = currentKeys
+
+    if (isNil(previous)) {
+      return
+    }
+
+    const hasNewRemoval = !isEmpty(difference(currentKeys, previous))
+
+    if (!hasNewRemoval) {
+      return
+    }
+
+    focusLatestRemoved(sectionRef)
+  }, [removedSignature, sectionRef])
 
   const handleAdd = () => {
     draft.onAdd()
@@ -102,6 +133,7 @@ export function CustomEndpointSection(props: CustomEndpointSectionProps) {
         return (
           <div
             key={row.key}
+            role="status"
             data-endpoint-removed=""
             className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2"
           >
