@@ -216,9 +216,9 @@ async function watchImageOnVideoTab(context) {
 
   await gotoTab(driver, 'Video')
   await driver.waitFor(
-    `document.body.innerText.includes('Image ready') && document.body.innerText.includes(${JSON.stringify(prompt)})`,
+    `[...document.querySelectorAll('[data-sonner-toast]')].some((node) => node.innerText.includes(${JSON.stringify(prompt)}))`,
     90_000,
-    'the Image ready toast on the video tab',
+    'the image ready toast on the video tab',
   )
 }
 
