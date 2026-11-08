@@ -15,6 +15,10 @@ interface CustomErrorParams {
   message: string
 }
 
+export function upaiMessage(code: string, message: string): string {
+  return `upai:${code}: ${message}`
+}
+
 export function customError(params: CustomErrorParams): ProviderError {
   const { kind, status, code, message } = params
 

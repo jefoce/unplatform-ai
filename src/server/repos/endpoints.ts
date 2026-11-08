@@ -1,6 +1,5 @@
 import 'server-only'
 
-import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
 import { isNil } from 'lodash-es'
@@ -28,7 +27,7 @@ const BADGE_NUMBER = /^CU(\d+)$/
 const EMPTY_FILE: CustomEndpointFile = { endpoints: [], badgeCounter: 0 }
 
 export interface EndpointEntry {
-  id?: string
+  id: string
   label: string
   badge?: string
   baseUrl: string
@@ -178,7 +177,7 @@ function buildEndpoint(params: BuildEndpointParams): CustomEndpoint {
   used.add(badge)
 
   const parsed = CustomEndpointSchema.safeParse({
-    id: entry.id ?? randomUUID(),
+    id: entry.id,
     label: entry.label.trim(),
     badge,
     baseUrl: normalizeBaseUrl(entry.baseUrl),

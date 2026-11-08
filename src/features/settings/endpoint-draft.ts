@@ -8,12 +8,11 @@ import type {
   EndpointOverviewEntry,
   EndpointTestResult,
 } from '@/core/api/endpoints'
-import type {
-  CustomEndpointLastHealth,
-  CustomEndpointPricing,
+import {
+  type CustomEndpointLastHealth,
+  type CustomEndpointPricing,
+  ENDPOINT_BADGE_PATTERN,
 } from '@/core/schemas/custom-endpoint'
-
-const BADGE_PATTERN = /^[A-Z0-9]{1,4}$/
 
 export interface EndpointRowDraft {
   key: string
@@ -140,7 +139,7 @@ export function badgeError(row: EndpointRowDraft, rows: EndpointRowDraft[]): str
     return 'Badge is required'
   }
 
-  if (!BADGE_PATTERN.test(badge)) {
+  if (!ENDPOINT_BADGE_PATTERN.test(badge)) {
     return '1 to 4 uppercase letters or digits'
   }
 

@@ -230,6 +230,7 @@ describe('running jobs', () => {
     const saved = await repo.applyEndpoints({
       entries: [
         {
+          id: '11111111-1111-4111-8111-111111111111',
           label: 'Studio',
           baseUrl: 'http://127.0.0.1:8188',
           enabled: true,
@@ -330,6 +331,7 @@ describe('health freshness', () => {
     const stored = await repo.applyEndpoints({
       entries: [
         {
+          id: '22222222-2222-4222-8222-222222222222',
           label: 'Studio',
           baseUrl: endpoint('Studio').baseUrl,
           enabled: true,
@@ -521,6 +523,7 @@ describe('fresh test keeps state', () => {
     const saved = await repo.applyEndpoints({
       entries: [
         {
+          id: '33333333-3333-4333-8333-333333333333',
           label: 'Studio',
           baseUrl: endpoint('Studio').baseUrl,
           enabled: true,

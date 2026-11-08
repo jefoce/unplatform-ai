@@ -9,7 +9,7 @@ import { lastTestFor } from './endpoint-test'
 import { readEndpointToken } from './endpoint-tokens'
 
 interface EndpointCacheEntry {
-  id?: string
+  id: string
   baseUrl: string
   enabled: boolean
 }
@@ -32,7 +32,7 @@ export async function pruneEndpointCaches(params: PruneEndpointCachesParams): Pr
 
   const staleIds = prepared
     .filter((item) => {
-      const previous = currentById[item.entry.id ?? '']
+      const previous = currentById[item.entry.id]
 
       if (isNil(previous)) {
         return false
@@ -45,7 +45,7 @@ export async function pruneEndpointCaches(params: PruneEndpointCachesParams): Pr
       return previous.enabled !== item.entry.enabled && !hasServerTest(item)
     })
     .map((item) => {
-      return item.entry.id ?? ''
+      return item.entry.id
     })
 
   await Promise.all([...removedIds, ...staleIds].map(removeEndpointModelCache))
@@ -53,7 +53,7 @@ export async function pruneEndpointCaches(params: PruneEndpointCachesParams): Pr
 
 /** A test of the saved URL and token already refreshed the cache. */
 function hasServerTest(item: EndpointCacheInput): boolean {
-  const token = readEndpointToken(item.entry.id ?? '')
+  const token = readEndpointToken(item.entry.id)
 
   return !isNil(lastTestFor({ baseUrl: item.entry.baseUrl, token }))
 }

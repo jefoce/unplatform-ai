@@ -2,10 +2,10 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
+import { endpointIdFromPresetId } from '@/core/presets/custom'
 import type { PricingConfig } from '@/core/pricing/types'
 
 import { getEndpoint } from '../providers/custom/endpoint-source'
-import { endpointIdFromPresetId } from '../providers/custom/preset-link'
 import { customRunPriceFromUsd } from '../providers/custom/pricing'
 
 interface ResolveRunPricingParams {

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const ENDPOINT_BADGE_PATTERN = /^[A-Z0-9]{1,4}$/
+
 export const CUSTOM_ENDPOINT_PRICING_MODES = ['model', 'free', 'perRun', 'perSecond'] as const
 
 export type CustomEndpointPricingMode = (typeof CUSTOM_ENDPOINT_PRICING_MODES)[number]
@@ -31,7 +33,7 @@ export const CustomEndpointSchema = z
   .object({
     id: z.string(),
     label: z.string().max(40),
-    badge: z.string().regex(/^[A-Z0-9]{1,4}$/),
+    badge: z.string().regex(ENDPOINT_BADGE_PATTERN),
     baseUrl: z.string(),
     enabled: z.boolean().default(true),
     pricing: CustomEndpointPricingSchema.default({ mode: 'model', usd: 0 }),

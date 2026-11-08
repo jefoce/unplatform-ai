@@ -9,14 +9,8 @@ import {
   CUSTOM_QUOTA_MESSAGE,
 } from '@/core/providers/custom-messages'
 
-import { ProviderError, type ProviderErrorKind } from '../providers/provider-error'
-
-interface CustomErrorParams {
-  kind: ProviderErrorKind
-  message: string
-  status: number
-  code: string | null
-}
+import { customError, upaiMessage } from '../providers/custom/errors'
+import { type ProviderError, type ProviderErrorKind } from '../providers/provider-error'
 
 interface ResponseErrorParams {
   status: number
@@ -29,26 +23,9 @@ interface SizeErrorParams {
   maxBytes: number
 }
 
-function upaiMessage(code: string, message: string): string {
-  return `upai:${code}: ${message}`
-}
-
-function customEndpointError(params: CustomErrorParams): ProviderError {
-  const { kind, message, status, code } = params
-
-  return new ProviderError({
-    providerId: 'custom',
-    kind,
-    message,
-    storedMessage: message,
-    status,
-    code,
-  })
-}
-
 function endpointUnauthorizedError(isMissingToken: boolean): ProviderError {
   if (isMissingToken) {
-    return customEndpointError({
+    return customError({
       kind: 'auth',
       status: 401,
       code: 'unauthorized',
@@ -56,7 +33,7 @@ function endpointUnauthorizedError(isMissingToken: boolean): ProviderError {
     })
   }
 
-  return customEndpointError({
+  return customError({
     kind: 'auth',
     status: 401,
     code: 'unauthorized',
@@ -68,7 +45,7 @@ function endpointUnauthorizedError(isMissingToken: boolean): ProviderError {
 }
 
 function endpointForbiddenError(): ProviderError {
-  return customEndpointError({
+  return customError({
     kind: 'auth',
     status: 403,
     code: 'forbidden',
@@ -77,7 +54,7 @@ function endpointForbiddenError(): ProviderError {
 }
 
 function endpointQuotaError(): ProviderError {
-  return customEndpointError({
+  return customError({
     kind: 'input',
     status: 413,
     code: 'too_large',
@@ -86,7 +63,7 @@ function endpointQuotaError(): ProviderError {
 }
 
 function endpointTooLargeError(): ProviderError {
-  return customEndpointError({
+  return customError({
     kind: 'input',
     status: 413,
     code: 'too_large',
@@ -102,7 +79,7 @@ export function endpointSizeError(params: SizeErrorParams): ProviderError {
   const mb = Math.ceil(size / (1024 * 1024))
   const maxMb = Math.max(1, Math.floor(maxBytes / (1024 * 1024)))
 
-  return customEndpointError({
+  return customError({
     kind: 'input',
     status: 413,
     code: 'too_large',
@@ -114,7 +91,7 @@ export function endpointSizeError(params: SizeErrorParams): ProviderError {
 }
 
 export function endpointProtocolError(): ProviderError {
-  return customEndpointError({
+  return customError({
     kind: 'server',
     status: 0,
     code: 'protocol',
@@ -150,7 +127,7 @@ export function endpointResponseError(params: ResponseErrorParams): ProviderErro
     message = upaiMessage(error.code, error.message)
   }
 
-  return customEndpointError({
+  return customError({
     kind,
     status,
     code,

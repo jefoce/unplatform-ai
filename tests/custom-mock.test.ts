@@ -142,7 +142,7 @@ describe('custom mock video states', () => {
 
       expect(await provider.getJob(ref)).toMatchObject({
         status: 'in_progress',
-        progress: { node: 'MockSampler', waitingOn: null },
+        progress: { waitingOn: null },
       })
 
       vi.setSystemTime(START + MOCK_QUEUE_MS + MOCK_GENERATE_MS + 1)

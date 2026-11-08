@@ -38,6 +38,7 @@ afterAll(async () => {
 
 function entry(label: string): EndpointsRepo.EndpointEntry {
   return {
+    id: `id-${label}`,
     label,
     baseUrl: 'http://127.0.0.1:8188',
     enabled: true,
@@ -145,7 +146,7 @@ describe('badge allocation', () => {
     ).rejects.toMatchObject({ status: 400, message: 'Badge AB12 is already used' })
   })
 
-  it('assigns ids and keeps the request order', async () => {
+  it('keeps the given ids and the request order', async () => {
     const saved = await repo.applyEndpoints({ entries: [entry('One'), entry('Two')] })
 
     expect(
@@ -154,9 +155,11 @@ describe('badge allocation', () => {
       }),
     ).toEqual(['One', 'Two'])
 
-    expect(saved.file.endpoints[0]?.id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    )
+    expect(
+      saved.file.endpoints.map((endpoint) => {
+        return endpoint.id
+      }),
+    ).toEqual(['id-One', 'id-Two'])
   })
 })
 

@@ -5,7 +5,11 @@ import { randomUUID } from 'node:crypto'
 import { isNil, isUndefined, keyBy } from 'lodash-es'
 
 import type { EndpointInput, EndpointOverview, SaveEndpointsParams } from '@/core/api/endpoints'
-import { type CustomEndpoint, type CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
+import {
+  type CustomEndpoint,
+  type CustomEndpointLastHealth,
+  ENDPOINT_BADGE_PATTERN,
+} from '@/core/schemas/custom-endpoint'
 
 import { HttpError } from '../errors'
 import { isUuid } from '../fs/media-ref'
@@ -54,7 +58,7 @@ interface ResolvedLastHealth {
 }
 
 interface SavedHealth {
-  id: string | null
+  id: string
   resolved: ResolvedLastHealth
 }
 
@@ -70,17 +74,13 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   const previousById = keyBy(current, 'id')
   const tokenMap = readTokenMap()
 
-  const changes = prepared.flatMap((item) => {
-    if (isNil(item.entry.id)) {
-      return []
-    }
-
-    return [{ id: item.entry.id, token: item.token }]
+  const changes = prepared.map((item) => {
+    return { id: item.entry.id, token: item.token }
   })
 
   const preparedIds = new Set(
     prepared.map((item) => {
-      return item.entry.id ?? ''
+      return item.entry.id
     }),
   )
 
@@ -97,12 +97,12 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   await writeEndpointTokens(plan.serialized)
 
   const savedHealths = prepared.map((item) => {
-    const previous = previousById[item.entry.id ?? '']
+    const previous = previousById[item.entry.id]
     const resolved = resolveSavedHealth({ previous, item, tokenMap })
 
     item.entry.lastHealth = resolved.lastHealth
 
-    return { id: item.entry.id ?? null, resolved }
+    return { id: item.entry.id, resolved }
   })
 
   let result: ApplyEndpointsResult
@@ -135,7 +135,7 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
 /** The saved health comes from the last server test, never from the client body. */
 function resolveSavedHealth(params: SettleSavedHealthParams): ResolvedLastHealth {
   const { previous, item, tokenMap } = params
-  const id = item.entry.id ?? ''
+  const id = item.entry.id
   const token = effectiveToken({ item, tokenMap })
   const storedToken = tokenMap[id] ?? null
 
@@ -150,10 +150,6 @@ function resolveSavedHealth(params: SettleSavedHealthParams): ResolvedLastHealth
 /** Runs only after the endpoint file is safely written. */
 function applySavedHealth(healths: SavedHealth[]): void {
   for (const health of healths) {
-    if (isNil(health.id)) {
-      continue
-    }
-
     if (!isNil(health.resolved.lastHealth)) {
       setEndpointHealth({
         endpointId: health.id,
@@ -224,7 +220,7 @@ function effectiveToken(params: EffectiveTokenParams): string | null {
     return token
   }
 
-  return tokenMap[item.entry.id ?? ''] ?? null
+  return tokenMap[item.entry.id] ?? null
 }
 
 function toEntry(input: EndpointInput): EndpointEntry {
@@ -256,7 +252,7 @@ function assertBadges(prepared: PreparedEndpoint[]): void {
       continue
     }
 
-    if (!/^[A-Z0-9]{1,4}$/.test(badge)) {
+    if (!ENDPOINT_BADGE_PATTERN.test(badge)) {
       throw new HttpError(400, 'Badge must be 1 to 4 uppercase letters or digits')
     }
 

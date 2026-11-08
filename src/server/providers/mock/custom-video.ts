@@ -98,7 +98,6 @@ export function createCustomMockVideoProvider(options: CustomMockOptions): Video
       error: snapshot.error,
       progress: {
         percent: snapshot.percent,
-        node: snapshot.node,
         queuePosition: snapshot.queuePosition,
         waitingOn: snapshot.waitingOn,
       },

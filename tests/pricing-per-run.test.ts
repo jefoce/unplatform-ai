@@ -139,7 +139,7 @@ describe('perRun quote', () => {
 
 describe('endpoint override', () => {
   it('reads the endpoint id from the custom preset id', async () => {
-    const { endpointIdFromPresetId } = await import('../src/server/providers/custom/preset-link')
+    const { endpointIdFromPresetId } = await import('../src/core/presets/custom')
 
     expect(endpointIdFromPresetId('custom.ep-1.wf.model')).toBe('ep-1')
     expect(endpointIdFromPresetId('wan-3.0')).toBeNull()

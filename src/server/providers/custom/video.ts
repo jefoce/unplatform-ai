@@ -60,7 +60,6 @@ export function toJobSnapshot(job: UpaiJob): JobSnapshot {
   if (!isNil(job.progress)) {
     const progress: JobProgress = {
       percent: job.progress.percent,
-      node: job.progress.node ?? null,
       queuePosition: job.progress.queue_position ?? null,
       waitingOn: job.progress.waiting_on ?? null,
     }

@@ -272,7 +272,6 @@ describe('custom record progress', () => {
         status: 'in_progress',
         progress: {
           percent: 42,
-          node: null,
           queuePosition: null,
           waitingOn: 'comfyui_busy',
         },

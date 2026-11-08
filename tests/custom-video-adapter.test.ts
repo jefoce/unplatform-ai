@@ -183,7 +183,6 @@ describe('custom video job mapping', () => {
 
     expect(snapshot.progress).toEqual({
       percent: 42,
-      node: 'MockSampler',
       queuePosition: null,
       waitingOn: null,
     })

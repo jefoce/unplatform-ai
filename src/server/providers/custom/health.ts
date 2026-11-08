@@ -5,6 +5,7 @@ import { isNil } from 'lodash-es'
 import { FETCH_TIMEOUTS } from '@/core/constants'
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import { type UpaiHealth, UpaiHealthSchema } from '@/core/protocol/upai'
+import { CUSTOM_PROTOCOL_MESSAGE } from '@/core/providers/custom-messages'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { TestResult } from '@/core/types'
 
@@ -43,13 +44,13 @@ export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthPr
     const header = res.headers.get('x-upai-protocol')
 
     if (!isNil(header) && header !== '1') {
-      throw protocolError('This server does not speak upai/1')
+      throw protocolError(CUSTOM_PROTOCOL_MESSAGE)
     }
 
     const parsed = UpaiHealthSchema.safeParse(await readCustomJson(res))
 
     if (!parsed.success) {
-      throw protocolError('This server does not speak upai/1')
+      throw protocolError(CUSTOM_PROTOCOL_MESSAGE)
     }
 
     emitCustomHealth(endpoint.id, {

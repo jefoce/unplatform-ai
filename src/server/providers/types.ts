@@ -65,7 +65,6 @@ export interface JobUsage {
 
 export interface JobProgress {
   percent: number
-  node: string | null
   queuePosition: number | null
   waitingOn: UpaiWaitingOn | null
 }
