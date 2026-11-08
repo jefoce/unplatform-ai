@@ -4,7 +4,7 @@ import { createContext, type ReactNode, useContext } from 'react'
 
 import { type EndpointsState, useEndpointsStatus } from '@/lib/api/endpoints-status'
 
-const EMPTY_SNAPSHOT: EndpointsState = { endpoints: [], isLoading: false, error: null }
+const EMPTY_SNAPSHOT: EndpointsState = { endpoints: [], isLoading: true, error: null }
 
 const EndpointsSnapshotContext = createContext<EndpointsState>(EMPTY_SNAPSHOT)
 
