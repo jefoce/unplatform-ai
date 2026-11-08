@@ -17,6 +17,7 @@ import {
   sameInstanceBadge,
   urlError,
 } from './endpoint-draft'
+import { EndpointIdentityFields } from './EndpointIdentityFields'
 import { EndpointPriceField } from './EndpointPriceField'
 import { EndpointTestResult } from './EndpointTestResult'
 
@@ -27,37 +28,34 @@ interface EndpointFormProps {
   onTest: (key: string) => void
 }
 
+interface TokenHint {
+  placeholder: string
+  description: string | null
+}
+
+function tokenHint(row: EndpointRowDraft): TokenHint {
+  if (row.isTokenRemoved) {
+    return { placeholder: 'Optional', description: 'Will remove the stored token' }
+  }
+
+  if (!isNil(row.tokenHint)) {
+    return { placeholder: `•••• ${row.tokenHint}`, description: `Stored, ending ${row.tokenHint}` }
+  }
+
+  if (row.hasToken) {
+    return { placeholder: 'Optional', description: 'Stored' }
+  }
+
+  return { placeholder: 'Optional', description: null }
+}
+
 /** Expanded endpoint fields, test control and inline result. */
-/* eslint-disable-next-line max-lines-per-function -- one form owns its endpoint fields and token controls */
 export function EndpointForm(props: EndpointFormProps) {
   const { row, rows } = props
   const badgeMessage = badgeError(row, rows)
   const urlMessage = urlError(row.baseUrl)
   const sameBadge = sameInstanceBadge(row, rows)
-  const hasToken = row.hasToken
-  let tokenPlaceholder = 'Optional'
-  let tokenDescription: string | null = null
-
-  if (hasToken) {
-    tokenDescription = 'Stored'
-  }
-
-  if (!isNil(row.tokenHint)) {
-    tokenPlaceholder = `•••• ${row.tokenHint}`
-    tokenDescription = `Stored, ending ${row.tokenHint}`
-  }
-
-  if (row.isTokenRemoved) {
-    tokenDescription = 'Will remove the stored token'
-  }
-
-  const handleLabelChange = (event: ChangeEvent<HTMLInputElement>) => {
-    props.onChange(row.key, { label: event.target.value })
-  }
-
-  const handleBadgeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    props.onChange(row.key, { badge: event.target.value.toUpperCase() })
-  }
+  const token = tokenHint(row)
 
   const handleUrlChange = (event: ChangeEvent<HTMLInputElement>) => {
     props.onChange(row.key, { baseUrl: event.target.value })
@@ -84,13 +82,8 @@ export function EndpointForm(props: EndpointFormProps) {
   }
 
   return (
-    <div className="space-y-3 border-t border-line p-3">
-      <Field label="Label">
-        <Input value={row.label} maxLength={40} onChange={handleLabelChange} />
-      </Field>
-      <Field label="Badge" hint="1 to 4 uppercase letters or digits" error={badgeMessage}>
-        <Input value={row.badge} maxLength={4} onChange={handleBadgeChange} />
-      </Field>
+    <div className="space-y-3 px-3 pt-0 pb-3">
+      <EndpointIdentityFields row={row} message={badgeMessage} onChange={props.onChange} />
       <Field
         label="URL"
         hint="your ComfyUI address"
@@ -101,14 +94,14 @@ export function EndpointForm(props: EndpointFormProps) {
       >
         <Input value={row.baseUrl} placeholder="http://127.0.0.1:8188" onChange={handleUrlChange} />
       </Field>
-      <Field label="Token (optional)" hint={tokenDescription}>
+      <Field label="Token (optional)" hint={token.description}>
         <PasswordInput
           value={row.tokenValue}
-          placeholder={tokenPlaceholder}
+          placeholder={token.placeholder}
           onChange={handleTokenChange}
         />
       </Field>
-      {hasToken && !row.isTokenRemoved && (
+      {row.hasToken && !row.isTokenRemoved && (
         <Button size="sm" variant="ghost" onClick={handleTokenRemove}>
           Remove token
         </Button>
@@ -120,12 +113,14 @@ export function EndpointForm(props: EndpointFormProps) {
         onCheckedChange={handleEnabledChange}
         aria-label="Enabled"
       />
-      <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between gap-3">
         <Button size="sm" variant="outline" loading={row.isTesting} onClick={handleTest}>
           Test
         </Button>
+        <div className="min-w-0 flex-1 text-right">
+          <EndpointTestResult test={row.test} />
+        </div>
       </div>
-      <EndpointTestResult test={row.test} />
     </div>
   )
 }

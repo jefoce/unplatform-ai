@@ -13,7 +13,7 @@ import { ACTIVE_STATUSES } from '@/core/types'
 import { type ImageGridItem, imageShareCount } from '@/lib/feed/output-items'
 import { formatClock } from '@/lib/format'
 
-interface CostInfo {
+export interface CostInfo {
   text: string
   note: string
 }

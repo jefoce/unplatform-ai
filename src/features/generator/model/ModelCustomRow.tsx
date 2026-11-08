@@ -4,6 +4,7 @@ import { isNil } from 'lodash-es'
 import { Check, TriangleAlert } from 'lucide-react'
 
 import { cn } from '@/lib/cn'
+import { EndpointBadge } from '@/ui/EndpointBadge'
 import { Tooltip } from '@/ui/Tooltip'
 
 import type { ModelRowProps } from './model-row-props'
@@ -74,9 +75,7 @@ export function ModelCustomRow(props: ModelRowProps) {
           isBlocked && 'opacity-50',
         )}
       >
-        <span className="flex h-6 w-10 shrink-0 items-center justify-center rounded-md bg-white/5 font-mono text-xs text-fg-2">
-          {model.badge}
-        </span>
+        {!isNil(model.badge) && <EndpointBadge badge={model.badge} />}
         <span className="min-w-0 flex-1">
           <span className="flex w-full items-baseline gap-2">
             <span className="min-w-0 flex-1 truncate text-sm font-medium whitespace-nowrap">

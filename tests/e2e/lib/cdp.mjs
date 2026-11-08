@@ -462,6 +462,16 @@ export class PageDriver {
     await this.waitFor(`document.readyState === 'complete'`, 30_000, 'reload')
   }
 
+  /** Saves a viewport screenshot under the e2e temp directory. */
+  async captureScreenshot(name) {
+    const shot = await this.send('Page.captureScreenshot', { format: 'png' })
+    const file = path.join(TEMP_BASE, `${name}.png`)
+
+    await fs.writeFile(file, Buffer.from(shot.data, 'base64'))
+
+    return file
+  }
+
   async close() {
     this.cdp.close()
   }

@@ -26,7 +26,7 @@ export function CustomEndpointSection(props: CustomEndpointSectionProps) {
 
   return (
     <section ref={sectionRef} className="space-y-3">
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold tracking-wide text-fg-2 uppercase">
           {PROVIDER_KINDS.custom.title}
         </h3>

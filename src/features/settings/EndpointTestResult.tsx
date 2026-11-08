@@ -17,14 +17,14 @@ export function EndpointTestResult(props: EndpointTestResultProps) {
   }
 
   if (!test.ok) {
-    return <p className="text-xxs text-danger">{test.error ?? 'Test failed'}</p>
+    return <p className="text-xs text-danger">{test.error ?? 'Test failed'}</p>
   }
 
   const lanText = test.lanAllowed === true ? 'on' : 'off'
   const tokenText = test.authRequired === true ? 'Token required' : 'No token needed'
 
   return (
-    <ul className="space-y-0.5 text-xxs text-fg-2">
+    <ul className="space-y-0.5 text-xs text-fg-2">
       <li>Protocol upai/1</li>
       <li>ComfyUI {test.serverVersion}</li>
       <li>

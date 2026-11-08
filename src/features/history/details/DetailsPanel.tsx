@@ -5,7 +5,7 @@ import { Lock } from 'lucide-react'
 
 import { showPrice } from '@/core/pricing/visibility'
 import { canonicalizePrompt } from '@/core/prompt-tokens'
-import { recordSource, sourceTitle } from '@/core/record-source'
+import { recordSource } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { ImageRecord } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
@@ -21,9 +21,16 @@ import {
   recordSlots,
 } from '@/lib/feed/output-items'
 import { useNow } from '@/lib/use-now'
+import { EndpointBadge } from '@/ui/EndpointBadge'
 import { Tooltip } from '@/ui/Tooltip'
 
-import { costInfo, imageCostInfo, imageOutputSeed, imageSettingLabels } from './details-info'
+import {
+  type CostInfo,
+  costInfo,
+  imageCostInfo,
+  imageOutputSeed,
+  imageSettingLabels,
+} from './details-info'
 import { DetailsActions } from './DetailsActions'
 import { DetailsPrompt } from './DetailsPrompt'
 import { DetailsSettings } from './DetailsSettings'
@@ -44,6 +51,7 @@ interface DetailsPanelProps {
 }
 
 interface PanelHeader {
+  badge: string | null
   title: string
   costText: string
   costNote: string
@@ -63,22 +71,23 @@ function costTextFor(record: GenerationRecord | ImageRecord, text: string): stri
   return text
 }
 
-/** Model, price and its note for either kind. Local zero prices are hidden. */
-function panelHeader(item: HistoryItem): PanelHeader {
+/** Cost text and note for either kind, with the matching record shape. */
+function headerCost(item: HistoryItem): CostInfo {
   if (isVideoItem(item)) {
-    const cost = costInfo(item.source)
-
-    return {
-      title: sourceTitle(recordSource(item.source)),
-      costText: costTextFor(item.source, cost.text),
-      costNote: cost.note,
-    }
+    return costInfo(item.source)
   }
 
-  const cost = imageCostInfo(item)
+  return imageCostInfo(item)
+}
+
+/** Model, price and its note for either kind. Local zero prices are hidden. */
+function panelHeader(item: HistoryItem): PanelHeader {
+  const source = recordSource(item.source)
+  const cost = headerCost(item)
 
   return {
-    title: sourceTitle(recordSource(item.source)),
+    badge: source.badge,
+    title: source.presetTitle,
     costText: costTextFor(item.source, cost.text),
     costNote: cost.note,
   }
@@ -212,7 +221,8 @@ export function DetailsPanel(props: DetailsPanelProps) {
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-2xl border border-line bg-page-2 p-3 pb-4">
       <div className={cn('flex items-center justify-between gap-2', hasTopRightInset && 'pr-10')}>
-        <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
+        <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-fg">
+          {!isNil(header.badge) && <EndpointBadge badge={header.badge} />}
           {header.title}
         </span>
         {header.costText !== '' && (

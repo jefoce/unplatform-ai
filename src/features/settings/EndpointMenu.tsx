@@ -45,7 +45,7 @@ export function EndpointMenu(props: EndpointMenuProps) {
         <button
           type="button"
           aria-label="Endpoint menu"
-          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-fg-2 hover:bg-hover hover:text-fg"
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-fg-2 hover:bg-hover hover:text-fg"
         >
           <MoreHorizontal size={15} aria-hidden />
         </button>

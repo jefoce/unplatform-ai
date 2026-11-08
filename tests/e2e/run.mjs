@@ -15,6 +15,7 @@ import { promptCases } from './cases/prompt.mjs'
 import { referenceCases } from './cases/references.mjs'
 import { selectionCases } from './cases/selection.mjs'
 import { sessionCases } from './cases/session.mjs'
+import { settingsCases } from './cases/settings.mjs'
 import { statusCases } from './cases/status.mjs'
 import { viewerCases } from './cases/viewer.mjs'
 import { assertHoverMedia, findChrome, startBrowser, stopBrowser, TEMP_BASE } from './lib/cdp.mjs'
@@ -35,6 +36,7 @@ const CASES = [
   ...failureCases,
   ...selectionCases,
   ...sessionCases,
+  ...settingsCases,
   ...statusCases,
   ...viewerCases,
   ...referenceCases,
