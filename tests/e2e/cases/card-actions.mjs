@@ -5,6 +5,8 @@ const VIEW_KEY = 'unplatform-ai:image-view'
 const MIN_ROW_HEIGHT = 150
 const COMPACT_BUTTON = 24
 const DEFAULT_BUTTON = 32
+const COMPACT_CHECKBOX = 16
+const COMPACT_BADGE = 20
 
 function near(actual, expected, tolerance = 0.5) {
   return Math.abs(actual - expected) <= tolerance
@@ -167,10 +169,61 @@ async function compactActions(context) {
   console.log(
     `# compact column bottom ${lastBottom.toFixed(2)} tile bottom ${compact.tile.bottom.toFixed(2)}`,
   )
+
+  const checkbox = await driver.evaluate(`(() => {
+    const node = document.querySelector('[data-compact="true"] [role="checkbox"]')
+    if (node === null) return null
+    const rect = node.getBoundingClientRect()
+    return { width: rect.width, height: rect.height }
+  })()`)
+
+  if (checkbox === null) {
+    throw new Error('No compact selection checkbox to measure')
+  }
+
+  if (!near(checkbox.width, COMPACT_CHECKBOX) || !near(checkbox.height, COMPACT_CHECKBOX)) {
+    throw new Error(
+      `Compact checkbox ${String(checkbox.width)}x${String(checkbox.height)} != ${String(COMPACT_CHECKBOX)}`,
+    )
+  }
+
+  console.log(`# compact checkbox ${checkbox.width.toFixed(2)}x${checkbox.height.toFixed(2)}`)
   console.log(`# compact ${String(width)}x${String(height)} button ${String(actionButton.width)}`)
   console.log(
     `# screenshot ${await driver.captureScreenshot(`card-actions-compact-${String(width)}`)}`,
   )
+
+  await driver.waitFor(
+    `(() => {
+      const tile = document.querySelector('[data-compact="true"]')
+      if (tile === null) return false
+      return [...tile.querySelectorAll('button[aria-label="Like"]')].some((node) => {
+        return Number(getComputedStyle(node).opacity) > 0.9
+      })
+    })()`,
+    10_000,
+    'the visible favorite action',
+  )
+
+  await driver.mouseClick('[data-compact="true"] button[aria-label="Like"]')
+  await driver.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 })
+  await driver.waitFor(
+    `document.querySelector('[data-compact="true"] button[aria-label="Liked"]') !== null`,
+    10_000,
+    'the liked badge on the compact tile',
+  )
+
+  const badgeHeight = await driver.evaluate(`(() => {
+    const node = document.querySelector('[data-compact="true"] button[aria-label="Liked"]')
+    if (node === null) return 0
+    return node.getBoundingClientRect().height
+  })()`)
+
+  if (!near(badgeHeight, COMPACT_BADGE)) {
+    throw new Error(`Compact liked badge height ${String(badgeHeight)} != ${String(COMPACT_BADGE)}`)
+  }
+
+  console.log(`# compact liked badge height ${badgeHeight.toFixed(2)}`)
 
   await context.fixture('layoutSquare')
   await context.fixture('layoutWide')

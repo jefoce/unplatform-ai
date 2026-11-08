@@ -40,6 +40,10 @@ const BUILD_ONLY = new Set([
 const INTERNAL = new Set([
   'APPIMAGE',
   'HOSTNAME',
+  'HOME',
+  'USERPROFILE',
+  'UPAI_REAL_HOME',
+  'VITEST_WORKER_ID',
   'NEXT_PUBLIC_APP_VERSION',
   'NEXT_RUNTIME',
   'NODE_ENV',

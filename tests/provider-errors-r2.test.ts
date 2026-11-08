@@ -52,6 +52,15 @@ describe('r2TestText', () => {
     expect(r2TestText(raw)).toBe(`${title} ${hint}`)
   })
 
+  it.each(['r2:401:UnknownError', 'r2:403:AccessDenied'])(
+    'matches friendlyError output for %s',
+    (raw) => {
+      const friendly = friendlyError({ httpRules: null, raw, rules: [] })
+
+      expect(r2TestText(raw)).toBe(`${friendly.title} ${friendly.hint}`)
+    },
+  )
+
   it('returns null for a non-R2 string', () => {
     expect(r2TestText('OpenRouter auth failed')).toBeNull()
   })
