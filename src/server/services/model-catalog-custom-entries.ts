@@ -23,15 +23,17 @@ import { requestHeaders, requestJson } from '../providers/custom/http'
 import { customRunPriceFromUsd } from '../providers/custom/pricing'
 import { recordHealthFromError, recordHealthOk } from './endpoint-health'
 import {
-  type EndpointModelCache,
-  type EndpointModelKind,
   isEndpointUnreachable,
-  isModelMissing,
   markEndpointReachable,
   markEndpointUnreachable,
   readEndpointModels,
   writeEndpointModels,
 } from './endpoint-model-cache'
+import {
+  type EndpointModelCache,
+  type EndpointModelKind,
+  isModelMissing,
+} from './endpoint-model-file'
 
 export interface PresetSource {
   preset: VideoPreset | ImagePreset

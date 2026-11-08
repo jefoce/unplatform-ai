@@ -21,7 +21,6 @@ vi.stubEnv('STORAGE_ROOT', ROOT)
 const {
   clearEndpointModelCache,
   isEndpointUnreachable,
-  isModelMissing,
   listEnabledCustomEndpoints,
   markEndpointReachable,
   markEndpointUnreachable,
@@ -29,6 +28,8 @@ const {
   removeEndpointModelCache,
   writeEndpointModels,
 } = await import('@/server/services/endpoint-model-cache')
+
+const { isModelMissing } = await import('@/server/services/endpoint-model-file')
 
 const { endpointModelsFile } = await import('@/server/repos/endpoints')
 
