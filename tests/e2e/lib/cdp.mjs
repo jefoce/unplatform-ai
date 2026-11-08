@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 
 import { checkChromeMajor } from './chrome-version.mjs'
@@ -23,7 +24,21 @@ const HOVER_QUERIES = [
 ]
 
 /** Temp directory the runner owns. `E2E_TMPDIR` points at one writable parent. */
-export const TEMP_BASE = process.env.E2E_TMPDIR?.trim() || path.join(process.cwd(), '.e2e-tmp')
+export const TEMP_BASE =
+  process.env.E2E_TMPDIR?.trim() || path.join(os.tmpdir(), 'unplatform-ai-e2e')
+
+/** Removes leftover Chrome profiles from earlier runs. Read errors are ignored. */
+export async function clearStaleChromeProfiles() {
+  await fs.mkdir(TEMP_BASE, { recursive: true })
+
+  const entries = await fs.readdir(TEMP_BASE).catch(() => [])
+
+  for (const entry of entries) {
+    if (entry.startsWith('chrome-')) {
+      await fs.rm(path.join(TEMP_BASE, entry), { recursive: true, force: true })
+    }
+  }
+}
 
 /** Resolves the browser binary from `CHROME_PATH`. CI exports it before the run. */
 export async function findChrome() {

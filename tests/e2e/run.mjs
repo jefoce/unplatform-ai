@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { cardActionsCases } from './cases/card-actions.mjs'
 import { cspCases } from './cases/csp.mjs'
 import { creditsCases } from './cases/credits.mjs'
 import { customCases } from './cases/custom.mjs'
@@ -19,7 +20,14 @@ import { sessionCases } from './cases/session.mjs'
 import { settingsCases } from './cases/settings.mjs'
 import { statusCases } from './cases/status.mjs'
 import { viewerCases } from './cases/viewer.mjs'
-import { assertHoverMedia, findChrome, startBrowser, stopBrowser, TEMP_BASE } from './lib/cdp.mjs'
+import {
+  assertHoverMedia,
+  clearStaleChromeProfiles,
+  findChrome,
+  startBrowser,
+  stopBrowser,
+  TEMP_BASE,
+} from './lib/cdp.mjs'
 import { buildApp, seedFailedImage, seedImage, seedVideo, startServer } from './lib/server.mjs'
 
 const WIDTHS = [1280, 1728, 2560]
@@ -30,6 +38,7 @@ let outbound = 0
 
 const CASES = [
   ...imageFirstCases,
+  ...cardActionsCases,
   ...cspCases,
   ...creditsCases,
   ...customCases,
@@ -210,8 +219,8 @@ async function main() {
     await findChrome()
   }
 
+  await clearStaleChromeProfiles()
   await buildApp()
-  await fs.mkdir(TEMP_BASE, { recursive: true })
 
   const rows = []
 
