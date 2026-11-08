@@ -1,6 +1,6 @@
 'use client'
 
-import { closestCenter, DndContext } from '@dnd-kit/core'
+import { DndContext } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 import { groupBy } from 'lodash-es'
 
@@ -9,6 +9,7 @@ import { MEDIA_KINDS } from '@/core/media/media-types'
 import type { VideoPreset } from '@/core/presets/video/types'
 
 import { AddReferenceTile } from './AddReferenceTile'
+import { referenceCollisionDetection } from './reference-collision'
 import { labelFor, noteFor } from './reference-notes'
 import { ReferenceCounters } from './ReferenceCounters'
 import { ReferenceDragOverlay } from './ReferenceDragOverlay'
@@ -37,7 +38,7 @@ export function ReferencesGrid(props: ReferencesGridProps) {
   return (
     <DndContext
       sensors={grid.sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={referenceCollisionDetection}
       onDragStart={grid.handleDragStart}
       onDragOver={grid.handleDragOver}
       onDragEnd={grid.handleDragEnd}
