@@ -1,5 +1,6 @@
 import { isNil } from 'lodash-es'
 
+import type { ProviderKindId } from './providers/types'
 import type {
   JobStatus,
   RecordDownload,
@@ -128,6 +129,42 @@ export const STATUS_HELP: Record<StatusHelpKey, StatusHelp> = {
   },
 }
 
+/** ComfyUI wording for the shared submit stages. Labels stay unchanged. */
+const CUSTOM_HELP_OVERRIDES: Partial<Record<StatusHelpKey, Partial<StatusHelp>>> = {
+  uploading: {
+    what: 'Sending your reference files to ComfyUI',
+  },
+  sending: {
+    what: 'Handing the job to ComfyUI',
+  },
+  pending: {
+    what: 'ComfyUI accepted it and is starting the workflow',
+  },
+}
+
+export interface StatusHelpParams {
+  key: StatusHelpKey
+  provider: ProviderKindId
+}
+
+/** Status help with the provider wording applied. */
+export function statusHelpFor(params: StatusHelpParams): StatusHelp {
+  const { key, provider } = params
+  const help = STATUS_HELP[key]
+
+  if (provider !== 'custom') {
+    return help
+  }
+
+  const overrides = CUSTOM_HELP_OVERRIDES[key]
+
+  if (isNil(overrides)) {
+    return help
+  }
+
+  return { ...help, ...overrides }
+}
+
 /** Image wording for the shared status help. */
 const IMAGE_HELP_OVERRIDES: Partial<Record<StatusHelpKey, Partial<StatusHelp>>> = {
   processing: {
@@ -148,8 +185,17 @@ const IMAGE_HELP_OVERRIDES: Partial<Record<StatusHelpKey, Partial<StatusHelp>>> 
 }
 
 /** One status help entry with image wording. */
-export function imageStatusHelp(key: StatusHelpKey): StatusHelp {
-  const help = STATUS_HELP[key]
+export function imageStatusHelp(
+  key: StatusHelpKey,
+  provider: ProviderKindId = 'openrouter',
+): StatusHelp {
+  const help = statusHelpFor({ key, provider })
+  const isCustomUploading = key === 'uploading' && provider === 'custom'
+
+  if (isCustomUploading) {
+    return help
+  }
+
   const overrides = IMAGE_HELP_OVERRIDES[key]
 
   if (isNil(overrides)) {

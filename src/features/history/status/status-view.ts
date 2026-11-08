@@ -6,12 +6,14 @@ import { findImagePreset } from '@/core/presets/image'
 import { friendlyError } from '@/core/provider-errors'
 import type { FriendlyError } from '@/core/provider-errors/types'
 import { providerDescriptor } from '@/core/providers/registry'
+import { recordSource } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { ImageRecord } from '@/core/schemas/image-record'
 import {
   imageStatusHelp,
   STATUS_HELP,
   type StatusHelp,
+  statusHelpFor,
   type StatusHelpKey,
   statusHelpKey,
 } from '@/core/status-help'
@@ -98,7 +100,7 @@ function imageRawError(item: ImageGridItem): string | null {
 
 /** Video record to a status view, including retry and reuse. */
 export function videoStatusView(record: GenerationRecord, onCancel?: () => void): StatusView {
-  const help = STATUS_HELP[statusHelpKey(record)]
+  const help = statusHelpFor({ key: statusHelpKey(record), provider: recordSource(record).kind })
   const friendly = recordError(record)
   const canRetry = isDownloadRetryable(record)
 
@@ -163,7 +165,7 @@ function imageErrorStatus(item: ImageGridItem): number | undefined {
 /** Image item to a status view, with its record or output error translated. */
 export function imageStatusView(item: ImageGridItem, onCancel?: () => void): StatusView {
   const record = item.source
-  const help = imageStatusHelp(imageHelpKey(item))
+  const help = imageStatusHelp(imageHelpKey(item), record.provider)
   const raw = imageRawError(item)
   const isGrace = item.status === 'submitting' && record.submit?.stage === 'grace'
 
