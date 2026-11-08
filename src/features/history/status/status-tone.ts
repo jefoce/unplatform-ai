@@ -44,7 +44,11 @@ const CANCELLED_TEXT = 'Not sent, not charged.'
 function baseLabel(record: GenerationRecord, key: StatusHelpKey): string {
   const queuePosition = record.progress?.queuePosition
 
-  if (key === 'queued_n' && !isNil(queuePosition)) {
+  if (key === 'queued_n') {
+    if (isNil(queuePosition)) {
+      return 'In queue'
+    }
+
     return `In queue, ${queuePosition} ahead`
   }
 

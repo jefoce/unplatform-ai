@@ -56,6 +56,15 @@ describe('custom job progress', () => {
     expect(videoStatusView(record).label).toBe('In queue, 2 ahead')
   })
 
+  it('says In queue when the pack has no queue position', () => {
+    const record = custom({
+      status: 'pending',
+      progress: { percent: 0, node: null, queuePosition: null, waitingOn: 'pack_queue' },
+    })
+
+    expect(videoStatusView(record).label).toBe('In queue')
+  })
+
   it('maps a comfy_unavailable error to the offline label', () => {
     const record = custom({ error: 'upai:comfy_unavailable: connection refused' })
 

@@ -17,7 +17,7 @@ export const CustomEndpointLastHealthSchema = z
   .object({
     protocol: z.number().int(),
     serverVersion: z.string(),
-    maxRunning: z.number().int(),
+    maxRunning: z.number().int().min(1).max(8),
     lanAllowed: z.boolean(),
     authRequired: z.boolean(),
     maxUploadBytes: z.number().int().min(0).default(0),

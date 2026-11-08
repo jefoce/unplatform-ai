@@ -91,6 +91,9 @@ export function ModelCustomRow(props: ModelRowProps) {
           {!isNil(model.workflowName) && (
             <span className="mt-1 block truncate text-xs text-fg-2">{model.workflowName}</span>
           )}
+          {!isNil(model.reason) && (
+            <span className="mt-1 block text-xs text-fg-2">{model.reason}</span>
+          )}
         </span>
         <span className="flex size-3.5 shrink-0 items-center justify-center">
           <Check size={14} className={cn('text-accent', !isSelected && 'invisible')} />

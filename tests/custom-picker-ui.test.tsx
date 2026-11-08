@@ -159,7 +159,7 @@ describe('custom model picker', () => {
     render(<ModelPicker />)
     const dialog = openPicker()
 
-    const headings = within(dialog).getAllByText(/OpenRouter|ComfyUI/)
+    const headings = within(dialog).getAllByText(/^(OpenRouter|ComfyUI)$/)
 
     expect(
       headings.map((node) => {
@@ -215,7 +215,9 @@ describe('custom model picker', () => {
     fireEvent.pointerEnter(invalid)
     fireEvent.pointerMove(invalid)
 
-    expect(await screen.findByText(INVALID.reason ?? '')).toBeTruthy()
+    const tooltip = await screen.findByRole('tooltip')
+
+    expect(tooltip.textContent).toContain(INVALID.reason ?? '')
   })
 
   it('uses the endpoint perRun override and hides a local zero price', () => {
@@ -260,6 +262,18 @@ describe('custom model picker', () => {
     fireEvent.click(refresh)
 
     expect(mockRefresh).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('custom model invalid rows', () => {
+  it('shows an invalid reason as visible text without a hover', () => {
+    useEntries([INVALID])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+    const invalid = within(dialog).getByRole('button', { name: /Broken Workflow/ })
+
+    expect(within(invalid).getByText('This workflow cannot run in ComfyUI.')).toBeTruthy()
   })
 })
 
