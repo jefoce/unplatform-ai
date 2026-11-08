@@ -5,6 +5,7 @@ import path from 'node:path'
 /* eslint-disable max-lines -- one service suite covers tokens, health and test mapping */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { EndpointInput } from '@/core/api/endpoints'
 import { ENDPOINT_HEALTH_MAX_AGE_MS } from '@/core/constants'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
 import type * as EndpointOverviewService from '@/server/services/endpoint-overview'
@@ -94,7 +95,7 @@ afterAll(async () => {
   process.env.STORAGE_ROOT = PREVIOUS_ROOT
 })
 
-function endpoint(label: string, token?: string): EndpointSaveService.EndpointInput {
+function endpoint(label: string, token?: string): EndpointInput {
   return {
     id: null,
     label,

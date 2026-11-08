@@ -2,26 +2,21 @@
 
 import 'server-only'
 
-import path from 'node:path'
-
 import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import { CUSTOM_MISSING_KEEP_DAYS } from '@/core/constants'
 import { type UpaiModel, UpaiModelSchema } from '@/core/protocol/upai'
-import { type CustomEndpoint, CustomEndpointFileSchema } from '@/core/schemas/custom-endpoint'
+import { type CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
 import { readJson, removeFile, writeJsonAtomic } from '../fs/json-file'
 import { globalState } from '../global-state'
-import { STORAGE_ROOT } from '../paths'
 import { getEndpointSync } from '../providers/custom/endpoint-source'
+import { endpointModelsFile, listEndpoints } from '../repos/endpoints'
 import { withLock } from '../sync/lock'
 
 export type EndpointModelKind = 'video' | 'image'
 
-const DATA_DIR = path.join(STORAGE_ROOT, 'data')
-const ENDPOINTS_FILE = path.join(DATA_DIR, 'endpoints.json')
-const MODELS_DIR = path.join(DATA_DIR, 'endpoint-models')
 const ENDPOINT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -58,11 +53,11 @@ const state = globalState<CacheState>('endpointModelCache', () => {
   return { files: new Map(), unreachable: new Set() }
 })
 
-/** Enabled endpoints only, read straight from data/endpoints.json. */
+/** Enabled endpoints only, read through the endpoint repo. */
 export async function listEnabledCustomEndpoints(): Promise<CustomEndpoint[]> {
-  const file = await readJson(ENDPOINTS_FILE, CustomEndpointFileSchema)
+  const endpoints = await listEndpoints()
 
-  const enabled = (file?.endpoints ?? []).filter((endpoint) => {
+  const enabled = endpoints.filter((endpoint) => {
     return endpoint.enabled && isSafeEndpointId(endpoint.id)
   })
 
@@ -102,7 +97,7 @@ export async function writeEndpointModels(params: WriteEndpointModelsParams): Pr
 
     const nextFile = nextCacheFile({ previous: await readCacheFile(endpointId), kind, models })
 
-    await writeJsonAtomic({ file: fileFor(endpointId), data: nextFile })
+    await writeJsonAtomic({ file: endpointModelsFile(endpointId), data: nextFile })
     state.files.set(endpointId, nextFile)
     markEndpointReachable(endpointId)
   })
@@ -145,7 +140,7 @@ export async function removeEndpointModelCache(endpointId: string): Promise<void
   }
 
   await withLock(`endpoint-models:${endpointId}`, async () => {
-    await removeFile(fileFor(endpointId))
+    await removeFile(endpointModelsFile(endpointId))
     state.files.delete(endpointId)
     state.unreachable.delete(endpointId)
   })
@@ -190,7 +185,7 @@ async function readCacheFile(endpointId: string): Promise<EndpointModelCacheFile
     return state.files.get(endpointId) ?? null
   }
 
-  const file = await readJson(fileFor(endpointId), EndpointModelCacheSchema)
+  const file = await readJson(endpointModelsFile(endpointId), EndpointModelCacheSchema)
 
   state.files.set(endpointId, file)
 
@@ -324,10 +319,6 @@ function keepMs(): number {
 
 function missingKey(kind: EndpointModelKind, modelId: string): string {
   return `${kind}:${modelId}`
-}
-
-function fileFor(endpointId: string): string {
-  return path.join(MODELS_DIR, `${endpointId}.json`)
 }
 
 function isSafeEndpointId(endpointId: string): boolean {

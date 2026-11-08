@@ -2,30 +2,15 @@
 
 import { mutate } from 'swr'
 
-import type { EndpointOverview, EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
 import type {
-  CustomEndpointLastHealth,
-  CustomEndpointPricing,
-} from '@/core/schemas/custom-endpoint'
+  EndpointOverview,
+  EndpointTestBody,
+  EndpointTestResult,
+  SaveEndpointsParams,
+} from '@/core/api/endpoints'
 import { apiPost, apiRequest, fetcher } from '@/lib/fetcher'
 
 import { ENDPOINTS_KEY } from './swr-keys'
-
-export interface EndpointInput {
-  id: string | null
-  label: string
-  badge: string | null
-  baseUrl: string
-  enabled: boolean
-  pricing: CustomEndpointPricing
-  instanceId: string | null
-  lastHealth: CustomEndpointLastHealth | null
-  token?: string | null
-}
-
-export interface SaveEndpointsParams {
-  endpoints: EndpointInput[]
-}
 
 export function fetchEndpoints(): Promise<EndpointOverview> {
   return fetcher<EndpointOverview>(ENDPOINTS_KEY)

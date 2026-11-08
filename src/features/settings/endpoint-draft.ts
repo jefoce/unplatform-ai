@@ -4,6 +4,7 @@ import { isNil } from 'lodash-es'
 
 import type {
   EndpointHealthView,
+  EndpointInput,
   EndpointOverviewEntry,
   EndpointTestResult,
 } from '@/core/api/endpoints'
@@ -11,7 +12,6 @@ import type {
   CustomEndpointLastHealth,
   CustomEndpointPricing,
 } from '@/core/schemas/custom-endpoint'
-import type { EndpointInput } from '@/lib/api/endpoints'
 
 const BADGE_PATTERN = /^[A-Z0-9]{1,4}$/
 

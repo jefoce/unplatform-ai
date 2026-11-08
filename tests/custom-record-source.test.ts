@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { getPreset } from '@/core/presets'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
-import { resolveCustomRunPrice } from '@/server/providers/custom/pricing'
+import { customRunPriceFromUsd, resolveCustomRunPrice } from '@/server/providers/custom/pricing'
 import { customRecordSource } from '@/server/providers/custom/record-source'
 
 const ENDPOINT: CustomEndpoint = {
@@ -85,5 +85,41 @@ describe('custom run price', () => {
     expect(resolveCustomRunPrice({ endpoint: ENDPOINT, preset: videoPreset(3), duration: 1 })).toBe(
       3,
     )
+  })
+})
+
+describe('custom run price from usd', () => {
+  it('keeps the model price in model or null mode', () => {
+    expect(customRunPriceFromUsd({ pricing: null, modelUsd: 1.5, seconds: 3 })).toBe(1.5)
+
+    expect(
+      customRunPriceFromUsd({ pricing: { mode: 'model', usd: 9 }, modelUsd: 1.5, seconds: 3 }),
+    ).toBe(1.5)
+  })
+
+  it('applies the override and bills at least one second', () => {
+    expect(
+      customRunPriceFromUsd({ pricing: { mode: 'free', usd: 9 }, modelUsd: 1.5, seconds: 3 }),
+    ).toBe(0)
+
+    expect(
+      customRunPriceFromUsd({ pricing: { mode: 'perRun', usd: 2 }, modelUsd: 1.5, seconds: 3 }),
+    ).toBe(2)
+
+    expect(
+      customRunPriceFromUsd({
+        pricing: { mode: 'perSecond', usd: 0.5 },
+        modelUsd: 1.5,
+        seconds: 4,
+      }),
+    ).toBe(2)
+
+    expect(
+      customRunPriceFromUsd({
+        pricing: { mode: 'perSecond', usd: 0.5 },
+        modelUsd: 1.5,
+        seconds: 0,
+      }),
+    ).toBe(0.5)
   })
 })

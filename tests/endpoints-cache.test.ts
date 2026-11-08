@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { EndpointOverviewEntry } from '@/core/api/endpoints'
+import type { EndpointInput, EndpointOverviewEntry } from '@/core/api/endpoints'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
 import type * as EndpointSaveService from '@/server/services/endpoint-save'
 import type * as EndpointTestService from '@/server/services/endpoint-test'
@@ -42,7 +42,7 @@ const HEALTH = {
   max_running: 2,
 }
 
-function endpoint(): EndpointSaveService.EndpointInput {
+function endpoint(): EndpointInput {
   return {
     id: null,
     label: 'Studio',
@@ -55,7 +55,7 @@ function endpoint(): EndpointSaveService.EndpointInput {
   }
 }
 
-function endpointInput(entry: EndpointOverviewEntry): EndpointSaveService.EndpointInput {
+function endpointInput(entry: EndpointOverviewEntry): EndpointInput {
   return {
     id: entry.id,
     label: entry.label,

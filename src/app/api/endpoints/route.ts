@@ -1,7 +1,8 @@
+import { SaveEndpointsBodySchema } from '@/core/api/endpoints'
 import { errorResponse, jsonResponse, zodError } from '@/server/http'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { getEndpointOverview } from '@/server/services/endpoint-overview'
-import { saveEndpoints, SaveEndpointsBodySchema } from '@/server/services/endpoint-save'
+import { saveEndpoints } from '@/server/services/endpoint-save'
 
 export async function GET(request: Request) {
   try {

@@ -8,7 +8,12 @@ import {
   type EndpointOverviewEntry,
   EndpointTestResultSchema,
 } from '@/core/api/endpoints'
-import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
+import {
+  CATALOG_MISSING_REASON,
+  type CatalogEntry,
+  catalogEntryReason,
+  type ModelCatalog,
+} from '@/core/catalog'
 import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
 import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
@@ -18,8 +23,6 @@ import { ENDPOINTS_KEY, MODELS_KEY } from './swr-keys'
 
 const ENDPOINTS_TEST_PATH = `${ENDPOINTS_KEY}/test`
 const CATALOG_PATH = MODELS_KEY
-const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
-const MISSING_REASON = 'This workflow is gone from ComfyUI.'
 const REMOVED_REASON = 'This endpoint was removed.'
 
 export interface EndpointsState {
@@ -137,26 +140,10 @@ async function testEndpointHealth(
 
 function entryReason(entry: CatalogEntry | undefined): string | null {
   if (isNil(entry)) {
-    return MISSING_REASON
+    return CATALOG_MISSING_REASON
   }
 
-  if (entry.status === 'unverified') {
-    return entry.reason ?? 'ComfyUI is not reachable.'
-  }
-
-  if (entry.status === 'missing' || entry.status === 'no_provider') {
-    return entry.reason ?? MISSING_REASON
-  }
-
-  if (entry.status === 'invalid') {
-    return entry.reason ?? MISSING_REASON
-  }
-
-  if (!isNil(entry.reason)) {
-    return STALE_REASON
-  }
-
-  return null
+  return catalogEntryReason(entry)
 }
 
 /** Fresh model presence check, used right before a custom generation is submitted. */

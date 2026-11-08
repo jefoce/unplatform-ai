@@ -2,7 +2,7 @@
 
 import { isNil } from 'lodash-es'
 
-import type { CatalogEntry } from '@/core/catalog'
+import { CATALOG_MISSING_REASON, type CatalogEntry, catalogEntryReason } from '@/core/catalog'
 import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { useSecrets } from '@/features/settings/use-secrets'
@@ -11,9 +11,6 @@ import { useCredits } from '@/lib/api/credits'
 import { hasReadyEndpoint, useEndpointsStatus } from '@/lib/api/endpoints-status'
 
 const PROVIDER_KEY_REASON = 'Add your OpenRouter key in Settings.'
-const UNREACHABLE_REASON = 'ComfyUI is not reachable.'
-const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
-const GONE_REASON = 'This workflow is gone from ComfyUI.'
 
 export interface ProviderReady {
   isKeyMissing: boolean
@@ -27,23 +24,7 @@ function modelReason(entry: CatalogEntry | null): string | null {
     return null
   }
 
-  if (entry.status === 'unverified') {
-    return entry.reason ?? UNREACHABLE_REASON
-  }
-
-  if (entry.status === 'missing' || entry.status === 'no_provider') {
-    return entry.reason ?? PROVIDER_KEY_REASON
-  }
-
-  if (entry.status === 'invalid') {
-    return entry.reason
-  }
-
-  if (!isNil(entry.reason)) {
-    return STALE_REASON
-  }
-
-  return null
+  return catalogEntryReason(entry)
 }
 
 interface ReasonParams {
@@ -63,7 +44,7 @@ function readyReason(params: ReasonParams): string | null {
   }
 
   if (isCustomId && isNil(entry) && !isCatalogLoading) {
-    return GONE_REASON
+    return CATALOG_MISSING_REASON
   }
 
   if (isOpenRouter && isKeyMissing) {

@@ -5,7 +5,7 @@ import { isNil } from 'lodash-es'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
-import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
+import type { CustomEndpoint, CustomEndpointPricing } from '@/core/schemas/custom-endpoint'
 
 export interface CustomRunPriceParams {
   endpoint: CustomEndpoint
@@ -13,24 +13,40 @@ export interface CustomRunPriceParams {
   duration: number
 }
 
-/** Endpoint override, else the model run price, else 0. Never null. */
-export function resolveCustomRunPrice(params: CustomRunPriceParams): number {
-  const { endpoint, preset, duration } = params
-  const pricing = endpoint.pricing
+export interface CustomRunPriceFromUsdParams {
+  pricing: CustomEndpointPricing | null
+  modelUsd: number
+  seconds: number
+}
+
+/** Endpoint override on one model run price. Null or `model` mode keeps `modelUsd`. */
+export function customRunPriceFromUsd(params: CustomRunPriceFromUsdParams): number {
+  const { pricing, modelUsd, seconds } = params
+
+  if (isNil(pricing) || pricing.mode === 'model') {
+    return modelUsd
+  }
 
   if (pricing.mode === 'free') {
     return 0
   }
 
-  if (pricing.mode === 'perRun') {
-    return pricing.usd
-  }
-
   if (pricing.mode === 'perSecond') {
-    return pricing.usd * Math.max(1, duration)
+    return pricing.usd * Math.max(seconds, 1)
   }
 
-  return modelRunPrice(preset)
+  return pricing.usd
+}
+
+/** Endpoint override, else the model run price, else 0. Never null. */
+export function resolveCustomRunPrice(params: CustomRunPriceParams): number {
+  const { endpoint, preset, duration } = params
+
+  return customRunPriceFromUsd({
+    pricing: endpoint.pricing,
+    modelUsd: modelRunPrice(preset),
+    seconds: duration,
+  })
 }
 
 /** ponytail: w-pricing owns the perRun table keys, the first finite value is the run price. */

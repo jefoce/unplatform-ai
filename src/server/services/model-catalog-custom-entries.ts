@@ -2,11 +2,13 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import type {
-  CatalogEntry,
-  CatalogEntrySource,
-  ModelAvailability,
-  ModelStatus,
+import {
+  CATALOG_MISSING_REASON,
+  CATALOG_UNREACHABLE_REASON,
+  type CatalogEntry,
+  type CatalogEntrySource,
+  type ModelAvailability,
+  type ModelStatus,
 } from '@/core/catalog'
 import { CUSTOM_CHECK_TIMEOUT_MS, MODEL_CATALOG_TTL_MS } from '@/core/constants'
 import { mapCustomModel } from '@/core/presets/custom/from-capabilities'
@@ -18,6 +20,7 @@ import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
 import { fallbackPricing } from '../pricing/live'
 import { requestHeaders, requestJson } from '../providers/custom/http'
+import { customRunPriceFromUsd } from '../providers/custom/pricing'
 import { recordHealthFromError, recordHealthOk } from './endpoint-health'
 import {
   type EndpointModelCache,
@@ -29,9 +32,6 @@ import {
   readEndpointModels,
   writeEndpointModels,
 } from './endpoint-model-cache'
-
-const MISSING_REASON = 'This workflow is gone from ComfyUI.'
-const UNREACHABLE_REASON = 'ComfyUI is not reachable.'
 
 export interface PresetSource {
   preset: VideoPreset | ImagePreset
@@ -211,11 +211,11 @@ function availabilityFor(params: AvailabilityParams): ModelAvailability {
   const { fallback, isMissing, isUnreachable } = params
 
   if (isUnreachable) {
-    return { status: 'unverified', reason: UNREACHABLE_REASON }
+    return { status: 'unverified', reason: CATALOG_UNREACHABLE_REASON }
   }
 
   if (isMissing) {
-    return { status: 'missing', reason: MISSING_REASON }
+    return { status: 'missing', reason: CATALOG_MISSING_REASON }
   }
 
   return fallback
@@ -264,13 +264,9 @@ function pricingFor(endpoint: CustomEndpoint, model: UpaiModel): PricingInfo {
 }
 
 function priceOf(endpoint: CustomEndpoint, model: UpaiModel): number {
-  if (endpoint.pricing.mode === 'free') {
-    return 0
-  }
-
-  if (endpoint.pricing.mode === 'model') {
-    return model.pricing.per_run_usd
-  }
-
-  return endpoint.pricing.usd
+  return customRunPriceFromUsd({
+    pricing: endpoint.pricing,
+    modelUsd: model.pricing.per_run_usd,
+    seconds: 1,
+  })
 }

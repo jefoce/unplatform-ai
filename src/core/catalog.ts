@@ -1,7 +1,13 @@
+import { isNil } from 'lodash-es'
+
 import type { ImagePreset } from './presets/image/types'
 import type { VideoPreset } from './presets/video/types'
 import type { PricingInfo } from './pricing/types'
 import type { ProviderKindId } from './providers/types'
+
+export const CATALOG_UNREACHABLE_REASON = 'ComfyUI is not reachable.'
+export const CATALOG_MISSING_REASON = 'This workflow is gone from ComfyUI.'
+export const CATALOG_STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
 
 export const MODEL_STATUSES = [
   'available',
@@ -45,4 +51,21 @@ export interface CatalogEntry {
 export interface ModelCatalog {
   entries: readonly CatalogEntry[]
   fetchedAt: string
+}
+
+/** Reason for an existing entry. Null when it is ready. */
+export function catalogEntryReason(entry: CatalogEntry): string | null {
+  if (entry.status === 'unverified') {
+    return entry.reason ?? CATALOG_UNREACHABLE_REASON
+  }
+
+  if (entry.status === 'missing' || entry.status === 'no_provider' || entry.status === 'invalid') {
+    return entry.reason ?? CATALOG_MISSING_REASON
+  }
+
+  if (!isNil(entry.reason)) {
+    return CATALOG_STALE_REASON
+  }
+
+  return null
 }

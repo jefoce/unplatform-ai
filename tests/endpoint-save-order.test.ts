@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { EndpointInput } from '@/core/api/endpoints'
 import type * as EndpointRepo from '@/server/repos/endpoints'
 import type * as EndpointSaveService from '@/server/services/endpoint-save'
 import type * as EndpointTokenService from '@/server/services/endpoint-tokens'
@@ -35,7 +36,7 @@ vi.mock('@/server/repos/endpoints', async (importOriginal) => {
 let service: typeof EndpointSaveService
 let tokens: typeof EndpointTokenService
 
-function endpoint(label: string, token?: string): EndpointSaveService.EndpointInput {
+function endpoint(label: string, token?: string): EndpointInput {
   return {
     id: null,
     label,

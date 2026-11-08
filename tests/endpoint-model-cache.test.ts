@@ -30,6 +30,8 @@ const {
   writeEndpointModels,
 } = await import('@/server/services/endpoint-model-cache')
 
+const { endpointModelsFile } = await import('@/server/repos/endpoints')
+
 const VIDEO_MODELS = UpaiModelListSchema.parse(videoFixture).data
 const IMAGE_MODELS = UpaiModelListSchema.parse(imageFixture).data
 
@@ -63,10 +65,7 @@ async function writeEndpointsFile(endpoints: readonly CustomEndpoint[]): Promise
 }
 
 async function readCacheFile(endpointId: string): Promise<unknown> {
-  const text = await fs.readFile(
-    path.join(DATA_DIR, 'endpoint-models', `${endpointId}.json`),
-    'utf8',
-  )
+  const text = await fs.readFile(endpointModelsFile(endpointId), 'utf8')
 
   return JSON.parse(text)
 }
@@ -259,13 +258,12 @@ describe('endpoint model cache', () => {
     ).toEqual(['ep-enabled'])
   })
 
-  it('treats a broken endpoint file as empty', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('rejects a broken endpoint file instead of reading it as empty', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     await fs.mkdir(DATA_DIR, { recursive: true })
     await fs.writeFile(ENDPOINTS_FILE, JSON.stringify({ version: 'nope' }))
 
-    expect(await listEnabledCustomEndpoints()).toEqual([])
-    expect(warn).toHaveBeenCalled()
+    await expect(listEnabledCustomEndpoints()).rejects.toThrow('Could not read the endpoints file')
   })
 })

@@ -3,16 +3,9 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 
 import { isNil, isUndefined, keyBy } from 'lodash-es'
-import { z } from 'zod'
 
-import type { EndpointOverview } from '@/core/api/endpoints'
-import {
-  type CustomEndpoint,
-  type CustomEndpointLastHealth,
-  CustomEndpointLastHealthSchema,
-  type CustomEndpointPricing,
-  CustomEndpointPricingSchema,
-} from '@/core/schemas/custom-endpoint'
+import type { EndpointInput, EndpointOverview, SaveEndpointsParams } from '@/core/api/endpoints'
+import { type CustomEndpoint, type CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 
 import { HttpError } from '../errors'
 import { isUuid } from '../fs/media-ref'
@@ -30,43 +23,6 @@ import { getEndpointOverview } from './endpoint-overview'
 import { lastTestFor } from './endpoint-test'
 import { applyEndpointTokens, readTokenMap } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
-
-export interface EndpointInput {
-  id: string | null
-  label: string
-  badge: string | null
-  baseUrl: string
-  enabled: boolean
-  pricing: CustomEndpointPricing
-  instanceId: string | null
-  lastHealth: CustomEndpointLastHealth | null
-  token?: string | null
-}
-
-export interface SaveEndpointsParams {
-  endpoints: EndpointInput[]
-}
-
-export const EndpointInputSchema = z.object({
-  id: z.string().nullable().default(null),
-  label: z.string().max(40),
-  badge: z.string().nullable().default(null),
-  baseUrl: z.string(),
-  enabled: z.boolean().default(true),
-  pricing: CustomEndpointPricingSchema.default({ mode: 'model', usd: 0 }),
-  instanceId: z.string().nullable().default(null),
-  lastHealth: CustomEndpointLastHealthSchema.nullable().default(null),
-  token: z
-    .string()
-    .trim()
-    .min(1)
-    .max(4096)
-    .regex(/^[^\s]+$/, 'No spaces or line breaks')
-    .nullable()
-    .optional(),
-})
-
-export const SaveEndpointsBodySchema = z.object({ endpoints: z.array(EndpointInputSchema).max(50) })
 
 interface PreparedEndpoint {
   entry: EndpointEntry
