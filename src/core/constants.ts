@@ -178,6 +178,12 @@ export const CUSTOM_IMAGE_MAX_WAIT_MS = 15 * 60_000
 /** Combined reference seconds custom presets advertise. */
 export const CUSTOM_REF_TOTAL_SEC = 30
 
+/** Longest duration a custom model may advertise, in seconds. */
+export const CUSTOM_DURATION_MAX_SEC = 120
+
+/** Most quick-pick duration options kept from one custom model. */
+export const CUSTOM_DURATION_OPTIONS_MAX = 64
+
 /** Largest video download accepted from a custom endpoint. */
 export const CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES = 512 * 1024 * 1024
 

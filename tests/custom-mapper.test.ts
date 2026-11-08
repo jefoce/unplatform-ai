@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
+import { CUSTOM_DURATION_OPTIONS_MAX } from '../src/core/constants'
 import { mapCustomModel } from '../src/core/presets/custom/from-capabilities'
 import { CUSTOM_INVALID_REASON, CUSTOM_STALE_REASON } from '../src/core/presets/custom/shared'
 import type { MappedCustomModel } from '../src/core/presets/custom/types'
@@ -141,6 +142,7 @@ describe('video mapping', () => {
     const preset = expectVideo(mapModel(model))
 
     expect(preset.duration).toEqual({ min: 3, max: 9, default: 9, step: 3, options: [3, 6, 9] })
+    expect(preset.duration.options?.length).toBeLessThanOrEqual(CUSTOM_DURATION_OPTIONS_MAX)
   })
 
   it('aligns max and default to the step grid anchored at min', () => {
@@ -157,6 +159,62 @@ describe('video mapping', () => {
     const preset = expectVideo(mapModel(model))
 
     expect(preset.duration).toEqual({ min: 3, max: 7, default: 7, step: 4, options: [3, 7] })
+    expect(preset.duration.options?.length).toBeLessThanOrEqual(CUSTOM_DURATION_OPTIONS_MAX)
+  })
+
+  it('caps a long duration at the advertised maximum', () => {
+    const base = modelAt(VIDEO_MODELS, 1)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        duration: { min: 1, max: 1000, default: 1000, step: 1 },
+      },
+    }
+
+    const result = mapModel(model)
+    const preset = expectVideo(result)
+
+    expect(preset.duration).toEqual({ min: 1, max: 120, default: 120 })
+    expect(result.warnings).toContain('Duration capped at 120 s')
+  })
+
+  it('caps a long stepped duration on its grid', () => {
+    const base = modelAt(VIDEO_MODELS, 1)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        duration: { min: 3, max: 1000, default: 500, step: 5 },
+      },
+    }
+
+    const result = mapModel(model)
+    const preset = expectVideo(result)
+
+    expect(preset.duration).toMatchObject({ min: 3, max: 118, default: 118, step: 5 })
+    expect(preset.duration.options).toHaveLength(24)
+    expect(preset.duration.options?.at(-1)).toBe(118)
+    expect(result.warnings).toContain('Duration capped at 120 s')
+  })
+
+  it('drops a duration entirely above the cap', () => {
+    const base = modelAt(VIDEO_MODELS, 1)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        duration: { min: 200, max: 400, default: 300, step: 1 },
+      },
+    }
+
+    const result = mapModel(model)
+
+    expect(result.preset).toBeNull()
+    expect(result.warnings).toContain('Duration is above the 120 s cap')
   })
 
   it('drops unsupported resolutions and falls back to a kept default', () => {

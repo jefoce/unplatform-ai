@@ -1,6 +1,7 @@
 import { clamp, isNil } from 'lodash-es'
 
 import type { ModelAvailability } from '../../catalog'
+import { CUSTOM_DURATION_MAX_SEC, CUSTOM_DURATION_OPTIONS_MAX } from '../../constants'
 import { isOneOf } from '../../guards'
 import type { PricingConfig } from '../../pricing/types'
 import type { UpaiDuration, UpaiModel } from '../../protocol/upai'
@@ -58,25 +59,67 @@ export function availabilityForModel(model: UpaiModel): ModelAvailability {
   return { status: 'invalid', reason: model.status_reason ?? CUSTOM_INVALID_REASON }
 }
 
-export function mapDuration(raw: UpaiDuration | undefined): DurationResult {
-  if (isNil(raw) || !Number.isFinite(raw.min) || !Number.isFinite(raw.max)) {
-    return { duration: null, warnings: ['Duration is missing or invalid'] }
+/** Capped max, or null when even the minimum sits above the cap. */
+function cappedDurationMax(min: number, roundedMax: number): number | null {
+  const capped = Math.min(roundedMax, CUSTOM_DURATION_MAX_SEC)
+
+  if (capped < min) {
+    return null
   }
 
-  const min = Math.ceil(raw.min)
-  const max = Math.floor(raw.max)
+  return capped
+}
 
-  if (max < min) {
-    return { duration: null, warnings: ['Duration range is empty after rounding'] }
+/** Floor the step, treating a missing or non-positive step as no grid. */
+function stepOf(raw: UpaiDuration): number {
+  if (!Number.isFinite(raw.step) || raw.step <= 1) {
+    return 1
   }
 
-  let step = 1
+  return Math.floor(raw.step)
+}
 
-  if (Number.isFinite(raw.step) && raw.step > 1) {
-    step = Math.floor(raw.step)
+interface BuildDurationParams {
+  min: number
+  roundedMax: number
+  raw: UpaiDuration
+}
+
+/** Build the capped duration and its warnings from a valid rounded range. */
+function buildDuration(params: BuildDurationParams): DurationResult {
+  const { min, roundedMax, raw } = params
+  const cappedMax = cappedDurationMax(min, roundedMax)
+
+  if (isNil(cappedMax)) {
+    return {
+      duration: null,
+      warnings: [`Duration is above the ${String(CUSTOM_DURATION_MAX_SEC)} s cap`],
+    }
   }
 
-  const gridMax = step > 1 ? min + Math.floor((max - min) / step) * step : max
+  const warnings: string[] = []
+
+  if (roundedMax > CUSTOM_DURATION_MAX_SEC) {
+    warnings.push(`Duration capped at ${String(CUSTOM_DURATION_MAX_SEC)} s`)
+  }
+
+  const step = stepOf(raw)
+  let gridMax = step > 1 ? min + Math.floor((cappedMax - min) / step) * step : cappedMax
+  let options: readonly number[] | undefined
+
+  if (step > 1) {
+    const count = Math.floor((gridMax - min) / step) + 1
+
+    if (count > CUSTOM_DURATION_OPTIONS_MAX) {
+      gridMax = min + (CUSTOM_DURATION_OPTIONS_MAX - 1) * step
+      warnings.push(`Duration options capped at ${String(CUSTOM_DURATION_OPTIONS_MAX)}`)
+    }
+
+    options = Array.from({ length: Math.floor((gridMax - min) / step) + 1 }, (_, index) => {
+      return min + index * step
+    })
+  }
+
   const clampedDefault = clamp(Math.round(raw.default), min, gridMax)
 
   const defaultDuration =
@@ -91,15 +134,25 @@ export function mapDuration(raw: UpaiDuration | undefined): DurationResult {
   if (step > 1) {
     duration.step = step
 
-    duration.options = Array.from(
-      { length: Math.floor((gridMax - min) / step) + 1 },
-      (_, index) => {
-        return min + index * step
-      },
-    )
+    duration.options = options
   }
 
-  return { duration, warnings: [] }
+  return { duration, warnings }
+}
+
+export function mapDuration(raw: UpaiDuration | undefined): DurationResult {
+  if (isNil(raw) || !Number.isFinite(raw.min) || !Number.isFinite(raw.max)) {
+    return { duration: null, warnings: ['Duration is missing or invalid'] }
+  }
+
+  const min = Math.ceil(raw.min)
+  const roundedMax = Math.floor(raw.max)
+
+  if (roundedMax < min) {
+    return { duration: null, warnings: ['Duration range is empty after rounding'] }
+  }
+
+  return buildDuration({ min, roundedMax, raw })
 }
 
 export function parseSize(raw: string | undefined): `${number}x${number}` | null {
