@@ -1,4 +1,5 @@
 import { Channel, invoke, type InvokeArgs } from '@tauri-apps/api/core'
+import { resolveResource } from '@tauri-apps/api/path'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import {
@@ -6,7 +7,7 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { chunk, isNil } from 'lodash-es'
 
 import { HISTORY_BATCH_MAX } from '@/core/constants'
@@ -96,6 +97,12 @@ export const desktopPlatform: Platform = {
 
   openExternal: async (url: string) => {
     await openUrl(url)
+  },
+
+  openNotices: async () => {
+    const path = await resolveResource('THIRD_PARTY_NOTICES.md')
+
+    await openPath(path)
   },
 
   confirm: async (message: string) => {

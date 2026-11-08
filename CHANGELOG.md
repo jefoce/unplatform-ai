@@ -19,6 +19,7 @@ Local image and video models from ComfyUI, with several endpoints and a badge fo
 
 - Clips and sound for local models upload to your own ComfyUI. Pictures and frames stay inline.
 - Local jobs share a per-endpoint limit from ComfyUI.
+- The app is now licensed under AGPL-3.0. Versions 0.4.0 and earlier stay MIT.
 
 An image record has no job reference, so a running image cannot be stopped from history in 0.5.0. Stop is available for video.
 

@@ -12,7 +12,7 @@ import type { ProviderLink } from '../src/core/providers/types'
 const CAPABILITIES_PATH = path.join(process.cwd(), 'src-tauri/capabilities/default.json')
 const OPENER_PERMISSION = 'opener:allow-open-url'
 
-const RuleSchema = z.object({ url: z.string() })
+const RuleSchema = z.object({ url: z.string().optional(), path: z.string().optional() })
 
 const PermissionSchema = z.union([
   z.string(),
@@ -57,8 +57,8 @@ async function openerGlobs(): Promise<string[]> {
     throw new Error(`Missing allow list on ${OPENER_PERMISSION}`)
   }
 
-  return permission.allow.map((rule) => {
-    return rule.url
+  return permission.allow.flatMap((rule) => {
+    return isNil(rule.url) ? [] : [rule.url]
   })
 }
 

@@ -21,6 +21,10 @@
         { "url": "https://dash.cloudflare.com/*" },
         { "url": "https://github.com/jefoce/unplatform-ai*" }
       ]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$RESOURCE/THIRD_PARTY_NOTICES.md" }]
     }
   ]
 }
