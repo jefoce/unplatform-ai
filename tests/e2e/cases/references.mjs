@@ -9,6 +9,7 @@ import {
   resetLocal,
   setView,
   tileClick,
+  waitPicker,
 } from '../lib/dom.mjs'
 import { seedVideo } from '../lib/server.mjs'
 
@@ -33,6 +34,194 @@ async function waitVideoRefs(driver, expected) {
     30_000,
     `video references = ${String(expected)}`,
   )
+}
+
+const PICKER_CLOSE = '[aria-label="Close picker"]'
+const PREVIEW_CLOSE = '[aria-label="Close"]'
+
+const PICKER_SCROLL_EXPRESSION = `(() => {
+  const close = document.querySelector('${PICKER_CLOSE}')
+  const dialog = close === null ? null : close.closest('[role="dialog"]')
+  if (dialog === null) return null
+  return [...dialog.querySelectorAll('*')].find((node) => {
+    return node.scrollHeight > node.clientHeight + 4 && getComputedStyle(node).overflowY === 'auto'
+  }) ?? null
+})()`
+
+/** Seeds enough uploads to make the picker scroll. */
+async function seedScrollUploads(server) {
+  const base = Buffer.from(PNG_BASE64, 'base64')
+
+  for (let start = 0; start < 40; start += 20) {
+    const form = new FormData()
+    const batch = Math.min(20, 40 - start)
+
+    for (let index = 0; index < batch; index += 1) {
+      const fileIndex = start + index
+      const bytes = Buffer.concat([base, Buffer.alloc(fileIndex + 1, 0x20)])
+      const name = `scroll-${String(fileIndex)}.png`
+      form.append('file', new Blob([bytes], { type: 'image/png' }), name)
+    }
+
+    const response = await fetch(`${server.baseUrl}/api/uploads`, {
+      method: 'POST',
+      headers: { cookie: `upai_session=${server.token}` },
+      body: form,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Upload seed failed: ${String(response.status)}`)
+    }
+  }
+}
+
+async function setPickerScroll(driver, top) {
+  return driver.evaluate(`(() => {
+    const scroll = ${PICKER_SCROLL_EXPRESSION}
+    if (scroll === null) return null
+    scroll.scrollTop = Math.min(${String(top)}, scroll.scrollHeight - scroll.clientHeight)
+    return scroll.scrollTop
+  })()`)
+}
+
+async function pickerScrollTop(driver) {
+  return driver.evaluate(`(() => {
+    const scroll = ${PICKER_SCROLL_EXPRESSION}
+    return scroll === null ? null : scroll.scrollTop
+  })()`)
+}
+
+async function assertPickerScroll(driver, expected) {
+  const actual = await pickerScrollTop(driver)
+
+  if (actual !== expected) {
+    throw new Error(`Picker scroll is ${String(actual)}, expected ${String(expected)}`)
+  }
+}
+
+/** Opens the first upload preview from inside the picker. */
+async function openPickerPreview(driver) {
+  const opened = await driver.evaluate(`(() => {
+    const close = document.querySelector('${PICKER_CLOSE}')
+    const dialog = close === null ? null : close.closest('[role="dialog"]')
+    const tile = dialog === null ? null : dialog.querySelector('[aria-label^="Preview "]')
+    if (tile === null) return false
+    tile.click()
+    return true
+  })()`)
+
+  if (!opened) {
+    throw new Error('No previewable picker tile')
+  }
+
+  await driver.waitFor(`window.__e2e.exists('${PREVIEW_CLOSE}')`, 15_000, 'the media preview')
+  await driver.waitFor(
+    `(() => {
+      const close = document.querySelector('${PREVIEW_CLOSE}')
+      const dialog = close === null ? null : close.closest('[role="dialog"]')
+      return dialog !== null && dialog.contains(document.activeElement)
+    })()`,
+    10_000,
+    'the preview focus',
+  )
+}
+
+async function closePreview(driver) {
+  await driver.evaluate(`document.querySelector('${PREVIEW_CLOSE}').click()`)
+  await driver.waitFor(`!window.__e2e.exists('${PREVIEW_CLOSE}')`, 15_000, 'the preview to close')
+}
+
+/** Real pointer click on a nav control that only reveals on stage hover. */
+async function clickPreviewNav(driver, label) {
+  const selector = `[aria-label="${label}"]`
+
+  await driver.hover(selector)
+  await driver.waitFor(
+    `getComputedStyle(document.querySelector('${selector}')).pointerEvents !== 'none'`,
+    10_000,
+    `the ${label} control`,
+  )
+  await driver.mouseClick(selector)
+}
+
+/** Picker scroll survives a preview, its arrows and Escape. */
+async function pickerPreviewChecks(driver) {
+  await driver.waitFor(
+    `window.__e2e.exists('[aria-label^="Preview "]')`,
+    20_000,
+    'a previewable upload',
+  )
+  await driver.waitFor(`Boolean(${PICKER_SCROLL_EXPRESSION})`, 20_000, 'a scrollable picker')
+
+  const startTop = await setPickerScroll(driver, 120)
+
+  if (startTop === null || startTop <= 0) {
+    throw new Error(`Picker did not scroll: ${String(startTop)}`)
+  }
+
+  await openPickerPreview(driver)
+  await clickPreviewNav(driver, 'Next')
+  await clickPreviewNav(driver, 'Previous')
+  await closePreview(driver)
+  await waitPicker(driver)
+  await assertPickerScroll(driver, startTop)
+
+  await openPickerPreview(driver)
+  await driver.pressKey('Escape')
+  await driver.waitFor(
+    `!window.__e2e.exists('${PREVIEW_CLOSE}')`,
+    15_000,
+    'Escape to close the preview',
+  )
+  await waitPicker(driver)
+  await assertPickerScroll(driver, startTop)
+}
+
+async function imagePickerPreviewCase(context) {
+  const { driver, server } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:image-draft', 'unplatform-ai:image-view'])
+  await gotoTab(driver, 'Image')
+  await seedScrollUploads(server)
+  await openImagePicker(driver)
+  await pickerPreviewChecks(driver)
+
+  await dropFile(driver, 'picker-remove.png', 'image/png', PNG_BASE64)
+  await waitImageRefs(driver, 1)
+  await driver.evaluate(
+    `document.querySelector('[data-image-references] [aria-label^="Remove "]').click()`,
+  )
+  await waitImageRefs(driver, 0)
+  await waitPicker(driver)
+}
+
+async function videoPickerPreviewCase(context) {
+  const { driver, server } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:draft'])
+  await gotoTab(driver, 'Video')
+  await driver.clickText('References')
+  await driver.waitFor(
+    `window.__e2e.exists('[data-references-box]')`,
+    10_000,
+    'the video references box',
+  )
+
+  await dropFile(driver, 'video-picker-remove.png', 'image/png', PNG_BASE64)
+  await waitVideoRefs(driver, 1)
+
+  await seedScrollUploads(server)
+  await driver.clickLabel('Add references')
+  await waitPicker(driver)
+  await pickerPreviewChecks(driver)
+
+  await driver.evaluate(
+    `document.querySelector('[data-references-box] [aria-label^="Remove "]').click()`,
+  )
+  await waitVideoRefs(driver, 0)
+  await waitPicker(driver)
 }
 
 async function referencesRouting(context) {
@@ -221,5 +410,13 @@ export const referenceCases = [
   {
     name: 'references/video-card-viewer',
     run: videoCardAndViewerReference,
+  },
+  {
+    name: 'references/picker-preview-image',
+    run: imagePickerPreviewCase,
+  },
+  {
+    name: 'references/picker-preview-video',
+    run: videoPickerPreviewCase,
   },
 ]

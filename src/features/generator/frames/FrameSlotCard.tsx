@@ -27,6 +27,7 @@ export function FrameSlotCard(props: FrameSlotCardProps) {
 
   return (
     <div
+      data-keep-panels
       className={cn(
         'group relative h-34 w-full rounded-2xl border border-dashed border-divider bg-surface p-2',
         isDisabled && 'pointer-events-none opacity-50',

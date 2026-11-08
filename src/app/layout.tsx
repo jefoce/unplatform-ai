@@ -49,7 +49,9 @@ export default async function RootLayout(props: RootLayoutProps) {
       </head>
       <body>
         {children}
-        <Toaster richColors theme="dark" />
+        <div data-keep-panels>
+          <Toaster richColors theme="dark" />
+        </div>
       </body>
     </html>
   )
