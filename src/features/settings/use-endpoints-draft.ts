@@ -4,13 +4,9 @@ import { useState } from 'react'
 import { isNil } from 'lodash-es'
 import useSWR from 'swr'
 
-import type { EndpointTestResult } from '@/core/api/endpoints'
-import {
-  type EndpointOverview,
-  ENDPOINTS_KEY,
-  fetchEndpoints,
-  saveEndpoints,
-} from '@/lib/api/endpoints'
+import type { EndpointOverview, EndpointTestResult } from '@/core/api/endpoints'
+import { fetchEndpoints, saveEndpoints } from '@/lib/api/endpoints'
+import { ENDPOINTS_KEY } from '@/lib/api/swr-keys'
 
 import {
   type EndpointRowDraft,

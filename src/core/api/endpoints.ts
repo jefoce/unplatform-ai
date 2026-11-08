@@ -1,6 +1,25 @@
 import { z } from 'zod'
 
-import { CustomEndpointLastHealthSchema } from '../schemas/custom-endpoint'
+import type { EndpointHealthStatus } from '../endpoints'
+import { type CustomEndpoint, CustomEndpointLastHealthSchema } from '../schemas/custom-endpoint'
+
+export type EndpointHealthView = EndpointHealthStatus | 'unknown'
+
+interface EndpointRuntime {
+  runningJobs: number
+  status: EndpointHealthView
+  videoCount: number
+  imageCount: number
+  tokenHint: string | null
+  hasToken: boolean
+}
+
+export interface EndpointOverviewEntry extends CustomEndpoint, EndpointRuntime {}
+
+export interface EndpointOverview {
+  endpoints: EndpointOverviewEntry[]
+  nextBadge: string
+}
 
 export const EndpointTestBodySchema = z.object({
   baseUrl: z.string(),

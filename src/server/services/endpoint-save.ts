@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { isNil, isUndefined, keyBy } from 'lodash-es'
 import { z } from 'zod'
 
+import type { EndpointOverview } from '@/core/api/endpoints'
 import {
   type CustomEndpoint,
   type CustomEndpointLastHealth,
@@ -24,7 +25,7 @@ import {
 } from '../repos/endpoints'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
 import { forgetEndpointHealth, isFreshTest, setEndpointHealth } from './endpoint-health'
-import { type EndpointOverview, getEndpointOverview } from './endpoint-overview'
+import { getEndpointOverview } from './endpoint-overview'
 import { applyEndpointTokens } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
 

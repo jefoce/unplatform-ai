@@ -2,16 +2,13 @@
 import { cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { EndpointOverviewEntry } from '@/core/api/endpoints'
 import { useProviderReady } from '@/features/generator/use-provider-ready'
 import { useSecrets } from '@/features/settings/use-secrets'
 import { useModelEntry } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
 import type * as EndpointsStatusModule from '@/lib/api/endpoints-status'
-import {
-  type EndpointStatusEntry,
-  hasReadyEndpoint,
-  useEndpointsStatus,
-} from '@/lib/api/endpoints-status'
+import { hasReadyEndpoint, useEndpointsStatus } from '@/lib/api/endpoints-status'
 
 import type { CatalogEntry } from '../src/core/catalog'
 
@@ -45,16 +42,22 @@ const mockEndpoints = vi.mocked(useEndpointsStatus)
 const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
 const KEY_REASON = 'Add your OpenRouter key in Settings.'
 
-function endpoint(overrides: Partial<EndpointStatusEntry> = {}): EndpointStatusEntry {
+function endpoint(overrides: Partial<EndpointOverviewEntry> = {}): EndpointOverviewEntry {
   return {
     id: 'cu1',
     label: 'Studio PC',
     badge: 'CU1',
     baseUrl: 'http://127.0.0.1:8188',
     enabled: true,
+    pricing: { mode: 'model', usd: 0 },
+    instanceId: null,
+    lastHealth: null,
+    runningJobs: 0,
     status: 'ok',
     videoCount: 2,
     imageCount: 2,
+    tokenHint: null,
+    hasToken: false,
     ...overrides,
   }
 }

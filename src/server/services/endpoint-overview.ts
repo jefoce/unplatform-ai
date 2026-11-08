@@ -3,7 +3,11 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 import { z } from 'zod'
 
-import type { EndpointHealthStatus } from '@/core/endpoints'
+import type {
+  EndpointHealthView,
+  EndpointOverview,
+  EndpointOverviewEntry,
+} from '@/core/api/endpoints'
 import { customPresetPrefix } from '@/core/presets/custom'
 import type { CustomEndpoint, CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
@@ -24,24 +28,6 @@ const ModelCountsSchema = z
     image: z.array(z.unknown()).default([]),
   })
   .loose()
-
-export type EndpointHealthView = EndpointHealthStatus | 'unknown'
-
-export interface EndpointRuntime {
-  runningJobs: number
-  status: EndpointHealthView
-  videoCount: number
-  imageCount: number
-  tokenHint: string | null
-  hasToken: boolean
-}
-
-export interface EndpointOverviewEntry extends CustomEndpoint, EndpointRuntime {}
-
-export interface EndpointOverview {
-  endpoints: EndpointOverviewEntry[]
-  nextBadge: string
-}
 
 interface OverviewParams {
   endpoint: CustomEndpoint

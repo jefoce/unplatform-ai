@@ -4,8 +4,8 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import type { EndpointOverviewEntry } from '@/core/api/endpoints'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
-import type * as EndpointOverviewService from '@/server/services/endpoint-overview'
 import type * as EndpointSaveService from '@/server/services/endpoint-save'
 
 const ROOT = path.join(os.tmpdir(), `cf-endpoints-cache-${process.pid}-${Date.now()}`)
@@ -39,9 +39,7 @@ function endpoint(): EndpointSaveService.EndpointInput {
   }
 }
 
-function endpointInput(
-  entry: EndpointOverviewService.EndpointOverviewEntry,
-): EndpointSaveService.EndpointInput {
+function endpointInput(entry: EndpointOverviewEntry): EndpointSaveService.EndpointInput {
   return {
     id: entry.id,
     label: entry.label,
@@ -54,7 +52,7 @@ function endpointInput(
   }
 }
 
-async function saveStudio(): Promise<EndpointOverviewService.EndpointOverviewEntry> {
+async function saveStudio(): Promise<EndpointOverviewEntry> {
   const saved = await service.saveEndpoints({ endpoints: [endpoint()] })
   const entry = saved.endpoints[0]
 

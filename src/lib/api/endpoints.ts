@@ -2,34 +2,14 @@
 
 import { mutate } from 'swr'
 
-import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
+import type { EndpointOverview, EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
 import type {
-  CustomEndpoint,
   CustomEndpointLastHealth,
   CustomEndpointPricing,
 } from '@/core/schemas/custom-endpoint'
 import { apiPost, apiRequest, fetcher } from '@/lib/fetcher'
 
-export const ENDPOINTS_KEY = '/api/endpoints'
-
-export type EndpointStatus =
-  'ok' | 'unreachable' | 'unauthorized' | 'forbidden' | 'protocol' | 'unknown'
-
-interface EndpointRuntime {
-  runningJobs: number
-  status: EndpointStatus
-  videoCount: number
-  imageCount: number
-  tokenHint: string | null
-  hasToken: boolean
-}
-
-export type EndpointView = CustomEndpoint & EndpointRuntime
-
-export interface EndpointOverview {
-  endpoints: EndpointView[]
-  nextBadge: string
-}
+import { ENDPOINTS_KEY } from './swr-keys'
 
 export interface EndpointInput {
   id: string | null

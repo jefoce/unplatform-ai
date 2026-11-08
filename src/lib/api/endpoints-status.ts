@@ -3,41 +3,27 @@
 import { isEmpty, isNil } from 'lodash-es'
 import useSWR from 'swr'
 
-import { EndpointTestResultSchema } from '@/core/api/endpoints'
+import {
+  type EndpointOverview,
+  type EndpointOverviewEntry,
+  EndpointTestResultSchema,
+} from '@/core/api/endpoints'
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
-import type { EndpointHealthStatus } from '@/core/endpoints'
 import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { fetcher } from '@/lib/fetcher'
 
-import { MODELS_KEY } from './swr-keys'
+import { ENDPOINTS_KEY, MODELS_KEY } from './swr-keys'
 
-export const ENDPOINTS_STATUS_KEY = '/api/endpoints'
-
-const ENDPOINTS_TEST_PATH = `${ENDPOINTS_STATUS_KEY}/test`
+const ENDPOINTS_TEST_PATH = `${ENDPOINTS_KEY}/test`
 const CATALOG_PATH = MODELS_KEY
 const STALE_REASON = 'Workflow changed in ComfyUI. Save it in ComfyUI, then refresh.'
 const MISSING_REASON = 'This workflow is gone from ComfyUI.'
 const REMOVED_REASON = 'This endpoint was removed.'
 
-export interface EndpointStatusEntry {
-  id: string
-  label: string
-  badge: string
-  baseUrl: string
-  enabled: boolean
-  status: EndpointHealthStatus | 'unknown'
-  videoCount: number
-  imageCount: number
-}
-
-export interface EndpointsOverview {
-  endpoints: EndpointStatusEntry[]
-}
-
 interface EndpointsState {
-  endpoints: EndpointStatusEntry[]
+  endpoints: EndpointOverviewEntry[]
   isLoading: boolean
   error: unknown
 }
@@ -55,7 +41,7 @@ interface EndpointTestHealth {
 const EndpointTestHealthSchema = EndpointTestResultSchema.pick({ ok: true, error: true })
 
 /** Poll only while at least one endpoint exists. Zero stops SWR. */
-export function endpointRefreshInterval(latest: EndpointsOverview | undefined): number {
+export function endpointRefreshInterval(latest: EndpointOverview | undefined): number {
   if (isNil(latest) || isEmpty(latest.endpoints)) {
     return 0
   }
@@ -65,7 +51,7 @@ export function endpointRefreshInterval(latest: EndpointsOverview | undefined): 
 
 /** Endpoint list with the last health state, read for the ready gate. */
 export function useEndpointsStatus(): EndpointsState {
-  const { data, isLoading, error } = useSWR<EndpointsOverview>(ENDPOINTS_STATUS_KEY, fetcher, {
+  const { data, isLoading, error } = useSWR<EndpointOverview>(ENDPOINTS_KEY, fetcher, {
     refreshInterval: endpointRefreshInterval,
     refreshWhenHidden: false,
     revalidateOnFocus: true,
@@ -76,9 +62,9 @@ export function useEndpointsStatus(): EndpointsState {
 
 /** One endpoint by id, or null while loading or after a delete. */
 export function endpointById(
-  endpoints: readonly EndpointStatusEntry[],
+  endpoints: readonly EndpointOverviewEntry[],
   instanceId: string | null,
-): EndpointStatusEntry | null {
+): EndpointOverviewEntry | null {
   if (isNil(instanceId)) {
     return null
   }
@@ -92,7 +78,7 @@ export function endpointById(
 
 /** True when at least one enabled endpoint passed health and offers this kind. */
 export function hasReadyEndpoint(
-  endpoints: readonly EndpointStatusEntry[],
+  endpoints: readonly EndpointOverviewEntry[],
   kind: HistoryFacetKind,
 ): boolean {
   return endpoints.some((endpoint) => {
@@ -110,7 +96,7 @@ export function hasReadyEndpoint(
 
 /** Endpoint status not `ok`, used for the offline pill. */
 export function isEndpointOffline(
-  endpoints: readonly EndpointStatusEntry[],
+  endpoints: readonly EndpointOverviewEntry[],
   instanceId: string | null,
 ): boolean {
   const endpoint = endpointById(endpoints, instanceId)
@@ -243,7 +229,7 @@ export async function freshPresetReason(presetId: string): Promise<string | null
 export async function checkCustomEndpoint(params: FreshCheckParams): Promise<string | null> {
   const { instanceId, presetId } = params
 
-  const overview = await fetcher<EndpointsOverview>(ENDPOINTS_STATUS_KEY)
+  const overview = await fetcher<EndpointOverview>(ENDPOINTS_KEY)
 
   const endpoint = endpointById(overview.endpoints, instanceId)
 

@@ -2,9 +2,10 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { EndpointOverviewEntry } from '@/core/api/endpoints'
 import { DetailsSource } from '@/features/history/details/DetailsSource'
 import type * as EndpointsStatusModule from '@/lib/api/endpoints-status'
-import { type EndpointStatusEntry, useEndpointsStatus } from '@/lib/api/endpoints-status'
+import { useEndpointsStatus } from '@/lib/api/endpoints-status'
 
 import { storedRecord } from './helpers/stored-record'
 
@@ -16,16 +17,22 @@ vi.mock('@/lib/api/endpoints-status', async (importOriginal) => {
 
 const mockEndpoints = vi.mocked(useEndpointsStatus)
 
-function endpoint(): EndpointStatusEntry {
+function endpoint(): EndpointOverviewEntry {
   return {
     id: 'cu1',
     label: 'Studio PC',
     badge: 'CU1',
     baseUrl: 'http://127.0.0.1:8188',
     enabled: true,
+    pricing: { mode: 'model', usd: 0 },
+    instanceId: null,
+    lastHealth: null,
+    runningJobs: 0,
     status: 'ok',
     videoCount: 1,
     imageCount: 1,
+    tokenHint: null,
+    hasToken: false,
   }
 }
 

@@ -2,12 +2,16 @@
 
 import { isNil } from 'lodash-es'
 
-import type { EndpointTestResult } from '@/core/api/endpoints'
+import type {
+  EndpointHealthView,
+  EndpointOverviewEntry,
+  EndpointTestResult,
+} from '@/core/api/endpoints'
 import type {
   CustomEndpointLastHealth,
   CustomEndpointPricing,
 } from '@/core/schemas/custom-endpoint'
-import type { EndpointInput, EndpointStatus, EndpointView } from '@/lib/api/endpoints'
+import type { EndpointInput } from '@/lib/api/endpoints'
 
 const BADGE_PATTERN = /^[A-Z0-9]{1,4}$/
 
@@ -24,7 +28,7 @@ export interface EndpointRowDraft {
   videoCount: number
   imageCount: number
   runningJobs: number
-  status: EndpointStatus
+  status: EndpointHealthView
   tokenValue: string
   isTokenRemoved: boolean
   hasToken: boolean
@@ -46,7 +50,7 @@ export interface EndpointRowPatch {
   videoCount?: number
   imageCount?: number
   runningJobs?: number
-  status?: EndpointStatus
+  status?: EndpointHealthView
   tokenValue?: string
   isTokenRemoved?: boolean
   isExpanded?: boolean
@@ -72,7 +76,7 @@ export interface EndpointsDraft {
   reset: () => void
 }
 
-export function toRow(view: EndpointView): EndpointRowDraft {
+export function toRow(view: EndpointOverviewEntry): EndpointRowDraft {
   return {
     key: view.id,
     id: view.id,

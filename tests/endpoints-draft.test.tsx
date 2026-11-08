@@ -2,15 +2,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { EndpointTestResult } from '@/core/api/endpoints'
+import type { EndpointOverviewEntry, EndpointTestResult } from '@/core/api/endpoints'
 import { useEndpointsDraft } from '@/features/settings/use-endpoints-draft'
-import type { EndpointView } from '@/lib/api/endpoints'
 
 import { required } from './helpers/required'
 
 const mocks = vi.hoisted(() => {
   return {
-    overview: { endpoints: [] as EndpointView[], nextBadge: 'CU2' },
+    overview: { endpoints: [] as EndpointOverviewEntry[], nextBadge: 'CU2' },
     save: vi.fn(),
     test: vi.fn(),
   }
@@ -18,7 +17,6 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/lib/api/endpoints', () => {
   return {
-    ENDPOINTS_KEY: '/api/endpoints',
     fetchEndpoints: vi.fn(() => {
       return Promise.resolve(mocks.overview)
     }),
@@ -35,7 +33,7 @@ vi.mock('swr', () => {
   }
 })
 
-const VIEW: EndpointView = {
+const VIEW: EndpointOverviewEntry = {
   id: '11111111-1111-4111-8111-111111111111',
   label: 'Studio',
   badge: 'CU1',

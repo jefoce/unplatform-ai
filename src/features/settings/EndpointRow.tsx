@@ -1,6 +1,6 @@
 'use client'
 
-import type { EndpointStatus } from '@/lib/api/endpoints'
+import type { EndpointHealthView } from '@/core/api/endpoints'
 
 import { type EndpointRowDraft, type EndpointRowPatch, videoSummary } from './endpoint-draft'
 import { EndpointForm } from './EndpointForm'
@@ -13,7 +13,7 @@ const STATUS_LABELS = {
   forbidden: 'Blocked',
   protocol: 'Wrong protocol',
   unknown: 'Not tested',
-} satisfies Record<EndpointStatus, string>
+} satisfies Record<EndpointHealthView, string>
 
 interface EndpointRowProps {
   row: EndpointRowDraft
