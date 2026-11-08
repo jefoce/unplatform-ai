@@ -6,14 +6,13 @@ import type { HistoryFacetKind, HistoryFacets, ModelFacet } from '@/core/history
 import { IMAGE_ASPECT_RATIOS, IMAGE_RESOLUTIONS } from '@/core/presets/image/types'
 import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { recordSource } from '@/core/record-source'
-import { type GenerationRecord, GenerationRecordSchema } from '@/core/schemas/generation-record'
-import { type ImageRecord, ImageRecordSchema } from '@/core/schemas/image-record'
+import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { ImageRecord } from '@/core/schemas/image-record'
 
 import { globalState } from '../global-state'
-import { downloadPaths, DOWNLOADS_DIR, imageRecordPath, IMAGES_DIR } from '../paths'
-import { getGeneration, listGenerations } from '../repos/generations'
-import { getImage, listImages } from '../repos/images'
-import { type JsonDirChange, jsonDirStore } from '../repos/json-dir-store'
+import { getGeneration, listGenerations, onGenerationChange } from '../repos/generations'
+import { getImage, listImages, onImageChange } from '../repos/images'
+import type { JsonDirChange } from '../repos/json-dir-store'
 
 type FacetRecord = GenerationRecord | ImageRecord
 
@@ -60,42 +59,14 @@ const FACET_ORDER: Record<HistoryFacetKind, FacetOrder> = {
   image: { resolutions: IMAGE_RESOLUTIONS, aspects: [...IMAGE_ASPECT_RATIOS, 'auto'] },
 }
 
-/**
- * The repos keep their store private. This handle opens the same globalState slot,
- * so a repo write notifies this index too. Replace with a repo re-export once one exists.
- */
-const videoStore = jsonDirStore<GenerationRecord>({
-  key: 'generationIndex',
-  dir: DOWNLOADS_DIR,
-  fileOf: (id) => {
-    return downloadPaths(id).json
-  },
-  schema: GenerationRecordSchema,
-})
-
-const imageStore = jsonDirStore<ImageRecord>({
-  key: 'imageIndex',
-  dir: IMAGES_DIR,
-  fileOf: imageRecordPath,
-  schema: ImageRecordSchema,
-})
-
 const SOURCES: Record<HistoryFacetKind, FacetSource> = {
-  video: { list: listGenerations, get: getGeneration, subscribe: subscribeVideo },
-  image: { list: listImages, get: getImage, subscribe: subscribeImage },
+  video: { list: listGenerations, get: getGeneration, subscribe: onGenerationChange },
+  image: { list: listImages, get: getImage, subscribe: onImageChange },
 }
 
 const indexes = globalState<Map<HistoryFacetKind, FacetIndex>>('historyFacetIndexes', () => {
   return new Map()
 })
-
-function subscribeVideo(listener: (change: JsonDirChange) => void): () => void {
-  return videoStore.onChange(listener)
-}
-
-function subscribeImage(listener: (change: JsonDirChange) => void): () => void {
-  return imageStore.onChange(listener)
-}
 
 /**
  * Facets for one kind, built lazily on the first request because boot.ts is not owned here.

@@ -9,7 +9,7 @@ import { type ImageOutput, type ImageRecord, ImageRecordSchema } from '@/core/sc
 import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { imageRecordPath, IMAGES_DIR } from '../paths'
-import { jsonDirStore } from './json-dir-store'
+import { type JsonDirChange, jsonDirStore } from './json-dir-store'
 
 const store = jsonDirStore<ImageRecord>({
   key: 'imageIndex',
@@ -17,6 +17,11 @@ const store = jsonDirStore<ImageRecord>({
   fileOf: imageRecordPath,
   schema: ImageRecordSchema,
 })
+
+/** Notifies on every image index write. */
+export function onImageChange(listener: (change: JsonDirChange) => void): () => void {
+  return store.onChange(listener)
+}
 
 export async function listImages(): Promise<ImageRecord[]> {
   return store.list()

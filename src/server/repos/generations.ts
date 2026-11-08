@@ -9,7 +9,7 @@ import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { downloadPaths, DOWNLOADS_DIR } from '../paths'
 import { withLock } from '../sync/lock'
-import { jsonDirStore } from './json-dir-store'
+import { type JsonDirChange, jsonDirStore } from './json-dir-store'
 
 const store = jsonDirStore<GenerationRecord>({
   key: 'generationIndex',
@@ -19,6 +19,11 @@ const store = jsonDirStore<GenerationRecord>({
   },
   schema: GenerationRecordSchema,
 })
+
+/** Notifies on every generation index write. */
+export function onGenerationChange(listener: (change: JsonDirChange) => void): () => void {
+  return store.onChange(listener)
+}
 
 /** Reads every record once, reloading when the downloads directory changes. */
 export async function listGenerations(): Promise<GenerationRecord[]> {
