@@ -10,7 +10,7 @@ import { secretError, type SecretName } from '@/core/secret-names'
 import type { SecretStatus } from '@/core/types'
 import { refreshCatalog } from '@/lib/api/catalog'
 import { refreshCredits } from '@/lib/api/credits'
-import { refreshEndpoints } from '@/lib/api/endpoints'
+import { clearEndpointTests, refreshEndpoints } from '@/lib/api/endpoints'
 import { refreshRemoteStatus } from '@/lib/api/remote'
 import { saveSecrets } from '@/lib/api/settings'
 import { toastError } from '@/lib/notify'
@@ -222,6 +222,7 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
     setEdits({})
     resetResults()
     endpoints.reset()
+    void clearEndpointTests()
   }
 
   const onSave = async () => {

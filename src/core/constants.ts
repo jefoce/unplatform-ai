@@ -206,6 +206,9 @@ export const CUSTOM_MISSING_KEEP_DAYS = 30
 /** A health state older than this is refreshed on the next use. */
 export const ENDPOINT_HEALTH_MAX_AGE_MS = 30_000
 
+/** Cached server tests kept in memory, oldest insertion evicted first. */
+export const ENDPOINT_TEST_CACHE_LIMIT = 32
+
 export const SUBMIT_GRACE_MS = 10_000
 export const SUBMIT_YIELD_MS = 50
 export const GRACE_STALE_MS = 60_000

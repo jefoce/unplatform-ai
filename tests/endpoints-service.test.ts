@@ -414,6 +414,26 @@ describe('health freshness', () => {
   })
 })
 
+describe('draft test cache', () => {
+  it('clears cached tests after a save', async () => {
+    mockHealthyFetch()
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: null })
+
+    await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
+
+    expect(testService.lastTestFor({ baseUrl: endpoint('Studio').baseUrl, token: null })).toBeNull()
+  })
+
+  it('applies the last test before clearing the cache', async () => {
+    mockHealthyFetch()
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: null })
+
+    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
+
+    expect(saved.endpoints[0]?.lastHealth).not.toBeNull()
+  })
+})
+
 describe('endpoint edits', () => {
   it('clears health and last health when the base URL changes', async () => {
     const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })

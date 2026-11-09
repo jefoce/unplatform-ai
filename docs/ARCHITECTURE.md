@@ -320,6 +320,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `DOCKED_PANEL_WIDTH` | 560 | Default docked panel width, the video picker size |
 | `DOWNLOAD_STAGGER_MS` | 300 | Delay between batch download starts |
 | `ENDPOINT_HEALTH_MAX_AGE_MS` | 30000 | A health state older than this is refreshed on the next use |
+| `ENDPOINT_TEST_CACHE_LIMIT` | 32 | Cached server tests kept in memory, oldest insertion evicted first |
 | `EXPORT_TOKEN_TTL_MS` | 600000 | Window to use a save-dialog path |
 | `FETCH_TIMEOUTS.submit` | 300000 | Submit request timeout |
 | `FETCH_TIMEOUTS.poll` | 30000 | Poll request timeout |

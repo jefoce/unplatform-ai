@@ -26,7 +26,7 @@ import { withLock } from '../sync/lock'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
 import { forgetEndpointHealth, setEndpointHealth } from './endpoint-health'
 import { getEndpointOverview } from './endpoint-overview'
-import { lastTestAt, lastTestFor } from './endpoint-test'
+import { clearEndpointTests, lastTestAt, lastTestFor } from './endpoint-test'
 import {
   planEndpointTokens,
   readTokenMap,
@@ -134,6 +134,7 @@ async function saveLocked(prepared: PreparedEndpoint[]): Promise<EndpointOvervie
   }
 
   await pruneEndpointCaches({ current, prepared, removedIds: result.removedIds })
+  clearEndpointTests()
   clearModelCatalog()
   resetCustomProviders()
 

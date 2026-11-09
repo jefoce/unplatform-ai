@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     refreshedRowCount: 0,
     saveEndpoints: vi.fn(),
     reset: vi.fn(),
+    clear: vi.fn(),
   }
 })
 
@@ -24,6 +25,7 @@ vi.mock('@/lib/api/catalog', () => {
 
 vi.mock('@/lib/api/endpoints', () => {
   return {
+    clearEndpointTests: mocks.clear,
     refreshEndpoints: vi.fn(async () => {
       mocks.order.push('endpoints')
       mocks.refreshedRowCount = 2
@@ -108,6 +110,7 @@ beforeEach(() => {
 
   mocks.saveEndpoints.mockReset()
   mocks.saveEndpoints.mockResolvedValue(undefined)
+  mocks.clear.mockReset()
 })
 
 describe('settings save refresh', () => {
@@ -128,5 +131,22 @@ describe('settings save refresh', () => {
     expect(mocks.saveEndpoints).toHaveBeenCalledTimes(1)
     expect(mocks.order).toEqual(['models', 'endpoints', 'reset'])
     expect(result.current.endpoints.rows).toHaveLength(2)
+  })
+
+  it('clears the test cache when the draft is cancelled', async () => {
+    const { result } = renderHook(() => {
+      return useSettingsDraft({
+        status: undefined,
+        mock: true,
+        isOpen: true,
+        closeSettings: vi.fn(),
+      })
+    })
+
+    await act(async () => {
+      await result.current.onClose(false)
+    })
+
+    expect(mocks.clear).toHaveBeenCalledTimes(1)
   })
 })

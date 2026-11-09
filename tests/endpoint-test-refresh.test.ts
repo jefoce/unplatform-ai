@@ -6,7 +6,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
-import { MAX_JSON_BODY_BYTES } from '../src/core/constants'
+import { ENDPOINT_TEST_CACHE_LIMIT, MAX_JSON_BODY_BYTES } from '../src/core/constants'
 
 const ROOT = vi.hoisted(() => {
   const os = process.getBuiltinModule('node:os')
@@ -298,6 +298,26 @@ describe('server-owned test health', () => {
     forgetLastTest({ baseUrl: SAVED_URL, token: null })
 
     expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).toBeNull()
+  })
+
+  it('keeps the newest cached tests and evicts the oldest insertion', async () => {
+    mockFetch()
+
+    const urls = Array.from({ length: ENDPOINT_TEST_CACHE_LIMIT + 1 }, (_, index) => {
+      return `http://127.0.0.1:${8200 + index}`
+    })
+
+    for (const baseUrl of urls) {
+      await testEndpoint({ baseUrl, endpointId: null })
+    }
+
+    const [oldest, ...kept] = urls
+
+    expect(lastTestFor({ baseUrl: oldest ?? '', token: null })).toBeNull()
+
+    for (const baseUrl of kept) {
+      expect(lastTestFor({ baseUrl, token: null })).not.toBeNull()
+    }
   })
 })
 

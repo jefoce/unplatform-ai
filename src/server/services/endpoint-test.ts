@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { isNil, isUndefined } from 'lodash-es'
 
 import type { EndpointTestBody, EndpointTestResult } from '@/core/api/endpoints'
+import { ENDPOINT_TEST_CACHE_LIMIT } from '@/core/constants'
 import {
   type UpaiHealth,
   UpaiHealthSchema,
@@ -44,6 +45,26 @@ const testCache = globalState<Map<string, EndpointTestEntry>>('endpointTestHealt
 const testRuns = globalState<Map<string, number>>('endpointTestRuns', () => {
   return new Map()
 })
+
+interface SetTestCacheEntryParams {
+  key: string
+  entry: EndpointTestEntry
+}
+
+/** Adds one entry, evicting the oldest insertion when the cache is full. */
+function setTestCacheEntry(params: SetTestCacheEntryParams): void {
+  const { key, entry } = params
+
+  if (!testCache.has(key) && testCache.size >= ENDPOINT_TEST_CACHE_LIMIT) {
+    const oldest = testCache.keys().next().value
+
+    if (!isUndefined(oldest)) {
+      testCache.delete(oldest)
+    }
+  }
+
+  testCache.set(key, entry)
+}
 
 function testKey(params: LastTestParams): string {
   const hash = createHash('sha256')
@@ -86,9 +107,14 @@ export function forgetLastTest(params: LastTestParams): void {
   testCache.delete(testKey(params))
 }
 
-export function __resetEndpointTestsForTests(): void {
+/** Drops every cached test. Called after a save and when the draft is discarded. */
+export function clearEndpointTests(): void {
   testCache.clear()
   testRuns.clear()
+}
+
+export function __resetEndpointTestsForTests(): void {
+  clearEndpointTests()
 }
 
 interface SaveTestSuccessParams extends TestRunParams {
@@ -136,7 +162,7 @@ async function saveTestSuccess(params: SaveTestSuccessParams): Promise<void> {
     return
   }
 
-  testCache.set(key, { lastHealth, checkedAt: lastHealth.checkedAt })
+  setTestCacheEntry({ key, entry: { lastHealth, checkedAt: lastHealth.checkedAt } })
 }
 
 interface SaveTestFailureParams extends TestRunParams {
@@ -153,7 +179,7 @@ function saveTestFailure(params: SaveTestFailureParams): void {
     return
   }
 
-  testCache.set(key, { lastHealth: null, checkedAt: new Date().toISOString() })
+  setTestCacheEntry({ key, entry: { lastHealth: null, checkedAt: new Date().toISOString() } })
 
   if (isSavedEndpoint && !isNil(endpointId)) {
     setEndpointHealth({

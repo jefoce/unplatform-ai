@@ -8,7 +8,7 @@ import type {
   EndpointTestResult,
   SaveEndpointsParams,
 } from '@/core/api/endpoints'
-import { apiPost, apiRequest, fetcher } from '@/lib/fetcher'
+import { apiDelete, apiPost, apiRequest, fetcher } from '@/lib/fetcher'
 
 import { ENDPOINTS_KEY } from './swr-keys'
 
@@ -35,4 +35,9 @@ export function testEndpoint(params: EndpointTestBody): Promise<EndpointTestResu
 /** Revalidates the endpoint overview after a settings save. */
 export async function refreshEndpoints(): Promise<void> {
   await mutate(ENDPOINTS_KEY)
+}
+
+/** Drops server-owned draft test results after Save or Cancel. */
+export async function clearEndpointTests(): Promise<void> {
+  await apiDelete<void>(ENDPOINTS_KEY)
 }
