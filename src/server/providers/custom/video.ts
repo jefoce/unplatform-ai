@@ -145,7 +145,7 @@ async function submitJob(params: SubmitParams): Promise<SubmittedJob> {
     path: '/api/v1/videos',
     init: {
       method: 'POST',
-      headers: requestHeaders(endpoint, true),
+      headers: requestHeaders(true),
       body: JSON.stringify(buildVideoBody(submit)),
     },
     timeoutMs: FETCH_TIMEOUTS.submit,
@@ -166,7 +166,7 @@ async function readJob(params: JobPathParams): Promise<JobSnapshot> {
   const payload = await requestJson({
     endpoint,
     path: videoPath(params),
-    init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
+    init: { headers: requestHeaders(false), cache: 'no-store' },
     timeoutMs: FETCH_TIMEOUTS.poll,
   })
 
@@ -185,7 +185,7 @@ async function cancelJob(params: JobPathParams): Promise<void> {
   const res = await customRequest({
     endpoint,
     path: `${videoPath(params)}/cancel`,
-    init: { method: 'POST', headers: requestHeaders(endpoint, false) },
+    init: { method: 'POST', headers: requestHeaders(false) },
     timeoutMs: FETCH_TIMEOUTS.poll,
   })
 
@@ -205,7 +205,7 @@ async function fetchContent(params: ContentParams): Promise<Response> {
   const res = await customRequest({
     endpoint,
     path: `${videoPath({ endpoint, job: request.job })}/content?index=${request.index}`,
-    init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
+    init: { headers: requestHeaders(false), cache: 'no-store' },
     timeoutMs: FETCH_TIMEOUTS.content,
   })
 
@@ -249,7 +249,7 @@ async function listModels(endpoint: CustomEndpoint): Promise<ProviderModelList> 
   const payload = await requestJson({
     endpoint,
     path: '/api/v1/videos/models',
-    init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
+    init: { headers: requestHeaders(false), cache: 'no-store' },
     timeoutMs: FETCH_TIMEOUTS.meta,
   })
 

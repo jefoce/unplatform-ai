@@ -77,7 +77,7 @@ async function readImageJob(params: ImageJobParams): Promise<UpaiJob> {
   const payload = await requestJson({
     endpoint: params.endpoint,
     path: jobPath(params),
-    init: { headers: requestHeaders(params.endpoint, false), cache: 'no-store' },
+    init: { headers: requestHeaders(false), cache: 'no-store' },
     timeoutMs: FETCH_TIMEOUTS.poll,
   })
 
@@ -94,7 +94,7 @@ async function cancelImageJob(params: ImageJobParams): Promise<void> {
   const res = await customRequest({
     endpoint: params.endpoint,
     path: jobPath(params, '/cancel'),
-    init: { method: 'POST', headers: requestHeaders(params.endpoint, false) },
+    init: { method: 'POST', headers: requestHeaders(false) },
     timeoutMs: FETCH_TIMEOUTS.poll,
   })
 
@@ -150,7 +150,7 @@ async function fetchItem(params: ImageItemsParams, index: number): Promise<Image
     const res = await customRequest({
       endpoint: params.endpoint,
       path: jobPath({ endpoint: params.endpoint, jobId: params.job.id }, `/content?index=${index}`),
-      init: { headers: requestHeaders(params.endpoint, false), cache: 'no-store' },
+      init: { headers: requestHeaders(false), cache: 'no-store' },
       timeoutMs: FETCH_TIMEOUTS.content,
     })
 
@@ -199,7 +199,7 @@ async function generate(
     path: '/api/v1/images/jobs',
     init: {
       method: 'POST',
-      headers: requestHeaders(endpoint, true),
+      headers: requestHeaders(true),
       body: JSON.stringify(buildImageBody(params)),
     },
     timeoutMs: FETCH_TIMEOUTS.submit,
@@ -249,7 +249,7 @@ async function listModels(endpoint: CustomEndpoint): Promise<ProviderImageModelL
   const payload = await requestJson({
     endpoint,
     path: '/api/v1/images/models',
-    init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
+    init: { headers: requestHeaders(false), cache: 'no-store' },
     timeoutMs: FETCH_TIMEOUTS.meta,
   })
 

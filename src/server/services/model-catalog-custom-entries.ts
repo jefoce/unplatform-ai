@@ -153,7 +153,7 @@ async function fetchModelList(
   const payload = await requestJson({
     endpoint,
     path,
-    init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
+    init: { headers: requestHeaders(false), cache: 'no-store' },
     timeoutMs: CUSTOM_CHECK_TIMEOUT_MS,
   })
 

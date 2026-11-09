@@ -15,6 +15,7 @@ import {
   customMockEndpoint,
   customMockInstances,
 } from '../providers/mock/custom-mock'
+import { secretsReady } from '../secrets'
 import { listEnabledCustomEndpoints } from './endpoint-model-cache'
 import {
   catalogFromModels,
@@ -75,6 +76,8 @@ function mockCatalogs(): KindCatalog[] {
 }
 
 async function liveCatalogs(isForce: boolean): Promise<KindCatalog[]> {
+  await secretsReady()
+
   const endpoints = await listEnabledCustomEndpoints()
 
   return Promise.all(

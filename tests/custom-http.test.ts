@@ -11,6 +11,12 @@ vi.mock('@/server/providers/custom/endpoint-source', () => {
   }
 })
 
+vi.mock('@/server/secrets', () => {
+  return {
+    secretsReady: async () => {},
+  }
+})
+
 const { customRequest } = await import('@/server/providers/custom/http')
 
 const ENDPOINT: CustomEndpoint = {

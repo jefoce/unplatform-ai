@@ -9,6 +9,7 @@ import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { Dict } from '@/core/utility-types'
 
 import { BodyTooLargeError, readCappedBody } from '../../media/read-capped-body'
+import { secretsReady } from '../../secrets'
 import type { ProviderError, ProviderErrorKind } from '../provider-error'
 import { getEndpointToken } from './endpoint-source'
 import { customError, networkError, protocolError } from './errors'
@@ -90,19 +91,12 @@ export function endpointContentHosts(endpoint: CustomEndpoint): readonly string[
   }
 }
 
-export function requestHeaders(endpoint: CustomEndpoint, isJson: boolean): Dict<string> {
-  const headers: Dict<string> = {}
-  const token = getEndpointToken(endpoint.id)
-
-  if (!isNil(token)) {
-    headers.Authorization = `Bearer ${token}`
+export function requestHeaders(isJson: boolean): Dict<string> {
+  if (!isJson) {
+    return {}
   }
 
-  if (isJson) {
-    headers['Content-Type'] = 'application/json'
-  }
-
-  return headers
+  return { 'Content-Type': 'application/json' }
 }
 
 export interface CustomRequestParams {
@@ -115,6 +109,9 @@ export interface CustomRequestParams {
 /** Pinned to the endpoint origin, never follows a redirect. */
 export async function customRequest(params: CustomRequestParams): Promise<Response> {
   const { endpoint, path, init, timeoutMs } = params
+
+  await secretsReady()
+
   const url = new URL(`${endpointBaseUrl(endpoint)}${path}`)
 
   if (url.origin !== endpointOrigin(endpoint)) {
@@ -128,11 +125,20 @@ export async function customRequest(params: CustomRequestParams): Promise<Respon
     signal = AbortSignal.any([init.signal, timeoutSignal])
   }
 
+  const headers: Dict<string> = Object.fromEntries(new Headers(init.headers))
+
+  const token = getEndpointToken(endpoint.id)
+
+  if (!isNil(token)) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
   let res: Response
 
   try {
     res = await fetch(url, {
       ...init,
+      headers,
       redirect: 'manual',
       signal,
     })

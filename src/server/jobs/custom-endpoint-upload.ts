@@ -70,7 +70,7 @@ export async function loadEndpointHealth(params: HealthParams): Promise<UpaiHeal
   const res = await customRequest({
     endpoint,
     path: '/api/v1/health',
-    init: { headers: requestHeaders(endpoint, false), signal, cache: 'no-store' },
+    init: { headers: requestHeaders(false), signal, cache: 'no-store' },
     timeoutMs: FETCH_TIMEOUTS.meta,
   })
 
@@ -105,7 +105,7 @@ export async function ensureUploadRef(params: EnsureRefParams): Promise<string> 
   const res = await customRequest({
     endpoint,
     path: `/api/v1/uploads/${sha256}`,
-    init: { method: 'HEAD', headers: requestHeaders(endpoint, false), signal },
+    init: { method: 'HEAD', headers: requestHeaders(false), signal },
     timeoutMs: FETCH_TIMEOUTS.meta,
   })
 
@@ -132,7 +132,7 @@ async function postUpload(params: PostUploadParams): Promise<string> {
   const res = await customRequest({
     endpoint,
     path: '/api/v1/uploads',
-    init: { method: 'POST', body: form, headers: requestHeaders(endpoint, false), signal },
+    init: { method: 'POST', body: form, headers: requestHeaders(false), signal },
     timeoutMs: FETCH_TIMEOUTS.submit,
   })
 

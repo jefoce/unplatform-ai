@@ -33,7 +33,7 @@ export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthPr
     const res = await customRequest({
       endpoint,
       path: '/api/v1/health',
-      init: { headers: requestHeaders(endpoint, false), cache: 'no-store' },
+      init: { headers: requestHeaders(false), cache: 'no-store' },
       timeoutMs: FETCH_TIMEOUTS.meta,
     })
 
