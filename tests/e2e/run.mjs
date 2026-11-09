@@ -75,8 +75,10 @@ function argValue(prefix) {
 }
 
 const requestedWidths = parseList(argValue('--width='))
+const requestedHeight = argValue('--height=')
 const caseFilter = argValue('--case=')
 const widths = requestedWidths === null ? WIDTHS : requestedWidths.map(Number)
+const height = requestedHeight === undefined ? HEIGHT : Number(requestedHeight)
 const cases =
   caseFilter === undefined ? CASES : CASES.filter((entry) => entry.name.includes(caseFilter))
 
@@ -105,13 +107,14 @@ function fixtureLoader(name, server, width) {
   return loader
 }
 
-function makeContext(browser, server, width) {
+function makeContext(params) {
+  const { browser, server, width, height } = params
   const cache = new Map()
   const context = {
     driver: browser.driver,
     server,
     width,
-    height: HEIGHT,
+    height,
     setServer(next) {
       context.server = next
       cache.clear()
@@ -157,16 +160,17 @@ async function cleanupStorage(server) {
   await fs.rm(resolved, { recursive: true, force: true })
 }
 
-async function runWidth(width, rows) {
+async function runWidth(params) {
+  const { width, height, rows } = params
   console.log(`\n# width ${String(width)}`)
   let server = await startServer()
   let browser = null
   let logIndex = 0
 
   try {
-    browser = await startBrowser(width, HEIGHT)
+    browser = await startBrowser(width, height)
     await assertHoverMedia(browser.driver)
-    const context = makeContext(browser, server, width)
+    const context = makeContext({ browser, server, width, height })
 
     for (const entry of cases) {
       if (entry.fresh === true) {
@@ -228,6 +232,10 @@ async function main() {
     }
   }
 
+  if (!Number.isFinite(height) || height <= 0) {
+    throw new Error(`Bad height: ${String(height)}`)
+  }
+
   const attachedPort = process.env.E2E_CDP_PORT?.trim()
 
   if (attachedPort === undefined || attachedPort === '') {
@@ -241,7 +249,7 @@ async function main() {
 
   // One build, one server per width. Cases marked fresh restart it from empty storage.
   for (const width of widths) {
-    await runWidth(width, rows)
+    await runWidth({ width, height, rows })
   }
 
   const passed = rows.filter((row) => {

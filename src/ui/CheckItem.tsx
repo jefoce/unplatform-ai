@@ -24,6 +24,7 @@ export function CheckItem(props: CheckItemProps) {
   const { label, value, isChecked, icon, detail, className } = props
   const checkClass = cn('shrink-0 text-accent', !isChecked && 'invisible')
   const tabIndex = isChecked ? 0 : -1
+  const selectedAttr = isChecked ? 'true' : undefined
 
   const handleClick = () => {
     props.onSelect(value)
@@ -66,6 +67,7 @@ export function CheckItem(props: CheckItemProps) {
       role="radio"
       aria-checked={isChecked}
       tabIndex={tabIndex}
+      data-selected={selectedAttr}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(

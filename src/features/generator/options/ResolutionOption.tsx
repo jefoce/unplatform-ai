@@ -23,6 +23,7 @@ interface ResolutionOptionProps {
 /** One resolution row with its per-second rate. */
 export function ResolutionOption(props: ResolutionOptionProps) {
   const { option, label, detail, isSelected, rate, listRate, discount } = props
+  const selectedAttr = isSelected ? 'true' : undefined
 
   const handleSelect = (): void => {
     props.onSelect(option)
@@ -33,6 +34,7 @@ export function ResolutionOption(props: ResolutionOptionProps) {
       <button
         type="button"
         onClick={handleSelect}
+        data-selected={selectedAttr}
         className={cn(
           'flex min-h-9 w-full items-center gap-2 rounded-lg p-2 text-sm font-medium',
           isSelected && 'text-accent',

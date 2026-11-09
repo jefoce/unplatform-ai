@@ -65,7 +65,10 @@ export function ResolutionPopover() {
           {!isNil(selected.detail) && <span className="text-xs text-fg-2">{selected.detail}</span>}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-56 space-y-1">
+      <PopoverContent
+        align="end"
+        className="max-h-[min(60vh,22rem)] w-56 space-y-1 overflow-y-auto"
+      >
         {choices.map((choice) => {
           const ctx = {
             resolution: choice.value,
@@ -96,7 +99,9 @@ export function ResolutionPopover() {
           )
         })}
         {pricing?.source === 'fallback' && (
-          <p className="px-2 pb-1 text-xxs text-fg-2">Saved rates, live price unavailable</p>
+          <p className="sticky bottom-0 bg-glass px-2 py-1 text-xxs text-fg-2">
+            Saved rates, live price unavailable
+          </p>
         )}
       </PopoverContent>
     </Popover>

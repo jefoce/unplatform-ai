@@ -137,6 +137,7 @@ export function ImageOptionsRow(props: ImageOptionsRowProps) {
           icon={<Monitor size={14} aria-hidden />}
           optionIcon={resolutionIcon}
           optionDetail={resolutionDetail}
+          contentClassName="max-h-[min(60vh,22rem)] overflow-y-auto"
         />
       )}
 

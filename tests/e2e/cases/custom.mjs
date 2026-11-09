@@ -141,6 +141,81 @@ async function customResolutionLabels(context) {
   )
 }
 
+async function resolutionPopoverHeight(context) {
+  const { driver } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
+  await gotoTab(driver, 'Video')
+  await openModelPicker(driver)
+  await selectScaleModel(driver)
+  await waitBodyText(driver, SCALE_CARD, WAIT_MS)
+
+  const opened = await driver.evaluate(`(() => {
+    const button = window.__e2e.all('button').find((node) => node.innerText.includes('1280×736'))
+    if (button === undefined) return false
+    button.click()
+    return true
+  })()`)
+
+  if (!opened) {
+    throw new Error('No resolution trigger for the scale model')
+  }
+
+  await driver.waitFor(
+    `window.__e2e.exists('[data-radix-popper-content-wrapper]')`,
+    WAIT_MS,
+    'the resolution popover',
+  )
+  await driver.waitFor(
+    `(() => {
+      const wrapper = document.querySelector('[data-radix-popper-content-wrapper]')
+      const content = wrapper === null ? null : wrapper.firstElementChild
+      if (!(content instanceof HTMLElement)) return false
+      const selected = content.querySelector('[data-selected="true"]')
+      if (!(selected instanceof HTMLElement)) return false
+      const box = content.getBoundingClientRect()
+      const row = selected.getBoundingClientRect()
+      return row.top >= box.top - 1 && row.bottom <= box.bottom + 1
+    })()`,
+    WAIT_MS,
+    'the selected resolution row inside the scroll box',
+  )
+
+  const geometry = await driver.evaluate(`(() => {
+    const wrapper = document.querySelector('[data-radix-popper-content-wrapper]')
+    const content = wrapper === null ? null : wrapper.firstElementChild
+    if (!(content instanceof HTMLElement)) return null
+    const box = content.getBoundingClientRect()
+    return {
+      top: box.top,
+      bottom: box.bottom,
+      viewportHeight: window.innerHeight,
+      optionCount: content.querySelectorAll('button').length,
+    }
+  })()`)
+
+  if (geometry === null) {
+    throw new Error('No resolution popover content')
+  }
+
+  if (geometry.top < 8) {
+    throw new Error(`Resolution popover top ${String(geometry.top)} is above 8`)
+  }
+
+  if (geometry.bottom > geometry.viewportHeight - 8) {
+    throw new Error(
+      `Resolution popover bottom ${String(geometry.bottom)} passes ${String(geometry.viewportHeight - 8)}`,
+    )
+  }
+
+  if (geometry.optionCount !== 14) {
+    throw new Error(`Resolution popover shows ${String(geometry.optionCount)} options, expected 14`)
+  }
+
+  await shoot(driver, 'resolution-popover-720')
+}
+
 async function firstRecordId(server) {
   const deadline = Date.now() + WAIT_MS
 
@@ -250,5 +325,9 @@ export const customCases = [
   {
     name: 'custom-endpoint/resolution-labels',
     run: customResolutionLabels,
+  },
+  {
+    name: 'custom-endpoint/resolution-popover-height',
+    run: resolutionPopoverHeight,
   },
 ]
