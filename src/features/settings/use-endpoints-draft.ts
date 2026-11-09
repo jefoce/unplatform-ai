@@ -153,10 +153,6 @@ export function useEndpointsDraft(params: UseEndpointsDraftParams): EndpointsDra
     setRows((current) => {
       return withTestResult({ rows: current ?? seedRows(data), key, tested, result })
     })
-
-    if (result.ok) {
-      setIsDirty(true)
-    }
   }
 
   const test = useEndpointTest({ rows: currentRows, onResult: applyResult })

@@ -151,37 +151,25 @@ describe('endpoint draft save and cancel', () => {
     expect(result.current.isDirty).toBe(false)
   })
 
-  it('clears the test result when a tested field changes', async () => {
-    mocks.test.mockResolvedValue(TEST_RESULT)
+  it('stays clean after a failed test', async () => {
+    mocks.test.mockResolvedValue({ ...TEST_RESULT, ok: false, lastHealth: null })
 
     const { result } = renderHook(() => {
       return useEndpointsDraft({ isOpen: true })
     })
 
-    const first = required(result.current.rows[0], 'first row')
-
     await act(async () => {
-      result.current.onTest(first.key)
+      result.current.onTest(required(result.current.rows[0], 'first row').key)
     })
 
     await waitFor(() => {
-      expect(result.current.rows[0]?.test).not.toBeNull()
+      expect(result.current.rows[0]?.status).toBe('unreachable')
+      expect(result.current.isDirty).toBe(false)
     })
-
-    expect(result.current.rows[0]?.lastHealth).toEqual(TEST_RESULT.lastHealth)
-
-    act(() => {
-      result.current.onChange(first.key, { baseUrl: 'http://127.0.0.1:9999' })
-    })
-
-    expect(result.current.rows[0]?.test).toBeNull()
-    expect(result.current.rows[0]?.lastHealth).toBeNull()
-    expect(result.current.rows[0]?.instanceId).toBeNull()
-    expect(result.current.rows[0]?.status).toBe('unknown')
   })
 })
 
-describe('endpoint test clearing keeps the instance id', () => {
+describe('endpoint test results', () => {
   it.each<[string, EndpointRowPatch]>([
     ['enabled', { enabled: false }],
     ['token', { tokenValue: 'new-token' }],
@@ -209,6 +197,39 @@ describe('endpoint test clearing keeps the instance id', () => {
     expect(result.current.rows[0]?.test).toBeNull()
     expect(result.current.rows[0]?.lastHealth).toBeNull()
     expect(result.current.rows[0]?.instanceId).toBe(TEST_RESULT.instanceId)
+    expect(result.current.rows[0]?.status).toBe('unknown')
+  })
+
+  it('clears the test result when a tested field changes', async () => {
+    mocks.test.mockResolvedValue(TEST_RESULT)
+
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    await act(async () => {
+      result.current.onTest(first.key)
+    })
+
+    await waitFor(() => {
+      expect(result.current.rows[0]?.test).not.toBeNull()
+    })
+
+    expect(result.current.rows[0]?.status).toBe('ok')
+    expect(result.current.rows[0]?.lastHealth).toEqual(TEST_RESULT.lastHealth)
+    expect(result.current.rows[0]?.instanceId).toBe(TEST_RESULT.instanceId)
+    expect([result.current.rows[0]?.videoCount, result.current.rows[0]?.imageCount]).toEqual([3, 2])
+    expect(result.current.isDirty).toBe(false)
+
+    act(() => {
+      result.current.onChange(first.key, { baseUrl: 'http://127.0.0.1:9999' })
+    })
+
+    expect(result.current.rows[0]?.test).toBeNull()
+    expect(result.current.rows[0]?.lastHealth).toBeNull()
+    expect(result.current.rows[0]?.instanceId).toBeNull()
     expect(result.current.rows[0]?.status).toBe('unknown')
   })
 })
