@@ -12,7 +12,7 @@ import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
 import type { CatalogEntry, ModelCatalog } from '../src/core/catalog'
-import { MODEL_CATALOG_TTL_MS } from '../src/core/constants'
+import { CUSTOM_CATALOG_MIN_REFRESH_MS, MODEL_CATALOG_TTL_MS } from '../src/core/constants'
 import { isVideoPreset } from '../src/core/presets/common/preset-kind'
 import { CUSTOM_STALE_REASON } from '../src/core/presets/custom/shared'
 import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
@@ -602,7 +602,7 @@ describe('custom catalog', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns fresh entries on an explicit refresh', async () => {
+  it('returns fresh entries on a forced refresh', async () => {
     const first = modelAt(VIDEO_MODELS, 0)
     const second = modelAt(VIDEO_MODELS, 1)
     const endpoint = customEndpoint('cat-explicit', 'CUS')
@@ -614,10 +614,74 @@ describe('custom catalog', () => {
     await ensureCustomCatalog({ isRefresh: false })
 
     const fetchMock = mockListFetch({ video: [first, second] })
-    const data = await ensureCustomCatalog({ isRefresh: true })
+    const data = await ensureCustomCatalog({ isRefresh: true, isForce: true })
 
     expect(idsOf(customEntries(data.entries))).toContain(second.id)
     expect(entryFor(data.entries, second.id).status).toBe('available')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips an automatic refresh while the custom cache is young', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const second = modelAt(VIDEO_MODELS, 1)
+    const endpoint = customEndpoint('cat-auto-young', 'CUT')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    mockListFetch({ video: [first] })
+    await ensureCustomCatalog({ isRefresh: false })
+
+    const fetchMock = mockListFetch({ video: [first, second] })
+    const data = await ensureCustomCatalog({ isRefresh: true })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(idsOf(customEntries(data.entries))).not.toContain(second.id)
+  })
+
+  it('refreshes automatically after the minimum gap', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const second = modelAt(VIDEO_MODELS, 1)
+    const endpoint = customEndpoint('cat-auto-old', 'CUO')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    mockListFetch({ video: [first] })
+    await ensureCustomCatalog({ isRefresh: false })
+
+    vi.setSystemTime(new Date(Date.now() + CUSTOM_CATALOG_MIN_REFRESH_MS + 1))
+    const fetchMock = mockListFetch({ video: [first, second] })
+    const data = await ensureCustomCatalog({ isRefresh: true })
+
+    expect(idsOf(customEntries(data.entries))).toContain(second.id)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('forces a refresh even while the custom cache is young', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const second = modelAt(VIDEO_MODELS, 1)
+    const endpoint = customEndpoint('cat-auto-force', 'CUF')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    mockListFetch({ video: [first] })
+    await ensureCustomCatalog({ isRefresh: false })
+
+    const fetchMock = mockListFetch({ video: [first, second] })
+    const data = await ensureCustomCatalog({ isRefresh: true, isForce: true })
+
+    expect(idsOf(customEntries(data.entries))).toContain(second.id)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -670,7 +734,7 @@ describe('custom catalog', () => {
 })
 
 describe('GET /api/models', () => {
-  it('returns a changed custom model on ?refresh=1', async () => {
+  it('returns a changed custom model on a forced refresh', async () => {
     const first = modelAt(VIDEO_MODELS, 0)
     const second = modelAt(VIDEO_MODELS, 1)
     const endpoint = customEndpoint('cat-route-changed', 'CUI', true)
@@ -683,7 +747,7 @@ describe('GET /api/models', () => {
 
     mockListFetch({ video: [first, second] })
 
-    const response = await GET(catalogRequest('?refresh=1'))
+    const response = await GET(catalogRequest('?refresh=1&force=1'))
     const body = RouteBodySchema.parse(await response.json())
 
     expect(response.status).toBe(200)
@@ -693,6 +757,26 @@ describe('GET /api/models', () => {
     })
 
     expect(entry?.status).toBe('available')
+  })
+
+  it('skips the fetch on an automatic refresh while the cache is young', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-route-young', 'CUR', true)
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
+    mockListFetch({ video: [first] })
+    await ensureCustomCatalog({ isRefresh: false })
+
+    const fetchMock = vi.fn()
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await GET(catalogRequest('?refresh=1'))
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('awaits the custom refresh and reports the unreachable endpoint', async () => {
@@ -711,7 +795,7 @@ describe('GET /api/models', () => {
 
     vi.stubGlobal('fetch', fetchMock)
 
-    const response = await GET(catalogRequest('?refresh=1'))
+    const response = await GET(catalogRequest('?refresh=1&force=1'))
     const body = RouteBodySchema.parse(await response.json())
 
     expect(response.status).toBe(200)

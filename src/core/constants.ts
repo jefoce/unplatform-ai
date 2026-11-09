@@ -176,6 +176,9 @@ export const PRICING_LIVE_TTL_MS = 3_600_000
 /** Model catalog cache lifetime. Settings saves clear it. */
 export const MODEL_CATALOG_TTL_MS = 60_000
 
+/** Shortest gap between two automatic custom catalog refreshes. */
+export const CUSTOM_CATALOG_MIN_REFRESH_MS = 15_000
+
 /** Provider model lists are paginated. More pages than this means the list is incomplete. */
 export const MODEL_LIST_MAX_PAGES = 20
 

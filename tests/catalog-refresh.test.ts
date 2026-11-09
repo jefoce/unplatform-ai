@@ -70,13 +70,22 @@ afterEach(() => {
 })
 
 describe('refreshCatalog', () => {
-  it('fetches a forced catalog and registers the new entries', async () => {
+  it('fetches an automatic catalog and registers the new entries', async () => {
     mocks.fetcher.mockResolvedValue(CATALOG)
 
     await refreshCatalog()
 
     expect(mocks.fetcher).toHaveBeenCalledWith('/api/models?refresh=1')
     expect(findPreset(PRESET.id)).toBe(PRESET)
+    expect(mocks.mutate).toHaveBeenCalledWith('/api/models', CATALOG, { revalidate: false })
+  })
+
+  it('adds the force flag to a manual refresh', async () => {
+    mocks.fetcher.mockResolvedValue(CATALOG)
+
+    await refreshCatalog({ isForce: true })
+
+    expect(mocks.fetcher).toHaveBeenCalledWith('/api/models?refresh=1&force=1')
     expect(mocks.mutate).toHaveBeenCalledWith('/api/models', CATALOG, { revalidate: false })
   })
 })

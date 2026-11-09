@@ -31,15 +31,16 @@ const cache = createTtlCache<CatalogEntry[]>({
 
 interface GetModelCatalogParams {
   isRefreshCustom?: boolean
+  isForce?: boolean
 }
 
 /** Static entries from the TTL cache next to the cached custom entries. */
 export async function getModelCatalog(params: GetModelCatalogParams = {}): Promise<ModelCatalog> {
-  const { isRefreshCustom = false } = params
+  const { isRefreshCustom = false, isForce = false } = params
 
   const [entries, custom] = await Promise.all([
     cache.get('static', loadStaticEntries),
-    ensureCustomCatalog({ isRefresh: isRefreshCustom }),
+    ensureCustomCatalog({ isRefresh: isRefreshCustom, isForce }),
   ])
 
   return {

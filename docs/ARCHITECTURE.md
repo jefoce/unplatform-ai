@@ -308,6 +308,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `CREDITS_SETTLE_WINDOW_MS` | 120000 | Window for a newly seen settled record to trigger a refresh |
 | `CREDIT_DANGER_USD` | 0.5 | Balance that shows the danger color |
 | `CREDIT_WARN_USD` | 2 | Balance that shows the warning color |
+| `CUSTOM_CATALOG_MIN_REFRESH_MS` | 15000 | Shortest gap between automatic custom catalog refreshes |
 | `CUSTOM_CHECK_TIMEOUT_MS` | 3000 | Fresh availability check timeout on Generate |
 | `CUSTOM_DURATION_MAX_SEC` | 120 | Longest duration a custom model may advertise |
 | `CUSTOM_DURATION_OPTIONS_MAX` | 64 | Most quick-pick duration options kept from one custom model |

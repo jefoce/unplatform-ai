@@ -8,9 +8,11 @@ export async function GET(request: Request) {
   try {
     assertLocalRequest(request)
 
-    const isForce = new URL(request.url).searchParams.get('refresh') === '1'
+    const searchParams = new URL(request.url).searchParams
+    const isRefreshCustom = searchParams.get('refresh') === '1'
+    const isForce = searchParams.get('force') === '1'
 
-    return jsonResponse(await getModelCatalog({ isRefreshCustom: isForce }))
+    return jsonResponse(await getModelCatalog({ isRefreshCustom, isForce }))
   } catch (error) {
     return errorResponse(error)
   }

@@ -3,7 +3,7 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import type { CatalogEntry } from '@/core/catalog'
-import { MODEL_CATALOG_TTL_MS } from '@/core/constants'
+import { CUSTOM_CATALOG_MIN_REFRESH_MS, MODEL_CATALOG_TTL_MS } from '@/core/constants'
 import { setRuntimeVideoPresets } from '@/core/presets'
 import { isImagePreset, isVideoPreset } from '@/core/presets/common/preset-kind'
 import { setRuntimeImagePresets } from '@/core/presets/image'
@@ -38,6 +38,7 @@ interface CustomCatalogCache extends CustomCatalogData {
 
 interface EnsureCustomCatalogParams {
   isRefresh: boolean
+  isForce?: boolean
 }
 
 interface LoadCustomCatalogParams {
@@ -107,11 +108,16 @@ function mergeCustomCatalogs(catalogs: readonly KindCatalog[]): CustomCatalogDat
 /**
  * Cached custom entries. A cold load or a refresh awaits the load, so a settings
  * save or clear never returns empty entries. A stale cache refreshes behind.
+ * An automatic refresh skips a cache younger than the minimum gap. A forced one does not.
  */
 export async function ensureCustomCatalog(
   params: EnsureCustomCatalogParams,
 ): Promise<CustomCatalogData> {
-  const { isRefresh } = params
+  const { isRefresh, isForce = false } = params
+
+  if (isRefresh && !isForce && cache.isLoaded && isCustomCacheYoung()) {
+    return currentCustomCatalog()
+  }
 
   if (!cache.isLoaded || isRefresh) {
     const data = await loadUntilStable()
@@ -189,6 +195,10 @@ function startRefresh(): void {
 
 function isCustomCacheStale(): boolean {
   return Date.now() - cache.loadedAtMs >= MODEL_CATALOG_TTL_MS
+}
+
+function isCustomCacheYoung(): boolean {
+  return Date.now() - cache.loadedAtMs < CUSTOM_CATALOG_MIN_REFRESH_MS
 }
 
 function applyCustomCatalog(data: CustomCatalogData): void {

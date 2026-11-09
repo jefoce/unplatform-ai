@@ -232,13 +232,14 @@ describe('custom model picker', () => {
     )
   })
 
-  it('refetches the catalog on open and from the refresh button', async () => {
+  it('refetches the catalog on open and forces it from the refresh button', async () => {
     useEntries([AVAILABLE])
 
     render(<ModelPicker />)
     openPicker()
 
     expect(mockRefresh).toHaveBeenCalledTimes(1)
+    expect(mockRefresh).toHaveBeenLastCalledWith({ isForce: false })
 
     const refresh = screen.getByRole('button', { name: 'Refresh models' })
 
@@ -249,6 +250,7 @@ describe('custom model picker', () => {
     fireEvent.click(refresh)
 
     expect(mockRefresh).toHaveBeenCalledTimes(2)
+    expect(mockRefresh).toHaveBeenLastCalledWith({ isForce: true })
   })
 })
 

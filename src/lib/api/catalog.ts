@@ -86,9 +86,20 @@ export function useModelEntry(presetId: string): CatalogEntry | null {
   )
 }
 
+interface RefreshCatalogParams {
+  isForce?: boolean
+}
+
 /** Refetches the catalog, resolving once the new entries are registered. */
-export async function refreshCatalog(): Promise<void> {
-  const catalog = await fetcher<ModelCatalog>(withQuery(MODELS_KEY, { refresh: 1 }))
+export async function refreshCatalog(params: RefreshCatalogParams = {}): Promise<void> {
+  const { isForce = false } = params
+  let force: number | null = null
+
+  if (isForce) {
+    force = 1
+  }
+
+  const catalog = await fetcher<ModelCatalog>(withQuery(MODELS_KEY, { refresh: 1, force }))
 
   registerCatalogPresets(catalog.entries)
 

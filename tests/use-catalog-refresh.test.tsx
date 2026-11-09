@@ -26,6 +26,28 @@ afterEach(() => {
 })
 
 describe('useCatalogRefresh', () => {
+  it('passes the force option to a manual refresh', async () => {
+    mocks.refreshCatalog.mockResolvedValue(undefined)
+
+    const { result } = renderHook(() => {
+      return useCatalogRefresh()
+    })
+
+    await act(async () => {
+      result.current.refresh()
+      await Promise.resolve()
+    })
+
+    expect(mocks.refreshCatalog).toHaveBeenLastCalledWith({ isForce: false })
+
+    await act(async () => {
+      result.current.forceRefresh()
+      await Promise.resolve()
+    })
+
+    expect(mocks.refreshCatalog).toHaveBeenLastCalledWith({ isForce: true })
+  })
+
   it('toasts a rejected refresh and still clears the spinner', async () => {
     const error = new Error('offline')
     let failRefresh: ((reason: unknown) => void) | undefined

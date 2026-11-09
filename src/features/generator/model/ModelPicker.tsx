@@ -119,7 +119,7 @@ export function ModelPicker(props: ModelPickerProps) {
         isBar={isBar}
         isWide={isWide}
         isFetching={isFetching}
-        onRefresh={refresh.refresh}
+        onRefresh={refresh.forceRefresh}
         onSelect={handleSelectPreset}
       />
     </Popover>
