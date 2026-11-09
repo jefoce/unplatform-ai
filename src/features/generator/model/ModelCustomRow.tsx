@@ -1,14 +1,19 @@
 'use client'
 
 import { isEmpty, isNil } from 'lodash-es'
-import { Check, TriangleAlert } from 'lucide-react'
+import { Check, Clock, Film, Monitor, TriangleAlert, Volume2 } from 'lucide-react'
 
 import { cn } from '@/lib/cn'
 import { EndpointBadge } from '@/ui/EndpointBadge'
 import { Tooltip } from '@/ui/Tooltip'
 
 import type { ModelRowProps } from './model-row-props'
+import { ModelBadge } from './ModelBadge'
 import type { PickerRow } from './picker-groups'
+
+interface ModelCustomRowProps extends ModelRowProps {
+  model: PickerRow
+}
 
 type RowState = 'ok' | 'stale' | 'invalid' | 'unreachable'
 
@@ -46,7 +51,7 @@ function rowNote(state: RowState): string | null {
 
 /** ComfyUI row: badge chip, title, description and availability state. */
 // eslint-disable-next-line complexity -- one row owns badge, state, price and tooltip
-export function ModelCustomRow(props: ModelRowProps) {
+export function ModelCustomRow(props: ModelCustomRowProps) {
   const { model, selected: isSelected } = props
   const state = rowState(model)
   const isBlocked = state === 'unreachable' || state === 'invalid' || model.status === 'missing'
@@ -99,6 +104,18 @@ export function ModelCustomRow(props: ModelRowProps) {
         )}
         {state !== 'stale' && !isNil(model.reason) && (
           <span className="mt-1 block text-xs text-fg-2">{model.reason}</span>
+        )}
+        {model.mediaKind === 'video' && (
+          <span className="mt-1 flex flex-wrap gap-1">
+            {!isNil(model.resolutionText) && (
+              <ModelBadge icon={Monitor} text={model.resolutionText} />
+            )}
+            {!isNil(model.durationText) && <ModelBadge icon={Clock} text={model.durationText} />}
+            {model.hasAudio && <ModelBadge icon={Volume2} label="Audio" />}
+            {model.referenceCount > 0 && (
+              <ModelBadge icon={Film} text={`${model.referenceCount} refs`} />
+            )}
+          </span>
         )}
       </span>
       <span className="flex size-3.5 shrink-0 items-center justify-center">

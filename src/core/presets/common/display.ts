@@ -1,4 +1,4 @@
-import { isNil } from 'lodash-es'
+import { isNil, maxBy, minBy } from 'lodash-es'
 
 import type { ImagePreset } from '../image/types'
 import type { VideoPreset } from '../video/types'
@@ -27,6 +27,21 @@ export interface ResolutionDisplayParams {
 
 export interface ResolutionChoice extends ResolutionDisplay {
   value: string
+}
+
+export interface ResolutionRangeParams {
+  aspect: string
+}
+
+interface ShortSide {
+  area: number
+  short: number
+}
+
+interface SizedShortSidesParams {
+  outputSizes: OutputSizes
+  values: readonly string[]
+  aspect: string
 }
 
 interface CustomDisplayParams {
@@ -63,6 +78,40 @@ function areaOf(size: string | undefined): number {
   }
 
   return Number(match[1]) * Number(match[2])
+}
+
+/** Shortest side of a `WxH` size string, null when malformed. */
+export function shortSideOf(size: string): number | null {
+  const match = SIZE_PATTERN.exec(size)
+
+  if (isNil(match)) {
+    return null
+  }
+
+  return Math.min(Number(match[1]), Number(match[2]))
+}
+
+function sizedShortSides(params: SizedShortSidesParams): ShortSide[] {
+  const { outputSizes, values, aspect } = params
+  const sides: ShortSide[] = []
+
+  for (const resolution of values) {
+    const size = outputSizes[resolution]?.[aspect]
+
+    if (isNil(size)) {
+      continue
+    }
+
+    const short = shortSideOf(size)
+
+    if (isNil(short)) {
+      continue
+    }
+
+    sides.push({ area: areaOf(size), short })
+  }
+
+  return sides
 }
 
 function customDisplay(params: CustomDisplayParams): ResolutionDisplay {
@@ -108,6 +157,77 @@ export function resolutionDisplay(
   }
 
   return customDisplay({ outputSizes: preset.outputSizes, resolution, aspect })
+}
+
+/** Compact short-side height for a custom video resolution, null for API models. */
+export function resolutionHeight(
+  preset: VideoPreset,
+  params: ResolutionDisplayParams,
+): string | null {
+  const { resolution, aspect } = params
+
+  if (preset.family !== 'custom') {
+    return null
+  }
+
+  const size = preset.outputSizes?.[resolution]?.[aspect]
+
+  if (isNil(size)) {
+    return null
+  }
+
+  const short = shortSideOf(size)
+
+  if (isNil(short)) {
+    return null
+  }
+
+  return `${short}p`
+}
+
+/** Short-side range across a custom video preset, raw first-last without sizes. */
+export function resolutionRange(preset: VideoPreset, params: ResolutionRangeParams): string | null {
+  const { aspect } = params
+  const values = preset.resolutions
+  const [first] = values
+  const last = values.at(-1)
+
+  if (isNil(first) || isNil(last)) {
+    return null
+  }
+
+  const outputSizes = preset.outputSizes
+
+  if (!isNil(outputSizes)) {
+    const current = sizedShortSides({ outputSizes, values, aspect })
+    let sides = current
+
+    if (current.length === 0) {
+      sides = sizedShortSides({ outputSizes, values, aspect: preset.defaultAspectRatio })
+    }
+
+    const smallest = minBy(sides, (side) => {
+      return side.area
+    })
+
+    const largest = maxBy(sides, (side) => {
+      return side.area
+    })
+
+    if (!isNil(smallest) && !isNil(largest)) {
+      if (smallest.short === largest.short) {
+        return `${smallest.short}p`
+      }
+
+      return `${smallest.short}\u2013${largest.short}p`
+    }
+  }
+
+  if (first === last) {
+    return first
+  }
+
+  return `${first}\u2013${last}`
 }
 
 /** Video options in display order, cheapest pixel area first for custom presets. */

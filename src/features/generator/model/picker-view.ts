@@ -2,7 +2,7 @@ import { isNil } from 'lodash-es'
 
 import type { CatalogEntry } from '@/core/catalog'
 
-import { type PickerGroup, type PickerRow, selectedTitle } from './picker-groups'
+import { type PickerGroup, type PickerKind, type PickerRow, selectedTitle } from './picker-groups'
 import { presetTitleOf } from './preset-title'
 
 interface FallbackRowParams {
@@ -18,6 +18,9 @@ interface PopoverSideParams {
 export function fallbackRow(params: FallbackRowParams): PickerRow {
   const { selectedId, entry } = params
   const source = entry?.source
+  const preset = entry?.preset
+  const isImage = !isNil(preset) && !('duration' in preset)
+  const mediaKind: PickerKind = isImage ? 'image' : 'video'
 
   return {
     id: selectedId,
@@ -30,6 +33,11 @@ export function fallbackRow(params: FallbackRowParams): PickerRow {
     status: entry?.status,
     reason: entry?.reason,
     isCustom: source?.kind === 'custom',
+    resolutionText: null,
+    durationText: null,
+    referenceCount: 0,
+    hasAudio: false,
+    mediaKind,
   }
 }
 

@@ -106,17 +106,19 @@ async function selectScaleModel(driver) {
 }
 
 async function customResolutionLabels(context) {
-  const { driver } = context
+  const { driver, width } = context
 
   await openApp(context)
   await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
   await gotoTab(driver, 'Video')
   await openModelPicker(driver)
+  await waitBodyText(driver, '352\u20131088p', WAIT_MS)
+  await shoot(driver, `video-picker-badges-${String(width)}`)
   await selectScaleModel(driver)
   await waitBodyText(driver, SCALE_CARD, WAIT_MS)
 
   const opened = await driver.evaluate(`(() => {
-    const button = window.__e2e.all('button').find((node) => node.innerText.includes('1280×736'))
+    const button = window.__e2e.all('button').find((node) => node.innerText.includes('736p'))
     if (button === undefined) return false
     button.click()
     return true
@@ -152,7 +154,7 @@ async function resolutionPopoverHeight(context) {
   await waitBodyText(driver, SCALE_CARD, WAIT_MS)
 
   const opened = await driver.evaluate(`(() => {
-    const button = window.__e2e.all('button').find((node) => node.innerText.includes('1280×736'))
+    const button = window.__e2e.all('button').find((node) => node.innerText.includes('736p'))
     if (button === undefined) return false
     button.click()
     return true

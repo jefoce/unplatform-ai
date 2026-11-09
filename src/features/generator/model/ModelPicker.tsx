@@ -23,6 +23,14 @@ const VIDEO_MODELS = VIDEO_PRESETS.map((preset) => {
   return videoPickerModel(preset, null)
 })
 
+function pickerAspect(kind: PickerKind, aspect: string): string | undefined {
+  if (kind === 'image') {
+    return undefined
+  }
+
+  return aspect
+}
+
 interface ModelPickerProps {
   models?: readonly PickerModel[]
   selectedId?: string
@@ -45,19 +53,26 @@ export function ModelPicker(props: ModelPickerProps) {
     return state.setPreset
   })
 
+  const videoAspect = useGeneratorStore((state) => {
+    return state.aspectRatio
+  })
+
   const { catalog, isValidating } = useCatalog()
 
   const selectedId = props.selectedId ?? presetId
   const isBar = props.variant === 'bar'
   const isFetching = refresh.isFetching || isValidating
+  const kind = props.kind ?? 'video'
+  const aspect = pickerAspect(kind, videoAspect)
 
   const groups = useMemo(() => {
     return pickerGroups({
       models: props.models ?? VIDEO_MODELS,
       entries: catalog?.entries ?? [],
-      kind: props.kind ?? 'video',
+      kind,
+      aspect,
     })
-  }, [props.models, props.kind, catalog])
+  }, [props.models, kind, catalog, aspect])
 
   const entries = useMemo(() => {
     const map = new Map<string, CatalogEntry>()

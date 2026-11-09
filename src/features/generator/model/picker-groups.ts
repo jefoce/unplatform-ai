@@ -2,8 +2,9 @@ import { isNil } from 'lodash-es'
 
 import type { CatalogEntry, ModelStatus } from '@/core/catalog'
 import type { PickerModel } from '@/core/feed/picker-model'
-import { findPreset } from '@/core/presets'
+import { findPreset, minDuration } from '@/core/presets'
 import { primaryBinding } from '@/core/presets/common/bindings'
+import { resolutionRange } from '@/core/presets/common/display'
 import { findImagePreset } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
@@ -19,6 +20,11 @@ export interface PickerRow extends PickerModel {
   status?: ModelStatus
   reason?: string | null
   isCustom?: boolean
+  resolutionText: string | null
+  durationText: string | null
+  referenceCount: number
+  hasAudio: boolean
+  mediaKind: PickerKind
 }
 
 export interface PickerGroup {
@@ -32,7 +38,7 @@ const GROUP_TITLES: Record<ProviderKindId, string> = {
   custom: 'ComfyUI',
 }
 
-function staticRow(model: PickerModel): PickerRow {
+function staticRow(model: PickerModel, kind: PickerKind): PickerRow {
   return {
     ...model,
     kind: 'openrouter',
@@ -40,6 +46,11 @@ function staticRow(model: PickerModel): PickerRow {
     status: 'available',
     reason: null,
     isCustom: false,
+    resolutionText: null,
+    durationText: null,
+    referenceCount: 0,
+    hasAudio: false,
+    mediaKind: kind,
   }
 }
 
@@ -64,7 +75,29 @@ function descriptionOf(preset: VideoPreset | ImagePreset): string {
   return preset.description ?? ''
 }
 
-function customRow(entry: CatalogEntry, preset: VideoPreset | ImagePreset): PickerRow {
+interface CustomRowParams {
+  entry: CatalogEntry
+  preset: VideoPreset | ImagePreset
+  aspect: string | undefined
+}
+
+function customRow(params: CustomRowParams): PickerRow {
+  const { entry, preset, aspect } = params
+  const isVideo = isVideoPreset(preset)
+  let resolutionText: string | null = null
+  let durationText: string | null = null
+  let referenceCount = 0
+  let hasAudio = false
+  let mediaKind: PickerKind = 'image'
+
+  if (isVideo) {
+    resolutionText = resolutionRange(preset, { aspect: aspect ?? preset.defaultAspectRatio })
+    durationText = `${minDuration(preset)}-${preset.duration.max} s`
+    referenceCount = preset.references.image + preset.references.video + preset.references.audio
+    hasAudio = preset.audio.supported
+    mediaKind = 'video'
+  }
+
   return {
     id: preset.id,
     title: preset.title,
@@ -76,6 +109,11 @@ function customRow(entry: CatalogEntry, preset: VideoPreset | ImagePreset): Pick
     status: entry.status,
     reason: entry.reason,
     isCustom: true,
+    resolutionText,
+    durationText,
+    referenceCount,
+    hasAudio,
+    mediaKind,
   }
 }
 
@@ -96,11 +134,12 @@ function byBadgeThenTitle(a: PickerRow, b: PickerRow): number {
 interface CustomRowsParams {
   entries: readonly CatalogEntry[]
   kind: PickerKind
+  aspect: string | undefined
 }
 
 /** Custom entries for one tab. Missing models are hidden but stay in the trigger. */
 function customRows(params: CustomRowsParams): PickerRow[] {
-  const { entries, kind } = params
+  const { entries, kind, aspect } = params
 
   const rows: PickerRow[] = []
 
@@ -119,7 +158,7 @@ function customRows(params: CustomRowsParams): PickerRow[] {
       continue
     }
 
-    rows.push(customRow(entry, preset))
+    rows.push(customRow({ entry, preset, aspect }))
   }
 
   return rows.sort(byBadgeThenTitle)
@@ -129,14 +168,18 @@ interface PickerGroupsParams {
   models: readonly PickerModel[]
   entries: readonly CatalogEntry[]
   kind: PickerKind
+  aspect?: string
 }
 
 /** OpenRouter first, then ComfyUI rows sorted by badge and title. */
 export function pickerGroups(params: PickerGroupsParams): PickerGroup[] {
-  const { models, entries, kind } = params
+  const { models, entries, kind, aspect } = params
 
-  const openrouter = models.map(staticRow)
-  const custom = customRows({ entries, kind })
+  const openrouter = models.map((model) => {
+    return staticRow(model, kind)
+  })
+
+  const custom = customRows({ entries, kind, aspect })
 
   if (custom.length === 0) {
     return [{ kind: 'openrouter', title: GROUP_TITLES.openrouter, rows: openrouter }]

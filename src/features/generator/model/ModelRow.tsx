@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { isNil } from 'lodash-es'
 
+import type { PickerModel } from '@/core/feed/picker-model'
 import { findPreset } from '@/core/presets'
 import { findImagePreset } from '@/core/presets/image'
 
@@ -11,7 +12,12 @@ import type { ModelRowProps } from './model-row-props'
 import { ModelCustomRow } from './ModelCustomRow'
 import { ModelGenericRow } from './ModelGenericRow'
 import { ModelVideoRow } from './ModelVideoRow'
+import type { PickerRow } from './picker-groups'
 import { videoPickerModel } from './video-picker-model'
+
+function isPickerRow(model: PickerModel): model is PickerRow {
+  return 'mediaKind' in model
+}
 
 /** One selectable row in the model picker, video or image. */
 export function ModelRow(props: ModelRowProps) {
@@ -35,8 +41,8 @@ export function ModelRow(props: ModelRowProps) {
     return imagePickerModel(imagePreset, skus)
   }, [imagePreset, skus])
 
-  if (props.model.isCustom === true) {
-    return <ModelCustomRow {...props} />
+  if (isPickerRow(props.model) && props.model.isCustom === true) {
+    return <ModelCustomRow {...props} model={props.model} />
   }
 
   if (isNil(preset)) {

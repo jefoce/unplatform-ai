@@ -4,8 +4,14 @@ import { isNil } from 'lodash-es'
 import { Monitor } from 'lucide-react'
 
 import { getPreset } from '@/core/presets'
-import { resolutionDisplay, videoResolutionChoices } from '@/core/presets/common/display'
+import {
+  resolutionDisplay,
+  resolutionHeight,
+  videoResolutionChoices,
+} from '@/core/presets/common/display'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { pricePerSec } from '@/core/pricing/quote'
+import type { Dict } from '@/core/utility-types'
 import { useModelEntry } from '@/lib/api/catalog'
 import { cn } from '@/lib/cn'
 import { CHIP_TEXT_CLASSES } from '@/ui/Chip'
@@ -14,6 +20,35 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/Popover'
 import { useGeneratorStore } from '../store/store'
 import { hasVideoReference } from '../store/store-helpers'
 import { ResolutionOption } from './ResolutionOption'
+
+interface ChoiceRateParams {
+  preset: VideoPreset
+  resolution: string
+  aspect: string
+  isAudio: boolean
+  hasVideoInput: boolean
+  skus: Dict<number> | undefined
+  listSkus: Dict<number> | undefined
+  discount: number
+}
+
+interface ChoiceRate {
+  rate: number | null
+  listRate: number | null
+}
+
+function choiceRate(params: ChoiceRateParams): ChoiceRate {
+  const { preset, resolution, aspect, isAudio, hasVideoInput, skus, listSkus, discount } = params
+  const ctx = { resolution, aspect, audio: isAudio, hasVideoInput }
+  const rate = pricePerSec({ preset, ctx, skus })
+  let listRate: number | null = null
+
+  if (discount > 0) {
+    listRate = pricePerSec({ preset, ctx, skus: listSkus })
+  }
+
+  return { rate, listRate }
+}
 
 /** Resolution button and preset list with list and discounted per-second rates. */
 export function ResolutionPopover() {
@@ -44,11 +79,8 @@ export function ResolutionPopover() {
   const pricing = useModelEntry(preset.id)?.pricing
   const discount = pricing?.discount ?? 0
   const selected = resolutionDisplay(preset, { resolution, aspect })
+  const compact = resolutionHeight(preset, { resolution, aspect })
   const choices = videoResolutionChoices(preset, aspect)
-
-  const handleSelectResolution = (option: string): void => {
-    setResolution(option)
-  }
 
   return (
     <Popover>
@@ -61,8 +93,11 @@ export function ResolutionPopover() {
           )}
         >
           <Monitor size={16} />
-          {selected.label}
-          {!isNil(selected.detail) && <span className="text-xs text-fg-2">{selected.detail}</span>}
+          {isNil(compact) && selected.label}
+          {isNil(compact) && !isNil(selected.detail) && (
+            <span className="text-xs text-fg-2">{selected.detail}</span>
+          )}
+          {!isNil(compact) && compact}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -70,19 +105,16 @@ export function ResolutionPopover() {
         className="max-h-[min(60vh,22rem)] w-56 space-y-1 overflow-y-auto"
       >
         {choices.map((choice) => {
-          const ctx = {
+          const { rate, listRate } = choiceRate({
+            preset,
             resolution: choice.value,
             aspect,
-            audio: isAudio,
+            isAudio,
             hasVideoInput,
-          }
-
-          const rate = pricePerSec({ preset, ctx, skus: pricing?.skus })
-          let listRate: number | null = null
-
-          if (discount > 0) {
-            listRate = pricePerSec({ preset, ctx, skus: pricing?.listSkus })
-          }
+            skus: pricing?.skus,
+            listSkus: pricing?.listSkus,
+            discount,
+          })
 
           return (
             <ResolutionOption
@@ -94,7 +126,7 @@ export function ResolutionPopover() {
               rate={rate}
               listRate={listRate}
               discount={discount}
-              onSelect={handleSelectResolution}
+              onSelect={setResolution}
             />
           )
         })}
