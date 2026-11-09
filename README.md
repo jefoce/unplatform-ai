@@ -36,7 +36,7 @@ Prices come live from OpenRouter.
 - A Mac (Apple Silicon), a Windows 10/11 PC, or 64-bit Linux with glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer).
 - An OpenRouter account with some credit, only for OpenRouter models. One account gives you many video models, and you pay only for what you generate. Custom ComfyUI jobs need no OpenRouter key.
 - Optional: a Cloudflare account with R2, only for models that take video or sound references. Cloudflare asks for a card to turn R2 on. The free tier is 10 GB, and the app stays under 8 GB. It deletes references it has not used for 30 days.
-- Optional: ComfyUI with the Unplatform AI node pack, for local image and video models. [Step-by-step guide](docs/user/COMFYUI.md)
+- Optional: ComfyUI with the [Unplatform AI node pack](https://github.com/jefoce/unplatform-ai-provider-node), a ComfyUI custom node pack that publishes your saved workflows as models for the app. Use it for local image and video models. [Step-by-step guide](docs/user/COMFYUI.md)
 
 ## Install
 
@@ -120,7 +120,7 @@ If your keyring is locked when you save keys, Linux asks for your login password
 
 1. **OpenRouter (required only for OpenRouter models).** Add credit, create a dedicated API key with a spend limit, and paste it in Settings (gear icon). Custom ComfyUI jobs need no key. [Step-by-step guide](docs/user/OPENROUTER.md)
 2. **Cloudflare R2 (only for video or sound references).** Create a bucket and a token for it, then paste four values in Settings. Free up to 10 GB, and the app stays under 8 GB. Cloudflare asks for a card. [Step-by-step guide](docs/user/CLOUDFLARE-R2.md)
-3. **ComfyUI (optional).** Install the Unplatform AI node pack, save a workflow, then add the endpoint in Settings. [Step-by-step guide](docs/user/COMFYUI.md)
+3. **ComfyUI (optional).** Install the [Unplatform AI node pack](https://github.com/jefoce/unplatform-ai-provider-node), a ComfyUI custom node pack that publishes your saved workflows as models for the app. Save a workflow, then add the endpoint in Settings. [Step-by-step guide](docs/user/COMFYUI.md)
 
 All three guides are also linked in the app: gear icon → **Setup guide**.
 
@@ -141,20 +141,20 @@ The one thing to remember: the video is made on OpenRouter, but the app brings i
 
 ## What the statuses mean
 
-| Status                       | What is happening                                                                                              | OK to quit?                                           |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Processing                   | 10 seconds before sending, or the model is starting. Cancel works during the first 10 seconds, nothing charged | Better not                                            |
-| Uploading                    | Sending reference files to storage, nothing charged                                                            | No, it fails                                          |
-| Sending                      | Handing the job to OpenRouter                                                                                  | Yes, it finishes sending first                        |
-| Generating                   | The model is making your video or image, charged when it finishes                                              | Yes, reopen within a few hours                        |
-| Downloading                  | Saving the finished video to your computer                                                                     | No, wait a moment                                     |
-| Completed                    | Saved                                                                                                          | Yes                                                   |
-| Failed                       | Usually not charged. The card says why                                                                         | Yes                                                   |
-| Expired                      | Charged if it finished. Check OpenRouter activity                                                              | Yes                                                   |
-| Cancelled                    | Never sent, nothing charged                                                                                    | Yes                                                   |
-| Waiting for ComfyUI          | ComfyUI is busy with another job, charged when it finishes                                                     | Yes, with Stop in ComfyUI                             |
-| In queue, N ahead            | Waiting in the ComfyUI queue, charged when it finishes                                                         | Yes, with Stop in ComfyUI                             |
-| ComfyUI offline, will resume | ComfyUI is not reachable, charged when it finishes                                                             | Quit is safe. The app checks again on the next start. |
+| Status                       | What is happening                                                                                                                   | OK to quit?                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Processing                   | 10 seconds before sending, or the model is starting. Cancel works during the first 10 seconds, nothing charged                      | Better not                                            |
+| Uploading                    | Sending reference files to storage, nothing charged                                                                                 | No, it fails                                          |
+| Sending                      | Handing the job to OpenRouter                                                                                                       | Yes, it finishes sending first                        |
+| Generating                   | The model is making your video or image, charged when it finishes                                                                   | Yes, reopen within a few hours                        |
+| Downloading                  | Saving the finished video to your computer                                                                                          | No, wait a moment                                     |
+| Completed                    | Saved                                                                                                                               | Yes                                                   |
+| Failed                       | Usually not charged. The card says why                                                                                              | Yes                                                   |
+| Expired                      | Charged if it finished. Check OpenRouter activity                                                                                   | Yes                                                   |
+| Cancelled                    | Never sent, nothing charged                                                                                                         | Yes                                                   |
+| Waiting for ComfyUI          | ComfyUI is busy with another job. No charge unless the endpoint has a price set.                                                    | Yes, with Stop in ComfyUI                             |
+| In queue, N ahead            | Waiting in the ComfyUI queue. No charge unless the endpoint has a price set.                                                        | Yes, with Stop in ComfyUI                             |
+| ComfyUI offline, will resume | ComfyUI is not reachable. No charge unless the endpoint has a price set. If ComfyUI restarts, the job fails with ComfyUI restarted. | Quit is safe. The app checks again on the next start. |
 
 ## Where your files are
 

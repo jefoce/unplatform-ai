@@ -281,6 +281,16 @@ describe('0.5.0 documentation drift', () => {
     expect(architecture).toContain('| `progress` | Percent, queue position and waiting reason |')
     expect(architecture).not.toMatch(/\| `progress` \|[^\n]*node/)
   })
+
+  it('links the node pack and the ComfyUI guide in the README', () => {
+    const readme = fs.readFileSync(file('README.md'), 'utf8')
+
+    expect(readme).toContain(
+      '[Unplatform AI node pack](https://github.com/jefoce/unplatform-ai-provider-node)',
+    )
+
+    expect(readme).toContain('](docs/user/COMFYUI.md)')
+  })
 })
 
 describe('development env table', () => {

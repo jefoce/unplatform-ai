@@ -18,6 +18,8 @@ git clone https://github.com/jefoce/unplatform-ai-provider-node \
   custom_nodes/unplatform-ai-provider-node
 ```
 
+The pack's README has the node reference.
+
 - One or more workflows saved in ComfyUI.
 - The ComfyUI port. It is 8188 when ComfyUI runs from source or the portable build. ComfyUI Desktop shows its port in Settings.
 
