@@ -939,5 +939,6 @@ export const referenceCases = [
   {
     name: 'references/link-folder-file',
     run: linkFolderFileCase,
+    fresh: true,
   },
 ]
