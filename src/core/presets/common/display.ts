@@ -54,6 +54,7 @@ interface CustomChoicesParams {
   values: readonly string[]
   outputSizes: OutputSizes | undefined
   aspect: string
+  toDisplay: (params: CustomDisplayParams) => ResolutionDisplay
 }
 
 function sizeLabel(size: string): string {
@@ -130,8 +131,25 @@ function customDisplay(params: CustomDisplayParams): ResolutionDisplay {
   return { label: sizeLabel(size), detail: resolution }
 }
 
+function customImageDisplay(params: CustomDisplayParams): ResolutionDisplay {
+  const { outputSizes, resolution, aspect } = params
+  const size = outputSizes?.[resolution]?.[aspect]
+
+  if (isNil(size)) {
+    return { label: resolution, detail: null }
+  }
+
+  const short = shortSideOf(size)
+
+  if (isNil(short)) {
+    return { label: resolution, detail: null }
+  }
+
+  return { label: resolution, detail: `${short}px` }
+}
+
 function customChoices(params: CustomChoicesParams): ResolutionChoice[] {
-  const { values, outputSizes, aspect } = params
+  const { values, outputSizes, aspect, toDisplay } = params
   let ordered: readonly string[] = values
 
   if (!isNil(outputSizes)) {
@@ -141,7 +159,7 @@ function customChoices(params: CustomChoicesParams): ResolutionChoice[] {
   }
 
   return ordered.map((resolution) => {
-    return { value: resolution, ...customDisplay({ outputSizes, resolution, aspect }) }
+    return { value: resolution, ...toDisplay({ outputSizes, resolution, aspect }) }
   })
 }
 
@@ -242,6 +260,7 @@ export function videoResolutionChoices(preset: VideoPreset, aspect: string): Res
     values: preset.resolutions,
     outputSizes: preset.outputSizes,
     aspect,
+    toDisplay: customDisplay,
   })
 }
 
@@ -256,7 +275,7 @@ export function imageResolutionDisplay(
     return { label: resolution, detail: IMAGE_RESOLUTION_DETAILS[resolution] ?? null }
   }
 
-  return customDisplay({ outputSizes: preset.outputSizes, resolution, aspect })
+  return customImageDisplay({ outputSizes: preset.outputSizes, resolution, aspect })
 }
 
 /** Image options in display order, cheapest pixel area first for custom presets. */
@@ -276,5 +295,10 @@ export function imageResolutionChoices(preset: ImagePreset, aspect: string): Res
     })
   }
 
-  return customChoices({ values, outputSizes: preset.outputSizes, aspect })
+  return customChoices({
+    values,
+    outputSizes: preset.outputSizes,
+    aspect,
+    toDisplay: customImageDisplay,
+  })
 }

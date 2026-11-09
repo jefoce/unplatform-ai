@@ -12,6 +12,8 @@ const MODEL_TITLE = 'Wan 2.2 T2V (local)'
 const MODEL_CARD = `[CU1] ${MODEL_TITLE}`
 const SCALE_MODEL = 'MiniMax H3 Scale (local)'
 const SCALE_CARD = `[CU1] ${SCALE_MODEL}`
+const IMAGE_MODEL = 'SDXL Image (local)'
+const IMAGE_CARD = `[CU1] ${IMAGE_MODEL}`
 const STALE_MODEL = 'Wan 2.2 I2V (local)'
 const STALE_REASON = 'Workflow changed in ComfyUI since the last save'
 const INVALID_MODEL = 'Broken Image'
@@ -59,43 +61,20 @@ async function shoot(driver, name) {
   console.log(`# screenshot ${file}`)
 }
 
-async function selectCustomModel(driver) {
-  const row = `window.__e2e.all('button').some((node) => node.innerText.includes('CU1') && node.innerText.includes(${JSON.stringify(MODEL_TITLE)}))`
+async function selectPickerRow(driver, badge, title) {
+  const row = `window.__e2e.all('button').some((node) => node.innerText.includes(${JSON.stringify(badge)}) && node.innerText.includes(${JSON.stringify(title)}))`
 
-  await driver.waitFor(row, WAIT_MS, `the ${MODEL_TITLE} row`)
+  await driver.waitFor(row, WAIT_MS, `the ${title} row`)
 
   const selected = await driver.evaluate(`(() => {
-    const button = window.__e2e.all('button').find((node) => node.innerText.includes('CU1') && node.innerText.includes(${JSON.stringify(MODEL_TITLE)}))
+    const button = window.__e2e.all('button').find((node) => node.innerText.includes(${JSON.stringify(badge)}) && node.innerText.includes(${JSON.stringify(title)}))
     if (button === undefined) return false
     button.click()
     return true
   })()`)
 
   if (!selected) {
-    throw new Error(`No custom model row: ${MODEL_TITLE}`)
-  }
-
-  await driver.waitFor(
-    `!window.__e2e.exists('[aria-label="Search models"]')`,
-    WAIT_MS,
-    'the model picker to close',
-  )
-}
-
-async function selectScaleModel(driver) {
-  const row = `window.__e2e.all('button').some((node) => node.innerText.includes('CU1') && node.innerText.includes(${JSON.stringify(SCALE_MODEL)}))`
-
-  await driver.waitFor(row, WAIT_MS, `the ${SCALE_MODEL} row`)
-
-  const selected = await driver.evaluate(`(() => {
-    const button = window.__e2e.all('button').find((node) => node.innerText.includes('CU1') && node.innerText.includes(${JSON.stringify(SCALE_MODEL)}))
-    if (button === undefined) return false
-    button.click()
-    return true
-  })()`)
-
-  if (!selected) {
-    throw new Error(`No custom scale model row: ${SCALE_MODEL}`)
+    throw new Error(`No ${badge} model row: ${title}`)
   }
 
   await driver.waitFor(
@@ -114,7 +93,7 @@ async function customResolutionLabels(context) {
   await openModelPicker(driver)
   await waitBodyText(driver, '352\u20131088p', WAIT_MS)
   await shoot(driver, `video-picker-badges-${String(width)}`)
-  await selectScaleModel(driver)
+  await selectPickerRow(driver, 'CU1', SCALE_MODEL)
   await waitBodyText(driver, SCALE_CARD, WAIT_MS)
 
   const opened = await driver.evaluate(`(() => {
@@ -150,7 +129,7 @@ async function resolutionPopoverHeight(context) {
   await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
   await gotoTab(driver, 'Video')
   await openModelPicker(driver)
-  await selectScaleModel(driver)
+  await selectPickerRow(driver, 'CU1', SCALE_MODEL)
   await waitBodyText(driver, SCALE_CARD, WAIT_MS)
 
   const opened = await driver.evaluate(`(() => {
@@ -218,6 +197,46 @@ async function resolutionPopoverHeight(context) {
   await shoot(driver, 'resolution-popover-720')
 }
 
+async function imageResolutionLabels(context) {
+  const { driver, width } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
+  await gotoTab(driver, 'Image')
+  await openImageModelPicker(driver)
+  await selectPickerRow(driver, 'CU1', IMAGE_MODEL)
+  await waitBodyText(driver, IMAGE_CARD, WAIT_MS)
+
+  const opened = await driver.evaluate(`(() => {
+    const button = window.__e2e.bySelector('[aria-label^="Resolution:"]')
+    if (!(button instanceof HTMLElement)) return false
+    button.click()
+    return true
+  })()`)
+
+  if (!opened) {
+    throw new Error('No resolution trigger for the image model')
+  }
+
+  await driver.waitFor(
+    `window.__e2e.exists('[data-radix-popper-content-wrapper]')`,
+    WAIT_MS,
+    'the image resolution popover',
+  )
+  await driver.waitFor(
+    `(() => {
+      const wrapper = document.querySelector('[data-radix-popper-content-wrapper]')
+      const selected = wrapper === null ? null : wrapper.querySelector('[data-selected="true"]')
+      if (!(selected instanceof HTMLElement)) return false
+      return selected.innerText.includes('1K') && selected.innerText.includes('1024px')
+    })()`,
+    WAIT_MS,
+    'the selected 1K resolution with its 1024px detail',
+  )
+
+  await shoot(driver, `image-resolution-popover-${String(width)}`)
+}
+
 async function firstRecordId(server) {
   const deadline = Date.now() + WAIT_MS
 
@@ -244,7 +263,7 @@ async function customEndpointGenerate(context) {
   await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
   await gotoTab(driver, 'Video')
   await openModelPicker(driver)
-  await selectCustomModel(driver)
+  await selectPickerRow(driver, 'CU1', MODEL_TITLE)
   await waitBodyText(driver, MODEL_CARD, WAIT_MS)
 
   await setPrompt(driver, `e2e custom ${String(Date.now())}`)
@@ -331,5 +350,9 @@ export const customCases = [
   {
     name: 'custom-endpoint/resolution-popover-height',
     run: resolutionPopoverHeight,
+  },
+  {
+    name: 'custom-endpoint/image-resolution-labels',
+    run: imageResolutionLabels,
   },
 ]
