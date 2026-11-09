@@ -27,7 +27,6 @@ export function fallbackRow(params: FallbackRowParams): PickerRow {
     priceText: '',
     kind: source?.kind,
     badge: source?.badge,
-    workflowName: source?.workflowName,
     status: entry?.status,
     reason: entry?.reason,
     isCustom: source?.kind === 'custom',
@@ -67,7 +66,7 @@ export function searchGroups(groups: readonly PickerGroup[], query: string): Pic
 
   return groups.map((group) => {
     const rows = group.rows.filter((row) => {
-      const haystack = `${row.title} ${row.workflowName ?? ''}`.toLowerCase()
+      const haystack = `${row.title} ${row.description}`.toLowerCase()
 
       return haystack.includes(needle)
     })

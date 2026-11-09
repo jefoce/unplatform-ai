@@ -1,6 +1,6 @@
 'use client'
 
-import { isNil } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 import { Check, TriangleAlert } from 'lucide-react'
 
 import { cn } from '@/lib/cn'
@@ -44,7 +44,7 @@ function rowNote(state: RowState): string | null {
   return null
 }
 
-/** ComfyUI row: badge chip, title, workflow subtitle and availability state. */
+/** ComfyUI row: badge chip, title, description and availability state. */
 // eslint-disable-next-line complexity -- one row owns badge, state, price and tooltip
 export function ModelCustomRow(props: ModelRowProps) {
   const { model, selected: isSelected } = props
@@ -52,6 +52,8 @@ export function ModelCustomRow(props: ModelRowProps) {
   const isBlocked = state === 'unreachable' || state === 'invalid' || model.status === 'missing'
   const price = rowPrice(model, state)
   const note = rowNote(state)
+  const reason = model.reason ?? ''
+  const hasDescription = !isEmpty(model.description)
 
   const handleSelect = (): void => {
     if (isBlocked) {
@@ -62,42 +64,46 @@ export function ModelCustomRow(props: ModelRowProps) {
   }
 
   return (
-    <Tooltip content={model.reason ?? ''} disabled={isNil(model.reason)}>
-      <button
-        type="button"
-        onClick={handleSelect}
-        disabled={isBlocked}
-        aria-pressed={isSelected}
-        className={cn(
-          'flex w-full items-center gap-2 rounded-lg p-2 text-left',
-          !isBlocked && 'hover:bg-white/6',
-          isSelected && 'bg-white/6',
-          isBlocked && 'opacity-50',
-        )}
-      >
-        {!isNil(model.badge) && <EndpointBadge badge={model.badge} />}
-        <span className="min-w-0 flex-1">
-          <span className="flex w-full items-baseline gap-2">
-            <span className="min-w-0 flex-1 truncate text-sm font-medium whitespace-nowrap">
-              {model.title}
-              {!isNil(note) && <span className="text-fg-2">{note}</span>}
-            </span>
-            {state === 'stale' && <TriangleAlert size={14} className="text-amber" aria-hidden />}
-            {!isNil(price) && (
-              <span className="ml-auto shrink-0 text-xs whitespace-nowrap text-fg-2">{price}</span>
-            )}
+    <button
+      type="button"
+      onClick={handleSelect}
+      disabled={isBlocked}
+      aria-pressed={isSelected}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-lg p-2 text-left',
+        !isBlocked && 'hover:bg-white/6',
+        isSelected && 'bg-white/6',
+        isBlocked && 'opacity-50',
+      )}
+    >
+      {!isNil(model.badge) && <EndpointBadge badge={model.badge} />}
+      <span className="min-w-0 flex-1">
+        <span className="flex w-full items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium whitespace-nowrap">
+            {model.title}
+            {!isNil(note) && <span className="text-fg-2">{note}</span>}
           </span>
-          {!isNil(model.workflowName) && (
-            <span className="mt-1 block truncate text-xs text-fg-2">{model.workflowName}</span>
+          {state === 'stale' && (
+            <Tooltip content={reason}>
+              <span tabIndex={0} aria-label={reason} className="shrink-0 text-amber">
+                <TriangleAlert size={14} aria-hidden />
+              </span>
+            </Tooltip>
           )}
-          {!isNil(model.reason) && (
-            <span className="mt-1 block text-xs text-fg-2">{model.reason}</span>
+          {!isNil(price) && (
+            <span className="ml-auto shrink-0 text-xs whitespace-nowrap text-fg-2">{price}</span>
           )}
         </span>
-        <span className="flex size-3.5 shrink-0 items-center justify-center">
-          <Check size={14} className={cn('text-accent', !isSelected && 'invisible')} />
-        </span>
-      </button>
-    </Tooltip>
+        {hasDescription && (
+          <span className="mt-1 block truncate text-xs text-fg-2">{model.description}</span>
+        )}
+        {state !== 'stale' && !isNil(model.reason) && (
+          <span className="mt-1 block text-xs text-fg-2">{model.reason}</span>
+        )}
+      </span>
+      <span className="flex size-3.5 shrink-0 items-center justify-center">
+        <Check size={14} className={cn('text-accent', !isSelected && 'invisible')} />
+      </span>
+    </button>
   )
 }

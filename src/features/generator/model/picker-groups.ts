@@ -16,7 +16,6 @@ export type PickerKind = 'video' | 'image'
 export interface PickerRow extends PickerModel {
   kind?: ProviderKindId
   badge?: string | null
-  workflowName?: string | null
   status?: ModelStatus
   reason?: string | null
   isCustom?: boolean
@@ -38,7 +37,6 @@ function staticRow(model: PickerModel): PickerRow {
     ...model,
     kind: 'openrouter',
     badge: null,
-    workflowName: null,
     status: 'available',
     reason: null,
     isCustom: false,
@@ -61,12 +59,9 @@ function customPrice(entry: CatalogEntry, preset: VideoPreset | ImagePreset): st
   return `${formatUsd(usd)} / ${unit}`
 }
 
+/** Preset description for both kinds, empty when the preset has none. */
 function descriptionOf(preset: VideoPreset | ImagePreset): string {
-  if (isVideoPreset(preset)) {
-    return ''
-  }
-
-  return preset.description
+  return preset.description ?? ''
 }
 
 function customRow(entry: CatalogEntry, preset: VideoPreset | ImagePreset): PickerRow {
@@ -78,7 +73,6 @@ function customRow(entry: CatalogEntry, preset: VideoPreset | ImagePreset): Pick
     priceText: customPrice(entry, preset),
     kind: 'custom',
     badge: entry.source.badge,
-    workflowName: entry.source.workflowName,
     status: entry.status,
     reason: entry.reason,
     isCustom: true,

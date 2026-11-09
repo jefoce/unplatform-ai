@@ -37,6 +37,7 @@ function customPreset(id: string, title: string): VideoPreset {
     id,
     title,
     family: 'custom',
+    description: `${title} local model`,
     bindings: [
       {
         provider: 'custom',
@@ -167,19 +168,31 @@ describe('custom model picker', () => {
     expect(rows[1]?.textContent).toContain('CU2')
   })
 
-  it('shows the badge, workflow subtitle and a stale warning icon', () => {
+  it('shows the badge, description and a stale warning icon', () => {
+    const handleSelect = vi.fn()
+
     useEntries([AVAILABLE, STALE])
 
-    render(<ModelPicker />)
+    render(<ModelPicker onSelect={handleSelect} />)
     const dialog = openPicker()
 
-    expect(within(dialog).getByText('Wan 2.2 I2V')).toBeTruthy()
-    expect(within(dialog).getAllByText('Wan 2.2 workflow')).toHaveLength(2)
+    expect(within(dialog).getByText('Wan 2.2 I2V local model')).toBeTruthy()
     expect(within(dialog).getAllByText('CU1').length).toBeGreaterThan(0)
 
     const staleRow = within(dialog).getByRole('button', { name: /Flux Dev/ })
 
+    expect(within(staleRow).getByText('Flux Dev local model')).toBeTruthy()
+    expect(within(staleRow).queryByText(STALE.reason ?? '')).toBeNull()
+
+    const alert = within(staleRow).getByLabelText(STALE.reason ?? '')
+
+    expect(alert.getAttribute('aria-label')).toBe(STALE.reason)
+    expect(alert.tabIndex).toBe(0)
     expect((staleRow as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.click(staleRow)
+
+    expect(handleSelect).toHaveBeenCalledWith(STALE.presetId)
   })
 
   it('disables an unreachable row and hides a missing one', () => {
@@ -193,25 +206,6 @@ describe('custom model picker', () => {
     expect((unreachable as HTMLButtonElement).disabled).toBe(true)
     expect(unreachable.textContent).toContain('(unreachable)')
     expect(within(dialog).queryByText('Gone Workflow')).toBeNull()
-  })
-
-  it('renders an invalid row as muted and disabled with its reason tooltip', async () => {
-    useEntries([INVALID])
-
-    render(<ModelPicker />)
-    const dialog = openPicker()
-
-    const invalid = within(dialog).getByRole('button', { name: /Broken Workflow/ })
-
-    expect((invalid as HTMLButtonElement).disabled).toBe(true)
-    expect(invalid.className).toContain('opacity-50')
-
-    fireEvent.pointerEnter(invalid)
-    fireEvent.pointerMove(invalid)
-
-    const tooltip = await screen.findByRole('tooltip')
-
-    expect(tooltip.textContent).toContain(INVALID.reason ?? '')
   })
 
   it('uses the endpoint perRun override and hides a local zero price', () => {
@@ -259,14 +253,16 @@ describe('custom model picker', () => {
 })
 
 describe('custom model invalid rows', () => {
-  it('shows an invalid reason as visible text without a hover', () => {
+  it('shows an invalid row as muted and disabled with a visible reason', () => {
     useEntries([INVALID])
 
     render(<ModelPicker />)
     const dialog = openPicker()
     const invalid = within(dialog).getByRole('button', { name: /Broken Workflow/ })
 
-    expect(within(invalid).getByText('This workflow cannot run in ComfyUI.')).toBeTruthy()
+    expect((invalid as HTMLButtonElement).disabled).toBe(true)
+    expect(invalid.className).toContain('opacity-50')
+    expect(within(invalid).getByText(INVALID.reason ?? '')).toBeTruthy()
   })
 })
 
