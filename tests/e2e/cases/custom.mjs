@@ -204,6 +204,8 @@ async function imageResolutionLabels(context) {
   await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
   await gotoTab(driver, 'Image')
   await openImageModelPicker(driver)
+  await waitPickerRow(driver, 'CU1', IMAGE_MODEL)
+  await shoot(driver, `image-picker-description-${String(width)}`)
   await selectPickerRow(driver, 'CU1', IMAGE_MODEL)
   await waitBodyText(driver, IMAGE_CARD, WAIT_MS)
 

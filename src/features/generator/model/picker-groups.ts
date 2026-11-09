@@ -22,7 +22,6 @@ export interface PickerRow extends PickerModel {
   isCustom?: boolean
   resolutionText: string | null
   durationText: string | null
-  referenceCount: number
   hasAudio: boolean
   mediaKind: PickerKind
 }
@@ -48,7 +47,6 @@ function staticRow(model: PickerModel, kind: PickerKind): PickerRow {
     isCustom: false,
     resolutionText: null,
     durationText: null,
-    referenceCount: 0,
     hasAudio: false,
     mediaKind: kind,
   }
@@ -86,14 +84,12 @@ function customRow(params: CustomRowParams): PickerRow {
   const isVideo = isVideoPreset(preset)
   let resolutionText: string | null = null
   let durationText: string | null = null
-  let referenceCount = 0
   let hasAudio = false
   let mediaKind: PickerKind = 'image'
 
   if (isVideo) {
     resolutionText = resolutionRange(preset, { aspect: aspect ?? preset.defaultAspectRatio })
     durationText = `${minDuration(preset)}-${preset.duration.max} s`
-    referenceCount = preset.references.image + preset.references.video + preset.references.audio
     hasAudio = preset.audio.supported
     mediaKind = 'video'
   }
@@ -111,7 +107,6 @@ function customRow(params: CustomRowParams): PickerRow {
     isCustom: true,
     resolutionText,
     durationText,
-    referenceCount,
     hasAudio,
     mediaKind,
   }

@@ -110,6 +110,26 @@ describe('ModelRow generic view', () => {
 
     expect(screen.getByRole('button').getAttribute('aria-pressed')).toBe('true')
   })
+
+  it('clamps a long description to two lines with a title', () => {
+    const description =
+      'A very long image model description that should wrap across two lines and then clamp with an ellipsis when it keeps growing.'
+
+    render(
+      <ModelRow
+        model={{ ...IMAGE_ROW, description }}
+        entry={null}
+        selected={false}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    const node = screen.getByText(description)
+
+    expect(node.className).toContain('line-clamp-2')
+    expect(node.className).not.toContain('truncate')
+    expect(node.getAttribute('title')).toBe(description)
+  })
 })
 
 describe('ModelRow image view', () => {

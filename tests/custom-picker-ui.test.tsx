@@ -168,7 +168,7 @@ describe('custom model picker', () => {
     expect(rows[1]?.textContent).toContain('CU2')
   })
 
-  it('shows the badge, description and a stale warning icon', () => {
+  it('shows the badge and a stale warning icon without a description', () => {
     const handleSelect = vi.fn()
 
     useEntries([AVAILABLE, STALE])
@@ -176,12 +176,12 @@ describe('custom model picker', () => {
     render(<ModelPicker onSelect={handleSelect} />)
     const dialog = openPicker()
 
-    expect(within(dialog).getByText('Wan 2.2 I2V local model')).toBeTruthy()
+    expect(within(dialog).queryByText('Wan 2.2 I2V local model')).toBeNull()
     expect(within(dialog).getAllByText('CU1').length).toBeGreaterThan(0)
 
     const staleRow = within(dialog).getByRole('button', { name: /Flux Dev/ })
 
-    expect(within(staleRow).getByText('Flux Dev local model')).toBeTruthy()
+    expect(within(staleRow).queryByText('Flux Dev local model')).toBeNull()
     expect(within(staleRow).queryByText(STALE.reason ?? '')).toBeNull()
 
     const alert = within(staleRow).getByLabelText(STALE.reason ?? '')

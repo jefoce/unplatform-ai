@@ -12,11 +12,14 @@ afterEach(cleanup)
 
 function noop(): void {}
 
+const LONG_DESCRIPTION =
+  'A very long model description that should wrap across two lines and then clamp with an ellipsis when it keeps growing.'
+
 const CUSTOM_VIDEO_ROW: PickerRow = {
   id: 'custom.cu1.video',
   title: 'Custom Video',
   icon: 'sparkles',
-  description: '',
+  description: LONG_DESCRIPTION,
   priceText: '',
   kind: 'custom',
   badge: 'CU1',
@@ -25,13 +28,12 @@ const CUSTOM_VIDEO_ROW: PickerRow = {
   isCustom: true,
   resolutionText: '352\u20131088p',
   durationText: '4-15 s',
-  referenceCount: 2,
   hasAudio: true,
   mediaKind: 'video',
 }
 
 describe('ModelCustomRow video badges', () => {
-  it('renders the resolution range, duration, audio and reference badges', () => {
+  it('renders resolution, duration and audio badges without a description or references badge', () => {
     render(
       <ModelCustomRow model={CUSTOM_VIDEO_ROW} entry={null} selected={false} onSelect={noop} />,
     )
@@ -39,15 +41,19 @@ describe('ModelCustomRow video badges', () => {
     expect(screen.getByText('352\u20131088p')).toBeTruthy()
     expect(screen.getByText('4-15 s')).toBeTruthy()
     expect(screen.getByLabelText('Audio')).toBeTruthy()
-    expect(screen.getByText('2 refs')).toBeTruthy()
+    expect(screen.queryByText(LONG_DESCRIPTION)).toBeNull()
+    expect(screen.queryByText(/refs/)).toBeNull()
   })
 
-  it('keeps the API video row labels unchanged', () => {
+  it('keeps the API video row badges without a description', () => {
     const preset = getPreset('wan-3.0')
 
     render(
       <ModelVideoRow
-        model={videoPickerModel(preset, null)}
+        model={{
+          ...videoPickerModel(preset, null),
+          description: LONG_DESCRIPTION,
+        }}
         preset={preset}
         entry={null}
         selected={false}
@@ -58,5 +64,6 @@ describe('ModelCustomRow video badges', () => {
     expect(screen.getByText('480p-1080p')).toBeTruthy()
     expect(screen.getByText('5-30s')).toBeTruthy()
     expect(screen.getByLabelText('Audio')).toBeTruthy()
+    expect(screen.queryByText(LONG_DESCRIPTION)).toBeNull()
   })
 })

@@ -35,7 +35,6 @@ export function fallbackRow(params: FallbackRowParams): PickerRow {
     isCustom: source?.kind === 'custom',
     resolutionText: null,
     durationText: null,
-    referenceCount: 0,
     hasAudio: false,
     mediaKind,
   }

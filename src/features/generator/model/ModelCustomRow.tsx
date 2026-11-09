@@ -1,7 +1,7 @@
 'use client'
 
-import { isEmpty, isNil } from 'lodash-es'
-import { Check, Clock, Film, Monitor, TriangleAlert, Volume2 } from 'lucide-react'
+import { isNil } from 'lodash-es'
+import { Check, Clock, Monitor, TriangleAlert, Volume2 } from 'lucide-react'
 
 import { cn } from '@/lib/cn'
 import { EndpointBadge } from '@/ui/EndpointBadge'
@@ -9,6 +9,7 @@ import { Tooltip } from '@/ui/Tooltip'
 
 import type { ModelRowProps } from './model-row-props'
 import { ModelBadge } from './ModelBadge'
+import { ModelDescription } from './ModelDescription'
 import type { PickerRow } from './picker-groups'
 
 interface ModelCustomRowProps extends ModelRowProps {
@@ -49,7 +50,7 @@ function rowNote(state: RowState): string | null {
   return null
 }
 
-/** ComfyUI row: badge chip, title, description and availability state. */
+/** ComfyUI row: badge chip, title, state, and description or capability badges. */
 // eslint-disable-next-line complexity -- one row owns badge, state, price and tooltip
 export function ModelCustomRow(props: ModelCustomRowProps) {
   const { model, selected: isSelected } = props
@@ -58,7 +59,6 @@ export function ModelCustomRow(props: ModelCustomRowProps) {
   const price = rowPrice(model, state)
   const note = rowNote(state)
   const reason = model.reason ?? ''
-  const hasDescription = !isEmpty(model.description)
 
   const handleSelect = (): void => {
     if (isBlocked) {
@@ -99,9 +99,7 @@ export function ModelCustomRow(props: ModelCustomRowProps) {
             <span className="ml-auto shrink-0 text-xs whitespace-nowrap text-fg-2">{price}</span>
           )}
         </span>
-        {hasDescription && (
-          <span className="mt-1 block truncate text-xs text-fg-2">{model.description}</span>
-        )}
+        {model.mediaKind === 'image' && <ModelDescription description={model.description} />}
         {state !== 'stale' && !isNil(model.reason) && (
           <span className="mt-1 block text-xs text-fg-2">{model.reason}</span>
         )}
@@ -112,9 +110,6 @@ export function ModelCustomRow(props: ModelCustomRowProps) {
             )}
             {!isNil(model.durationText) && <ModelBadge icon={Clock} text={model.durationText} />}
             {model.hasAudio && <ModelBadge icon={Volume2} label="Audio" />}
-            {model.referenceCount > 0 && (
-              <ModelBadge icon={Film} text={`${model.referenceCount} refs`} />
-            )}
           </span>
         )}
       </span>

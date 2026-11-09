@@ -6,6 +6,7 @@ import { Check } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 import { isBlockedEntry, type ModelRowProps } from './model-row-props'
+import { ModelDescription } from './ModelDescription'
 import { PRESET_ICONS } from './preset-icon'
 
 /** Blocked rows show the catalog reason, healthy rows show the description. */
@@ -60,9 +61,7 @@ export function ModelGenericRow(props: ModelRowProps) {
             </span>
           )}
         </span>
-        {!isNil(note) && note !== '' && (
-          <span className="mt-1 block text-xs text-fg-2">{note}</span>
-        )}
+        {!isNil(note) && note !== '' && <ModelDescription description={note} />}
       </span>
       <span className="flex size-3.5 shrink-0 items-center justify-center">
         <Check size={14} className={cn('text-accent', !isSelected && 'invisible')} />

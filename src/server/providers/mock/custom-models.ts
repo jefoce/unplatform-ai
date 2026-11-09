@@ -35,6 +35,9 @@ const SCALE_RESOLUTIONS = [
 
 const SCALE_ASPECTS = ['16:9', '21:9', '4:3', '1:1', '3:4', '9:16'] as const
 
+const MOCK_IMAGE_DESCRIPTION =
+  'A local SDXL image workflow with a deliberately long description so the model picker shows the two-line clamp and the full text in the title tooltip.'
+
 const SCALE_SIZES = {
   '0.2': {
     '16:9': '608x352',
@@ -102,7 +105,11 @@ export function customMockCatalog(params: CustomMockCatalogParams): CustomMockCa
   const { scenario } = params
   const fixtures = customMockFixtures()
   const video = scaleVideoModels(fixtures.videoModels)
-  const image = fixtures.imageModels
+  let image = fixtures.imageModels
+
+  if (scenario === 'ready') {
+    image = describeImageModels(image)
+  }
 
   if (scenario === 'unreachable') {
     return { video, image, isReachable: false }
@@ -117,6 +124,17 @@ export function customMockCatalog(params: CustomMockCatalogParams): CustomMockCa
   }
 
   return { video, image, isReachable: true }
+}
+
+/** Ready image model carries a long description for the picker clamp. */
+function describeImageModels(models: readonly UpaiModel[]): readonly UpaiModel[] {
+  const [first, ...rest] = models
+
+  if (isNil(first)) {
+    return models
+  }
+
+  return [{ ...first, description: MOCK_IMAGE_DESCRIPTION }, ...rest]
 }
 
 /** A ready video model with scale resolutions, so the picker shows pixel labels. */
