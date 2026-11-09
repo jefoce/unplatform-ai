@@ -4,6 +4,7 @@ import { isNil } from 'lodash-es'
 import { Monitor } from 'lucide-react'
 
 import { getPreset } from '@/core/presets'
+import { primaryBinding } from '@/core/presets/common/bindings'
 import {
   resolutionDisplay,
   resolutionHeight,
@@ -11,6 +12,8 @@ import {
 } from '@/core/presets/common/display'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { pricePerSec } from '@/core/pricing/quote'
+import type { PricingInfo } from '@/core/pricing/types'
+import { showPrice } from '@/core/pricing/visibility'
 import type { Dict } from '@/core/utility-types'
 import { useModelEntry } from '@/lib/api/catalog'
 import { cn } from '@/lib/cn'
@@ -50,7 +53,26 @@ function choiceRate(params: ChoiceRateParams): ChoiceRate {
   return { rate, listRate }
 }
 
+/** Custom models hide a zero per-run price, API models always show. */
+function showsResolutionRates(
+  preset: VideoPreset,
+  pricing: PricingInfo | null | undefined,
+): boolean {
+  const usd = pricing?.skus.per_run ?? primaryBinding(preset).pricing.fallback.per_run ?? 0
+
+  return preset.family !== 'custom' || showPrice({ local: true }, usd)
+}
+
+/** The fallback note only makes sense next to a visible rate column. */
+function showsFallbackFooter(
+  isRateShown: boolean,
+  pricing: PricingInfo | null | undefined,
+): boolean {
+  return isRateShown && pricing?.source === 'fallback'
+}
+
 /** Resolution button and preset list with list and discounted per-second rates. */
+/* eslint-disable-next-line max-lines-per-function -- one popover owns its rows, rate column and footer */
 export function ResolutionPopover() {
   const resolution = useGeneratorStore((state) => {
     return state.resolution
@@ -81,6 +103,7 @@ export function ResolutionPopover() {
   const selected = resolutionDisplay(preset, { resolution, aspect })
   const compact = resolutionHeight(preset, { resolution, aspect })
   const choices = videoResolutionChoices(preset, aspect)
+  const isRateShown = showsResolutionRates(preset, pricing)
 
   return (
     <Popover>
@@ -126,11 +149,12 @@ export function ResolutionPopover() {
               rate={rate}
               listRate={listRate}
               discount={discount}
+              isRateShown={isRateShown}
               onSelect={setResolution}
             />
           )
         })}
-        {pricing?.source === 'fallback' && (
+        {showsFallbackFooter(isRateShown, pricing) && (
           <p className="sticky bottom-0 bg-glass px-2 py-1 text-xxs text-fg-2">
             Saved rates, live price unavailable
           </p>

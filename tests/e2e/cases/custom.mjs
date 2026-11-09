@@ -194,6 +194,21 @@ async function resolutionPopoverHeight(context) {
     throw new Error(`Resolution popover shows ${String(geometry.optionCount)} options, expected 14`)
   }
 
+  const showsPrice = await driver.evaluate(`(() => {
+    const wrapper = document.querySelector('[data-radix-popper-content-wrapper]')
+    if (wrapper === null) return null
+    const text = wrapper.innerText
+    return { hasDashes: text.includes('--'), hasFooter: text.includes('Saved rates') }
+  })()`)
+
+  if (showsPrice === null) {
+    throw new Error('No resolution popover content')
+  }
+
+  if (showsPrice.hasDashes || showsPrice.hasFooter) {
+    throw new Error('The zero-price resolution popover still shows a price')
+  }
+
   await shoot(driver, 'resolution-popover-720')
 }
 
