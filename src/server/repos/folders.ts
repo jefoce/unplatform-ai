@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one module owns folder listing, linking and containment */
 import 'server-only'
 
 import { randomUUID } from 'node:crypto'
@@ -48,6 +49,36 @@ export async function getFolder(id: string): Promise<FolderItem | null> {
       return folder.id === id
     }) ?? null
   )
+}
+
+export interface FolderPathMatch {
+  id: string
+  relPath: string
+}
+
+/** Folder that contains a real file, with a `/`-separated path from its root. */
+export async function folderForPath(absPath: string): Promise<FolderPathMatch | null> {
+  const real = await fs.realpath(absPath).catch(() => {
+    return null
+  })
+
+  if (!isNonEmptyString(real)) {
+    return null
+  }
+
+  for (const folder of await listFolders()) {
+    const root = await fs.realpath(folder.path).catch(() => {
+      return null
+    })
+
+    if (isNil(root) || !isInside(root, real)) {
+      continue
+    }
+
+    return { id: folder.id, relPath: path.relative(root, real).split(path.sep).join('/') }
+  }
+
+  return null
 }
 
 interface AddFolderParams {

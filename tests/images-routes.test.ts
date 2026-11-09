@@ -608,7 +608,7 @@ describe('GET and DELETE /api/images/[id]', () => {
 })
 
 describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
-  it('copies a saved output into uploads that survives deleting the output', async () => {
+  it('links a saved output that goes missing when the output is deleted', async () => {
     const saved = await repo.saveImage(record({ status: 'saving' }))
 
     const output = await files.writeImageOutput({
@@ -636,9 +636,9 @@ describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
 
     expect(response.status).toBe(201)
     expect(item.kind).toBe('image')
-    expect(item.source).toBe('file')
-    expect(item.linkMode).toBeUndefined()
-    expect(item.target).toBeUndefined()
+    expect(item.source).toBe('link')
+    expect(item.linkMode).toBeDefined()
+    expect(item.target).toContain(`${saved.id}-0.png`)
 
     const removed = await idRoute.DELETE(
       request('DELETE', `http://127.0.0.1:3000/api/images/${saved.id}`),
@@ -650,7 +650,7 @@ describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
     const uploads = await import('@/server/repos/uploads')
     const upload = await uploads.getUpload(item.id)
 
-    expect(upload?.missing).toBe(false)
+    expect(upload?.missing).toBe(true)
   })
 
   it('returns 409 for a failed output', async () => {

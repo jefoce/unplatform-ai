@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import {
   dropFile,
@@ -825,6 +826,87 @@ async function audioDragSingleCase(context) {
   )
 }
 
+/** A folder file links once and the disk chooser reuses that upload. */
+async function linkFolderFileCase(context) {
+  const { driver, server, width } = context
+  const folderDir = path.join(server.storageRoot, 'e2e-link-folder')
+  const file = path.join(folderDir, 'sample.png')
+  const chooseFile = path.join(server.storageRoot, 'e2e-choose.txt')
+
+  await fs.mkdir(folderDir, { recursive: true })
+  await fs.copyFile(new URL('../../fixtures/media/sample.png', import.meta.url), file)
+
+  const folder = await server.api('/api/folders', {
+    method: 'POST',
+    body: JSON.stringify({ path: folderDir }),
+  })
+
+  await fs.writeFile(chooseFile, `${file}\n`)
+
+  try {
+    await openApp(context)
+    await resetLocal(driver, ['unplatform-ai:image-draft', 'unplatform-ai:image-view'])
+    await gotoTab(driver, 'Image')
+    await openImagePicker(driver)
+    await driver.waitFor(
+      `window.__e2e.all('button[aria-pressed]').some((node) => node.innerText.trim() === ${JSON.stringify(folder.name)})`,
+      15_000,
+      'the folder tab',
+    )
+    await pickerTab(driver, folder.name)
+    await driver.waitFor(
+      `window.__e2e.exists('[aria-label="Select sample.png"]')`,
+      15_000,
+      'the folder sample tile',
+    )
+    await driver.clickLabel('Select sample.png')
+    await waitImageRefs(driver, 1)
+
+    await pickerTab(driver, 'Uploads')
+    await driver.waitFor(
+      `window.__e2e.all('button').some((node) => node.innerText.trim() === 'Choose from disk')`,
+      15_000,
+      'the disk chooser tile',
+    )
+
+    await driver.evaluate(`(() => {
+      window.__e2eUploadsFetch = 0
+      const original = window.fetch
+      window.fetch = (...args) => {
+        if (String(args[0]).includes('/api/uploads')) window.__e2eUploadsFetch += 1
+        return original.apply(window, args)
+      }
+    })()`)
+
+    await driver.clickText('Choose from disk')
+    await driver.waitFor(`window.__e2eUploadsFetch > 0`, 15_000, 'the chooser upload refresh')
+
+    const uploads = await server.api('/api/uploads')
+    const sampleUploads = uploads.filter((item) => {
+      return item.originalName === 'sample.png'
+    })
+
+    if (sampleUploads.length !== 1) {
+      throw new Error(`sample.png uploads: ${String(sampleUploads.length)}`)
+    }
+
+    await waitImageRefs(driver, 1)
+
+    await pickerTab(driver, folder.name)
+    await driver.waitFor(
+      `document.querySelector('[aria-label="Select sample.png"]').getAttribute('aria-pressed') === 'true'`,
+      10_000,
+      'the folder tile to stay selected',
+    )
+
+    console.log(`# link-folder-file ${String(width)} uploads ${String(sampleUploads.length)}`)
+  } finally {
+    await fs.rm(chooseFile, { force: true })
+    await fs.rm(folderDir, { recursive: true, force: true })
+    await server.api(`/api/folders/${folder.id}`, { method: 'DELETE' }).catch(() => {})
+  }
+}
+
 export const referenceCases = [
   {
     name: 'references/viewer-card-picker-drop-paste',
@@ -853,5 +935,9 @@ export const referenceCases = [
   {
     name: 'references/audio-drag-single',
     run: audioDragSingleCase,
+  },
+  {
+    name: 'references/link-folder-file',
+    run: linkFolderFileCase,
   },
 ]

@@ -195,6 +195,7 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `LIVE_CATALOG` | `1` runs the live OpenRouter catalog test |
 | `MEASURE_FACETS` | `1` runs the 4000-record history facets measurement |
 | `E2E_SLOW_MEDIA_MS` | Holds `/api/media` responses for the thumb-first paint e2e check |
+| `E2E` | `1` uses the file chooser stub at `$STORAGE_ROOT/e2e-choose.txt` during e2e runs |
 | `WRITE_IMAGE_PRICE_FIXTURE` | `1` rewrites the image price fixture during the drift test |
 | `FFMPEG_PATH` | ffmpeg binary for the dev server and smoke runs |
 | `APP_ORIGIN` | Origin used by mock remote links |
@@ -255,7 +256,7 @@ Dependabot opens one grouped monthly pull request for npm, cargo and GitHub Acti
 - `features/media-picker/picker/store.ts` holds one request: kinds, optional extensions and one of two modes. `toggle` takes `useSelectedIds`, `useUploadsById`, `canAdd` and `onToggle` from the opener, reads selection from the generator and stays open. `pick` takes only `onPick` and closes after the pick.
 - No local selection and no Add button. A file click runs the opener's action.
 - Reference limits come from `features/generator/reference-rules.ts` (`referenceRoom` and `referenceBlockReason`).
-- Folder files link on click and match an attached upload by its `target` through `core/folder-match.ts`.
+- Folder files link on click and match an attached upload by its `target` through `core/folder-match.ts`. Desktop paths and connected-folder picks link by path, browser uploads and pathless pastes copy bytes, and the link fallback still copies when symlink and hard link both fail.
 - `DockedPanel` docks the picker beside the generator anchor at 900 px and up, and shows a centered modal below that.
 
 ## 14. Desktop build

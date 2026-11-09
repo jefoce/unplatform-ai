@@ -1,12 +1,11 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
 import { isNil } from 'lodash-es'
 
 import { errorResponse, jsonError, jsonResponse } from '@/server/http'
 import { getImage, imageOutputFile } from '@/server/repos/images'
 import { assertLocalRequest } from '@/server/request-guard'
-import { createFileUpload } from '@/server/services/uploads'
+import { createLinkUpload } from '@/server/services/uploads'
 
 interface FrameParams {
   id: string
@@ -17,7 +16,7 @@ interface FrameRouteContext {
   params: Promise<FrameParams>
 }
 
-/** Copies a saved output into uploads, so the video tab can use it as a frame. */
+/** Links a saved output into uploads, so the video tab can use it as a frame. */
 export async function POST(request: Request, { params }: FrameRouteContext) {
   try {
     assertLocalRequest(request)
@@ -50,9 +49,7 @@ export async function POST(request: Request, { params }: FrameRouteContext) {
       return jsonError({ status: 404, error: 'Image file not found' })
     }
 
-    const bytes = new Uint8Array(await fs.readFile(file))
-
-    const item = await createFileUpload({ bytes, originalName: path.basename(file) })
+    const item = await createLinkUpload({ absPath: file })
 
     return jsonResponse(item, { status: 201 })
   } catch (error) {

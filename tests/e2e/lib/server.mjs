@@ -97,6 +97,7 @@ export async function startServer(options = {}) {
     OPENROUTER_MOCK: '1',
     REMOTE_MOCK: '1',
     CUSTOM_ENDPOINT_MOCK: '1',
+    E2E: '1',
     NODE_ENV: 'production',
     FFMPEG_PATH: ffmpeg,
     NODE_OPTIONS: nodeOptions,
