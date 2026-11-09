@@ -15,6 +15,12 @@ function promptRequest(): Request {
   })
 }
 
+function offHostRequest(): Request {
+  return new Request('http://evil.example/api/dev/custom-mock/prompt', {
+    headers: { host: 'evil.example', cookie: `upai_session=${TOKEN}` },
+  })
+}
+
 afterEach(() => {
   delete process.env.CUSTOM_ENDPOINT_MOCK
 })
@@ -24,6 +30,12 @@ describe('custom mock prompt route', () => {
     const response = await GET(promptRequest())
 
     expect(response.status).toBe(404)
+  })
+
+  it('rejects off-host requests even when the custom mock mode is off', async () => {
+    const response = await GET(offHostRequest())
+
+    expect(response.status).toBe(403)
   })
 
   it('returns the recorded prompt in custom mock mode', async () => {
