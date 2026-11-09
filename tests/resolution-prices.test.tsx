@@ -10,13 +10,13 @@ import { ResolutionPopover } from '@/features/generator/options/ResolutionPopove
 import { useGeneratorStore } from '@/features/generator/store/store'
 
 const mocks = vi.hoisted(() => {
-  return { pricing: null as CatalogEntry['pricing'] }
+  return { entry: null as CatalogEntry | null }
 })
 
 vi.mock('@/lib/api/catalog', () => {
   return {
     useModelEntry: () => {
-      return { pricing: mocks.pricing }
+      return mocks.entry
     },
   }
 })
@@ -68,6 +68,22 @@ function pricingInfo(perRun: number, source: PricingInfo['source']): PricingInfo
   }
 }
 
+function catalogEntry(preset: VideoPreset, pricing: PricingInfo, isLocal: boolean): CatalogEntry {
+  const kind = isLocal ? 'custom' : 'openrouter'
+  const instanceId = isLocal ? 'cu1' : 'openrouter'
+
+  return {
+    modelId: preset.id,
+    presetId: preset.id,
+    provider: kind,
+    status: 'available',
+    reason: null,
+    pricing,
+    source: { kind, instanceId, badge: null, workflowName: null, local: isLocal },
+    preset,
+  }
+}
+
 function openPopover(preset: VideoPreset): HTMLElement {
   setRuntimeVideoPresets([preset])
   useGeneratorStore.setState({ presetId: preset.id })
@@ -80,7 +96,7 @@ function openPopover(preset: VideoPreset): HTMLElement {
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', Observer)
 
-  mocks.pricing = null
+  mocks.entry = null
 
   useGeneratorStore.setState({
     presetId: 'wan-3.0',
@@ -107,25 +123,29 @@ afterEach(() => {
 
 describe('resolution price column', () => {
   it('hides prices and the footer for a zero-price custom model', () => {
-    mocks.pricing = pricingInfo(0, 'fallback')
+    const preset = customPreset(0)
 
-    const dialog = openPopover(customPreset(0))
+    mocks.entry = catalogEntry(preset, pricingInfo(0, 'fallback'), true)
+
+    const dialog = openPopover(preset)
 
     expect(within(dialog).queryByText('--')).toBeNull()
     expect(within(dialog).queryByText(/Saved rates/)).toBeNull()
   })
 
   it('shows prices and the footer when the custom per-run price is set', () => {
-    mocks.pricing = pricingInfo(2.5, 'fallback')
+    const preset = customPreset(0)
 
-    const dialog = openPopover(customPreset(0))
+    mocks.entry = catalogEntry(preset, pricingInfo(2.5, 'fallback'), true)
+
+    const dialog = openPopover(preset)
 
     expect(within(dialog).getAllByText('--').length).toBeGreaterThan(0)
     expect(within(dialog).getByText(/Saved rates/)).not.toBeNull()
   })
 
-  it('shows rates and the fallback footer for a static model', () => {
-    mocks.pricing = STATIC_PRICING
+  it('shows rates and the fallback footer for an API model', () => {
+    mocks.entry = catalogEntry(BASE, STATIC_PRICING, false)
 
     const dialog = openPopover(BASE)
 

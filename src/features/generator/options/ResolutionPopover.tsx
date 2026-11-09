@@ -3,6 +3,7 @@
 import { isNil } from 'lodash-es'
 import { Monitor } from 'lucide-react'
 
+import type { CatalogEntry } from '@/core/catalog'
 import { getPreset } from '@/core/presets'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import {
@@ -13,7 +14,7 @@ import {
 import type { VideoPreset } from '@/core/presets/video/types'
 import { pricePerSec } from '@/core/pricing/quote'
 import type { PricingInfo } from '@/core/pricing/types'
-import { showPrice } from '@/core/pricing/visibility'
+import { isPriceVisibleFor } from '@/core/pricing/visibility'
 import type { Dict } from '@/core/utility-types'
 import { useModelEntry } from '@/lib/api/catalog'
 import { cn } from '@/lib/cn'
@@ -53,14 +54,11 @@ function choiceRate(params: ChoiceRateParams): ChoiceRate {
   return { rate, listRate }
 }
 
-/** Custom models hide a zero per-run price, API models always show. */
-function showsResolutionRates(
-  preset: VideoPreset,
-  pricing: PricingInfo | null | undefined,
-): boolean {
-  const usd = pricing?.skus.per_run ?? primaryBinding(preset).pricing.fallback.per_run ?? 0
+/** Local models hide a zero per-run price, API models always show. */
+function showsResolutionRates(preset: VideoPreset, entry: CatalogEntry | null): boolean {
+  const usd = entry?.pricing?.skus.per_run ?? primaryBinding(preset).pricing.fallback.per_run ?? 0
 
-  return preset.family !== 'custom' || showPrice({ local: true }, usd)
+  return isPriceVisibleFor(entry, usd)
 }
 
 /** The fallback note only makes sense next to a visible rate column. */
@@ -98,12 +96,13 @@ export function ResolutionPopover() {
     }),
   )
 
-  const pricing = useModelEntry(preset.id)?.pricing
+  const entry = useModelEntry(preset.id)
+  const pricing = entry?.pricing
   const discount = pricing?.discount ?? 0
   const selected = resolutionDisplay(preset, { resolution, aspect })
   const compact = resolutionHeight(preset, { resolution, aspect })
   const choices = videoResolutionChoices(preset, aspect)
-  const isRateShown = showsResolutionRates(preset, pricing)
+  const isRateShown = showsResolutionRates(preset, entry)
 
   return (
     <Popover>
