@@ -221,11 +221,24 @@ export function missingSlots(prompt: string, counts: MediaKindCounts): RefSlot[]
   })
 }
 
-/** API text: "@Image 1" -> preset.refLabel ("Image 1", "@Image 1", ...). */
+const REFERENCE_LABEL_TOKEN = /\{(kind|Kind|n|i)\}/g
+
+/** API text: "@Image 1" -> preset.refLabel ("Image 1", "<{kind}_{n}>", ...). */
 export function renderPromptForApi(prompt: string, preset: VideoPreset | ImagePreset): string {
   // eslint-disable-next-line @typescript-eslint/max-params -- fixed signature (String.replace)
-  return prompt.replaceAll(CANONICAL, (_whole, kind: string, n: string) => {
-    return preset.refLabel.replace('{Kind}', kind).replace('{n}', n)
+  return prompt.replaceAll(CANONICAL, (_whole, kind: string, rawNumber: string) => {
+    const n = Number(rawNumber)
+
+    const values: Dict<string> = {
+      kind: kind.toLowerCase(),
+      Kind: kind,
+      n: rawNumber,
+      i: String(Math.max(0, n - 1)),
+    }
+
+    return preset.refLabel.replaceAll(REFERENCE_LABEL_TOKEN, (token) => {
+      return values[token.slice(1, -1)] ?? token
+    })
   })
 }
 

@@ -3,11 +3,17 @@
   "$id": "urn:upai:1:error",
   "title": "upai/1 error",
   "type": "object",
-  "required": ["error"],
+  "required": [
+    "error"
+  ],
   "properties": {
     "error": {
       "type": "object",
-      "required": ["code", "message", "details"],
+      "required": [
+        "code",
+        "message",
+        "details"
+      ],
       "properties": {
         "code": {
           "enum": [

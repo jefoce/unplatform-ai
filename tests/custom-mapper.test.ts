@@ -529,3 +529,69 @@ describe('image mapping', () => {
     expect(result.availability).toEqual({ status: 'invalid', reason: CUSTOM_INVALID_REASON })
   })
 })
+
+function withReferenceLabel(base: UpaiModel, referenceLabel: string | null | undefined): UpaiModel {
+  return {
+    ...base,
+    capabilities: {
+      ...base.capabilities,
+      prompt: { ...base.capabilities.prompt, reference_label: referenceLabel },
+    },
+  }
+}
+
+describe('reference label templates', () => {
+  it('keeps the defaults when the template is absent or null', () => {
+    const video = expectVideo(mapModel(withReferenceLabel(modelAt(VIDEO_MODELS, 0), undefined)))
+    const image = expectImage(mapModel(withReferenceLabel(modelAt(IMAGE_MODELS, 0), null)))
+
+    expect(video.refLabel).toBe('{Kind} {n}')
+    expect(image.refLabel).toBe('image {n}')
+  })
+
+  it('keeps a valid template for video and image', () => {
+    const video = expectVideo(
+      mapModel(withReferenceLabel(modelAt(VIDEO_MODELS, 0), '<{kind}_{n}>')),
+    )
+
+    const image = expectImage(mapModel(withReferenceLabel(modelAt(IMAGE_MODELS, 0), '{Kind} #{i}')))
+
+    expect(video.refLabel).toBe('<{kind}_{n}>')
+    expect(image.refLabel).toBe('{Kind} #{i}')
+  })
+
+  it('falls back with a warning for an invalid template', () => {
+    const video = mapModel(withReferenceLabel(modelAt(VIDEO_MODELS, 0), '<{kind}_{m}>'))
+    const image = mapModel(withReferenceLabel(modelAt(IMAGE_MODELS, 0), 'image x'))
+
+    expect(expectVideo(video).refLabel).toBe('{Kind} {n}')
+    expect(expectImage(image).refLabel).toBe('image {n}')
+
+    expect(video.warnings).toContain('Ignored reference label template <{kind}_{m}>')
+    expect(image.warnings).toContain('Ignored reference label template image x')
+  })
+
+  it('falls back for a template longer than 64 characters', () => {
+    const raw = `{Kind} ${'x'.repeat(60)}`
+    const result = mapModel(withReferenceLabel(modelAt(VIDEO_MODELS, 0), raw))
+
+    expect(expectVideo(result).refLabel).toBe('{Kind} {n}')
+    expect(result.warnings).toContain(`Ignored reference label template ${raw}`)
+  })
+
+  it('merges size overrides over the base sizes', () => {
+    const base = modelAt(VIDEO_MODELS, 0)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        size_overrides: { '480p': { '16:9': '640x360' } },
+      },
+    }
+
+    const preset = expectVideo(mapModel(model))
+
+    expect(preset.outputSizes?.['480p']?.['16:9']).toBe('640x360')
+  })
+})

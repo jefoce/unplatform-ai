@@ -3,7 +3,9 @@
   "$id": "urn:upai:1:models",
   "title": "upai/1 model list",
   "type": "object",
-  "required": ["data"],
+  "required": [
+    "data"
+  ],
   "properties": {
     "data": {
       "type": "array",
@@ -39,20 +41,32 @@
           "type": "string"
         },
         "kind": {
-          "enum": ["video", "image"]
+          "enum": [
+            "video",
+            "image"
+          ]
         },
         "status": {
-          "enum": ["ready", "stale", "invalid"]
+          "enum": [
+            "ready",
+            "stale",
+            "invalid"
+          ]
         },
         "status_reason": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "updated_at": {
           "type": "string"
         },
         "pricing": {
           "type": "object",
-          "required": ["per_run_usd"],
+          "required": [
+            "per_run_usd"
+          ],
           "properties": {
             "per_run_usd": {
               "type": "number"
@@ -70,7 +84,10 @@
             },
             {
               "type": "object",
-              "required": ["id", "name"],
+              "required": [
+                "id",
+                "name"
+              ],
               "properties": {
                 "id": {
                   "type": "string"
@@ -109,7 +126,11 @@
         },
         "references": {
           "type": "object",
-          "required": ["image", "video", "audio"],
+          "required": [
+            "image",
+            "video",
+            "audio"
+          ],
           "properties": {
             "image": {
               "$ref": "#/$defs/reference"
@@ -155,7 +176,9 @@
         },
         "reference_limits": {
           "type": "object",
-          "required": ["image"],
+          "required": [
+            "image"
+          ],
           "properties": {
             "image": {
               "$ref": "#/$defs/referenceLimit"
@@ -186,7 +209,10 @@
     },
     "prompt": {
       "type": "object",
-      "required": ["required", "max_chars"],
+      "required": [
+        "required",
+        "max_chars"
+      ],
       "properties": {
         "required": {
           "type": "boolean"
@@ -194,13 +220,23 @@
         "max_chars": {
           "type": "integer",
           "minimum": 0
+        },
+        "reference_label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
         }
       },
       "additionalProperties": true
     },
     "reference": {
       "type": "object",
-      "required": ["max", "required"],
+      "required": [
+        "max",
+        "required"
+      ],
       "properties": {
         "max": {
           "type": "integer",
@@ -215,7 +251,10 @@
     },
     "referenceLimit": {
       "type": "object",
-      "required": ["max_bytes", "formats"],
+      "required": [
+        "max_bytes",
+        "formats"
+      ],
       "properties": {
         "max_bytes": {
           "type": "integer",
@@ -232,7 +271,12 @@
     },
     "frames": {
       "type": "object",
-      "required": ["start", "end", "start_required", "end_required"],
+      "required": [
+        "start",
+        "end",
+        "start_required",
+        "end_required"
+      ],
       "properties": {
         "start": {
           "type": "boolean"
@@ -251,7 +295,12 @@
     },
     "duration": {
       "type": "object",
-      "required": ["min", "max", "default", "step"],
+      "required": [
+        "min",
+        "max",
+        "default",
+        "step"
+      ],
       "properties": {
         "min": {
           "type": "number"
@@ -270,7 +319,10 @@
     },
     "frameRule": {
       "type": "object",
-      "required": ["mod", "add"],
+      "required": [
+        "mod",
+        "add"
+      ],
       "properties": {
         "mod": {
           "type": "integer"
@@ -283,7 +335,9 @@
     },
     "count": {
       "type": "object",
-      "required": ["max"],
+      "required": [
+        "max"
+      ],
       "properties": {
         "max": {
           "type": "integer",

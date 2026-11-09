@@ -31,7 +31,14 @@
             "required": 0
           }
         },
-        "resolutions": ["512", "768", "1K", "1.5K", "2K", "4K"],
+        "resolutions": [
+          "512",
+          "768",
+          "1K",
+          "1.5K",
+          "2K",
+          "4K"
+        ],
         "default_resolution": "1K",
         "aspect_ratios": [
           "21:9",
@@ -215,7 +222,12 @@
         "reference_limits": {
           "image": {
             "max_bytes": 20971520,
-            "formats": ["png", "jpg", "jpeg", "webp"]
+            "formats": [
+              "png",
+              "jpg",
+              "jpeg",
+              "webp"
+            ]
           }
         },
         "count": {

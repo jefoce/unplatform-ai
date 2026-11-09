@@ -4,7 +4,7 @@ import type { ModelAvailability } from '../../catalog'
 import { CUSTOM_DURATION_MAX_SEC, CUSTOM_DURATION_OPTIONS_MAX } from '../../constants'
 import { isNonEmptyString } from '../../guards'
 import type { PricingConfig } from '../../pricing/types'
-import type { UpaiDuration, UpaiModel } from '../../protocol/upai'
+import type { UpaiDuration, UpaiModel, UpaiSizeMap } from '../../protocol/upai'
 import type { OutputSizes, SizeByAspect } from '../common/output-sizes'
 import { customPresetPrefix } from './index'
 import type { DurationResult, MappedDuration, OutputSizesParams, OutputSizesResult } from './types'
@@ -13,6 +13,65 @@ export const CUSTOM_STALE_REASON = 'Workflow changed in ComfyUI since the last s
 export const CUSTOM_INVALID_REASON = 'This workflow cannot run in ComfyUI.'
 
 const SIZE_PATTERN = /^(\d+)x(\d+)$/
+const REFERENCE_LABEL_MAX = 64
+const REFERENCE_LABEL_TOKEN = /\{(kind|Kind|n|i)\}/g
+
+interface MapReferenceLabelParams {
+  raw: string | null | undefined
+  fallback: string
+}
+
+export interface MappedReferenceLabel {
+  refLabel: string
+  warning: string | null
+}
+
+/** Valid template with a slot token, else the fallback plus a warning. */
+export function mapReferenceLabel(params: MapReferenceLabelParams): MappedReferenceLabel {
+  const { raw, fallback } = params
+
+  if (!isNonEmptyString(raw)) {
+    return { refLabel: fallback, warning: null }
+  }
+
+  if (raw.length > REFERENCE_LABEL_MAX) {
+    return ignoredReferenceLabel(raw, fallback)
+  }
+
+  const stripped = raw.replaceAll(REFERENCE_LABEL_TOKEN, '')
+
+  if (stripped.includes('{') || stripped.includes('}')) {
+    return ignoredReferenceLabel(raw, fallback)
+  }
+
+  if (!raw.includes('{n}') && !raw.includes('{i}')) {
+    return ignoredReferenceLabel(raw, fallback)
+  }
+
+  return { refLabel: raw, warning: null }
+}
+
+function ignoredReferenceLabel(raw: string, fallback: string): MappedReferenceLabel {
+  return { refLabel: fallback, warning: `Ignored reference label template ${raw}` }
+}
+
+/** Overrides win per resolution and aspect, base entries survive. */
+export function mergeSizeOverrides(
+  sizes: UpaiSizeMap,
+  overrides: UpaiSizeMap | undefined,
+): UpaiSizeMap {
+  if (isNil(overrides)) {
+    return sizes
+  }
+
+  const merged: UpaiSizeMap = { ...sizes }
+
+  for (const [resolution, aspects] of Object.entries(overrides)) {
+    merged[resolution] = { ...(merged[resolution] ?? {}), ...aspects }
+  }
+
+  return merged
+}
 
 /** Keeps the endpoint order and drops empty names without judging the value. */
 export function nonEmptyStrings(values: readonly string[]): string[] {

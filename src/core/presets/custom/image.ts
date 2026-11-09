@@ -6,7 +6,14 @@ import { imageResolutionOptions } from '../common/options'
 import type { PresetReferenceLimits } from '../common/reference-limits'
 import type { ImageAspectChoice, ImageOption, ImageParam, ImagePreset } from '../image/types'
 import { CUSTOM_ERROR_RULES } from './errors'
-import { customPricing, mapOutputSizes, nonEmptyStrings, presetIdFor } from './shared'
+import {
+  customPricing,
+  mapOutputSizes,
+  mapReferenceLabel,
+  mergeSizeOverrides,
+  nonEmptyStrings,
+  presetIdFor,
+} from './shared'
 import type { ImageParamContext, MappedCustomModel, MappedImageContext } from './types'
 
 const CUSTOM_ICON: PresetIcon = 'sparkles'
@@ -86,12 +93,21 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
   }
 
   const sizes = mapOutputSizes({
-    sizes: caps.sizes,
+    sizes: mergeSizeOverrides(caps.sizes, caps.size_overrides),
     resolutions: controls.resolutions,
     aspects: controls.aspects,
   })
 
   warnings.push(...sizes.warnings)
+
+  const referenceLabel = mapReferenceLabel({
+    raw: caps.prompt.reference_label,
+    fallback: 'image {n}',
+  })
+
+  if (!isNil(referenceLabel.warning)) {
+    warnings.push(referenceLabel.warning)
+  }
 
   const countMax = caps.count?.max ?? 0
   const values = imageControlValues(caps, controls)
@@ -126,7 +142,7 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
     seed: caps.seed,
     promptMaxChars: caps.prompt.max_chars,
     promptOptional: !caps.prompt.required,
-    refLabel: 'image {n}',
+    refLabel: referenceLabel.refLabel,
     bindings: [{ provider: 'custom', modelId: model.id, pricing: customPricing(model) }],
     errors: CUSTOM_ERROR_RULES,
   }

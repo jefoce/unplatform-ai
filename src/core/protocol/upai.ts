@@ -56,7 +56,11 @@ export const UPAI_JOB_KINDS = ['video', 'image'] as const
 export type UpaiJobKind = (typeof UPAI_JOB_KINDS)[number]
 
 export const UpaiPromptSchema = z
-  .object({ required: z.boolean(), max_chars: z.number().int().min(0) })
+  .object({
+    required: z.boolean(),
+    max_chars: z.number().int().min(0),
+    reference_label: z.string().max(64).nullable().optional(),
+  })
   .loose()
 
 export type UpaiPrompt = z.infer<typeof UpaiPromptSchema>
@@ -140,6 +144,7 @@ export const UpaiCapabilitiesSchema = z
     aspect_ratios: z.array(z.string()),
     default_aspect_ratio: z.string(),
     sizes: UpaiSizeMapSchema,
+    size_overrides: UpaiSizeMapSchema.optional(),
     seed: z.boolean(),
     reference_limits: UpaiReferenceLimitsSchema,
     frames: UpaiFramesSchema.optional(),

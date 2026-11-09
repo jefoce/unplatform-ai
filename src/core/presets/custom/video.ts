@@ -8,7 +8,14 @@ import type { OutputSizes } from '../common/output-sizes'
 import type { PresetReferenceLimits } from '../common/reference-limits'
 import type { VideoPreset } from '../video/types'
 import { CUSTOM_ERROR_RULES } from './errors'
-import { mapDuration, mapOutputSizes, nonEmptyStrings, presetIdFor } from './shared'
+import {
+  mapDuration,
+  mapOutputSizes,
+  mapReferenceLabel,
+  mergeSizeOverrides,
+  nonEmptyStrings,
+  presetIdFor,
+} from './shared'
 import type { MappedCustomModel, MappedDuration, MappedVideoContext } from './types'
 
 const CUSTOM_ICON: PresetIcon = 'sparkles'
@@ -41,12 +48,21 @@ export function mapVideoModel(ctx: MappedVideoContext): MappedCustomModel {
   }
 
   const sizes = mapOutputSizes({
-    sizes: caps.sizes,
+    sizes: mergeSizeOverrides(caps.sizes, caps.size_overrides),
     resolutions,
     aspects,
   })
 
   warnings.push(...sizes.warnings)
+
+  const referenceLabel = mapReferenceLabel({
+    raw: caps.prompt.reference_label,
+    fallback: '{Kind} {n}',
+  })
+
+  if (!isNil(referenceLabel.warning)) {
+    warnings.push(referenceLabel.warning)
+  }
 
   return {
     preset: buildVideoPreset({
@@ -60,6 +76,7 @@ export function mapVideoModel(ctx: MappedVideoContext): MappedCustomModel {
       resolutions,
       aspects,
       sizes: sizes.sizes,
+      refLabel: referenceLabel.refLabel,
       maxUploadBytes,
       perRunUsd: model.pricing.per_run_usd,
     }),
@@ -79,6 +96,7 @@ interface BuildVideoParams {
   resolutions: readonly string[]
   aspects: readonly string[]
   sizes: OutputSizes | undefined
+  refLabel: string
   maxUploadBytes: number | null
   perRunUsd: number
 }
@@ -95,6 +113,7 @@ function buildVideoPreset(params: BuildVideoParams): VideoPreset {
     resolutions,
     aspects,
     sizes,
+    refLabel,
     maxUploadBytes,
     perRunUsd,
   } = params
@@ -132,7 +151,7 @@ function buildVideoPreset(params: BuildVideoParams): VideoPreset {
     maxInputPlusOutputSec: null,
     promptMaxChars: caps.prompt.max_chars,
     seed: caps.seed,
-    refLabel: '{Kind} {n}',
+    refLabel,
     outputSizes: sizes,
     bindings: [
       {

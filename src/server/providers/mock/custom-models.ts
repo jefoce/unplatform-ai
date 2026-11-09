@@ -38,6 +38,8 @@ const SCALE_ASPECTS = ['16:9', '21:9', '4:3', '1:1', '3:4', '9:16'] as const
 const MOCK_IMAGE_DESCRIPTION =
   'A local SDXL image workflow with a deliberately long description so the model picker shows the two-line clamp and the full text in the title tooltip.'
 
+const MOCK_IMAGE_REFERENCE_LABEL = '<{kind}_{n}>'
+
 const SCALE_SIZES = {
   '0.2': {
     '16:9': '608x352',
@@ -134,7 +136,16 @@ function describeImageModels(models: readonly UpaiModel[]): readonly UpaiModel[]
     return models
   }
 
-  return [{ ...first, description: MOCK_IMAGE_DESCRIPTION }, ...rest]
+  const labeled: UpaiModel = {
+    ...first,
+    description: MOCK_IMAGE_DESCRIPTION,
+    capabilities: {
+      ...first.capabilities,
+      prompt: { ...first.capabilities.prompt, reference_label: MOCK_IMAGE_REFERENCE_LABEL },
+    },
+  }
+
+  return [labeled, ...rest]
 }
 
 /** A ready video model with scale resolutions, so the picker shows pixel labels. */

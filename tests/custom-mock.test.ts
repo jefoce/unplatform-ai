@@ -1,4 +1,4 @@
-/* eslint-disable max-lines-per-function -- mock scenarios share one fixture set */
+/* eslint-disable max-lines, max-lines-per-function -- mock scenarios share one fixture set */
 
 import os from 'node:os'
 import path from 'node:path'
@@ -8,7 +8,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { MOCK_GENERATE_MS, MOCK_QUEUE_MS } from '../src/core/constants'
 import { VIDEO_PRESETS } from '../src/core/presets'
 import type { BindingBase } from '../src/core/presets/common/binding'
+import { mapCustomModel } from '../src/core/presets/custom/from-capabilities'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
+import type { CustomEndpoint } from '../src/core/schemas/custom-endpoint'
 import type { GenerationInput } from '../src/core/schemas/generation-record'
 import type { ImageGenerationInput } from '../src/core/schemas/image-record'
 
@@ -19,6 +21,8 @@ process.env.STORAGE_ROOT = ROOT
 const { isCustomEndpointMockMode } = await import('../src/server/config/mock-mode')
 
 const { createCustomMockImageProvider } = await import('../src/server/providers/mock/custom-image')
+
+const { customMockImagePrompt } = await import('../src/server/services/custom-mock-image-prompt')
 
 const { customMockFixtures } = await import('../src/server/providers/mock/custom-fixtures')
 
@@ -40,6 +44,17 @@ const BINDING: BindingBase = {
   provider: 'custom',
   modelId: 'wan22-i2v',
   pricing: { formula: 'perRun', skuRules: [], fallback: { per_run: 0 } },
+}
+
+const ENDPOINT: CustomEndpoint = {
+  id: 'mock-ready',
+  label: 'Mock ComfyUI',
+  badge: 'CU1',
+  baseUrl: 'http://mock',
+  enabled: true,
+  pricing: { mode: 'free', usd: 0 },
+  instanceId: 'mock-ready',
+  lastHealth: null,
 }
 
 function videoInput(prompt: string): GenerationInput {
@@ -84,6 +99,20 @@ describe('custom mock fixtures', () => {
     expect(ready.video).toHaveLength(3)
     expect(ready.image).toHaveLength(1)
     expect(ready.isReachable).toBe(true)
+  })
+
+  it('exposes the reference label template on the ready image model', () => {
+    const [model] = customMockCatalog({ scenario: 'ready' }).image
+
+    if (model === undefined) {
+      throw new Error('Missing ready image model')
+    }
+
+    expect(model.capabilities.prompt.reference_label).toBe('<{kind}_{n}>')
+
+    const mapped = mapCustomModel({ endpoint: ENDPOINT, model })
+
+    expect(mapped.preset?.refLabel).toBe('<{kind}_{n}>')
   })
 
   it('makes the stale model selectable with its reason', () => {
@@ -291,6 +320,15 @@ describe('custom mock registry', () => {
     } finally {
       vi.unstubAllEnvs()
     }
+  })
+
+  it('records the rendered custom image prompt', async () => {
+    const image = createCustomMockImageProvider({ instanceId: 'mock-ready' })
+    const preset = { ...IMAGE_PRESET, refLabel: '<{kind}_{n}>' }
+
+    await image.generate({ preset, input: imageInput('@Image 1', 1), references: [] })
+
+    expect(customMockImagePrompt()).toBe('<image_1>')
   })
 
   it('never calls fetch', async () => {

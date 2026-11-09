@@ -3,7 +3,10 @@
   "$id": "urn:upai:1:sync-images",
   "title": "upai/1 synchronous image result",
   "type": "object",
-  "required": ["data", "usage"],
+  "required": [
+    "data",
+    "usage"
+  ],
   "properties": {
     "data": {
       "type": "array",
@@ -14,7 +17,9 @@
     },
     "usage": {
       "type": "object",
-      "required": ["cost"],
+      "required": [
+        "cost"
+      ],
       "properties": {
         "cost": {
           "type": "number"
@@ -27,7 +32,10 @@
   "$defs": {
     "image": {
       "type": "object",
-      "required": ["b64_json", "media_type"],
+      "required": [
+        "b64_json",
+        "media_type"
+      ],
       "properties": {
         "b64_json": {
           "type": "string"

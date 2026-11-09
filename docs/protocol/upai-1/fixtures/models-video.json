@@ -14,7 +14,8 @@
       "capabilities": {
         "prompt": {
           "required": true,
-          "max_chars": 4000
+          "max_chars": 4000,
+          "reference_label": "<{kind}_{n}>"
         },
         "negative_prompt": false,
         "references": {
@@ -31,9 +32,16 @@
             "required": 0
           }
         },
-        "resolutions": ["480p", "720p"],
+        "resolutions": [
+          "480p",
+          "720p"
+        ],
         "default_resolution": "480p",
-        "aspect_ratios": ["16:9", "9:16", "1:1"],
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
         "default_aspect_ratio": "16:9",
         "sizes": {
           "480p": {
@@ -51,7 +59,12 @@
         "reference_limits": {
           "image": {
             "max_bytes": 20971520,
-            "formats": ["png", "jpg", "jpeg", "webp"]
+            "formats": [
+              "png",
+              "jpg",
+              "jpeg",
+              "webp"
+            ]
           }
         },
         "frames": {
@@ -105,9 +118,16 @@
             "required": 0
           }
         },
-        "resolutions": ["480p", "720p"],
+        "resolutions": [
+          "480p",
+          "720p"
+        ],
         "default_resolution": "480p",
-        "aspect_ratios": ["16:9", "9:16", "1:1"],
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
         "default_aspect_ratio": "16:9",
         "sizes": {
           "480p": {
@@ -125,7 +145,12 @@
         "reference_limits": {
           "image": {
             "max_bytes": 20971520,
-            "formats": ["png", "jpg", "jpeg", "webp"]
+            "formats": [
+              "png",
+              "jpg",
+              "jpeg",
+              "webp"
+            ]
           }
         },
         "frames": {

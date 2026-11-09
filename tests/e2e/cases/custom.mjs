@@ -1,7 +1,9 @@
 import {
   clickGenerate,
+  dropFile,
   gotoTab,
   openApp,
+  PNG_1PX,
   resetLocal,
   setPrompt,
   waitBodyText,
@@ -273,6 +275,67 @@ async function firstRecordId(server) {
   throw new Error('Timed out waiting for the custom record')
 }
 
+async function firstImageId(server) {
+  const deadline = Date.now() + WAIT_MS
+
+  while (Date.now() < deadline) {
+    const result = await server.api('/api/images')
+    const [record] = result.items
+
+    if (record !== undefined) {
+      return record.id
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 250)
+    })
+  }
+
+  throw new Error('Timed out waiting for the custom image record')
+}
+
+async function customReferenceLabel(context) {
+  const { driver, server, width } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:image-draft', 'unplatform-ai:image-view'])
+  await gotoTab(driver, 'Image')
+  await openImageModelPicker(driver)
+  await waitPickerRow(driver, 'CU1', IMAGE_MODEL)
+  await selectPickerRow(driver, 'CU1', IMAGE_MODEL)
+  await waitBodyText(driver, IMAGE_CARD, WAIT_MS)
+
+  await dropFile(driver, 'reference.png', 'image/png', PNG_1PX)
+  await driver.waitFor(
+    `document.querySelectorAll('[data-image-references] [aria-label^="Remove "]').length === 1`,
+    WAIT_MS,
+    'one image reference',
+  )
+
+  await setPrompt(driver, '@Image 1')
+  await clickGenerate(driver)
+
+  const id = await firstImageId(server)
+
+  await waitRecord(
+    server,
+    '/api/images',
+    id,
+    (record) => {
+      return record.status === 'completed' && record.outputs.length > 0
+    },
+    'completed image',
+  )
+
+  const result = await server.api('/api/dev/custom-mock/prompt')
+
+  if (result.prompt !== '<image_1>') {
+    throw new Error(`Custom prompt was ${JSON.stringify(result.prompt)}`)
+  }
+
+  await shoot(driver, `custom-reference-label-${String(width)}`)
+}
+
 async function customEndpointGenerate(context) {
   const { driver, server } = context
 
@@ -403,5 +466,10 @@ export const customCases = [
   {
     name: 'custom-endpoint/image-resolution-labels',
     run: imageResolutionLabels,
+  },
+  {
+    name: 'custom-endpoint/reference-label',
+    run: customReferenceLabel,
+    fresh: true,
   },
 ]

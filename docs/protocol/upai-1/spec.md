@@ -60,7 +60,7 @@ Server settings for these checks:
 - Job id: canonical lowercase UUID version 4, matching `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`.
 - Model id: matching `^[a-z0-9][a-z0-9._-]{0,128}$`.
 - Upload ref: `upai-upload:<sha256>`, where `<sha256>` is 64 lowercase hexadecimal characters.
-- Run id: `<job id>:<run index>`. Run ids are internal to the server and are not part of this protocol.
+- Run id: `<job id>_r<run index>`. Run ids are internal to the server and are not part of this protocol.
 
 ## 6. Errors
 
@@ -202,6 +202,7 @@ Capabilities common to every model:
 |---|---|---|
 | `prompt.required` | boolean | Prompt must be non-empty. |
 | `prompt.max_chars` | integer | Maximum prompt length in characters. |
+| `prompt.reference_label` | string or null | Optional template for client reference labels. |
 | `negative_prompt` | boolean | Whether a negative prompt is accepted. True only when the model wires a negative prompt output. |
 | `references.image` | object | `{max, required}` image reference count limits. |
 | `references.video` | object | `{max, required}` video reference count limits. |
@@ -214,6 +215,8 @@ Capabilities common to every model:
 | `seed` | boolean | Whether the model accepts a seed. |
 | `reference_limits.image.max_bytes` | integer | Maximum bytes for one image reference. |
 | `reference_limits.image.formats` | array of string | Accepted image file extensions without the dot. |
+
+`prompt.reference_label` is an optional template a client may use to build reference labels. Placeholders are `{kind}` for the lowercase kind, `{Kind}` for the capitalized kind, `{n}` for the 1-based slot and `{i}` for the 0-based slot. The template is at most 64 characters and must contain `{n}` or `{i}`. When absent, the client decides the label format. Optional and additive in `upai/1`.
 
 Capabilities present for video models:
 
@@ -241,6 +244,19 @@ Capabilities present for image models:
 | `count.max` | integer | Maximum number of images in one request. |
 
 `count.max` bounds the `n` field of an image request.
+
+### Resolution labels
+
+Resolution labels are model-defined. These lists are recommendations, not protocol values.
+
+- Video: `480p`, `720p`, `768p`, `1080p`, `2K`, `4K`.
+- Image: `512`, `768`, `1K`, `1.5K`, `2K`, `4K`.
+
+The server keeps a label when it is in the list for the model kind or when the
+model defines a `size_overrides` entry for it, so a server may accept a custom
+label such as `0.9`. The app shows the labels from the model list. A label with
+neither a list membership nor a size override is dropped with a warning. A model
+with no labels left is `invalid`.
 
 ## 10. Create video job
 

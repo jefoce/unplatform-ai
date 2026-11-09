@@ -3,7 +3,13 @@
   "$id": "urn:upai:1:upload",
   "title": "upai/1 upload",
   "type": "object",
-  "required": ["sha256", "ref", "size", "content_type", "filename"],
+  "required": [
+    "sha256",
+    "ref",
+    "size",
+    "content_type",
+    "filename"
+  ],
   "properties": {
     "sha256": {
       "type": "string",

@@ -3,7 +3,11 @@
   "$id": "urn:upai:1:create-job",
   "title": "upai/1 created job",
   "type": "object",
-  "required": ["id", "status", "polling_url"],
+  "required": [
+    "id",
+    "status",
+    "polling_url"
+  ],
   "properties": {
     "id": {
       "type": "string",

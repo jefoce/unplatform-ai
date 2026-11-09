@@ -24,13 +24,23 @@
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "kind": {
-      "enum": ["video", "image"]
+      "enum": [
+        "video",
+        "image"
+      ]
     },
     "model": {
       "type": "string"
     },
     "status": {
-      "enum": ["pending", "in_progress", "completed", "failed", "cancelled", "expired"]
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "failed",
+        "cancelled",
+        "expired"
+      ]
     },
     "progress": {
       "oneOf": [
@@ -43,7 +53,10 @@
       ]
     },
     "seed": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 0,
       "maximum": 2147483647
     },
@@ -62,11 +75,16 @@
       ]
     },
     "error": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "usage": {
       "type": "object",
-      "required": ["cost"],
+      "required": [
+        "cost"
+      ],
       "properties": {
         "cost": {
           "type": "number"
@@ -78,20 +96,31 @@
       "type": "string"
     },
     "started_at": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "finished_at": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "expires_at": {
-      "type": ["integer", "null"]
+      "type": [
+        "integer",
+        "null"
+      ]
     }
   },
   "additionalProperties": true,
   "$defs": {
     "progress": {
       "type": "object",
-      "required": ["percent"],
+      "required": [
+        "percent"
+      ],
       "properties": {
         "percent": {
           "type": "integer",
@@ -99,16 +128,28 @@
           "maximum": 100
         },
         "node": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "value": {
-          "type": ["integer", "null"]
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "max": {
-          "type": ["integer", "null"]
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "queue_position": {
-          "type": ["integer", "null"]
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "waiting_on": {
           "oneOf": [
@@ -116,7 +157,10 @@
               "type": "null"
             },
             {
-              "enum": ["pack_queue", "comfyui_busy"]
+              "enum": [
+                "pack_queue",
+                "comfyui_busy"
+              ]
             }
           ]
         }

@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { aspectSize, type PixelSize } from '@/core/media/geometry'
+import { renderPromptForApi } from '@/core/prompt-tokens'
 import type { ImageGenerationInput } from '@/core/schemas/image-record'
 import type { TestResult } from '@/core/types'
 
@@ -17,6 +18,7 @@ import {
   customMockUnavailableError,
   customMockWorkflowInvalidError,
 } from './custom-errors'
+import { recordCustomMockImagePrompt } from './custom-image-prompts'
 import {
   type CustomMockCatalog,
   customMockCatalog,
@@ -50,6 +52,8 @@ export function createCustomMockImageProvider(options: CustomMockOptions): Image
   async function generate(params: ImageGenerateParams): Promise<ImageResult> {
     assertReachable()
     assertPrompt(params.input.prompt)
+
+    recordCustomMockImagePrompt(renderPromptForApi(params.input.prompt.trim(), params.preset))
 
     const size = sizeFor(params.input)
     const count = Math.max(1, params.input.count)

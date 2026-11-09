@@ -276,7 +276,7 @@ describe('upai/1 schemas', () => {
     const source = fs.readFileSync(path.join(ROOT, 'SOURCE'), 'utf8')
 
     expect(source).toContain('repo: unplatform-ai-provider-node')
-    expect(source).toContain('commit: 2a30d9e')
+    expect(source).toContain('commit: c1a44ed')
   })
 })
 
