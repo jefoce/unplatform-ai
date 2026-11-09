@@ -7,7 +7,6 @@ Example documents for `upai/1`. Every file is valid JSON and validates against t
 | `health.json` | `../schema/health.schema.json` |
 | `models-video.json` | `../schema/models.schema.json` |
 | `models-image.json` | `../schema/models.schema.json` |
-| `models-invalid.json` | `../schema/models.schema.json` |
 | `job-pending.json` | `../schema/job.schema.json` |
 | `job-in_progress.json` | `../schema/job.schema.json` |
 | `job-completed.json` | `../schema/job.schema.json` |
