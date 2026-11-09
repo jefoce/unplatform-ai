@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-lines-per-function -- endpoint cases share one fixture setup */
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -73,6 +74,10 @@ function jsonResponse(body: unknown): Response {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function deferred<T>() {
+  return Promise.withResolvers<T>()
 }
 
 function mockFetch(): string[] {
@@ -293,6 +298,120 @@ describe('server-owned test health', () => {
     forgetLastTest({ baseUrl: SAVED_URL, token: null })
 
     expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).toBeNull()
+  })
+})
+
+describe('overlapping endpoint tests', () => {
+  it('keeps the newer success when an older success finishes last', async () => {
+    const olderHealth = deferred<void>()
+    const olderStarted = deferred<void>()
+    let healthCalls = 0
+    let isOlderReleased = false
+    const newerVideo = { data: videoFixture.data.slice(0, 1) }
+    const newerImage = { data: imageFixture.data.slice(0, 1) }
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+
+        if (url.endsWith('/health')) {
+          healthCalls += 1
+
+          if (healthCalls === 1) {
+            olderStarted.resolve()
+            await olderHealth.promise
+            isOlderReleased = true
+
+            return jsonResponse({ ...HEALTH, max_running: 5 })
+          }
+
+          return jsonResponse({ ...HEALTH, max_running: 3 })
+        }
+
+        if (isOlderReleased) {
+          return url.endsWith('/videos/models')
+            ? jsonResponse(videoFixture)
+            : jsonResponse(imageFixture)
+        }
+
+        return url.endsWith('/videos/models') ? jsonResponse(newerVideo) : jsonResponse(newerImage)
+      }),
+    )
+
+    const olderRun = testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    await olderStarted.promise
+
+    const newerResult = await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(newerResult.ok).toBe(true)
+
+    const lastAfterNewer = lastTestFor({ baseUrl: SAVED_URL, token: null })
+    const healthAfterNewer = getHealth(SAVED_ID)
+    const cacheAfterNewer = await readEndpointModels(SAVED_ID)
+
+    expect(lastAfterNewer?.maxRunning).toBe(3)
+    expect(cacheAfterNewer?.video).toHaveLength(1)
+    expect(cacheAfterNewer?.image).toHaveLength(1)
+
+    olderHealth.resolve()
+    const olderResult = await olderRun
+
+    expect(olderResult.ok).toBe(true)
+    expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).toEqual(lastAfterNewer)
+    expect(getHealth(SAVED_ID)).toEqual(healthAfterNewer)
+    expect(await readEndpointModels(SAVED_ID)).toEqual(cacheAfterNewer)
+    expect(catalog.clearModelCatalog).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the newer failure when an older success finishes last', async () => {
+    const olderHealth = deferred<void>()
+    const olderStarted = deferred<void>()
+    let healthCalls = 0
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+
+        if (!url.endsWith('/health')) {
+          return url.endsWith('/videos/models')
+            ? jsonResponse(videoFixture)
+            : jsonResponse(imageFixture)
+        }
+
+        healthCalls += 1
+
+        if (healthCalls === 1) {
+          olderStarted.resolve()
+          await olderHealth.promise
+
+          return jsonResponse(HEALTH)
+        }
+
+        throw new TypeError('fetch failed')
+      }),
+    )
+
+    const olderRun = testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    await olderStarted.promise
+
+    const newerResult = await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+    const healthAfterNewer = getHealth(SAVED_ID)
+
+    expect(newerResult.ok).toBe(false)
+    expect(healthAfterNewer?.state).toBe('unreachable')
+
+    olderHealth.resolve()
+    const olderResult = await olderRun
+
+    expect(olderResult.ok).toBe(true)
+    expect(getHealth(SAVED_ID)).toEqual(healthAfterNewer)
+    expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).toBeNull()
+    expect(await readEndpointModels(SAVED_ID)).toBeNull()
+    expect(catalog.clearModelCatalog).not.toHaveBeenCalled()
   })
 })
 
