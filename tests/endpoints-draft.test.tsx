@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { EndpointOverviewEntry, EndpointTestResult } from '@/core/api/endpoints'
+import type { EndpointRowPatch } from '@/features/settings/endpoint-draft'
 import { useEndpointsDraft } from '@/features/settings/use-endpoints-draft'
 
 import { required } from './helpers/required'
@@ -176,6 +177,38 @@ describe('endpoint draft save and cancel', () => {
     expect(result.current.rows[0]?.test).toBeNull()
     expect(result.current.rows[0]?.lastHealth).toBeNull()
     expect(result.current.rows[0]?.instanceId).toBeNull()
+    expect(result.current.rows[0]?.status).toBe('unknown')
+  })
+})
+
+describe('endpoint test clearing keeps the instance id', () => {
+  it.each<[string, EndpointRowPatch]>([
+    ['enabled', { enabled: false }],
+    ['token', { tokenValue: 'new-token' }],
+  ])('keeps the instance id when only %s changes', async (_field, patch) => {
+    mocks.test.mockResolvedValue(TEST_RESULT)
+
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    await act(async () => {
+      result.current.onTest(first.key)
+    })
+
+    await waitFor(() => {
+      expect(result.current.rows[0]?.instanceId).toBe(TEST_RESULT.instanceId)
+    })
+
+    act(() => {
+      result.current.onChange(first.key, patch)
+    })
+
+    expect(result.current.rows[0]?.test).toBeNull()
+    expect(result.current.rows[0]?.lastHealth).toBeNull()
+    expect(result.current.rows[0]?.instanceId).toBe(TEST_RESULT.instanceId)
     expect(result.current.rows[0]?.status).toBe('unknown')
   })
 })

@@ -54,8 +54,18 @@ function isExpansionOnly(patch: EndpointRowPatch): boolean {
   })
 }
 
-function clearTest(row: EndpointRowDraft): EndpointRowDraft {
-  return { ...row, test: null, lastHealth: null, instanceId: null, status: 'unknown' }
+function clearTest(row: EndpointRowDraft, patch: EndpointRowPatch): EndpointRowDraft {
+  const hasSameBaseUrl = isNil(patch.baseUrl) || patch.baseUrl === row.baseUrl
+  const instanceId = hasSameBaseUrl ? row.instanceId : null
+
+  return {
+    ...row,
+    ...patch,
+    test: null,
+    lastHealth: null,
+    instanceId,
+    status: 'unknown',
+  }
 }
 
 function seedRows(data: EndpointOverview | undefined): EndpointRowDraft[] {
@@ -169,7 +179,7 @@ export function useEndpointsDraft(params: UseEndpointsDraftParams): EndpointsDra
           return next
         }
 
-        return clearTest(next)
+        return clearTest(row, patch)
       }),
     )
 
