@@ -44,12 +44,14 @@ describe('compress-downloads', () => {
     const root = '/tmp/unplatform-ai'
     const target = 'x86_64-unknown-linux-gnu'
 
+    const absolute = path.resolve(root, '/Volumes/ram/upai-build/cargo')
+
     expect(
       bundleDir({ root, target, env: { CARGO_TARGET_DIR: '/Volumes/ram/upai-build/cargo' } }),
-    ).toBe(path.join('/Volumes/ram/upai-build/cargo', target, 'release', 'bundle'))
+    ).toBe(path.join(absolute, target, 'release', 'bundle'))
 
     expect(bundleDir({ root, env: { CARGO_TARGET_DIR: '../cargo' } })).toBe(
-      path.join(root, '..', 'cargo', 'release', 'bundle'),
+      path.join(path.resolve(root, '../cargo'), 'release', 'bundle'),
     )
 
     expect(bundleDir({ root, env: {} })).toBe(

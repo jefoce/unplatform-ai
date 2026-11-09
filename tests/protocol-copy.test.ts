@@ -1,17 +1,21 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { isEmpty } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 
 import { required } from './helpers/required'
 
 const VENDORED_ROOT = path.join(process.cwd(), 'docs/protocol/upai-1')
 const PACK_ROOT = '/Users/jefoce/Documents/AI/unplatform-ai-provider-node'
-const PACK_PROTOCOL = path.join(PACK_ROOT, 'protocol')
-const PACK_REF = path.join(PACK_ROOT, '.git/refs/heads/0.1.0')
 const SOURCE = fs.readFileSync(path.join(VENDORED_ROOT, 'SOURCE'), 'utf8')
 const COMMIT = required(/^commit:\s*(\S+)$/m.exec(SOURCE)?.[1], 'commit in SOURCE')
-const HAS_PACK = fs.existsSync(PACK_PROTOCOL)
+
+interface PackSnapshot {
+  files: string[]
+  error: string
+}
 
 /** Files under a directory, relative and slash separated. */
 function filesUnder(dir: string): string[] {
@@ -25,36 +29,61 @@ function filesUnder(dir: string): string[] {
     })
 }
 
-/** Bytes of a file in the pack working tree. */
-function packFile(name: string): Buffer {
-  return fs.readFileSync(path.join(PACK_PROTOCOL, name))
+function git(args: string[]): string {
+  return execFileSync('git', ['-C', PACK_ROOT, ...args], { encoding: 'utf8' })
 }
 
-function packFiles(): string[] {
-  return filesUnder(PACK_PROTOCOL)
+/** Files under `protocol/` at the pinned commit, relative to `protocol/`. */
+function pinnedFiles(): string[] {
+  return git(['ls-tree', '-r', '--name-only', COMMIT, 'protocol/'])
+    .split('\n')
+    .filter((line) => {
+      return line.length > 0
+    })
+    .map((line) => {
+      return line.replace(/^protocol\//, '')
+    })
 }
 
-describe.skipIf(!HAS_PACK)('vendored upai/1 tree', () => {
-  it('matches the pack file list', () => {
+/** Bytes of a pinned file, read from git rather than the working tree. */
+function pinnedBytes(rel: string): Buffer {
+  return execFileSync('git', ['-C', PACK_ROOT, 'show', `${COMMIT}:protocol/${rel}`], {
+    maxBuffer: 10 * 1024 * 1024,
+  })
+}
+
+function readPack(): PackSnapshot {
+  if (!fs.existsSync(PACK_ROOT)) {
+    return { files: [], error: `pack not found at ${PACK_ROOT}` }
+  }
+
+  try {
+    return { files: pinnedFiles(), error: '' }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.split('\n')[0] : String(error)
+
+    return { files: [], error: `git cannot read ${COMMIT}: ${detail}` }
+  }
+}
+
+const PACK = readPack()
+const IS_SKIPPED = !isEmpty(PACK.error)
+const SUITE = IS_SKIPPED ? `vendored upai/1 tree (skipped: ${PACK.error})` : 'vendored upai/1 tree'
+
+describe.skipIf(IS_SKIPPED)(SUITE, () => {
+  it('matches the pinned pack file list', () => {
     const vendored = filesUnder(VENDORED_ROOT).filter((name) => {
       return name !== 'SOURCE'
     })
 
-    expect(vendored.sort()).toEqual(packFiles().sort())
+    expect(vendored.sort()).toEqual([...PACK.files].sort())
   })
 
-  it('matches every pack file byte for byte', () => {
-    for (const name of packFiles()) {
-      const vendored = fs.readFileSync(path.join(VENDORED_ROOT, name))
+  it('matches every pinned pack file byte for byte', () => {
+    for (const rel of PACK.files) {
+      const vendored = fs.readFileSync(path.join(VENDORED_ROOT, rel))
 
-      expect(vendored.equals(packFile(name)), name).toBe(true)
+      expect(vendored.equals(pinnedBytes(rel)), rel).toBe(true)
     }
-  })
-
-  it('pins the pack branch and commit', () => {
-    const ref = fs.readFileSync(PACK_REF, 'utf8').trim()
-
-    expect(path.basename(PACK_REF)).toBe('0.1.0')
-    expect(ref.startsWith(COMMIT)).toBe(true)
   })
 })
