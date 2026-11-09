@@ -31,7 +31,7 @@ Press **Create** and copy the key. It starts with `sk-or-v1-`.
 
 ## 3. Optional: a management key for your balance
 
-The management key is optional. This app only reads from it: the one call is `/api/v1/credits`, and the only thing it unlocks is your account balance in the wallet pill. Without it, that balance is simply unavailable.
+The management key is optional. This app only reads from it: the one call is `/api/v1/credits`, and the only thing it provides is your account balance in the wallet pill. Without it, that balance is unavailable.
 
 A spend-limited API key already reports what is left of its limit through `/api/v1/key`, and the app shows that by default. The management key only matters when you want the whole account balance.
 

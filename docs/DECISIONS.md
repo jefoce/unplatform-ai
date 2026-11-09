@@ -188,9 +188,9 @@ Why: WebKitGTK parses `backdrop-filter`, so an `@supports not` fallback never fi
 
 Rejected: an `@supports not (backdrop-filter: blur(1px))` fallback, a user-agent hack per component, and a runtime class toggle.
 
-## 2026-10-25 - Ternaries carry one simple choice
+## 2026-10-25 - Ternaries carry one direct choice
 
-Decision: a ternary is allowed only as `const name = test ? a : b`. The test is one simple check, branches are plain values. Components are never rendered through a ternary, use `&&`, an early return or a component variable (`const Icon = isOn ? A : B`). `TERNARY_SELECTORS` enforces the rule in `src`, tests stay exempt.
+Decision: a ternary is allowed only as `const name = test ? a : b`. The test is one direct check, branches are plain values. Components are never rendered through a ternary, use `&&`, an early return or a component variable (`const Icon = isOn ? A : B`). `TERNARY_SELECTORS` enforces the rule in `src`, tests stay exempt.
 
 Why: a JSX or call branch hides a second code path inside an expression, and the selector keeps each choice named.
 
@@ -442,7 +442,7 @@ Rejected: desktop only (slow iteration), browser only (no keychain or native dia
 
 Decision: the desktop server uses 47821 by default, saved in `desktop.json`. A busy port falls back to a free one and is saved.
 
-Why: a predictable origin makes the session URL, navigation guard and dev tooling simple.
+Why: a predictable origin keeps the session URL, navigation guard and dev tooling predictable.
 
 Rejected: a random port every launch.
 
@@ -582,7 +582,7 @@ After a restart, mock content uses record.input as the fallback source for dimen
 
 Directory browse failures throw typed BrowseError values with status 400 for invalid input and 404 for missing paths.
 
-## 2026-10-20 - Review follow-ups
+## 2026-10-20 - Follow-up fixes
 
 - Tab normalization runs `inputForSubmit` on submit and server side, and history thumbs render only the record's tab.
 - Boot reconcile no longer expires by age. A job expires only on OpenRouter expired, 404, or a passed `expires_at`.

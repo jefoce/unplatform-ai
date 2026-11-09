@@ -7,7 +7,7 @@ export function isCustomPresetId(presetId: string): boolean {
   return presetId.startsWith(CUSTOM_PRESET_PREFIX)
 }
 
-/** `custom.<endpointId>.<modelId>` per design section 4. */
+/** Endpoint id from "custom.<endpointId>.<modelId>", or null. */
 export function endpointIdFromPresetId(presetId: string): string | null {
   if (!isCustomPresetId(presetId)) {
     return null

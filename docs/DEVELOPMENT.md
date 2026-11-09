@@ -86,8 +86,10 @@ Mock mode keeps the Test button enabled without stored keys.
 
 The custom provider talks upai/1 to the ComfyUI node pack. Start the pack mock server for adapter work:
 
+The pack repo is a sibling checkout by default; set `UPAI_PACK_ROOT` for another location.
+
 ```bash
-cd ../unplatform-ai-provider-node && .venv/bin/python -m upai_provider.mock_server --port 8190
+cd "${UPAI_PACK_ROOT:-../unplatform-ai-provider-node}" && .venv/bin/python -m upai_provider.mock_server --port 8190
 ```
 
 Point an endpoint at `http://127.0.0.1:8190` and press Test. `CUSTOM_ENDPOINT_MOCK=1` is the fallback: the in-process mock serves `docs/protocol/upai-1/fixtures` and needs no ComfyUI or Python.
@@ -290,7 +292,7 @@ The bundle sets `LSUIElement` so the sidecar gets no Dock tile. Next sets `proce
 
 That policy flip can leave WebKit treating the webview as inactive, which on macOS 14+ throttles rendering to a few fps. Every window is built with `BackgroundThrottlingPolicy::Disabled` and the app activates on launch, so the UI stays at full frame rate while another app is frontmost.
 
-WKWebView still caps page rendering near 60 fps on ProMotion. After the window is built, `server/boot.rs` calls `fps::disable_60fps_cap` through `with_webview` and turns off the private `PreferPageRenderingUpdatesNear60FPSEnabled` feature in `WKPreferences`, which unlocks up to 120 fps. The call is wrapped in `catch_unwind` and writes `120 Hz page rendering ...` to `desktop.log`. Every private selector is checked first, so a missing one leaves rendering at 60 fps instead of crashing.
+WKWebView still caps page rendering near 60 fps on ProMotion. After the window is built, `server/boot.rs` calls `fps::disable_60fps_cap` through `with_webview` and turns off the private `PreferPageRenderingUpdatesNear60FPSEnabled` feature in `WKPreferences`, which allows up to 120 fps. The call is wrapped in `catch_unwind` and writes `120 Hz page rendering ...` to `desktop.log`. Every private selector is checked first, so a missing one leaves rendering at 60 fps instead of crashing.
 
 The private API is direct-distribution only. It is not App Store safe.
 

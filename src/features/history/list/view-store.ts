@@ -59,7 +59,7 @@ export const zoomToGridColumns = (zoom: number): number => {
   return stepValue(GRID_COLUMNS, zoom)
 }
 
-/** Tile width from the design table, measured at the 1518px reference row. */
+/** Tile width for the list proportions, measured from the 1518 px reference row. */
 export const zoomToTileWidth = (zoom: number): number => {
   return stepValue(TILE_WIDTHS, zoom)
 }

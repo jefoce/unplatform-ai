@@ -211,7 +211,7 @@ Delete the app, then the `.unplatform-ai` folder if you don't want your videos. 
 
 ## What's next
 
-Ideas, depending on how many people use the app: more video and image models, and simple editing (trim videos, crop and resize pictures). Want one sooner? Open or upvote an issue.
+Ideas, depending on how many people use the app: more video and image models, and basic editing (trim videos, crop and resize pictures). Want one sooner? Open or upvote an issue.
 
 ## For developers
 

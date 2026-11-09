@@ -5,10 +5,17 @@ import path from 'node:path'
 import { isEmpty } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 
+import { isNonEmptyString } from '../src/core/guards'
 import { required } from './helpers/required'
 
 const VENDORED_ROOT = path.join(process.cwd(), 'docs/protocol/upai-1')
-const PACK_ROOT = '/Users/jefoce/Documents/AI/unplatform-ai-provider-node'
+
+const PACK_ENV = process.env.UPAI_PACK_ROOT?.trim()
+
+const PACK_ROOT = isNonEmptyString(PACK_ENV)
+  ? PACK_ENV
+  : path.resolve(process.cwd(), '..', 'unplatform-ai-provider-node')
+
 const SOURCE = fs.readFileSync(path.join(VENDORED_ROOT, 'SOURCE'), 'utf8')
 const COMMIT = required(/^commit:\s*(\S+)$/m.exec(SOURCE)?.[1], 'commit in SOURCE')
 
