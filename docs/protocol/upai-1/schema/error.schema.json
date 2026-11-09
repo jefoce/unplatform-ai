@@ -27,6 +27,7 @@
             "not_found",
             "method_not_allowed",
             "too_large",
+            "insufficient_storage",
             "workflow_invalid",
             "queue_full",
             "comfy_unavailable",

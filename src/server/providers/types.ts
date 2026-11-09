@@ -116,6 +116,7 @@ export interface VideoProvider {
   submit(params: SubmitJobParams): Promise<SubmittedJob>
   getJob(job: JobRef): Promise<JobSnapshot>
   cancel?(job: JobRef): Promise<void>
+  deleteResult?(job: JobRef): Promise<void>
   fetchContent(request: ContentRequest): Promise<Response>
   getAccount(params?: AccountLookupParams): Promise<ProviderAccount>
   getPricing(preset: VideoPreset, isForce?: boolean): Promise<PricingInfo>
@@ -167,6 +168,7 @@ export type ImageResultItem = ImageResultData | ImageResultError
 export interface ImageResult {
   items: readonly ImageResultItem[]
   costUsd: number | null
+  job?: JobRef
 }
 
 export interface ImageProvider {
@@ -174,6 +176,7 @@ export interface ImageProvider {
   isConfigured(): boolean
   generate(params: ImageGenerateParams): Promise<ImageResult>
   cancel?(job: JobRef): Promise<void>
+  deleteResult?(job: JobRef): Promise<void>
   listModels(): Promise<ProviderImageModelList>
   listEndpoints(modelId: string): Promise<EndpointSignal>
   testConnection(): Promise<TestResult>

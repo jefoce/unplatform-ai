@@ -12,7 +12,7 @@ import { endpointRemovedError } from '../providers/custom/errors'
 import { instanceIdOf } from '../providers/custom/record-instance'
 import { ProviderError, providerStatusOf } from '../providers/provider-error'
 import { getImageProvider } from '../providers/registry'
-import type { ImageReferencePayload, ImageResultItem } from '../providers/types'
+import type { ImageReferencePayload, ImageResultItem, JobRef } from '../providers/types'
 import { recordHealthFromError, recordHealthOk } from '../services/endpoint-health'
 
 export interface PlannedCall {
@@ -26,6 +26,7 @@ export interface CallOutcome extends PlannedCall {
   error: string | null
   errorStatus?: number
   isUncertain: boolean
+  job?: JobRef
 }
 
 export interface PreparedImage {
@@ -131,6 +132,7 @@ export async function submitCall(params: SubmitCallParams): Promise<CallOutcome>
       costUsd: result.costUsd,
       error: null,
       isUncertain: false,
+      job: result.job,
     }
   } catch (error) {
     if (record.provider === 'custom') {

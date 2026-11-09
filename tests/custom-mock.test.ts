@@ -34,6 +34,11 @@ const { createCustomMockVideoProvider } = await import('../src/server/providers/
 const { getImageProvider, getVideoProvider, instanceKind, listInstances } =
   await import('../src/server/providers/registry')
 
+const { lastHealthOf } = await import('../src/server/services/endpoint-test-mock')
+
+const { __resetCustomMockDeletesForTests: resetDeletes, deletedCustomMockResults } =
+  await import('../src/server/providers/mock/custom-jobs')
+
 const { catalogStatus } = await import('../src/server/services/catalog-status')
 
 const START = Date.parse('2026-11-07T00:00:00.000Z')
@@ -99,6 +104,32 @@ describe('custom mock fixtures', () => {
     expect(ready.video).toHaveLength(3)
     expect(ready.image).toHaveLength(1)
     expect(ready.isReachable).toBe(true)
+  })
+
+  it('maps result_delete into the stored health, false when absent', () => {
+    const health = customMockFixtures().health
+
+    expect(lastHealthOf(health, '2026-01-01T00:00:00.000Z').resultDelete).toBe(true)
+
+    expect(
+      lastHealthOf({ ...health, result_delete: undefined }, '2026-01-01T00:00:00.000Z')
+        .resultDelete,
+    ).toBe(false)
+  })
+
+  it('records DELETE calls from the mock adapters', async () => {
+    resetDeletes()
+
+    const video = createCustomMockVideoProvider({ instanceId: 'mock-ready' })
+    const image = createCustomMockImageProvider({ instanceId: 'mock-ready' })
+
+    await video.deleteResult?.({ jobId: 'video-1', submittedAt: START.toString() })
+    await image.deleteResult?.({ jobId: 'image-1', submittedAt: START.toString() })
+
+    expect(deletedCustomMockResults()).toEqual([
+      { jobId: 'video-1', kind: 'video' },
+      { jobId: 'image-1', kind: 'image' },
+    ])
   })
 
   it('exposes the reference label template on the ready image model', () => {

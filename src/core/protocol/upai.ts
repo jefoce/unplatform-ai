@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { isOneOf } from '../guards'
+
 /** upai/1 wire schemas. Source revision lives in docs/protocol/upai-1/SOURCE. */
 
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -22,6 +24,7 @@ export const UPAI_ERROR_CODES = [
   'not_found',
   'method_not_allowed',
   'too_large',
+  'insufficient_storage',
   'workflow_invalid',
   'queue_full',
   'comfy_unavailable',
@@ -31,6 +34,11 @@ export const UPAI_ERROR_CODES = [
 ] as const
 
 export type UpaiErrorCode = (typeof UPAI_ERROR_CODES)[number]
+
+/** Narrows a wire code to one this client knows. */
+export function isUpaiErrorCode(code: string): code is UpaiErrorCode {
+  return isOneOf(UPAI_ERROR_CODES, code)
+}
 
 export const UPAI_JOB_STATUSES = [
   'pending',
@@ -204,6 +212,10 @@ export const UpaiHealthSchema = z
     upload_quota_bytes: z.number().int().min(0),
     instance_id: z.string().regex(INSTANCE_ID_PATTERN),
     max_running: z.number().int().min(1).max(8),
+    max_pending: z.number().int().min(0).optional(),
+    max_inline_bytes: z.number().int().min(0).optional(),
+    disk_free_bytes: z.number().int().min(0).optional(),
+    result_delete: z.boolean().optional(),
   })
   .loose()
 
@@ -250,9 +262,10 @@ export const UpaiErrorDetailsSchema = z.record(z.string(), z.unknown())
 
 export type UpaiErrorDetails = z.infer<typeof UpaiErrorDetailsSchema>
 
+/** A future code still parses, so the raw text stays in the record. */
 export const UpaiErrorSchema = z
   .object({
-    code: z.enum(UPAI_ERROR_CODES),
+    code: z.string(),
     message: z.string(),
     details: UpaiErrorDetailsSchema,
   })

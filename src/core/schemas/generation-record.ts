@@ -81,7 +81,7 @@ export const RecordProgressSchema = z.object({
 
 export type RecordProgress = z.infer<typeof RecordProgressSchema>
 
-const RecordJobSchema = z.object({
+export const RecordJobSchema = z.object({
   id: z.string(),
   generationId: z.string().optional(),
   submittedAt: z.string(),

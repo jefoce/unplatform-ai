@@ -13,6 +13,7 @@ import { downloadPaths } from '../paths'
 import type { JobSnapshot } from '../providers/types'
 import { getGeneration, saveGeneration, updateGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
+import { deleteFinishedResult } from './delete-finished-result'
 import { download, DownloadIntegrityError, type DownloadTask } from './download-file'
 import { buildOutput } from './download-output'
 
@@ -231,7 +232,7 @@ async function completeDownload(params: CompleteDownloadParams): Promise<void> {
 
   const output = await buildOutput({ record, video, preview })
 
-  await saveIfPresent(record.id, {
+  const isSaved = await saveIfPresent(record.id, {
     download: undefined,
     status: 'completed',
     output,
@@ -244,21 +245,27 @@ async function completeDownload(params: CompleteDownloadParams): Promise<void> {
   // Counters clear only after the record is saved, so a failed finalize is still retried.
   downloads.failures.delete(record.id)
   downloads.diskFullAt.delete(record.id)
+
+  if (isSaved) {
+    deleteFinishedResult({ record, kind: 'video' })
+  }
 }
 
 /**
  * Patches the current record under its lock, so a delete or a favorite toggle
  * during the download wins over the snapshot taken before it started.
  */
-async function saveIfPresent(id: string, patch: Partial<GenerationRecord>): Promise<void> {
-  await withLock(id, async () => {
+async function saveIfPresent(id: string, patch: Partial<GenerationRecord>): Promise<boolean> {
+  return withLock(id, async () => {
     const current = await getGeneration(id)
 
     if (!current) {
-      return
+      return false
     }
 
     await saveGeneration({ ...current, ...patch })
+
+    return true
   })
 }
 

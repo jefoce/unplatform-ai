@@ -34,6 +34,12 @@ export const CUSTOM_ERROR_RULES: readonly Rule[] = [
     kind: 'provider',
   },
   {
+    match: 'upai:insufficient_storage',
+    title: 'ComfyUI is out of disk space.',
+    hint: 'Free space on the ComfyUI machine, then try again.',
+    kind: 'provider',
+  },
+  {
     match: 'upai:too_large',
     title: 'The file is too large for ComfyUI.',
     hint: 'Use a smaller file or raise the limit in ComfyUI.',

@@ -173,6 +173,8 @@ submitting/grace -> submitting/uploading -> submitting/sending
 
 `completed` is saved only after the mp4 exists. Download failures return the record to `in_progress` and retry up to `MAX_DOWNLOAD_RETRIES`.
 
+For a custom endpoint, once a finished video or image result is safely saved, the app deletes it from ComfyUI. This runs only when the endpoint health reports `result_delete`, and it is best effort: a failed delete is logged once and never changes the record.
+
 User-facing labels come from `src/core/status-help.ts`:
 
 | Label | Video state | Image state |

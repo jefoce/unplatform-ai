@@ -9,5 +9,9 @@
   "max_upload_bytes": 104857600,
   "upload_quota_bytes": 10737418240,
   "instance_id": "11111111-1111-4111-8111-111111111111",
-  "max_running": 1
+  "max_running": 1,
+  "max_pending": 8,
+  "max_inline_bytes": 78642432,
+  "disk_free_bytes": 107374182400,
+  "result_delete": true
 }

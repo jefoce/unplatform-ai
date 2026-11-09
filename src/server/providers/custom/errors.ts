@@ -4,7 +4,7 @@ import { isNil } from 'lodash-es'
 
 import type { EndpointHealthStatus } from '@/core/endpoints'
 import { isNonEmptyString } from '@/core/guards'
-import { type UpaiJob } from '@/core/protocol/upai'
+import { isUpaiErrorCode, type UpaiError, type UpaiJob } from '@/core/protocol/upai'
 
 import { ProviderError, type ProviderErrorKind } from '../provider-error'
 
@@ -17,6 +17,30 @@ interface CustomErrorParams {
 
 export function upaiMessage(code: string, message: string): string {
   return `upai:${code}: ${message}`
+}
+
+export interface NormalizedUpaiError {
+  code: string
+  message: string
+}
+
+/** An unknown wire code maps to `internal` and keeps the raw code in the text. */
+export function normalizeUpaiError(error: UpaiError): NormalizedUpaiError {
+  const field = error.details.field
+  let suffix = ''
+
+  if (isNonEmptyString(field)) {
+    suffix = ` details.field=${field}`
+  }
+
+  if (isUpaiErrorCode(error.code)) {
+    return { code: error.code, message: `${upaiMessage(error.code, error.message)}${suffix}` }
+  }
+
+  return {
+    code: 'internal',
+    message: `${upaiMessage('internal', `${error.code}: ${error.message}`)}${suffix}`,
+  }
 }
 
 export function customError(params: CustomErrorParams): ProviderError {

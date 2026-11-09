@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one upai/1 adapter per kind */
 import 'server-only'
 
 import { isNil } from 'lodash-es'
@@ -35,6 +36,7 @@ import { jobFailureError, protocolError } from './errors'
 import { testCustomEndpoint } from './health'
 import {
   customRequest,
+  deleteCustomJob,
   endpointContentHosts,
   providerErrorFromResponse,
   requestHeaders,
@@ -282,6 +284,9 @@ export function createCustomVideoProvider(endpoint: CustomEndpoint): VideoProvid
     },
     cancel: (job) => {
       return cancelJob({ endpoint, job })
+    },
+    deleteResult: (job) => {
+      return deleteCustomJob({ endpoint, path: videoPath({ endpoint, job }) })
     },
     fetchContent: (request) => {
       return fetchContent({ endpoint, request })

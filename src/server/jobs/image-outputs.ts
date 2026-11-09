@@ -2,7 +2,8 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import { isOneOf } from '@/core/guards'
+import { isNonEmptyString, isOneOf } from '@/core/guards'
+import type { RecordJob } from '@/core/schemas/generation-record'
 import {
   IMAGE_OUTPUT_MEDIA_TYPES,
   type ImageOutput,
@@ -10,9 +11,10 @@ import {
 } from '@/core/schemas/image-record'
 
 import { providerStatusOf } from '../providers/provider-error'
-import type { ImageResultItem } from '../providers/types'
+import type { ImageResultItem, JobRef } from '../providers/types'
 import { removeImageOutputFile } from '../repos/images'
 import { writeImageOutput } from '../services/image-files'
+import { deleteFinishedResult } from './delete-finished-result'
 import { type CallOutcome, errorText, seedForImage } from './image-calls'
 import {
   costFor,
@@ -153,21 +155,36 @@ function adopt(params: AdoptParams): ImageRecord {
   }
 }
 
+function recordJobOf(job: JobRef | undefined): RecordJob | undefined {
+  if (isNil(job)) {
+    return undefined
+  }
+
+  return { id: job.jobId, submittedAt: job.submittedAt }
+}
+
 /** Writes one call's files, then merges its outputs into the record under the lock. */
 export async function saveOutcome(params: SaveOutcomeParams): Promise<void> {
   const { record, outcome, resolved } = params
   const written = await outcomesFor(record, outcome)
 
   const saved = await updateImage(record.id, (current) => {
-    if (current.status === 'saving') {
+    const job = current.job ?? recordJobOf(outcome.job)
+    let merged = current
+
+    if (!isNil(job)) {
+      merged = { ...current, job }
+    }
+
+    if (merged.status === 'saving') {
       return {
-        ...current,
-        outputs: mergeOutputs({ current: current.outputs, saved: written }),
-        cost: costFor(current, resolved),
+        ...merged,
+        outputs: mergeOutputs({ current: merged.outputs, saved: written }),
+        cost: costFor(merged, resolved),
       }
     }
 
-    return adopt({ current, written, resolved })
+    return adopt({ current: merged, written, resolved })
   })
 
   if (isNil(saved)) {
@@ -212,5 +229,23 @@ export async function finishImage(params: FinishImageParams): Promise<void> {
 
   if (!isNil(saved)) {
     warnOverEstimate(saved)
+    releaseFinishedResult(saved)
   }
+}
+
+/** Only a fully written completed or partial record loses its ComfyUI files. */
+function releaseFinishedResult(record: ImageRecord): void {
+  if (record.status !== 'completed' && record.status !== 'partial') {
+    return
+  }
+
+  const isWritten = record.outputs.every((output) => {
+    return output.status !== 'saved' || isNonEmptyString(output.file)
+  })
+
+  if (!isWritten) {
+    return
+  }
+
+  deleteFinishedResult({ record, kind: 'image' })
 }

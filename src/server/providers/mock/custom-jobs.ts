@@ -48,9 +48,31 @@ export interface CustomMockJobSnapshot {
   expiresAt: number | null
 }
 
+interface DeletedCustomMockResult {
+  jobId: string
+  kind: UpaiJobKind
+}
+
 const jobs = globalState<Map<string, CustomMockJob>>('customMockJobs', () => {
   return new Map()
 })
+
+const deletedResults = globalState<DeletedCustomMockResult[]>('customMockDeletedResults', () => {
+  return []
+})
+
+/** Called by the mock adapters so tests can assert the delete route. */
+export function recordCustomMockDelete(job: JobRef, kind: UpaiJobKind): void {
+  deletedResults.push({ jobId: job.jobId, kind })
+}
+
+export function deletedCustomMockResults(): readonly DeletedCustomMockResult[] {
+  return deletedResults
+}
+
+export function __resetCustomMockDeletesForTests(): void {
+  deletedResults.length = 0
+}
 
 export function startCustomMockJob(params: StartCustomMockJobParams): StartedCustomMockJob {
   const { instanceId, kind, modelId, prompt, startedAt = Date.now() } = params

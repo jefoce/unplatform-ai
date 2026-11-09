@@ -14,7 +14,11 @@
     "max_upload_bytes",
     "upload_quota_bytes",
     "instance_id",
-    "max_running"
+    "max_running",
+    "max_pending",
+    "max_inline_bytes",
+    "disk_free_bytes",
+    "result_delete"
   ],
   "properties": {
     "protocol": {
@@ -54,6 +58,21 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 8
+    },
+    "max_pending": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "max_inline_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "disk_free_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "result_delete": {
+      "type": "boolean"
     }
   },
   "additionalProperties": true

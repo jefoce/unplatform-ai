@@ -26,7 +26,12 @@ import type {
   VideoProvider,
 } from '../types'
 import { customMockUnavailableError, customMockWorkflowInvalidError } from './custom-errors'
-import { cancelCustomMockJob, customMockJobSnapshot, startCustomMockJob } from './custom-jobs'
+import {
+  cancelCustomMockJob,
+  customMockJobSnapshot,
+  recordCustomMockDelete,
+  startCustomMockJob,
+} from './custom-jobs'
 import {
   type CustomMockCatalog,
   customMockCatalog,
@@ -50,6 +55,7 @@ export function createCustomMockVideoProvider(options: CustomMockOptions): Video
     submit,
     getJob,
     cancel,
+    deleteResult,
     fetchContent,
     getAccount,
     getPricing,
@@ -139,6 +145,10 @@ export function createCustomMockVideoProvider(options: CustomMockOptions): Video
 
 function isConfigured(): boolean {
   return true
+}
+
+async function deleteResult(job: JobRef): Promise<void> {
+  recordCustomMockDelete(job, 'video')
 }
 
 function assertValidPrompt(prompt: string): void {

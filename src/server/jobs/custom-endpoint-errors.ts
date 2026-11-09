@@ -9,7 +9,7 @@ import {
   CUSTOM_QUOTA_MESSAGE,
 } from '@/core/providers/custom-messages'
 
-import { customError, upaiMessage } from '../providers/custom/errors'
+import { customError, normalizeUpaiError, upaiMessage } from '../providers/custom/errors'
 import { type ProviderError, type ProviderErrorKind } from '../providers/provider-error'
 
 interface ResponseErrorParams {
@@ -120,18 +120,17 @@ export function endpointResponseError(params: ResponseErrorParams): ProviderErro
     kind = 'server'
   }
 
-  const code = error?.code ?? 'internal'
-  let message = upaiMessage(code, `Upload failed (HTTP ${status})`)
-
   if (!isNil(error)) {
-    message = upaiMessage(error.code, error.message)
+    const normalized = normalizeUpaiError(error)
+
+    return customError({ kind, status, code: normalized.code, message: normalized.message })
   }
 
   return customError({
     kind,
     status,
-    code,
-    message,
+    code: 'internal',
+    message: upaiMessage('internal', `Upload failed (HTTP ${status})`),
   })
 }
 

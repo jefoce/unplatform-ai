@@ -1,18 +1,18 @@
 import 'server-only'
 
-import type { UpaiError, UpaiErrorCode } from '@/core/protocol/upai'
+import type { UpaiError } from '@/core/protocol/upai'
 
 import { ProviderError, type ProviderErrorKind } from '../provider-error'
 import { customMockFixtures } from './custom-fixtures'
 
-const ERROR_KINDS: Partial<Record<UpaiErrorCode, ProviderErrorKind>> = {
+const ERROR_KINDS: Partial<Record<string, ProviderErrorKind>> = {
   comfy_unavailable: 'timeout',
   workflow_invalid: 'server',
   model_not_found: 'input',
   job_failed: 'server',
 }
 
-const ERROR_STATUS: Partial<Record<UpaiErrorCode, number>> = {
+const ERROR_STATUS: Partial<Record<string, number>> = {
   comfy_unavailable: 0,
   workflow_invalid: 422,
   model_not_found: 404,

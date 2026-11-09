@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one endpoint draft test file */
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -67,6 +68,7 @@ const TEST_RESULT: EndpointTestResult = {
     lanAllowed: true,
     authRequired: false,
     maxUploadBytes: 100,
+    resultDelete: false,
     checkedAt: '2024-06-01T00:00:00.000Z',
   },
   warnings: [],

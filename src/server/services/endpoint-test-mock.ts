@@ -21,6 +21,7 @@ export function lastHealthOf(health: UpaiHealth, checkedAt: string): CustomEndpo
     lanAllowed: health.lan_allowed,
     authRequired: health.auth_required,
     maxUploadBytes: health.max_upload_bytes,
+    resultDelete: health.result_delete === true,
     checkedAt,
   })
 }

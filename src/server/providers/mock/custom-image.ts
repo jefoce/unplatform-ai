@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { randomUUID } from 'node:crypto'
+
 import { aspectSize, type PixelSize } from '@/core/media/geometry'
 import { renderPromptForApi } from '@/core/prompt-tokens'
 import type { ImageGenerationInput } from '@/core/schemas/image-record'
@@ -11,6 +13,7 @@ import type {
   ImageGenerateParams,
   ImageProvider,
   ImageResult,
+  JobRef,
   ProviderImageModelList,
 } from '../types'
 import {
@@ -19,6 +22,7 @@ import {
   customMockWorkflowInvalidError,
 } from './custom-errors'
 import { recordCustomMockImagePrompt } from './custom-image-prompts'
+import { recordCustomMockDelete } from './custom-jobs'
 import {
   type CustomMockCatalog,
   customMockCatalog,
@@ -40,6 +44,7 @@ export function createCustomMockImageProvider(options: CustomMockOptions): Image
     id: 'custom',
     isConfigured,
     generate,
+    deleteResult,
     listModels,
     listEndpoints,
     testConnection,
@@ -75,7 +80,13 @@ export function createCustomMockImageProvider(options: CustomMockOptions): Image
       }),
     )
 
-    return { items, costUsd: 0 }
+    const jobId = randomUUID()
+
+    return {
+      items,
+      costUsd: 0,
+      job: { jobId, submittedAt: new Date().toISOString() },
+    }
   }
 
   async function listModels(): Promise<ProviderImageModelList> {
@@ -110,6 +121,10 @@ export function createCustomMockImageProvider(options: CustomMockOptions): Image
 
 function isConfigured(): boolean {
   return true
+}
+
+async function deleteResult(job: JobRef): Promise<void> {
+  recordCustomMockDelete(job, 'image')
 }
 
 function sizeFor(input: ImageGenerationInput): PixelSize {

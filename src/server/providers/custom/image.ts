@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one upai/1 adapter per kind */
 import 'server-only'
 
 import { isNil } from 'lodash-es'
@@ -41,7 +42,13 @@ import {
   timeoutError,
 } from './errors'
 import { testCustomEndpoint } from './health'
-import { customRequest, providerErrorFromResponse, requestHeaders, requestJson } from './http'
+import {
+  customRequest,
+  deleteCustomJob,
+  providerErrorFromResponse,
+  requestHeaders,
+  requestJson,
+} from './http'
 import { trackCustomImageJob, untrackCustomImageJob } from './image-jobs'
 import { resolveCustomRunPrice } from './pricing'
 
@@ -250,7 +257,7 @@ async function generate(
       costUsd = resolveCustomRunPrice({ endpoint, preset: params.preset, duration: 1 })
     }
 
-    return { items, costUsd }
+    return { items, costUsd, job: { jobId, submittedAt: new Date().toISOString() } }
   } finally {
     untrackCustomImageJob(jobId)
   }
@@ -293,6 +300,9 @@ export function createCustomImageProvider(endpoint: CustomEndpoint): ImageProvid
     },
     cancel: (job: JobRef) => {
       return cancelImageJob({ endpoint, jobId: job.jobId })
+    },
+    deleteResult: (job: JobRef) => {
+      return deleteCustomJob({ endpoint, path: jobPath({ endpoint, jobId: job.jobId }) })
     },
     listModels: () => {
       return listModels(endpoint)

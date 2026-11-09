@@ -7,6 +7,7 @@ import { PROVIDER_KIND_IDS } from '../providers/types'
 import {
   InputSnapshotSchema,
   PRICE_SOURCES,
+  RecordJobSchema,
   RecordPresetSchema,
   RecordSubmitSchema,
 } from './generation-record'
@@ -107,6 +108,7 @@ export const ImageRecordSchema = z.object({
   input: ImageInputSchema,
   inputsSnapshot: InputSnapshotSchema.optional(),
   submit: RecordSubmitSchema.optional(),
+  job: RecordJobSchema.optional(),
   outputs: z.array(ImageOutputSchema),
   seedUsed: z.number().nullable(),
 

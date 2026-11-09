@@ -27,6 +27,7 @@ Example documents for `upai/1`. Every file is valid JSON and validates against t
 | `error-not_found.json` | `../schema/error.schema.json` |
 | `error-method_not_allowed.json` | `../schema/error.schema.json` |
 | `error-too_large.json` | `../schema/error.schema.json` |
+| `error-insufficient_storage.json` | `../schema/error.schema.json` |
 | `error-workflow_invalid.json` | `../schema/error.schema.json` |
 | `error-queue_full.json` | `../schema/error.schema.json` |
 | `error-comfy_unavailable.json` | `../schema/error.schema.json` |

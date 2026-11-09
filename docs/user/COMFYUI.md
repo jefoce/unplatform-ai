@@ -40,6 +40,8 @@ Open Settings in the app and find ComfyUI. Press Add endpoint and fill in:
 
 Press Test. A good result lists the protocol, the ComfyUI version, the video and image model counts, LAN access and whether a token is required. Press Save when done.
 
+The app deletes a finished result from ComfyUI after it is safely saved.
+
 ## Price modes
 
 | Mode | What it does |

@@ -1,6 +1,9 @@
 import { isNil } from 'lodash-es'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { CUSTOM_ERROR_RULES } from '@/core/presets/custom/errors'
+import { UpaiErrorResponseSchema } from '@/core/protocol/upai'
+import { friendlyError } from '@/core/provider-errors'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
 vi.mock('@/server/providers/custom/endpoint-source', () => {
@@ -17,7 +20,7 @@ vi.mock('@/server/secrets', () => {
   }
 })
 
-const { customRequest } = await import('@/server/providers/custom/http')
+const { customRequest, providerErrorFromResponse } = await import('@/server/providers/custom/http')
 
 const ENDPOINT: CustomEndpoint = {
   id: 'ep1',
@@ -103,5 +106,57 @@ describe('customRequest abort signals', () => {
     ).rejects.toMatchObject({ code: 'timeout' })
 
     expect(received()?.aborted).toBe(true)
+  })
+})
+
+function errorResponse(status: number, code: string, message: string): Response {
+  return new Response(JSON.stringify({ error: { code, message, details: {} } }), { status })
+}
+
+describe('providerErrorFromResponse codes', () => {
+  it('keeps insufficient_storage and maps it to the disk rule', async () => {
+    const error = await providerErrorFromResponse(
+      errorResponse(507, 'insufficient_storage', 'not enough free disk space'),
+    )
+
+    expect(error.code).toBe('insufficient_storage')
+    expect(error.message).toBe('upai:insufficient_storage: not enough free disk space')
+
+    const friendly = friendlyError({
+      raw: error.storedMessage,
+      rules: CUSTOM_ERROR_RULES,
+      httpRules: null,
+    })
+
+    expect(friendly.title).toBe('ComfyUI is out of disk space.')
+    expect(friendly.hint).toBe('Free space on the ComfyUI machine, then try again.')
+    expect(friendly.kind).toBe('provider')
+    expect(friendly.retry).toBe(false)
+  })
+
+  it('normalizes an unknown code to internal without a validation failure', async () => {
+    const error = await providerErrorFromResponse(
+      errorResponse(500, 'future_code', 'something new happened'),
+    )
+
+    expect(error.code).toBe('internal')
+    expect(error.message).toBe('upai:internal: future_code: something new happened')
+
+    const friendly = friendlyError({
+      raw: error.storedMessage,
+      rules: CUSTOM_ERROR_RULES,
+      httpRules: null,
+    })
+
+    expect(friendly.title).toBe('ComfyUI did not answer in time.')
+    expect(friendly.raw).toContain('future_code')
+  })
+
+  it('parses the raw unknown code from the body', () => {
+    const parsed = UpaiErrorResponseSchema.parse({
+      error: { code: 'future_code', message: 'something new happened', details: {} },
+    })
+
+    expect(parsed.error.code).toBe('future_code')
   })
 })

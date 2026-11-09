@@ -2,9 +2,9 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import { MAX_JSON_BODY_BYTES } from '@/core/constants'
+import { FETCH_TIMEOUTS, MAX_JSON_BODY_BYTES } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
-import { type UpaiError, UpaiErrorResponseSchema } from '@/core/protocol/upai'
+import { UpaiErrorResponseSchema } from '@/core/protocol/upai'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { Dict } from '@/core/utility-types'
 
@@ -12,7 +12,7 @@ import { BodyTooLargeError, readCappedBody } from '../../media/read-capped-body'
 import { secretsReady } from '../../secrets'
 import type { ProviderError, ProviderErrorKind } from '../provider-error'
 import { getEndpointToken } from './endpoint-source'
-import { customError, networkError, protocolError } from './errors'
+import { customError, networkError, normalizeUpaiError, protocolError } from './errors'
 
 const STATUS_CODES: Readonly<Partial<Record<number, string>>> = {
   400: 'invalid_request',
@@ -56,17 +56,6 @@ function kindForStatus(status: number): ProviderErrorKind {
 
 function codeForStatus(status: number): string {
   return STATUS_CODES[status] ?? 'internal'
-}
-
-function upaiErrorText(error: UpaiError): string {
-  const base = `upai:${error.code}: ${error.message}`
-  const field = error.details.field
-
-  if (!isNonEmptyString(field)) {
-    return base
-  }
-
-  return `${base} details.field=${field}`
 }
 
 /** Scheme, host and port only. A pasted `/upai` is dropped by rebuilding the URL. */
@@ -190,13 +179,13 @@ export async function providerErrorFromResponse(res: Response): Promise<Provider
   const parsed = UpaiErrorResponseSchema.safeParse(payload)
 
   if (parsed.success) {
-    const code = parsed.data.error.code
+    const normalized = normalizeUpaiError(parsed.data.error)
 
     return customError({
       kind: kindForStatus(res.status),
       status: res.status,
-      code,
-      message: upaiErrorText(parsed.data.error),
+      code: normalized.code,
+      message: normalized.message,
     })
   }
 
@@ -210,6 +199,31 @@ export async function providerErrorFromResponse(res: Response): Promise<Provider
   const message = `upai:${code}: ${base}`
 
   return customError({ kind: kindForStatus(res.status), status: res.status, code, message })
+}
+
+interface DeleteCustomJobParams {
+  endpoint: CustomEndpoint
+  path: string
+}
+
+/** Deletes one final custom job. 204 and 404 count as done for best effort. */
+export async function deleteCustomJob(params: DeleteCustomJobParams): Promise<void> {
+  const { endpoint, path } = params
+
+  const res = await customRequest({
+    endpoint,
+    path,
+    init: { method: 'DELETE', headers: requestHeaders(false) },
+    timeoutMs: FETCH_TIMEOUTS.poll,
+  })
+
+  if (res.status === 204 || res.status === 404) {
+    return
+  }
+
+  if (!res.ok) {
+    throw await providerErrorFromResponse(res)
+  }
 }
 
 export async function requestJson(params: CustomRequestParams): Promise<unknown> {

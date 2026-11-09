@@ -46,6 +46,7 @@ export function customMockEndpoint(instance: ProviderInstance): CustomEndpoint {
       lanAllowed: health.lan_allowed,
       authRequired: health.auth_required,
       maxUploadBytes: health.max_upload_bytes,
+      resultDelete: health.result_delete === true,
       checkedAt: new Date().toISOString(),
     },
   }

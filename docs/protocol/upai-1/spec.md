@@ -96,6 +96,7 @@ Every error response uses this body:
 | 503 | `comfy_unavailable` | The execution backend is unavailable. |
 | 503 | `config_invalid` | The server config is invalid. Every route fails until it is fixed. |
 | 504 | `timeout` | A synchronous request exceeded the server wait limit. `details.job_id` identifies the job. |
+| 507 | `insufficient_storage` | The server lacks free disk space to store an upload, result or job record. |
 
 ## 7. Routes
 
@@ -110,10 +111,12 @@ All paths are relative to the base path.
 | HEAD | `/api/v1/uploads/{sha256}` | Check whether an upload exists. |
 | POST | `/api/v1/videos` | Create an asynchronous video job. |
 | GET | `/api/v1/videos/{id}` | Read one video job. |
+| DELETE | `/api/v1/videos/{id}` | Delete one final video job and its files. |
 | GET | `/api/v1/videos/{id}/content?index=N` | Read result bytes for a completed video job. |
 | POST | `/api/v1/videos/{id}/cancel` | Cancel a video job. |
 | POST | `/api/v1/images/jobs` | Create an asynchronous image job. |
 | GET | `/api/v1/images/jobs/{id}` | Read one image job. |
+| DELETE | `/api/v1/images/jobs/{id}` | Delete one final image job and its files. |
 | GET | `/api/v1/images/jobs/{id}/content?index=N` | Read result bytes for a completed image job. |
 | POST | `/api/v1/images/jobs/{id}/cancel` | Cancel an image job. |
 | POST | `/api/v1/images` | Create an image job and wait for its result. |
@@ -134,7 +137,11 @@ All paths are relative to the base path.
   "max_upload_bytes": 104857600,
   "upload_quota_bytes": 10737418240,
   "instance_id": "11111111-1111-4111-8111-111111111111",
-  "max_running": 1
+  "max_running": 1,
+  "max_pending": 8,
+  "max_inline_bytes": 78642432,
+  "disk_free_bytes": 107374182400,
+  "result_delete": true
 }
 ```
 
@@ -151,6 +158,10 @@ All paths are relative to the base path.
 | `upload_quota_bytes` | integer | Maximum total bytes stored across uploads. |
 | `instance_id` | string | Stable UUID4 for this ComfyUI install. Empty when the server has no install identity. |
 | `max_running` | integer | Maximum executing pack jobs, from `1` to `8`. |
+| `max_pending` | integer | Maximum non-final jobs. |
+| `max_inline_bytes` | integer | Informational upper bound for a JSON body that carries one data URL. Per-reference caps still apply. |
+| `disk_free_bytes` | integer | Minimum free bytes across the upload, result and data volumes. `0` when unknown. |
+| `result_delete` | boolean | True when a client may delete a final job with `DELETE`. |
 
 ## 9. Models
 
@@ -160,7 +171,7 @@ All paths are relative to the base path.
 {
   "data": [
     {
-      "id": "wan22-i2v",
+      "id": "wan22.i2v",
       "name": "Wan 2.2 I2V (local)",
       "description": "",
       "kind": "video",
@@ -388,7 +399,8 @@ A successful creation returns `202`:
     "node": "MockSampler",
     "value": 42,
     "max": 100,
-    "queue_position": null
+    "queue_position": null,
+    "waiting_on": null
   },
   "seed": 42,
   "urls": null,
@@ -475,6 +487,13 @@ Cancel routes:
 - `POST /api/v1/images/jobs/{id}/cancel`
 
 Cancellation is idempotent. A pending or running job becomes `cancelled`. A job already in a final status is returned unchanged. Both cases return `200` with the job object. An unknown job id returns `404` with `job_not_found`.
+
+Delete routes:
+
+- `DELETE /api/v1/videos/{id}`
+- `DELETE /api/v1/images/jobs/{id}`
+
+A delete removes a final job record and its pack-owned files. It returns `204` with no body. The result is no longer readable and a later request returns `404` with `job_not_found`. A job that is not final returns `409` with `invalid_request` and `details.field` set to `status`. An unknown job id, or a job of the other kind, returns `404` with `job_not_found`. Shared uploads are not deleted.
 
 ## 14. Uploads
 

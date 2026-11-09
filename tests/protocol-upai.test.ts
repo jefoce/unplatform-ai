@@ -3,7 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { isNil, isString } from 'lodash-es'
+import { isNil, isString, omit } from 'lodash-es'
 import { describe, expect, it } from 'vitest'
 import type { ZodType } from 'zod'
 
@@ -132,6 +132,7 @@ const EXPECTED_FIXTURES = [
   'error-comfy_unavailable.json',
   'error-config_invalid.json',
   'error-forbidden.json',
+  'error-insufficient_storage.json',
   'error-internal.json',
   'error-invalid_request.json',
   'error-job_failed.json',
@@ -165,6 +166,7 @@ const FIXTURE_SCHEMAS: Record<string, ZodType> = {
   'error-comfy_unavailable.json': UpaiErrorResponseSchema,
   'error-config_invalid.json': UpaiErrorResponseSchema,
   'error-forbidden.json': UpaiErrorResponseSchema,
+  'error-insufficient_storage.json': UpaiErrorResponseSchema,
   'error-internal.json': UpaiErrorResponseSchema,
   'error-invalid_request.json': UpaiErrorResponseSchema,
   'error-job_failed.json': UpaiErrorResponseSchema,
@@ -276,7 +278,7 @@ describe('upai/1 schemas', () => {
     const source = fs.readFileSync(path.join(ROOT, 'SOURCE'), 'utf8')
 
     expect(source).toContain('repo: unplatform-ai-provider-node')
-    expect(source).toContain('commit: c1a44ed')
+    expect(source).toContain('commit: 6f187d6')
   })
 })
 
@@ -309,6 +311,36 @@ describe('upai/1 json schemas', () => {
   })
 })
 
+describe('upai/1 optional fields', () => {
+  it('keeps an unknown error code and its raw text', () => {
+    const parsed = UpaiErrorSchema.parse({
+      code: 'future_code',
+      message: 'not known yet',
+      details: {},
+    })
+
+    expect(parsed.code).toBe('future_code')
+  })
+
+  it('keeps the optional health fields and parses old health without them', () => {
+    const current = UpaiHealthSchema.parse(readFixture('health.json'))
+
+    expect(current.result_delete).toBe(true)
+    expect(current.max_pending).toBe(8)
+    expect(current.max_inline_bytes).toBe(78_642_432)
+    expect(current.disk_free_bytes).toBe(107_374_182_400)
+
+    const legacy = omit(current, [
+      'max_pending',
+      'max_inline_bytes',
+      'disk_free_bytes',
+      'result_delete',
+    ])
+
+    expect(UpaiHealthSchema.safeParse(legacy).success).toBe(true)
+  })
+})
+
 describe('upai/1 enums', () => {
   it('matches the error code list', () => {
     expect(UPAI_ERROR_CODES).toEqual([
@@ -322,6 +354,7 @@ describe('upai/1 enums', () => {
       'not_found',
       'method_not_allowed',
       'too_large',
+      'insufficient_storage',
       'workflow_invalid',
       'queue_full',
       'comfy_unavailable',
@@ -329,7 +362,9 @@ describe('upai/1 enums', () => {
       'internal',
       'timeout',
     ])
+  })
 
+  it('parses every error fixture with a known code', () => {
     for (const name of jsonFixtures) {
       if (!name.startsWith('error-')) {
         continue
