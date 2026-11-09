@@ -1,4 +1,4 @@
-import { compact, find, isNil } from 'lodash-es'
+import { find, isNil } from 'lodash-es'
 
 import { imageResolutionDisplay } from '@/core/presets/common/display'
 import { findImagePreset } from '@/core/presets/image'
@@ -141,29 +141,49 @@ function aspectSetting(preset: ImagePreset, input: ImageGenerationInput): string
   return aspectLabel(input.aspectRatio)
 }
 
-/** Labels for the controls the record preset actually supports. */
-export function imageSettingLabels(input: ImageGenerationInput): string[] {
+export interface ImageSettingChip {
+  kind: 'resolution' | 'quality' | 'background' | 'aspect'
+  label: string
+}
+
+/** Chips for the controls the record preset actually supports, in display order. */
+export function imageSettingChips(input: ImageGenerationInput): ImageSettingChip[] {
   const preset = findImagePreset(input.presetId)
 
   if (isNil(preset)) {
     return []
   }
 
-  let resolution: string | null = null
+  const chips: ImageSettingChip[] = []
 
   if (!isNil(input.resolution)) {
-    resolution = imageResolutionDisplay(preset, {
+    const label = imageResolutionDisplay(preset, {
       resolution: input.resolution,
       aspect: input.aspectRatio,
     }).label
+
+    chips.push({ kind: 'resolution', label })
   }
 
-  return compact([
-    resolution,
-    optionLabel(preset.qualities, input.quality),
-    optionLabel(preset.backgrounds, input.background),
-    aspectSetting(preset, input),
-  ])
+  const quality = optionLabel(preset.qualities, input.quality)
+
+  if (!isNil(quality)) {
+    chips.push({ kind: 'quality', label: quality })
+  }
+
+  const background = optionLabel(preset.backgrounds, input.background)
+
+  if (!isNil(background)) {
+    chips.push({ kind: 'background', label: background })
+  }
+
+  const aspect = aspectSetting(preset, input)
+
+  if (!isNil(aspect)) {
+    chips.push({ kind: 'aspect', label: aspect })
+  }
+
+  return chips
 }
 
 /** Seed of a saved image output, null otherwise. */

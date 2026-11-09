@@ -1,7 +1,7 @@
 'use client'
 
 import { isNil } from 'lodash-es'
-import { Lock } from 'lucide-react'
+import { Layers2, Lock, Monitor, Sparkles } from 'lucide-react'
 
 import { showPrice } from '@/core/pricing/visibility'
 import { canonicalizePrompt } from '@/core/prompt-tokens'
@@ -22,6 +22,7 @@ import {
 } from '@/lib/feed/output-items'
 import { useNow } from '@/lib/use-now'
 import { EndpointBadge } from '@/ui/EndpointBadge'
+import { RatioIcon } from '@/ui/RatioIcon'
 import { Tooltip } from '@/ui/Tooltip'
 
 import {
@@ -29,7 +30,7 @@ import {
   costInfo,
   imageCostInfo,
   imageOutputSeed,
-  imageSettingLabels,
+  imageSettingChips,
 } from './details-info'
 import { DetailsActions } from './DetailsActions'
 import { DetailsPrompt } from './DetailsPrompt'
@@ -118,7 +119,7 @@ function videoBody(params: VideoBodyParams) {
 
 /** Setting chips the record preset supports, plus its output seed. */
 function imageSettings(item: ImageGridItem) {
-  const labels = imageSettingLabels(item.source.input)
+  const chips = imageSettingChips(item.source.input)
   const seed = imageOutputSeed(item)
 
   const handleUseSeed = () => {
@@ -139,10 +140,14 @@ function imageSettings(item: ImageGridItem) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {labels.map((label) => {
+      {chips.map((chip) => {
         return (
-          <span key={label} className={SETTING_CLASSES}>
-            {label}
+          <span key={chip.kind} className={SETTING_CLASSES}>
+            {chip.kind === 'resolution' && <Monitor size={14} className="text-fg-2" aria-hidden />}
+            {chip.kind === 'quality' && <Sparkles size={14} className="text-fg-2" aria-hidden />}
+            {chip.kind === 'background' && <Layers2 size={14} className="text-fg-2" aria-hidden />}
+            {chip.kind === 'aspect' && <RatioIcon ratio={item.source.input.aspectRatio} />}
+            {chip.label}
           </span>
         )
       })}

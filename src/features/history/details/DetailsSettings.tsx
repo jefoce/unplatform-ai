@@ -1,5 +1,5 @@
 import { isNil } from 'lodash-es'
-import { Clock, Diamond, Volume2, VolumeX } from 'lucide-react'
+import { Clock, Monitor, Volume2, VolumeX } from 'lucide-react'
 
 import { findPreset } from '@/core/presets'
 import { type ResolutionDisplay, resolutionDisplay } from '@/core/presets/common/display'
@@ -33,7 +33,7 @@ export function DetailsSettings(props: DetailsSettingsProps) {
   return (
     <div className="flex flex-wrap gap-2">
       <span className={SETTING_CLASSES}>
-        <Diamond size={14} className="text-fg-2" aria-hidden />
+        <Monitor size={14} className="text-fg-2" aria-hidden />
         {resolution.label}
         {!isNil(resolution.detail) && <span className="text-fg-2">{resolution.detail}</span>}
       </span>

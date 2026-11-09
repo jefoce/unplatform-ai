@@ -1,7 +1,7 @@
 'use client'
 
 import { isNil } from 'lodash-es'
-import { Check, Clock, Diamond, Volume2 } from 'lucide-react'
+import { Check, Clock, Monitor, Volume2 } from 'lucide-react'
 
 import type { CatalogEntry } from '@/core/catalog'
 import type { VideoPreset } from '@/core/presets/video/types'
@@ -111,7 +111,7 @@ export function ModelVideoRow(props: ModelVideoRowProps) {
           <span className="mt-1 block text-xs text-fg-2">{reason}</span>
         )}
         <span className="mt-1 flex flex-wrap gap-1">
-          <ModelBadge icon={Diamond} text={videoQuality(preset)} />
+          <ModelBadge icon={Monitor} text={videoQuality(preset)} />
           <ModelBadge icon={Clock} text={videoDuration(preset)} />
           {preset.audio.supported && <ModelBadge icon={Volume2} label="Audio" />}
         </span>
