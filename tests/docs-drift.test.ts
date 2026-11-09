@@ -267,6 +267,20 @@ describe('0.5.0 documentation drift', () => {
 
     expect(section).not.toContain('progress')
   })
+
+  it('drops the stripped endpoints version and keeps the loose fields right', () => {
+    const architecture = fs.readFileSync(file('docs/ARCHITECTURE.md'), 'utf8')
+    const decisions = fs.readFileSync(file('docs/DECISIONS.md'), 'utf8')
+
+    expect(architecture).not.toContain('| `version` | File format version')
+    expect(decisions).not.toContain('holds `version`, `endpoints`')
+
+    expect(architecture).toContain('| `presetSnapshot` | Loose preset copy: id, title, family |')
+    expect(decisions).toContain('`presetSnapshot` stores only `id`, `title`, `family`')
+
+    expect(architecture).toContain('| `progress` | Percent, queue position and waiting reason |')
+    expect(architecture).not.toMatch(/\| `progress` \|[^\n]*node/)
+  })
 })
 
 describe('development env table', () => {

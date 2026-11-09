@@ -89,10 +89,10 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 | `input` | Exact panel state, canonical prompt slots | create route |
 | `preset` | `id`, `title`, `slug` at submit time | create route |
 | `source` | Provider kind, instance id, badge, title, workflow name and local flag at submit | create route |
-| `presetSnapshot` | Loose preset copy: id, title, family plus model fields | create route |
+| `presetSnapshot` | Loose preset copy: id, title, family | create route |
 | `inputsSnapshot` | Kind, name, source, transport per upload | create route, run-submit |
 | `submit` | Stage plus grace `notBefore` or progress | create route, run-submit |
-| `progress` | Percent, node, queue position and waiting reason | poller |
+| `progress` | Percent, queue position and waiting reason | poller |
 | `download` | `startedAt` while the file is queued or downloading | download queue |
 | `job` | OpenRouter job id, timestamps, expiry | run-submit, poller |
 | `seedUsed`, `favorite` | Resolved seed and user flag | create route, PATCH route |
@@ -129,7 +129,6 @@ An image record carries the same `source` and `presetSnapshot` fields as a video
 
 | Field | Meaning | Writer |
 |---|---|---|
-| `version` | File format version, currently 1 | endpoints repo |
 | `endpoints` | id, label, badge, base URL, enabled, pricing, instance id and last health per endpoint | Settings save |
 | `badgeCounter` | Last badge number handed out, so a deleted number is never reused | endpoints repo |
 

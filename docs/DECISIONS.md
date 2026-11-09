@@ -14,7 +14,7 @@ Why: one record shape serves both kinds, and history keeps its labels after an e
 
 ## 2026-11-07 - Endpoints are one JSON file with a badge counter
 
-Decision: `data/endpoints.json` holds `version`, `endpoints` and `badgeCounter`. Badges are `CU<n>`, allocated under the endpoints lock. The counter never goes back, so a deleted number is not reused. Bearer tokens live in one `CUSTOM_ENDPOINT_TOKENS` secret map keyed by endpoint id.
+Decision: `data/endpoints.json` holds `endpoints` and `badgeCounter`. Badges are `CU<n>`, allocated under the endpoints lock. The counter never goes back, so a deleted number is not reused. Bearer tokens live in one `CUSTOM_ENDPOINT_TOKENS` secret map keyed by endpoint id.
 
 Why: the list is small and a single file keeps the save atomic. One token map means one secret write per save.
 
@@ -64,7 +64,7 @@ Why: a video job lives on ComfyUI and survives the app. An image job lives in th
 
 ## 2026-11-07 - Preset snapshot is loose
 
-Decision: `presetSnapshot` stores only `id`, `title`, `family` plus the model fields ComfyUI reported, because custom presets have no zod schema. `source` covers display labels, badge and workflow name.
+Decision: `presetSnapshot` stores only `id`, `title`, `family`, because custom presets have no zod schema. `source` covers display labels, badge and workflow name.
 
 Why: snapshotting a runtime preset cannot be strict, and the fields history needs already live in `source`.
 
