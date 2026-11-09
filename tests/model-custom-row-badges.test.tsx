@@ -38,9 +38,14 @@ describe('ModelCustomRow video badges', () => {
       <ModelCustomRow model={CUSTOM_VIDEO_ROW} entry={null} selected={false} onSelect={noop} />,
     )
 
-    expect(screen.getByText('352\u20131088p')).toBeTruthy()
-    expect(screen.getByText('4-15 s')).toBeTruthy()
-    expect(screen.getByLabelText('Audio')).toBeTruthy()
+    const resolution = screen.getByText('352\u20131088p')
+    const duration = screen.getByText('4-15 s')
+    const audio = screen.getByLabelText('Audio')
+
+    expect(resolution.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+    expect(duration.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+    expect(audio.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+    expect(audio.getAttribute('aria-label')).toBe('Audio')
     expect(screen.queryByText(LONG_DESCRIPTION)).toBeNull()
     expect(screen.queryByText(/refs/)).toBeNull()
   })

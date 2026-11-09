@@ -75,7 +75,7 @@ export function ModelPickerTrigger(props: ModelPickerTriggerProps) {
             {hasWarning && <TriangleAlert size={12} className="shrink-0 text-amber" aria-hidden />}
           </span>
         </span>
-        <ChevronRight size={16} className="text-fg-2" />
+        <ChevronRight size={16} className="text-fg-2" aria-hidden />
       </button>
     </PopoverTrigger>
   )

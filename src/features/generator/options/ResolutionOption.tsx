@@ -57,7 +57,7 @@ export function ResolutionOption(props: ResolutionOptionProps) {
           )}
         </span>
         <span className="flex size-3.5 shrink-0 items-center justify-center">
-          <Check size={14} className={cn('text-accent', !isSelected && 'invisible')} />
+          <Check size={14} className={cn('text-accent', !isSelected && 'invisible')} aria-hidden />
         </span>
       </button>
     </PopoverClose>

@@ -122,6 +122,19 @@ afterEach(() => {
 })
 
 describe('resolution price column', () => {
+  it('marks the selection check icon as decorative', () => {
+    mocks.entry = catalogEntry(BASE, STATIC_PRICING, false)
+
+    const dialog = openPopover(BASE)
+    const rows = within(dialog).getAllByRole('button')
+
+    expect(rows.length).toBeGreaterThan(0)
+
+    for (const row of rows) {
+      expect(row.querySelector('svg.lucide-check')?.getAttribute('aria-hidden')).toBe('true')
+    }
+  })
+
   it('hides prices and the footer for a zero-price custom model', () => {
     const preset = customPreset(0)
 

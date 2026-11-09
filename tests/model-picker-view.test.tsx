@@ -261,7 +261,11 @@ describe('ModelPicker bar variant', () => {
     const trigger = screen.getByRole('button', { name: 'Image Model' })
 
     expect(trigger.textContent).toBe('Image Model')
-    expect(trigger.querySelector('svg.lucide-chevron-right')).not.toBeNull()
+
+    expect(trigger.querySelector('svg.lucide-chevron-right')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    )
+
     expect(trigger.className).toContain('text-sm')
     expect(trigger.className).toContain('font-semibold')
     expect(trigger.className).not.toContain('truncate')
@@ -274,7 +278,13 @@ describe('ModelPicker custom models', () => {
     const handleSelect = vi.fn()
 
     render(<ModelPicker models={[IMAGE_ROW]} selectedId="missing" onSelect={handleSelect} />)
-    fireEvent.click(screen.getByRole('button', { name: /Model/ }))
+    const trigger = screen.getByRole('button', { name: /Model/ })
+
+    expect(trigger.querySelector('svg.lucide-chevron-right')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    )
+
+    fireEvent.click(trigger)
     fireEvent.click(screen.getByRole('button', { name: /Image Model/ }))
 
     expect(handleSelect).toHaveBeenCalledWith('image-model')
