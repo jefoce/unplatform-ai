@@ -32,6 +32,7 @@ interface ImageRecordOverrides {
   references?: string[]
   inputsSnapshot?: ImageRecord['inputsSnapshot']
   output?: ImageOutput
+  estimatedUsd?: number
   actualUsd?: number | null
   source?: RecordSource
 }
@@ -46,6 +47,10 @@ function actualUsdOf(overrides: ImageRecordOverrides): number | null {
 
 function referencesOf(overrides: ImageRecordOverrides): string[] {
   return overrides.references ?? []
+}
+
+function estimatedUsdOf(overrides: ImageRecordOverrides): number {
+  return overrides.estimatedUsd ?? 0.2
 }
 
 function promptOf(overrides: ImageRecordOverrides): string {
@@ -84,7 +89,7 @@ function imageRecord(overrides: ImageRecordOverrides = {}): ImageRecord {
     cost: {
       currency: 'USD',
       unit: 'token',
-      estimatedUsd: 0.2,
+      estimatedUsd: estimatedUsdOf(overrides),
       actualUsd: actualUsdOf(overrides),
       priceSource: 'mock',
       billed: true,
