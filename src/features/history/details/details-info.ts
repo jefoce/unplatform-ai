@@ -1,5 +1,6 @@
 import { find, isNil } from 'lodash-es'
 
+import { isNonEmptyString } from '@/core/guards'
 import { imageResolutionDisplay } from '@/core/presets/common/display'
 import { findImagePreset } from '@/core/presets/image'
 import type { ImageAspectChoice, ImageOption, ImagePreset } from '@/core/presets/image/types'
@@ -150,8 +151,19 @@ export interface ImageSettingChip {
 export function imageSettingChips(input: ImageGenerationInput): ImageSettingChip[] {
   const preset = findImagePreset(input.presetId)
 
+  // Preset gone: show only the settings the record itself carries.
   if (isNil(preset)) {
-    return []
+    const recordChips: ImageSettingChip[] = []
+
+    if (!isNil(input.resolution)) {
+      recordChips.push({ kind: 'resolution', label: input.resolution })
+    }
+
+    if (isNonEmptyString(input.aspectRatio)) {
+      recordChips.push({ kind: 'aspect', label: aspectLabel(input.aspectRatio) })
+    }
+
+    return recordChips
   }
 
   const chips: ImageSettingChip[] = []

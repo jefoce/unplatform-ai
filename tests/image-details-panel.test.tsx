@@ -140,6 +140,17 @@ describe.each(CASES)('$kind shared details panel', (testCase) => {
   })
 })
 
+describe('image settings without a preset', () => {
+  it('shows only the resolution and aspect the record carries', () => {
+    render(<DetailsPanel item={imageItem({ presetId: 'retired-image-model', resolution: '2K' })} />)
+
+    expect(screen.getByText('2K')).not.toBeNull()
+    expect(screen.getByText('1:1')).not.toBeNull()
+    expect(screen.queryByText('Extra High')).toBeNull()
+    expect(screen.queryByText('Transparent')).toBeNull()
+  })
+})
+
 describe('local price visibility', () => {
   const LOCAL: RecordSource = {
     kind: 'custom',
