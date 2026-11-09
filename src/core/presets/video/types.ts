@@ -1,4 +1,4 @@
-import type { MediaKindCounts } from '../../media/media-types'
+import type { MediaKind, MediaKindCounts } from '../../media/media-types'
 import type { Rule } from '../../provider-errors/types'
 import type { ProviderBinding } from '../common/binding'
 import type { PresetIcon } from '../common/icon'
@@ -87,6 +87,7 @@ export interface VideoPreset {
   promptMaxChars: number
   seed: boolean
   refLabel: string
+  refLabels?: Partial<Record<MediaKind, string>>
   outputSizes?: OutputSizes
   bindings: readonly [ProviderBinding, ...ProviderBinding[]]
   errors: readonly Rule[]

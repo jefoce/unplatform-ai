@@ -227,6 +227,39 @@
             "null"
           ],
           "maxLength": 64
+        },
+        "reference_labels": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 64
+            },
+            "video": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 64
+            },
+            "audio": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 64
+            }
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          }
         }
       },
       "additionalProperties": true

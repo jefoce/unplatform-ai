@@ -12,7 +12,12 @@
       "capabilities": {
         "prompt": {
           "required": true,
-          "max_chars": 4000
+          "max_chars": 4000,
+          "reference_labels": {
+            "image": "<Picture {n}>",
+            "video": "<Video {n}>",
+            "audio": "<Audio {n}>"
+          }
         },
         "negative_prompt": false,
         "references": {
@@ -219,7 +224,12 @@
       "capabilities": {
         "prompt": {
           "required": true,
-          "max_chars": 4000
+          "max_chars": 4000,
+          "reference_labels": {
+            "image": "<Picture {n}>",
+            "video": "<Video {n}>",
+            "audio": "<Audio {n}>"
+          }
         },
         "negative_prompt": false,
         "references": {

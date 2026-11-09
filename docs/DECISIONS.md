@@ -2,7 +2,7 @@
 
 ## 2026-11-07 - upai/1 is vendored, not generated
 
-Decision: `docs/protocol/upai-1` holds the spec, schemas and fixtures from `unplatform-ai-provider-node` at commit `6f187d6`, recorded in `SOURCE`. The copy includes the optional `prompt.reference_label` capability. A drift test pins both the `SOURCE` file and the fixtures.
+Decision: `docs/protocol/upai-1` holds the spec, schemas and fixtures from `unplatform-ai-provider-node` at commit `c47b0b35`, recorded in `SOURCE`. The copy includes the optional `prompt.reference_label` capability. A drift test pins both the `SOURCE` file and the fixtures.
 
 Why: the adapter, the pack and the tests need one wire contract, and a moving external repo would make the fixtures disagree.
 

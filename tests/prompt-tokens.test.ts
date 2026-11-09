@@ -161,6 +161,33 @@ describe('renderPromptForApi', () => {
 
     expect(renderPromptForApi('@Image 1', preset)).toBe('Image #0')
   })
+
+  it('renders per-kind labels when the preset has them', () => {
+    const preset = {
+      ...getPreset('wan-3.0'),
+      refLabels: {
+        image: '<Picture {n}>',
+        video: '<Video {n}>',
+        audio: '<Audio {n}>',
+      },
+    }
+
+    expect(renderPromptForApi('@Image 1, @Video 1 and @Audio 1', preset)).toBe(
+      '<Picture 1>, <Video 1> and <Audio 1>',
+    )
+  })
+
+  it('falls back to the shared label for a kind without its own', () => {
+    const preset = {
+      ...getPreset('wan-3.0'),
+      refLabel: '<{kind}_{n}>',
+      refLabels: { image: '<Picture {n}>' },
+    }
+
+    expect(renderPromptForApi('@Image 1, @Video 1 and @Audio 1', preset)).toBe(
+      '<Picture 1>, <video_1> and <audio_1>',
+    )
+  })
 })
 
 describe('static preset reference labels', () => {

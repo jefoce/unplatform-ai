@@ -228,6 +228,12 @@ export function renderPromptForApi(prompt: string, preset: VideoPreset | ImagePr
   // eslint-disable-next-line @typescript-eslint/max-params -- fixed signature (String.replace)
   return prompt.replaceAll(CANONICAL, (_whole, kind: string, rawNumber: string) => {
     const n = Number(rawNumber)
+    const mediaKind = KIND_WORD[kind.toLowerCase()]
+    let template = preset.refLabel
+
+    if (!isNil(mediaKind)) {
+      template = preset.refLabels?.[mediaKind] ?? preset.refLabel
+    }
 
     const values: Dict<string> = {
       kind: kind.toLowerCase(),
@@ -236,7 +242,7 @@ export function renderPromptForApi(prompt: string, preset: VideoPreset | ImagePr
       i: String(Math.max(0, n - 1)),
     }
 
-    return preset.refLabel.replaceAll(REFERENCE_LABEL_TOKEN, (token) => {
+    return template.replaceAll(REFERENCE_LABEL_TOKEN, (token) => {
       return values[token.slice(1, -1)] ?? token
     })
   })

@@ -3,8 +3,9 @@ import { clamp, isEmpty, isNil } from 'lodash-es'
 import type { ModelAvailability } from '../../catalog'
 import { CUSTOM_DURATION_MAX_SEC, CUSTOM_DURATION_OPTIONS_MAX } from '../../constants'
 import { isNonEmptyString } from '../../guards'
+import { MEDIA_KINDS, type MediaKind } from '../../media/media-types'
 import type { PricingConfig } from '../../pricing/types'
-import type { UpaiDuration, UpaiModel, UpaiSizeMap } from '../../protocol/upai'
+import type { UpaiDuration, UpaiModel, UpaiReferenceLabels, UpaiSizeMap } from '../../protocol/upai'
 import type { OutputSizes, SizeByAspect } from '../common/output-sizes'
 import { customPresetPrefix } from './index'
 import type { DurationResult, MappedDuration, OutputSizesParams, OutputSizesResult } from './types'
@@ -21,13 +22,62 @@ interface MapReferenceLabelParams {
   fallback: string
 }
 
-export interface MappedReferenceLabel {
+interface MappedReferenceLabel {
   refLabel: string
   warning: string | null
 }
 
+interface MapReferenceLabelsParams {
+  shared: string | null | undefined
+  perKind: UpaiReferenceLabels | null | undefined
+  fallback: string
+}
+
+export interface MappedReferenceLabels {
+  refLabel: string
+  refLabels: Record<MediaKind, string>
+  warnings: string[]
+}
+
+/** Shared label, plus a label per kind resolved from `reference_labels`. */
+export function mapReferenceLabels(params: MapReferenceLabelsParams): MappedReferenceLabels {
+  const { shared, perKind, fallback } = params
+  const base = mapReferenceLabel({ raw: shared, fallback })
+  const warnings: string[] = []
+  const refLabel = base.refLabel
+
+  const refLabels: Record<MediaKind, string> = {
+    image: refLabel,
+    video: refLabel,
+    audio: refLabel,
+  }
+
+  if (!isNil(base.warning)) {
+    warnings.push(base.warning)
+  }
+
+  for (const kind of MEDIA_KINDS) {
+    const raw = perKind?.[kind]
+
+    if (!isNonEmptyString(raw)) {
+      continue
+    }
+
+    const resolved = mapReferenceLabel({ raw, fallback: refLabel })
+
+    if (!isNil(resolved.warning)) {
+      warnings.push(`Ignored reference label template for ${kind} ${raw}`)
+      continue
+    }
+
+    refLabels[kind] = resolved.refLabel
+  }
+
+  return { refLabel, refLabels, warnings }
+}
+
 /** Valid template with a slot token, else the fallback plus a warning. */
-export function mapReferenceLabel(params: MapReferenceLabelParams): MappedReferenceLabel {
+function mapReferenceLabel(params: MapReferenceLabelParams): MappedReferenceLabel {
   const { raw, fallback } = params
 
   if (!isNonEmptyString(raw)) {

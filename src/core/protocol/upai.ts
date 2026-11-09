@@ -63,11 +63,20 @@ export const UPAI_JOB_KINDS = ['video', 'image'] as const
 
 export type UpaiJobKind = (typeof UPAI_JOB_KINDS)[number]
 
+const ReferenceLabelSchema = z.string().max(64).nullable().optional()
+
+const UpaiReferenceLabelsSchema = z
+  .object({ image: ReferenceLabelSchema, video: ReferenceLabelSchema, audio: ReferenceLabelSchema })
+  .loose()
+
+export type UpaiReferenceLabels = z.infer<typeof UpaiReferenceLabelsSchema>
+
 export const UpaiPromptSchema = z
   .object({
     required: z.boolean(),
     max_chars: z.number().int().min(0),
     reference_label: z.string().max(64).nullable().optional(),
+    reference_labels: UpaiReferenceLabelsSchema.nullable().optional(),
   })
   .loose()
 

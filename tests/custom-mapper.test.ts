@@ -13,7 +13,12 @@ import { CUSTOM_INVALID_REASON, CUSTOM_STALE_REASON } from '../src/core/presets/
 import type { MappedCustomModel } from '../src/core/presets/custom/types'
 import type { ImagePreset } from '../src/core/presets/image/types'
 import type { VideoPreset } from '../src/core/presets/video/types'
-import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
+import { renderPromptForApi } from '../src/core/prompt-tokens'
+import {
+  type UpaiModel,
+  UpaiModelListSchema,
+  type UpaiReferenceLabels,
+} from '../src/core/protocol/upai'
 import { CustomEndpointSchema } from '../src/core/schemas/custom-endpoint'
 import { ImageInputSchema } from '../src/core/schemas/image-record'
 import { validateImageInput } from '../src/core/validation/image'
@@ -530,12 +535,20 @@ describe('image mapping', () => {
   })
 })
 
-function withReferenceLabel(base: UpaiModel, referenceLabel: string | null | undefined): UpaiModel {
+function withReferenceLabel(
+  base: UpaiModel,
+  referenceLabel: string | null | undefined,
+  referenceLabels?: UpaiReferenceLabels | null,
+): UpaiModel {
   return {
     ...base,
     capabilities: {
       ...base.capabilities,
-      prompt: { ...base.capabilities.prompt, reference_label: referenceLabel },
+      prompt: {
+        ...base.capabilities.prompt,
+        reference_label: referenceLabel,
+        reference_labels: referenceLabels,
+      },
     },
   }
 }
@@ -577,6 +590,83 @@ describe('reference label templates', () => {
 
     expect(expectVideo(result).refLabel).toBe('{Kind} {n}')
     expect(result.warnings).toContain(`Ignored reference label template ${raw}`)
+  })
+
+  it('resolves a label for every kind from the shared template', () => {
+    const video = expectVideo(
+      mapModel(withReferenceLabel(modelAt(VIDEO_MODELS, 0), '<{kind}_{n}>')),
+    )
+
+    expect(video.refLabels).toEqual({
+      image: '<{kind}_{n}>',
+      video: '<{kind}_{n}>',
+      audio: '<{kind}_{n}>',
+    })
+  })
+
+  it('uses a per-kind label and fills the rest from the shared template', () => {
+    const video = expectVideo(
+      mapModel(
+        withReferenceLabel(modelAt(VIDEO_MODELS, 0), '<{kind}_{n}>', {
+          image: '<Picture {n}>',
+        }),
+      ),
+    )
+
+    expect(video.refLabels).toEqual({
+      image: '<Picture {n}>',
+      video: '<{kind}_{n}>',
+      audio: '<{kind}_{n}>',
+    })
+  })
+
+  it('uses the app defaults for every kind when both are absent', () => {
+    const video = expectVideo(mapModel(withReferenceLabel(modelAt(VIDEO_MODELS, 0), undefined)))
+    const image = expectImage(mapModel(withReferenceLabel(modelAt(IMAGE_MODELS, 0), null)))
+
+    expect(video.refLabels).toEqual({
+      image: '{Kind} {n}',
+      video: '{Kind} {n}',
+      audio: '{Kind} {n}',
+    })
+
+    expect(image.refLabels).toEqual({
+      image: 'image {n}',
+      video: 'image {n}',
+      audio: 'image {n}',
+    })
+  })
+
+  it('ignores an invalid per-kind template with a kind warning', () => {
+    const result = mapModel(
+      withReferenceLabel(modelAt(VIDEO_MODELS, 0), '<{kind}_{n}>', {
+        image: '<Picture>',
+        audio: '<{kind}_{m}>',
+      }),
+    )
+
+    expect(expectVideo(result).refLabels).toEqual({
+      image: '<{kind}_{n}>',
+      video: '<{kind}_{n}>',
+      audio: '<{kind}_{n}>',
+    })
+
+    expect(result.warnings).toContain('Ignored reference label template for image <Picture>')
+    expect(result.warnings).toContain('Ignored reference label template for audio <{kind}_{m}>')
+  })
+
+  it('maps and renders the minimax per-kind labels', () => {
+    const preset = expectVideo(mapModel(modelAt(MINIMAX_MODELS, 0)))
+
+    expect(preset.refLabels).toEqual({
+      image: '<Picture {n}>',
+      video: '<Video {n}>',
+      audio: '<Audio {n}>',
+    })
+
+    expect(renderPromptForApi('@Image 1, @Video 1 and @Audio 1', preset)).toBe(
+      '<Picture 1>, <Video 1> and <Audio 1>',
+    )
   })
 
   it('merges size overrides over the base sizes', () => {

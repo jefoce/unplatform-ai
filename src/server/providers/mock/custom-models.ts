@@ -40,6 +40,8 @@ const MOCK_IMAGE_DESCRIPTION =
 
 const MOCK_IMAGE_REFERENCE_LABEL = '<{kind}_{n}>'
 
+const MOCK_IMAGE_REFERENCE_LABELS = { image: MOCK_IMAGE_REFERENCE_LABEL }
+
 const SCALE_SIZES = {
   '0.2': {
     '16:9': '608x352',
@@ -141,7 +143,11 @@ function describeImageModels(models: readonly UpaiModel[]): readonly UpaiModel[]
     description: MOCK_IMAGE_DESCRIPTION,
     capabilities: {
       ...first.capabilities,
-      prompt: { ...first.capabilities.prompt, reference_label: MOCK_IMAGE_REFERENCE_LABEL },
+      prompt: {
+        ...first.capabilities.prompt,
+        reference_label: MOCK_IMAGE_REFERENCE_LABEL,
+        reference_labels: MOCK_IMAGE_REFERENCE_LABELS,
+      },
     },
   }
 
@@ -170,6 +176,11 @@ function scaleVideoModels(models: readonly UpaiModel[]): readonly UpaiModel[] {
       aspect_ratios: [...SCALE_ASPECTS],
       default_aspect_ratio: '16:9',
       sizes: SCALE_SIZES,
+      references: {
+        ...base.capabilities.references,
+        audio: { max: 1, required: 0 },
+      },
+      frames: { start: false, end: false, start_required: false, end_required: false },
       duration: { min: 4, max: 15, default: 5, step: 1 },
       fps: 24,
     },

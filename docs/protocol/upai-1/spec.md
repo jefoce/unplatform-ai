@@ -214,6 +214,7 @@ Capabilities common to every model:
 | `prompt.required` | boolean | Prompt must be non-empty. |
 | `prompt.max_chars` | integer | Maximum prompt length in characters. |
 | `prompt.reference_label` | string or null | Optional template for client reference labels. |
+| `prompt.reference_labels` | object or null | Optional per-kind templates keyed by `image`, `video` and `audio`. |
 | `negative_prompt` | boolean | Whether a negative prompt is accepted. True only when the model wires a negative prompt output. |
 | `references.image` | object | `{max, required}` image reference count limits. |
 | `references.video` | object | `{max, required}` video reference count limits. |
@@ -228,6 +229,8 @@ Capabilities common to every model:
 | `reference_limits.image.formats` | array of string | Accepted image file extensions without the dot. |
 
 `prompt.reference_label` is an optional template a client may use to build reference labels. Placeholders are `{kind}` for the lowercase kind, `{Kind}` for the capitalized kind, `{n}` for the 1-based slot and `{i}` for the 0-based slot. The template is at most 64 characters and must contain `{n}` or `{i}`. When absent, the client decides the label format. Optional and additive in `upai/1`.
+
+`prompt.reference_labels` is an optional object of per-kind templates, keyed by `image`, `video` and `audio`. Each value follows the same placeholder rules and 64 character bound. A client resolves a reference label in this order: `reference_labels.<kind>`, then `reference_label`, then its own default. An unknown kind key is dropped with a warning. An invalid value marks the model `invalid` with a reason that names the kind. Optional and additive in `upai/1`.
 
 Capabilities present for video models:
 

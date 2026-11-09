@@ -1,4 +1,4 @@
-import type { MediaKindCounts } from '../../media/media-types'
+import type { MediaKind, MediaKindCounts } from '../../media/media-types'
 import type { Rule } from '../../provider-errors/types'
 import type { BindingBase } from '../common/binding'
 import type { PresetIcon } from '../common/icon'
@@ -106,6 +106,7 @@ export interface ImagePreset {
 
   /** Model-facing label for a reference. `{n}` is the slot number. */
   refLabel: string
+  refLabels?: Partial<Record<MediaKind, string>>
   bindings: readonly [BindingBase, ...BindingBase[]]
   errors: readonly Rule[]
 }

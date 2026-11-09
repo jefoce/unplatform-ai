@@ -9,8 +9,12 @@ const { GET } = await import('@/app/api/dev/custom-mock/prompt/route')
 
 const { recordCustomMockImagePrompt } = await import('@/server/services/custom-mock-image-prompt')
 
-function promptRequest(): Request {
-  return new Request('http://127.0.0.1:3000/api/dev/custom-mock/prompt', {
+const { recordCustomMockVideoPrompt } = await import('@/server/services/custom-mock-video-prompt')
+
+function promptRequest(kind?: string): Request {
+  const query = kind === undefined ? '' : `?kind=${kind}`
+
+  return new Request(`http://127.0.0.1:3000/api/dev/custom-mock/prompt${query}`, {
     headers: { host: '127.0.0.1:3000', cookie: `upai_session=${TOKEN}` },
   })
 }
@@ -46,6 +50,16 @@ describe('custom mock prompt route', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ prompt: '<image_1>' })
+  })
+
+  it('returns the recorded video prompt for kind=video', async () => {
+    process.env.CUSTOM_ENDPOINT_MOCK = '1'
+    recordCustomMockVideoPrompt('<Picture 1>')
+
+    const response = await GET(promptRequest('video'))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ prompt: '<Picture 1>' })
   })
 })
 

@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+
 import {
   clickGenerate,
   dropFile,
@@ -9,6 +11,10 @@ import {
   waitBodyText,
 } from '../lib/dom.mjs'
 import { waitRecord } from '../lib/server.mjs'
+
+const AAC_BASE64 = (
+  await fs.readFile(new URL('../../fixtures/media/sample.aac', import.meta.url))
+).toString('base64')
 
 const MODEL_TITLE = 'Wan 2.2 T2V (local)'
 const MODEL_CARD = `[CU1] ${MODEL_TITLE}`
@@ -336,6 +342,56 @@ async function customReferenceLabel(context) {
   await shoot(driver, `custom-reference-label-${String(width)}`)
 }
 
+async function customVideoReferenceLabels(context) {
+  const { driver, server, width } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
+  await gotoTab(driver, 'Video')
+  await openModelPicker(driver)
+  await selectPickerRow(driver, 'CU1', SCALE_MODEL)
+  await waitBodyText(driver, SCALE_CARD, WAIT_MS)
+
+  await driver.clickText('References')
+  await driver.waitFor(
+    `window.__e2e.exists('[data-references-box]')`,
+    WAIT_MS,
+    'the video references box',
+  )
+
+  await dropFile(driver, 'reference.png', 'image/png', PNG_1PX)
+  await dropFile(driver, 'reference.aac', 'audio/aac', AAC_BASE64)
+
+  await driver.waitFor(
+    `window.__e2e.all('[data-references-box] [data-reference-kind="image"]').length === 1 && window.__e2e.all('[data-references-box] [data-reference-kind="audio"]').length === 1`,
+    WAIT_MS,
+    'one image and one audio reference',
+  )
+
+  await setPrompt(driver, '@Image 1 and @Audio 1')
+  await clickGenerate(driver)
+
+  const id = await firstRecordId(server)
+
+  await waitRecord(
+    server,
+    '/api/generations',
+    id,
+    (record) => {
+      return record.status === 'completed'
+    },
+    'Completed',
+  )
+
+  const result = await server.api('/api/dev/custom-mock/prompt?kind=video')
+
+  if (result.prompt !== '<Picture 1> and <Audio 1>') {
+    throw new Error(`Custom video prompt was ${JSON.stringify(result.prompt)}`)
+  }
+
+  await shoot(driver, `custom-video-reference-label-${String(width)}`)
+}
+
 async function customEndpointGenerate(context) {
   const { driver, server } = context
 
@@ -470,6 +526,11 @@ export const customCases = [
   {
     name: 'custom-endpoint/reference-label',
     run: customReferenceLabel,
+    fresh: true,
+  },
+  {
+    name: 'custom-endpoint/video-reference-label',
+    run: customVideoReferenceLabels,
     fresh: true,
   },
 ]

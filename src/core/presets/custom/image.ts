@@ -9,7 +9,7 @@ import { CUSTOM_ERROR_RULES } from './errors'
 import {
   customPricing,
   mapOutputSizes,
-  mapReferenceLabel,
+  mapReferenceLabels,
   mergeSizeOverrides,
   nonEmptyStrings,
   presetIdFor,
@@ -100,14 +100,13 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
 
   warnings.push(...sizes.warnings)
 
-  const referenceLabel = mapReferenceLabel({
-    raw: caps.prompt.reference_label,
+  const referenceLabels = mapReferenceLabels({
+    shared: caps.prompt.reference_label,
+    perKind: caps.prompt.reference_labels,
     fallback: 'image {n}',
   })
 
-  if (!isNil(referenceLabel.warning)) {
-    warnings.push(referenceLabel.warning)
-  }
+  warnings.push(...referenceLabels.warnings)
 
   const countMax = caps.count?.max ?? 0
   const values = imageControlValues(caps, controls)
@@ -142,7 +141,8 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
     seed: caps.seed,
     promptMaxChars: caps.prompt.max_chars,
     promptOptional: !caps.prompt.required,
-    refLabel: referenceLabel.refLabel,
+    refLabel: referenceLabels.refLabel,
+    refLabels: referenceLabels.refLabels,
     bindings: [{ provider: 'custom', modelId: model.id, pricing: customPricing(model) }],
     errors: CUSTOM_ERROR_RULES,
   }

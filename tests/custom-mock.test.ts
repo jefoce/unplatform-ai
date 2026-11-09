@@ -24,6 +24,8 @@ const { createCustomMockImageProvider } = await import('../src/server/providers/
 
 const { customMockImagePrompt } = await import('../src/server/services/custom-mock-image-prompt')
 
+const { customMockVideoPrompt } = await import('../src/server/services/custom-mock-video-prompt')
+
 const { customMockFixtures } = await import('../src/server/providers/mock/custom-fixtures')
 
 const { CUSTOM_MOCK_STALE_REASON, customMockCatalog } =
@@ -140,10 +142,39 @@ describe('custom mock fixtures', () => {
     }
 
     expect(model.capabilities.prompt.reference_label).toBe('<{kind}_{n}>')
+    expect(model.capabilities.prompt.reference_labels).toEqual({ image: '<{kind}_{n}>' })
 
     const mapped = mapCustomModel({ endpoint: ENDPOINT, model })
 
     expect(mapped.preset?.refLabel).toBe('<{kind}_{n}>')
+
+    expect(mapped.preset?.refLabels).toEqual({
+      image: '<{kind}_{n}>',
+      video: '<{kind}_{n}>',
+      audio: '<{kind}_{n}>',
+    })
+  })
+
+  it('exposes the per-kind labels on the ready video model', () => {
+    const [model] = customMockCatalog({ scenario: 'ready' }).video
+
+    if (model === undefined) {
+      throw new Error('Missing ready video model')
+    }
+
+    expect(model.capabilities.prompt.reference_labels).toEqual({
+      image: '<Picture {n}>',
+      video: '<Video {n}>',
+      audio: '<Audio {n}>',
+    })
+
+    const mapped = mapCustomModel({ endpoint: ENDPOINT, model })
+
+    expect(mapped.preset?.refLabels).toEqual({
+      image: '<Picture {n}>',
+      video: '<Video {n}>',
+      audio: '<Audio {n}>',
+    })
   })
 
   it('makes the stale model selectable with its reason', () => {
@@ -360,6 +391,23 @@ describe('custom mock registry', () => {
     await image.generate({ preset, input: imageInput('@Image 1', 1), references: [] })
 
     expect(customMockImagePrompt()).toBe('<image_1>')
+  })
+
+  it('records the rendered custom video prompt', async () => {
+    const video = createCustomMockVideoProvider({ instanceId: 'mock-ready' })
+
+    const preset = {
+      ...PRESET,
+      refLabels: { image: '<Picture {n}>', audio: '<Audio {n}>' },
+    }
+
+    await video.submit({
+      preset,
+      input: { ...videoInput('@Image 1 and @Audio 1'), tab: 'references' },
+      media: {},
+    })
+
+    expect(customMockVideoPrompt()).toBe('<Picture 1> and <Audio 1>')
   })
 
   it('never calls fetch', async () => {

@@ -92,7 +92,7 @@ cd ../unplatform-ai-provider-node && .venv/bin/python -m upai_provider.mock_serv
 
 Point an endpoint at `http://127.0.0.1:8190` and press Test. `CUSTOM_ENDPOINT_MOCK=1` is the fallback: the in-process mock serves `docs/protocol/upai-1/fixtures` and needs no ComfyUI or Python.
 
-The protocol copy at `docs/protocol/upai-1` is pinned in `SOURCE` to `unplatform-ai-provider-node` commit `6f187d6`. Update the copy and the fixture drift test together.
+The protocol copy at `docs/protocol/upai-1` is pinned in `SOURCE` to `unplatform-ai-provider-node` commit `c47b0b35`. Update the copy and the fixture drift test together.
 
 No test uses a real key. The adapter suites use the mock server or the in-process fixtures.
 

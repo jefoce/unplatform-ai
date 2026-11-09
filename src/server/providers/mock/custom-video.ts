@@ -8,6 +8,7 @@ import path from 'node:path'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
+import { renderPromptForApi } from '@/core/prompt-tokens'
 import type { UpaiJobStatus } from '@/core/protocol/upai'
 import { asJobStatus } from '@/core/submit-state'
 import type { TestResult } from '@/core/types'
@@ -40,6 +41,7 @@ import {
   customMockScenario,
   toProviderVideoModel,
 } from './custom-models'
+import { recordCustomMockVideoPrompt } from './custom-video-prompts'
 
 const TEST_VIDEO_WIDTH = 1280
 const TEST_VIDEO_HEIGHT = 720
@@ -79,6 +81,7 @@ export function createCustomMockVideoProvider(options: CustomMockOptions): Video
   async function submit(params: SubmitJobParams): Promise<SubmittedJob> {
     assertReachable()
     assertValidPrompt(params.input.prompt)
+    recordCustomMockVideoPrompt(renderPromptForApi(params.input.prompt.trim(), params.preset))
 
     const started = startCustomMockJob({
       instanceId: options.instanceId,

@@ -1,7 +1,7 @@
 import { isEmpty, isNil } from 'lodash-es'
 
 import { CUSTOM_REF_TOTAL_SEC } from '../../constants'
-import type { MediaKindCounts } from '../../media/media-types'
+import type { MediaKind, MediaKindCounts } from '../../media/media-types'
 import type { UpaiCapabilities } from '../../protocol/upai'
 import type { PresetIcon } from '../common/icon'
 import type { OutputSizes } from '../common/output-sizes'
@@ -11,7 +11,7 @@ import { CUSTOM_ERROR_RULES } from './errors'
 import {
   mapDuration,
   mapOutputSizes,
-  mapReferenceLabel,
+  mapReferenceLabels,
   mergeSizeOverrides,
   nonEmptyStrings,
   presetIdFor,
@@ -55,14 +55,13 @@ export function mapVideoModel(ctx: MappedVideoContext): MappedCustomModel {
 
   warnings.push(...sizes.warnings)
 
-  const referenceLabel = mapReferenceLabel({
-    raw: caps.prompt.reference_label,
+  const referenceLabels = mapReferenceLabels({
+    shared: caps.prompt.reference_label,
+    perKind: caps.prompt.reference_labels,
     fallback: '{Kind} {n}',
   })
 
-  if (!isNil(referenceLabel.warning)) {
-    warnings.push(referenceLabel.warning)
-  }
+  warnings.push(...referenceLabels.warnings)
 
   return {
     preset: buildVideoPreset({
@@ -76,7 +75,8 @@ export function mapVideoModel(ctx: MappedVideoContext): MappedCustomModel {
       resolutions,
       aspects,
       sizes: sizes.sizes,
-      refLabel: referenceLabel.refLabel,
+      refLabel: referenceLabels.refLabel,
+      refLabels: referenceLabels.refLabels,
       maxUploadBytes,
       perRunUsd: model.pricing.per_run_usd,
     }),
@@ -97,6 +97,7 @@ interface BuildVideoParams {
   aspects: readonly string[]
   sizes: OutputSizes | undefined
   refLabel: string
+  refLabels: Record<MediaKind, string>
   maxUploadBytes: number | null
   perRunUsd: number
 }
@@ -114,6 +115,7 @@ function buildVideoPreset(params: BuildVideoParams): VideoPreset {
     aspects,
     sizes,
     refLabel,
+    refLabels,
     maxUploadBytes,
     perRunUsd,
   } = params
@@ -152,6 +154,7 @@ function buildVideoPreset(params: BuildVideoParams): VideoPreset {
     promptMaxChars: caps.prompt.max_chars,
     seed: caps.seed,
     refLabel,
+    refLabels,
     outputSizes: sizes,
     bindings: [
       {

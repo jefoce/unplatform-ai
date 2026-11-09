@@ -25,6 +25,8 @@ git clone https://github.com/jefoce/unplatform-ai-provider-node \
 
 Start ComfyUI. Build a workflow with a UPAI Model node, a UPAI Output node, a UPAI Prompt node and a UPAI Settings node. Add the reference, frame, image or audio nodes your model needs. Wire the model path to the output.
 
+The app reads reference labels per kind, `image`, `video` and `audio`: `reference_labels.<kind>`, then `reference_label`, then its own default.
+
 Save the workflow. Saving publishes it to the pack. One workflow can hold several model and output pairs, and each pair becomes one model. To publish again without saving, press Publish workflow on the UPAI Model node.
 
 ## 2. Add an endpoint

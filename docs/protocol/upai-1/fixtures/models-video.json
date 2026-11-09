@@ -15,7 +15,12 @@
         "prompt": {
           "required": true,
           "max_chars": 4000,
-          "reference_label": "<{kind}_{n}>"
+          "reference_label": "<{kind}_{n}>",
+          "reference_labels": {
+            "image": "<Picture {n}>",
+            "video": "<Video {n}>",
+            "audio": "<Audio {n}>"
+          }
         },
         "negative_prompt": false,
         "references": {

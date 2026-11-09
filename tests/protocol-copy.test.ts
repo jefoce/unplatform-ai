@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -8,10 +7,11 @@ import { required } from './helpers/required'
 
 const VENDORED_ROOT = path.join(process.cwd(), 'docs/protocol/upai-1')
 const PACK_ROOT = '/Users/jefoce/Documents/AI/unplatform-ai-provider-node'
-const PACK_PROTOCOL = 'protocol/'
+const PACK_PROTOCOL = path.join(PACK_ROOT, 'protocol')
+const PACK_REF = path.join(PACK_ROOT, '.git/refs/heads/0.1.0')
 const SOURCE = fs.readFileSync(path.join(VENDORED_ROOT, 'SOURCE'), 'utf8')
 const COMMIT = required(/^commit:\s*(\S+)$/m.exec(SOURCE)?.[1], 'commit in SOURCE')
-const HAS_PACK = fs.existsSync(PACK_ROOT)
+const HAS_PACK = fs.existsSync(PACK_PROTOCOL)
 
 /** Files under a directory, relative and slash separated. */
 function filesUnder(dir: string): string[] {
@@ -25,24 +25,13 @@ function filesUnder(dir: string): string[] {
     })
 }
 
-/** Bytes of a file in the pack at the pinned commit. */
+/** Bytes of a file in the pack working tree. */
 function packFile(name: string): Buffer {
-  return execFileSync('git', ['-C', PACK_ROOT, 'show', `${COMMIT}:${PACK_PROTOCOL}${name}`])
+  return fs.readFileSync(path.join(PACK_PROTOCOL, name))
 }
 
 function packFiles(): string[] {
-  const listed = execFileSync(
-    'git',
-    ['-C', PACK_ROOT, 'ls-tree', '-r', '--name-only', COMMIT, PACK_PROTOCOL],
-    { encoding: 'utf8' },
-  )
-
-  return listed
-    .trim()
-    .split('\n')
-    .map((name) => {
-      return name.slice(PACK_PROTOCOL.length)
-    })
+  return filesUnder(PACK_PROTOCOL)
 }
 
 describe.skipIf(!HAS_PACK)('vendored upai/1 tree', () => {
@@ -60,5 +49,12 @@ describe.skipIf(!HAS_PACK)('vendored upai/1 tree', () => {
 
       expect(vendored.equals(packFile(name)), name).toBe(true)
     }
+  })
+
+  it('pins the pack branch and commit', () => {
+    const ref = fs.readFileSync(PACK_REF, 'utf8').trim()
+
+    expect(path.basename(PACK_REF)).toBe('0.1.0')
+    expect(ref.startsWith(COMMIT)).toBe(true)
   })
 })
