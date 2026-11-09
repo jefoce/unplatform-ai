@@ -4,7 +4,7 @@ import { isNil } from 'lodash-es'
 import { Check } from 'lucide-react'
 
 import { aspectAllowed } from '@/core/media/output-size'
-import type { AspectChoice, Resolution, VideoPreset } from '@/core/presets/video/types'
+import type { AspectChoice, VideoPreset } from '@/core/presets/video/types'
 import { cn } from '@/lib/cn'
 import { PopoverClose } from '@/ui/Popover'
 import { RatioIcon } from '@/ui/RatioIcon'
@@ -14,12 +14,12 @@ interface AspectOptionProps {
   option: AspectChoice
   selected: AspectChoice
   preset: VideoPreset
-  resolution: Resolution
+  resolution: string
   onSelect: (option: AspectChoice) => void
 }
 
 /** Resolutions that hold the option, empty when it fits everywhere. */
-function unavailableFor(option: AspectChoice, preset: VideoPreset): Resolution[] {
+function unavailableFor(option: AspectChoice, preset: VideoPreset): string[] {
   if (option === 'auto') {
     return []
   }

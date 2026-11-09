@@ -44,6 +44,7 @@ export function mockTestResult(endpointId: string): EndpointTestResult {
       lanAllowed: null,
       instanceId: null,
       lastHealth: null,
+      warnings: [],
     }
   }
 
@@ -59,5 +60,6 @@ export function mockTestResult(endpointId: string): EndpointTestResult {
     lanAllowed: health.lan_allowed,
     instanceId: endpointId,
     lastHealth: lastHealthOf(health, checkedAt),
+    warnings: [],
   }
 }

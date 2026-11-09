@@ -3,7 +3,6 @@
 import { isNil } from 'lodash-es'
 import { Check } from 'lucide-react'
 
-import type { Resolution } from '@/core/presets/video/types'
 import { formatRate } from '@/core/pricing/format'
 import { cn } from '@/lib/cn'
 import { PopoverClose } from '@/ui/Popover'
@@ -11,17 +10,19 @@ import { Price } from '@/ui/Price'
 import { Tooltip } from '@/ui/Tooltip'
 
 interface ResolutionOptionProps {
-  option: Resolution
+  option: string
+  label: string
+  detail: string | null
   isSelected: boolean
   rate: number | null
   listRate: number | null
   discount: number
-  onSelect: (option: Resolution) => void
+  onSelect: (option: string) => void
 }
 
 /** One resolution row with its per-second rate. */
 export function ResolutionOption(props: ResolutionOptionProps) {
-  const { option, isSelected, rate, listRate, discount } = props
+  const { option, label, detail, isSelected, rate, listRate, discount } = props
 
   const handleSelect = (): void => {
     props.onSelect(option)
@@ -39,7 +40,8 @@ export function ResolutionOption(props: ResolutionOptionProps) {
         )}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="shrink-0">{option}</span>
+          <span className="shrink-0">{label}</span>
+          {!isNil(detail) && <span className="shrink-0 text-xs text-fg-2">{detail}</span>}
           {isNil(rate) && (
             <Tooltip content="Price varies for this model">
               <span className="ml-auto text-xs text-fg-2 tabular-nums">--</span>

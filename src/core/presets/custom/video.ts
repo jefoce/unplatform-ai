@@ -4,25 +4,12 @@ import { CUSTOM_REF_TOTAL_SEC } from '../../constants'
 import type { MediaKindCounts } from '../../media/media-types'
 import type { UpaiCapabilities } from '../../protocol/upai'
 import type { PresetIcon } from '../common/icon'
+import type { OutputSizes } from '../common/output-sizes'
 import type { PresetReferenceLimits } from '../common/reference-limits'
-import {
-  ASPECT_RATIOS,
-  type AspectRatio,
-  type Resolution,
-  RESOLUTIONS,
-  type VideoPreset,
-} from '../video/types'
+import type { VideoPreset } from '../video/types'
 import { CUSTOM_ERROR_RULES } from './errors'
-import { keepList, mapDuration, parseSize, pickDefault, presetIdFor } from './shared'
-import type {
-  MappedCustomModel,
-  MappedDuration,
-  MappedVideoContext,
-  OutputSizes,
-  OutputSizesParams,
-  OutputSizesResult,
-  SizeByAspect,
-} from './types'
+import { mapDuration, mapOutputSizes, nonEmptyStrings, presetIdFor } from './shared'
+import type { MappedCustomModel, MappedDuration, MappedVideoContext } from './types'
 
 const CUSTOM_ICON: PresetIcon = 'sparkles'
 
@@ -34,28 +21,29 @@ export function mapVideoModel(ctx: MappedVideoContext): MappedCustomModel {
 
   warnings.push(...duration.warnings)
 
-  const resolutions = keepList({
-    values: caps.resolutions,
-    allowed: RESOLUTIONS,
-    label: 'resolution',
-  })
+  const resolutions = nonEmptyStrings(caps.resolutions)
+  const aspects = nonEmptyStrings(caps.aspect_ratios)
 
-  const aspects = keepList({
-    values: caps.aspect_ratios,
-    allowed: ASPECT_RATIOS,
-    label: 'aspect ratio',
-  })
+  if (isNil(duration.duration) || isEmpty(resolutions) || isEmpty(aspects)) {
+    return { preset: null, availability, warnings }
+  }
 
-  warnings.push(...resolutions.warnings, ...aspects.warnings)
+  if (!resolutions.includes(caps.default_resolution)) {
+    warnings.push(`Dropped model: default resolution ${caps.default_resolution} is not listed`)
 
-  if (isNil(duration.duration) || isEmpty(resolutions.kept) || isEmpty(aspects.kept)) {
+    return { preset: null, availability, warnings }
+  }
+
+  if (!aspects.includes(caps.default_aspect_ratio)) {
+    warnings.push(`Dropped model: default aspect ${caps.default_aspect_ratio} is not listed`)
+
     return { preset: null, availability, warnings }
   }
 
   const sizes = mapOutputSizes({
     sizes: caps.sizes,
-    resolutions: resolutions.kept,
-    aspects: aspects.kept,
+    resolutions,
+    aspects,
   })
 
   warnings.push(...sizes.warnings)
@@ -69,8 +57,8 @@ export function mapVideoModel(ctx: MappedVideoContext): MappedCustomModel {
       workflowName: model.workflow?.name ?? null,
       caps,
       duration: duration.duration,
-      resolutions: resolutions.kept,
-      aspects: aspects.kept,
+      resolutions,
+      aspects,
       sizes: sizes.sizes,
       maxUploadBytes,
       perRunUsd: model.pricing.per_run_usd,
@@ -88,8 +76,8 @@ interface BuildVideoParams {
   workflowName: string | null
   caps: UpaiCapabilities
   duration: MappedDuration
-  resolutions: readonly Resolution[]
-  aspects: readonly AspectRatio[]
+  resolutions: readonly string[]
+  aspects: readonly string[]
   sizes: OutputSizes | undefined
   maxUploadBytes: number | null
   perRunUsd: number
@@ -120,11 +108,11 @@ function buildVideoPreset(params: BuildVideoParams): VideoPreset {
     icon: CUSTOM_ICON,
     duration,
     aspectRatios: aspects,
-    defaultAspectRatio: pickDefault(aspects, caps.default_aspect_ratio),
+    defaultAspectRatio: caps.default_aspect_ratio,
     autoAspectWithFrames: false,
     promptOptional: !caps.prompt.required,
     resolutions,
-    defaultResolution: pickDefault(resolutions, caps.default_resolution),
+    defaultResolution: caps.default_resolution,
     audio: { supported: false, default: false },
     frames: {
       start: caps.frames?.start ?? false,
@@ -187,41 +175,4 @@ function videoReferenceLimits(
   }
 
   return limits
-}
-
-function mapOutputSizes(params: OutputSizesParams): OutputSizesResult {
-  const { sizes, resolutions, aspects } = params
-  const result: OutputSizes = {}
-  const warnings: string[] = []
-
-  for (const resolution of resolutions) {
-    const rawAspects = sizes[resolution] ?? {}
-    const perResolution: SizeByAspect = {}
-
-    for (const aspect of aspects) {
-      const raw = rawAspects[aspect]
-      const size = parseSize(raw)
-
-      if (isNil(raw)) {
-        continue
-      }
-
-      if (isNil(size)) {
-        warnings.push(`Dropped malformed size ${raw} for ${resolution} ${aspect}`)
-        continue
-      }
-
-      perResolution[aspect] = size
-    }
-
-    if (!isEmpty(perResolution)) {
-      result[resolution] = perResolution
-    }
-  }
-
-  if (isEmpty(result)) {
-    return { sizes: undefined, warnings }
-  }
-
-  return { sizes: result, warnings }
 }

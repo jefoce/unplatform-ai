@@ -3,13 +3,7 @@ import { isNil } from 'lodash-es'
 import { IMAGE_REFERENCE_MAX_MB, IMAGE_REFERENCE_MAX_SIDE_PX } from '../../constants'
 import type { PricingConfig, SkuRule, TokenRule } from '../../pricing/types'
 import type { Dict } from '../../utility-types'
-import type {
-  ImageAspectChoice,
-  ImageBackground,
-  ImageOption,
-  ImageQuality,
-  ImageResolution,
-} from '../image/types'
+import type { ImageAspectChoice, ImageBackground, ImageOption, ImageQuality } from '../image/types'
 
 export const IMAGE_PROMPT_MAX_CHARS = 5000
 
@@ -29,9 +23,9 @@ const BACKGROUND_LABELS = {
   transparent: 'Transparent',
 } as const satisfies Record<ImageBackground, string>
 
-export const imageResolutionOptions = (
-  values: readonly ImageResolution[],
-): readonly ImageOption<ImageResolution>[] => {
+export const imageResolutionOptions = <T extends string>(
+  values: readonly T[],
+): readonly ImageOption<T>[] => {
   return values.map((value) => {
     return { value, label: value }
   })

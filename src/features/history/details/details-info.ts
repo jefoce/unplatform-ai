@@ -1,5 +1,6 @@
 import { compact, find, isNil } from 'lodash-es'
 
+import { imageResolutionDisplay } from '@/core/presets/common/display'
 import { findImagePreset } from '@/core/presets/image'
 import type { ImageAspectChoice, ImageOption, ImagePreset } from '@/core/presets/image/types'
 import { formatEstimate, formatUsd } from '@/core/pricing/format'
@@ -148,8 +149,17 @@ export function imageSettingLabels(input: ImageGenerationInput): string[] {
     return []
   }
 
+  let resolution: string | null = null
+
+  if (!isNil(input.resolution)) {
+    resolution = imageResolutionDisplay(preset, {
+      resolution: input.resolution,
+      aspect: input.aspectRatio,
+    }).label
+  }
+
   return compact([
-    optionLabel(preset.resolutions, input.resolution),
+    resolution,
     optionLabel(preset.qualities, input.quality),
     optionLabel(preset.backgrounds, input.background),
     aspectSetting(preset, input),

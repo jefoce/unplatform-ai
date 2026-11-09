@@ -43,8 +43,18 @@ function priceInputSchema(preset: VideoPreset) {
     tab: z.enum(GENERATOR_TABS),
     audio: z.boolean(),
     duration: durationSchema(preset),
-    aspectRatio: z.enum([...preset.aspectRatios, 'auto']),
-    resolution: z.enum(preset.resolutions),
+    aspectRatio: z.string().refine(
+      (value) => {
+        return value === 'auto' || preset.aspectRatios.includes(value)
+      },
+      { message: 'Choose an allowed aspect ratio' },
+    ),
+    resolution: z.string().refine(
+      (value) => {
+        return preset.resolutions.includes(value)
+      },
+      { message: 'Choose an allowed resolution' },
+    ),
     frames: FrameSlotsSchema,
     references: z.array(z.string()).max(MAX_IDS),
   })

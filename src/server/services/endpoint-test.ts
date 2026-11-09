@@ -27,6 +27,7 @@ import { secretsReady } from '../secrets'
 import { setEndpointHealth } from './endpoint-health'
 import { writeEndpointModels } from './endpoint-model-cache'
 import { lastHealthOf, mockTestResult } from './endpoint-test-mock'
+import { testFailed, testSucceeded } from './endpoint-test-result'
 import { readEndpointToken } from './endpoint-tokens'
 import { clearModelCatalog } from './model-catalog'
 
@@ -170,17 +171,14 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
 
     testCache.set(testKey({ baseUrl, token }), { lastHealth, checkedAt: lastHealth.checkedAt })
 
-    return {
-      ok: true,
-      error: null,
-      serverVersion: health.server_version,
-      videoCount: video.data.length,
-      imageCount: image.data.length,
-      authRequired: health.auth_required,
-      lanAllowed: health.lan_allowed,
-      instanceId: instanceIdOf(health.instance_id),
+    return testSucceeded({
+      endpointId: params.endpointId,
+      baseUrl,
+      health,
+      video: video.data,
+      image: image.data,
       lastHealth,
-    }
+    })
   } catch (error) {
     const failure = testFailure(error)
     const failedAt = new Date().toISOString()
@@ -197,14 +195,6 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
 
     return testFailed(failure.message)
   }
-}
-
-function instanceIdOf(value: string): string | null {
-  if (value === '') {
-    return null
-  }
-
-  return value
 }
 
 function resolveToken(params: EndpointTestBody, isSavedEndpoint: boolean): string | null {
@@ -298,18 +288,4 @@ function testFailure(error: unknown): TestFailure {
   }
 
   return { status: 'unreachable', message: CUSTOM_OFFLINE_MESSAGE }
-}
-
-function testFailed(message: string): EndpointTestResult {
-  return {
-    ok: false,
-    error: message,
-    serverVersion: null,
-    videoCount: 0,
-    imageCount: 0,
-    authRequired: null,
-    lanAllowed: null,
-    instanceId: null,
-    lastHealth: null,
-  }
 }

@@ -81,7 +81,7 @@ describe('custom mock fixtures', () => {
     const ready = customMockCatalog({ scenario: 'ready' })
 
     expect(fixtures.health.protocol).toBe(1)
-    expect(ready.video).toHaveLength(2)
+    expect(ready.video).toHaveLength(3)
     expect(ready.image).toHaveLength(1)
     expect(ready.isReachable).toBe(true)
   })
@@ -91,7 +91,7 @@ describe('custom mock fixtures', () => {
     const stale = catalog.video[0]
 
     expect(stale).toMatchObject({ status: 'stale', status_reason: CUSTOM_MOCK_STALE_REASON })
-    expect(catalog.video).toHaveLength(2)
+    expect(catalog.video).toHaveLength(3)
   })
 
   it('adds the invalid fixture model and keeps its reason', () => {
@@ -114,7 +114,7 @@ describe('custom mock fixtures', () => {
     const list = await provider.listModels()
     const status = await catalogStatus({ provider, binding: BINDING, label: 'ComfyUI' })
 
-    expect(list.models).toHaveLength(2)
+    expect(list.models).toHaveLength(3)
     expect(list.isFresh).toBe(false)
     expect(status.status).toBe('unverified')
     expect(await provider.testConnection()).toMatchObject({ ok: false })

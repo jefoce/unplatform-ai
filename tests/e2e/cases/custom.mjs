@@ -10,6 +10,8 @@ import { waitRecord } from '../lib/server.mjs'
 
 const MODEL_TITLE = 'Wan 2.2 T2V (local)'
 const MODEL_CARD = `[CU1] ${MODEL_TITLE}`
+const SCALE_MODEL = 'MiniMax H3 Scale (local)'
+const SCALE_CARD = `[CU1] ${SCALE_MODEL}`
 const STALE_MODEL = 'Wan 2.2 I2V (local)'
 const STALE_REASON = 'Workflow changed in ComfyUI since the last save'
 const INVALID_MODEL = 'Broken Image'
@@ -77,6 +79,65 @@ async function selectCustomModel(driver) {
     `!window.__e2e.exists('[aria-label="Search models"]')`,
     WAIT_MS,
     'the model picker to close',
+  )
+}
+
+async function selectScaleModel(driver) {
+  const row = `window.__e2e.all('button').some((node) => node.innerText.includes('CU1') && node.innerText.includes(${JSON.stringify(SCALE_MODEL)}))`
+
+  await driver.waitFor(row, WAIT_MS, `the ${SCALE_MODEL} row`)
+
+  const selected = await driver.evaluate(`(() => {
+    const button = window.__e2e.all('button').find((node) => node.innerText.includes('CU1') && node.innerText.includes(${JSON.stringify(SCALE_MODEL)}))
+    if (button === undefined) return false
+    button.click()
+    return true
+  })()`)
+
+  if (!selected) {
+    throw new Error(`No custom scale model row: ${SCALE_MODEL}`)
+  }
+
+  await driver.waitFor(
+    `!window.__e2e.exists('[aria-label="Search models"]')`,
+    WAIT_MS,
+    'the model picker to close',
+  )
+}
+
+async function customResolutionLabels(context) {
+  const { driver } = context
+
+  await openApp(context)
+  await resetLocal(driver, ['unplatform-ai:draft', 'unplatform-ai:view'])
+  await gotoTab(driver, 'Video')
+  await openModelPicker(driver)
+  await selectScaleModel(driver)
+  await waitBodyText(driver, SCALE_CARD, WAIT_MS)
+
+  const opened = await driver.evaluate(`(() => {
+    const button = window.__e2e.all('button').find((node) => node.innerText.includes('1280×736'))
+    if (button === undefined) return false
+    button.click()
+    return true
+  })()`)
+
+  if (!opened) {
+    throw new Error('No resolution trigger for the scale model')
+  }
+
+  await driver.waitFor(
+    `window.__e2e.exists('[data-radix-popper-content-wrapper]')`,
+    WAIT_MS,
+    'the resolution popover',
+  )
+  await driver.waitFor(
+    `(() => {
+      const wrapper = document.querySelector('[data-radix-popper-content-wrapper]')
+      return wrapper !== null && wrapper.innerText.includes('1280×736') && wrapper.innerText.includes('0.9')
+    })()`,
+    WAIT_MS,
+    'the 1280x736 option with its 0.9 detail',
   )
 }
 
@@ -185,5 +246,9 @@ export const customCases = [
   {
     name: 'custom-endpoint/picker-rows',
     run: customPickerRows,
+  },
+  {
+    name: 'custom-endpoint/resolution-labels',
+    run: customResolutionLabels,
   },
 ]

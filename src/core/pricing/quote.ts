@@ -3,13 +3,8 @@ import { isNil } from 'lodash-es'
 import { planImageCalls } from '../plan-image-calls'
 import type { BindingBase, ProviderBinding } from '../presets/common/binding'
 import { primaryBinding } from '../presets/common/bindings'
-import type {
-  ImageAspectChoice,
-  ImagePreset,
-  ImageQuality,
-  ImageResolution,
-} from '../presets/image/types'
-import type { AspectChoice, Resolution, VideoPreset } from '../presets/video/types'
+import type { ImageAspectChoice, ImagePreset, ImageQuality } from '../presets/image/types'
+import type { AspectChoice, VideoPreset } from '../presets/video/types'
 import {
   imageTokenCost,
   perImageCost,
@@ -23,7 +18,7 @@ import type { PriceUnit, PricingConfig, Quote, QuoteSource, SkuTable } from './t
 
 /** Settings that change a video price. */
 export interface PriceContext {
-  resolution: Resolution
+  resolution: string
   aspect: AspectChoice
   audio: boolean
   hasVideoInput: boolean
@@ -39,7 +34,7 @@ export interface VideoQuoteContext extends PriceContext {
 export interface ImagePriceInput {
   count: number
   aspectRatio: ImageAspectChoice
-  resolution: ImageResolution | null
+  resolution: string | null
   quality: ImageQuality | null
   background: string | null
   references: readonly string[]

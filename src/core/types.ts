@@ -1,6 +1,5 @@
 import type { z } from 'zod'
 
-import type { AspectChoice, Resolution } from './presets/video/types'
 import type { FrameSlotsSchema, GeneratorTab, JobStatus } from './schemas/generation-record'
 import type { SecretName } from './secret-names'
 
@@ -24,8 +23,8 @@ export const STATUS_FILTERS = ['all', 'done', 'active', 'failed'] as const
 
 export type StatusFilter = (typeof STATUS_FILTERS)[number]
 
-export type ResolutionFilter = Resolution | 'all'
-export type AspectFilter = AspectChoice | 'all'
+export type ResolutionFilter = string
+export type AspectFilter = string
 
 export const AUDIO_FILTERS = ['any', 'on', 'off'] as const
 

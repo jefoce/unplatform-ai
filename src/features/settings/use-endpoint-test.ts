@@ -36,6 +36,7 @@ function failedTest(message: string): EndpointTestResult {
     lanAllowed: null,
     instanceId: null,
     lastHealth: null,
+    warnings: [],
   }
 }
 

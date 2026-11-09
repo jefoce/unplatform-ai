@@ -7,12 +7,7 @@ import { toast } from 'sonner'
 import type { UploadsById } from '@/core/api/uploads'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { findImagePreset } from '@/core/presets/image'
-import type {
-  ImageAspectChoice,
-  ImageBackground,
-  ImageQuality,
-  ImageResolution,
-} from '@/core/presets/image/types'
+import type { ImageAspectChoice, ImageBackground, ImageQuality } from '@/core/presets/image/types'
 import { type ImageGenerationInput, ImageInputSchema } from '@/core/schemas/image-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { referenceBlockReason } from '@/features/generator/reference-rules'
@@ -27,7 +22,7 @@ interface ImageGeneratorState extends ImageGenerationInput {
   setPrompt: (prompt: string) => void
   setCount: (count: number) => void
   setAspectRatio: (aspectRatio: ImageAspectChoice) => void
-  setResolution: (resolution: ImageResolution | null) => void
+  setResolution: (resolution: string | null) => void
   setQuality: (quality: ImageQuality | null) => void
   setBackground: (background: ImageBackground | null) => void
   setSeed: (seed: number | null) => void

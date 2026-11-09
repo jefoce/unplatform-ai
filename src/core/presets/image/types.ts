@@ -2,6 +2,7 @@ import type { MediaKindCounts } from '../../media/media-types'
 import type { Rule } from '../../provider-errors/types'
 import type { BindingBase } from '../common/binding'
 import type { PresetIcon } from '../common/icon'
+import type { OutputSizes } from '../common/output-sizes'
 import type { PresetReferenceLimits } from '../common/reference-limits'
 
 export const IMAGE_RESOLUTIONS = ['512', '768', '1K', '1.5K', '2K', '4K'] as const
@@ -34,7 +35,9 @@ export const IMAGE_ASPECT_RATIOS = [
 ] as const
 
 export type ImageAspectRatio = (typeof IMAGE_ASPECT_RATIOS)[number]
-export type ImageAspectChoice = ImageAspectRatio | 'auto'
+
+/** Any aspect string a custom endpoint offers, plus the static list. */
+export type ImageAspectChoice = string
 
 export const IMAGE_QUALITIES = ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 export type ImageQuality = (typeof IMAGE_QUALITIES)[number]
@@ -74,10 +77,11 @@ export interface ImagePreset {
   icon: PresetIcon
 
   /** null hides the control. */
-  resolutions: readonly ImageOption<ImageResolution>[] | null
-  defaultResolution: ImageResolution | null
-  aspectRatios: readonly ImageAspectChoice[]
-  defaultAspectRatio: ImageAspectChoice
+  resolutions: readonly ImageOption<string>[] | null
+  defaultResolution: string | null
+  aspectRatios: readonly string[]
+  defaultAspectRatio: string
+  outputSizes?: OutputSizes
 
   /** Real output when the provider default is `auto`. Square for GPT Image. */
   autoAspectRatio?: ImageAspectRatio

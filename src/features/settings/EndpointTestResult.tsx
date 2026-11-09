@@ -30,6 +30,13 @@ export function EndpointTestResult(props: EndpointTestResultProps) {
       <li>
         {test.videoCount} video, {test.imageCount} image models
       </li>
+      {test.warnings.map((warning) => {
+        return (
+          <li key={warning} className="text-amber">
+            {warning}
+          </li>
+        )
+      })}
       <li>LAN access {lanText}</li>
       <li>{tokenText}</li>
     </ul>

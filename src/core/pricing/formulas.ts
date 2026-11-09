@@ -2,19 +2,13 @@ import { isNil } from 'lodash-es'
 
 import { parseAspect } from '../media/geometry'
 import { outputSize } from '../media/output-size'
-import type {
-  ImageAspectChoice,
-  ImageAspectRatio,
-  ImagePreset,
-  ImageQuality,
-  ImageResolution,
-} from '../presets/image/types'
-import type { AspectChoice, Resolution, VideoPreset } from '../presets/video/types'
+import type { ImageAspectChoice, ImagePreset, ImageQuality } from '../presets/image/types'
+import type { AspectChoice, VideoPreset } from '../presets/video/types'
 import { matchesCondition, skuKey } from './sku'
 import type { AspectBucket, FormulaResult, PricingConfig, SkuTable, TokenRule } from './types'
 
 interface VideoFormulaContext {
-  resolution: Resolution
+  resolution: string
   aspect: AspectChoice
   audio: boolean
   hasVideoInput: boolean
@@ -131,7 +125,7 @@ interface ImageFormulaContext {
   count: number
   calls: number
   aspectRatio: ImageAspectChoice
-  resolution: ImageResolution | null
+  resolution: string | null
   quality: ImageQuality | null
   references: number
   promptChars: number
@@ -144,7 +138,7 @@ interface ImageCostParams {
   table: SkuTable
 }
 
-function aspectOf(ratio: ImageAspectRatio): AspectBucket | null {
+function aspectOf(ratio: string): AspectBucket | null {
   const sides = parseAspect(ratio)
 
   if (isNil(sides)) {
@@ -165,7 +159,7 @@ function aspectOf(ratio: ImageAspectRatio): AspectBucket | null {
 }
 
 /** The ratio a choice bills at, with `auto` resolved to the provider default. */
-function resolvedAspectOf(preset: ImagePreset, choice: ImageAspectChoice): ImageAspectRatio {
+function resolvedAspectOf(preset: ImagePreset, choice: ImageAspectChoice): string {
   if (choice !== 'auto') {
     return choice
   }

@@ -228,7 +228,7 @@ Image presets live under `src/core/presets/image`, one file per family and one f
 
 ### Custom models
 
-Custom presets are runtime data, not files. Each enabled endpoint serves its cached upai/1 model list, and `mapCustomModel` turns each model into a preset with id `custom.<endpointId>.<modelId>`. The mapper keeps only known resolutions and aspect ratios, rounds the duration to its step, maps output sizes, reference counts, frames, seed, prompt limit and count, and prices the run at `perRun` from the model price. Dropped values become warnings, and a video model missing a duration, resolution or aspect ratio produces no preset.
+Custom presets are runtime data, not files. Each enabled endpoint serves its cached upai/1 model list, and `mapCustomModel` turns each model into a preset with id `custom.<endpointId>.<modelId>`. The mapper keeps every non-empty resolution and aspect ratio name the endpoint offers, in endpoint order, so a name outside the static lists is still selectable. It rounds the duration to its step, maps output sizes, reference counts, frames, seed, prompt limit and count, and prices the run at `perRun` from the model price. Invalid defaults, empty lists and an invalid duration produce no preset, each with a warning. Malformed sizes are dropped with a warning.
 
 A model is `ready`, `stale` or `invalid`. Ready is available. Stale is available with a reason and Generate is blocked until the workflow is saved again in ComfyUI. Invalid is disabled, with the reason from the pack. A model missing from a fresh model list stays selectable as missing for `CUSTOM_MISSING_KEEP_DAYS`, then disappears.
 

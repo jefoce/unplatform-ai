@@ -1,12 +1,7 @@
 import { z } from 'zod'
 
 import { IMAGE_COUNT_MAX, SEED_MAX } from '../constants'
-import {
-  IMAGE_ASPECT_RATIOS,
-  IMAGE_BACKGROUNDS,
-  IMAGE_QUALITIES,
-  IMAGE_RESOLUTIONS,
-} from '../presets/image/types'
+import { IMAGE_BACKGROUNDS, IMAGE_QUALITIES } from '../presets/image/types'
 import { PRICE_UNITS } from '../pricing/types'
 import { PROVIDER_KIND_IDS } from '../providers/types'
 import {
@@ -75,8 +70,8 @@ export const ImageInputSchema = z.object({
   presetId: z.string().min(1),
   prompt: z.string(),
   count: z.number().int().min(1).max(IMAGE_COUNT_MAX),
-  aspectRatio: z.enum([...IMAGE_ASPECT_RATIOS, 'auto']),
-  resolution: z.enum(IMAGE_RESOLUTIONS).nullable(),
+  aspectRatio: z.string(),
+  resolution: z.string().nullable(),
   quality: z.enum(IMAGE_QUALITIES).nullable(),
   background: z.enum(IMAGE_BACKGROUNDS).nullable(),
   references: z.array(z.string()),

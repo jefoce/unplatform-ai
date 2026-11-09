@@ -2,6 +2,7 @@ import type { MediaKindCounts } from '../../media/media-types'
 import type { Rule } from '../../provider-errors/types'
 import type { ProviderBinding } from '../common/binding'
 import type { PresetIcon } from '../common/icon'
+import type { OutputSizes } from '../common/output-sizes'
 import type { PresetReferenceLimits } from '../common/reference-limits'
 
 export const RESOLUTIONS = ['480p', '720p', '768p', '1080p', '2K', '4K'] as const
@@ -20,13 +21,13 @@ export const ASPECT_RATIOS = [
 ] as const
 
 export type AspectRatio = (typeof ASPECT_RATIOS)[number]
-export type AspectChoice = AspectRatio | 'auto'
+
+/** Any aspect string a custom endpoint offers, plus the static list. */
+export type AspectChoice = string
 
 export const VIDEO_FAMILIES = ['wan', 'seedance', 'custom'] as const
 
 export type VideoFamily = (typeof VIDEO_FAMILIES)[number]
-
-type SizeByAspect = Partial<Record<AspectRatio, `${number}x${number}`>>
 
 interface PresetDuration {
   min: number
@@ -69,14 +70,14 @@ export interface VideoPreset {
   icon: PresetIcon
   duration: PresetDuration
 
-  aspectRatios: readonly AspectRatio[]
-  defaultAspectRatio: AspectRatio
+  aspectRatios: readonly string[]
+  defaultAspectRatio: string
   autoAspectWithFrames: boolean
 
   /** False until a real run proves the model accepts an empty prompt. */
   promptOptional: boolean
-  resolutions: readonly Resolution[]
-  defaultResolution: Resolution
+  resolutions: readonly string[]
+  defaultResolution: string
   audio: PresetAudio
   frames: PresetFrames
   references: PresetReferences
@@ -86,7 +87,7 @@ export interface VideoPreset {
   promptMaxChars: number
   seed: boolean
   refLabel: string
-  outputSizes?: Partial<Record<Resolution, SizeByAspect>>
+  outputSizes?: OutputSizes
   bindings: readonly [ProviderBinding, ...ProviderBinding[]]
   errors: readonly Rule[]
 }

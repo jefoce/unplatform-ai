@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 import { FLATTEN_COLORS, IMAGE_FORMATS } from '../media/media-types'
 import { RESOLVED_TRANSPORTS } from '../presets/common/transport'
-import { ASPECT_RATIOS, RESOLUTIONS } from '../presets/video/types'
 import { UPAI_WAITING_ON } from '../protocol/upai'
 import { PROVIDER_KIND_IDS } from '../providers/types'
 import { PresetSnapshotSchema } from './preset-snapshot'
@@ -40,8 +39,8 @@ export const FrameSlotsSchema = z.object({
   end: z.string().nullable(),
 })
 
-const AspectChoiceSchema = z.enum([...ASPECT_RATIOS, 'auto'])
-const ResolutionSchema = z.enum(RESOLUTIONS)
+const AspectChoiceSchema = z.string()
+const ResolutionSchema = z.string()
 
 const GenerationInputSchema = z.object({
   presetId: z.string(),

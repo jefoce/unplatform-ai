@@ -13,13 +13,12 @@ import type {
   ImageOption,
   ImagePreset,
   ImageQuality,
-  ImageResolution,
 } from '../src/core/presets/image/types'
 import type { ImageGenerationInput } from '../src/core/schemas/image-record'
 import { validateImageSettings } from '../src/core/validation/image'
 
 interface AxisValues {
-  resolutions: (ImageResolution | null)[]
+  resolutions: (string | null)[]
   qualities: (ImageQuality | null)[]
   backgrounds: (ImageBackground | null)[]
   aspects: ImageAspectChoice[]

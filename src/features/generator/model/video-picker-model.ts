@@ -3,12 +3,13 @@ import { isNil } from 'lodash-es'
 import type { CatalogEntry } from '@/core/catalog'
 import type { PickerModel } from '@/core/feed/picker-model'
 import { minDuration } from '@/core/presets'
+import { resolutionDisplay } from '@/core/presets/common/display'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { formatRate } from '@/core/pricing/format'
 import { pricePerSec } from '@/core/pricing/quote'
 import type { Dict } from '@/core/utility-types'
 
-/** Resolution range shown in the picker row. */
+/** Resolution range shown in the picker row, using the display label for custom presets. */
 export function videoQuality(preset: VideoPreset): string {
   const [first] = preset.resolutions
   const last = preset.resolutions.at(-1)
@@ -17,11 +18,21 @@ export function videoQuality(preset: VideoPreset): string {
     return ''
   }
 
+  const firstLabel = resolutionDisplay(preset, {
+    resolution: first,
+    aspect: preset.defaultAspectRatio,
+  }).label
+
+  const lastLabel = resolutionDisplay(preset, {
+    resolution: last,
+    aspect: preset.defaultAspectRatio,
+  }).label
+
   if (first === last) {
-    return first
+    return firstLabel
   }
 
-  return `${first}-${last}`
+  return `${firstLabel}-${lastLabel}`
 }
 
 export function videoDuration(preset: VideoPreset): string {

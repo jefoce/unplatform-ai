@@ -1,58 +1,100 @@
-import { isEmpty } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 
 import type { UpaiCapabilities } from '../../protocol/upai'
 import type { PresetIcon } from '../common/icon'
 import { imageResolutionOptions } from '../common/options'
 import type { PresetReferenceLimits } from '../common/reference-limits'
-import {
-  IMAGE_ASPECT_RATIOS,
-  IMAGE_RESOLUTIONS,
-  type ImageAspectChoice,
-  type ImageOption,
-  type ImageParam,
-  type ImagePreset,
-  type ImageResolution,
-} from '../image/types'
+import type { ImageAspectChoice, ImageOption, ImageParam, ImagePreset } from '../image/types'
 import { CUSTOM_ERROR_RULES } from './errors'
-import { customPricing, keepList, pickDefault, presetIdFor } from './shared'
+import { customPricing, mapOutputSizes, nonEmptyStrings, presetIdFor } from './shared'
 import type { ImageParamContext, MappedCustomModel, MappedImageContext } from './types'
 
 const CUSTOM_ICON: PresetIcon = 'sparkles'
 
+interface ImageControls {
+  resolutions: string[]
+  aspects: string[]
+  hasResolution: boolean
+  hasAspect: boolean
+}
+
+interface ImageControlValues {
+  resolutionOptions: readonly ImageOption<string>[] | null
+  defaultResolution: string | null
+  aspectRatios: readonly ImageAspectChoice[]
+  defaultAspectRatio: string
+}
+
+function imageControls(caps: UpaiCapabilities): ImageControls {
+  const resolutions = nonEmptyStrings(caps.resolutions)
+  const aspects = nonEmptyStrings(caps.aspect_ratios)
+
+  return {
+    resolutions,
+    aspects,
+    hasResolution: !isEmpty(resolutions),
+    hasAspect: !isEmpty(aspects),
+  }
+}
+
+/** The first default that the endpoint list does not contain, null when both are valid. */
+function missingImageDefault(caps: UpaiCapabilities, controls: ImageControls): string | null {
+  const { resolutions, aspects, hasResolution, hasAspect } = controls
+
+  if (hasResolution && !resolutions.includes(caps.default_resolution)) {
+    return `Dropped model: default resolution ${caps.default_resolution} is not listed`
+  }
+
+  if (hasAspect && !aspects.includes(caps.default_aspect_ratio)) {
+    return `Dropped model: default aspect ${caps.default_aspect_ratio} is not listed`
+  }
+
+  return null
+}
+
+function imageControlValues(caps: UpaiCapabilities, controls: ImageControls): ImageControlValues {
+  const { resolutions, aspects, hasResolution, hasAspect } = controls
+  let resolutionOptions: readonly ImageOption<string>[] | null = null
+  let defaultResolution: string | null = null
+  let aspectRatios: readonly ImageAspectChoice[] = ['auto']
+  let defaultAspectRatio = 'auto'
+
+  if (hasResolution) {
+    resolutionOptions = imageResolutionOptions(resolutions)
+    defaultResolution = caps.default_resolution
+  }
+
+  if (hasAspect) {
+    aspectRatios = aspects
+    defaultAspectRatio = caps.default_aspect_ratio
+  }
+
+  return { resolutionOptions, defaultResolution, aspectRatios, defaultAspectRatio }
+}
+
 export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
   const { endpoint, model, availability } = ctx
   const caps = model.capabilities
+  const warnings: string[] = []
+  const controls = imageControls(caps)
+  const missingDefault = missingImageDefault(caps, controls)
 
-  const resolutions = keepList({
-    values: caps.resolutions,
-    allowed: IMAGE_RESOLUTIONS,
-    label: 'resolution',
+  if (!isNil(missingDefault)) {
+    warnings.push(missingDefault)
+
+    return { preset: null, availability, warnings }
+  }
+
+  const sizes = mapOutputSizes({
+    sizes: caps.sizes,
+    resolutions: controls.resolutions,
+    aspects: controls.aspects,
   })
 
-  const aspects = keepList({
-    values: caps.aspect_ratios,
-    allowed: IMAGE_ASPECT_RATIOS,
-    label: 'aspect ratio',
-  })
+  warnings.push(...sizes.warnings)
 
-  const warnings = [...resolutions.warnings, ...aspects.warnings]
-  const hasResolution = !isEmpty(resolutions.kept)
-  const hasAspect = !isEmpty(aspects.kept)
   const countMax = caps.count?.max ?? 0
-  let aspectRatios: readonly ImageAspectChoice[] = aspects.kept
-  const defaultAspectRatio = imageDefaultAspect(aspects.kept, caps.default_aspect_ratio)
-  let defaultResolution: ImageResolution | null = null
-
-  if (!hasAspect) {
-    aspectRatios = ['auto']
-  }
-
-  let resolutionOptions: readonly ImageOption<ImageResolution>[] | null = null
-
-  if (hasResolution) {
-    defaultResolution = pickDefault(resolutions.kept, caps.default_resolution)
-    resolutionOptions = imageResolutionOptions(resolutions.kept)
-  }
+  const values = imageControlValues(caps, controls)
 
   const preset: ImagePreset = {
     id: presetIdFor(endpoint.id, model.id),
@@ -61,17 +103,18 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
     description: model.description,
     workflowName: model.workflow?.name ?? null,
     icon: CUSTOM_ICON,
-    resolutions: resolutionOptions,
-    defaultResolution,
-    aspectRatios,
-    defaultAspectRatio,
+    resolutions: values.resolutionOptions,
+    defaultResolution: values.defaultResolution,
+    aspectRatios: values.aspectRatios,
+    defaultAspectRatio: values.defaultAspectRatio,
+    outputSizes: sizes.sizes,
     qualities: null,
     defaultQuality: null,
     backgrounds: null,
     defaultBackground: null,
     params: imageParams({
-      hasResolution,
-      hasAspect,
+      hasResolution: controls.hasResolution,
+      hasAspect: controls.hasAspect,
       hasSeed: caps.seed,
       countMax,
       maxReferences: caps.references.image.max,
@@ -89,17 +132,6 @@ export function mapImageModel(ctx: MappedImageContext): MappedCustomModel {
   }
 
   return { preset, availability, warnings }
-}
-
-function imageDefaultAspect(
-  aspects: readonly ImageAspectChoice[],
-  preferred: string,
-): ImageAspectChoice {
-  if (isEmpty(aspects)) {
-    return 'auto'
-  }
-
-  return pickDefault(aspects, preferred)
 }
 
 function imageParams(ctx: ImageParamContext): ImageParam[] {

@@ -44,6 +44,7 @@ export const EndpointTestResultSchema = z
     lanAllowed: z.boolean().nullable(),
     instanceId: z.string().nullable(),
     lastHealth: CustomEndpointLastHealthSchema.nullable(),
+    warnings: z.array(z.string()).default([]),
   })
   .loose()
 

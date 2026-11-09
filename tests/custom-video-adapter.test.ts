@@ -173,6 +173,26 @@ describe('custom video adapter submit', () => {
   })
 })
 
+describe('custom video body values', () => {
+  it('sends a scale resolution value unchanged', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(await fixture('create-job-video.json')), { status: 202 }),
+    )
+
+    const provider = createCustomVideoProvider(ENDPOINT)
+
+    await provider.submit({
+      preset: PRESET,
+      input: { ...INPUT, resolution: '0.9' },
+      media: MEDIA,
+    })
+
+    const body: unknown = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+
+    expect(body).toMatchObject({ resolution: '0.9' })
+  })
+})
+
 describe('custom video job mapping', () => {
   it('maps progress, urls, usage and expiry', async () => {
     const job = UpaiJobSchema.parse(await fixture('job-in_progress.json'))

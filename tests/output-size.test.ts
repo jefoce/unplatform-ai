@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { aspectAllowed, outputSize, SHORT_SIDE } from '../src/core/media/output-size'
 import { getPreset } from '../src/core/presets'
-import type { AspectRatio } from '../src/core/presets/video/types'
 
 const seedance = getPreset('seedance-2.0')
 const seedance25 = getPreset('seedance-2.5')
@@ -62,7 +61,7 @@ describe('outputSize', () => {
   })
 
   it('returns null for a malformed aspect', () => {
-    expect(outputSize({ preset: wan, resolution: '720p', aspect: 'bad' as AspectRatio })).toBeNull()
+    expect(outputSize({ preset: wan, resolution: '720p', aspect: 'bad' })).toBeNull()
   })
 
   it('exports the short-side map', () => {

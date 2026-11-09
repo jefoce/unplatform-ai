@@ -7,7 +7,6 @@ import type {
   ImageOption,
   ImagePreset,
   ImageQuality,
-  ImageResolution,
 } from '@/core/presets/image/types'
 import type { ImageGenerationInput } from '@/core/schemas/image-record'
 
@@ -16,7 +15,7 @@ import { imageReferenceMax } from './preset'
 export interface ImageDefaults {
   count: number
   aspectRatio: ImageAspectChoice
-  resolution: ImageResolution | null
+  resolution: string | null
   quality: ImageQuality | null
   background: ImageBackground | null
   seed: number | null

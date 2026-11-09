@@ -2,10 +2,9 @@
 
 import { isEmpty, isNil, uniq } from 'lodash-es'
 
-import { isOneOf } from '@/core/guards'
 import type { HistoryFacets, ModelFacet } from '@/core/history-facets'
 import { VIDEO_PRESETS } from '@/core/presets'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
+import { RESOLUTIONS } from '@/core/presets/video/types'
 import type {
   AspectFilter,
   AudioFilter,
@@ -81,9 +80,7 @@ function resolutionOptions(params: FacetOptionsParams): FilterOption<ResolutionF
   const options: FilterOption<ResolutionFilter>[] = [{ value: 'all', label: 'All' }]
 
   for (const value of values) {
-    if (isOneOf(RESOLUTIONS, value)) {
-      options.push({ value, label: value })
-    }
+    options.push({ value, label: value })
   }
 
   return options
@@ -110,7 +107,7 @@ function aspectOptions(params: FacetOptionsParams): FilterOption<AspectFilter>[]
   ]
 
   for (const value of aspectValues(params)) {
-    if (isOneOf(ASPECT_RATIOS, value)) {
+    if (value !== 'auto') {
       options.push({ value, label: value })
     }
   }

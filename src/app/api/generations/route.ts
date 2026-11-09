@@ -3,7 +3,6 @@ import { z } from 'zod'
 
 import { HISTORY_MAX_PAGE_SIZE, HISTORY_PAGE_SIZE, MAX_IDS } from '@/core/constants'
 import { applyFilters, countActive, paginate, sortRecords } from '@/core/feed/history-filters'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { GENERATOR_TABS } from '@/core/schemas/generation-record'
 import { AUDIO_FILTERS, HISTORY_MODES, STATUS_FILTERS } from '@/core/types'
 import { buildInputSchema } from '@/core/validation/video'
@@ -23,8 +22,8 @@ const QuerySchema = z.object({
   status: z.enum(STATUS_FILTERS).catch('all'),
   tab: z.enum([...GENERATOR_TABS, 'all']).catch('all'),
   mode: z.enum(HISTORY_MODES).catch('all'),
-  resolution: z.enum([...RESOLUTIONS, 'all']).optional(),
-  aspect: z.enum([...ASPECT_RATIOS, 'auto', 'all']).optional(),
+  resolution: z.string().optional(),
+  aspect: z.string().optional(),
   audio: z.enum(AUDIO_FILTERS).catch('any'),
   q: z.string().optional(),
   model: z.string().optional(),

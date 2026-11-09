@@ -2,6 +2,7 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
+import { isKeyOf } from '@/core/guards'
 import { aspectSize, type PixelSize } from '@/core/media/geometry'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import { IMAGE_PRESETS } from '@/core/presets/image'
@@ -74,7 +75,7 @@ function sizeFor(input: ImageGenerationInput): PixelSize {
   const ratio = aspectSize(input.aspectRatio)
   let shortSide = DEFAULT_SHORT_SIDE
 
-  if (!isNil(input.resolution)) {
+  if (!isNil(input.resolution) && isKeyOf(SHORT_SIDE, input.resolution)) {
     shortSide = SHORT_SIDE[input.resolution]
   }
 

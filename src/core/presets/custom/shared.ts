@@ -1,49 +1,61 @@
-import { clamp, isNil } from 'lodash-es'
+import { clamp, isEmpty, isNil } from 'lodash-es'
 
 import type { ModelAvailability } from '../../catalog'
 import { CUSTOM_DURATION_MAX_SEC, CUSTOM_DURATION_OPTIONS_MAX } from '../../constants'
-import { isOneOf } from '../../guards'
+import { isNonEmptyString } from '../../guards'
 import type { PricingConfig } from '../../pricing/types'
 import type { UpaiDuration, UpaiModel } from '../../protocol/upai'
+import type { OutputSizes, SizeByAspect } from '../common/output-sizes'
 import { customPresetPrefix } from './index'
-import type { DurationResult, KeepListParams, KeptList, MappedDuration } from './types'
+import type { DurationResult, MappedDuration, OutputSizesParams, OutputSizesResult } from './types'
 
 export const CUSTOM_STALE_REASON = 'Workflow changed in ComfyUI since the last save'
 export const CUSTOM_INVALID_REASON = 'This workflow cannot run in ComfyUI.'
 
 const SIZE_PATTERN = /^(\d+)x(\d+)$/
 
-export function keepList<T extends string>(params: KeepListParams<T>): KeptList<T> {
-  const { values, allowed, label } = params
-
-  const kept = values.filter((value): value is T => {
-    return isOneOf(allowed, value)
+/** Keeps the endpoint order and drops empty names without judging the value. */
+export function nonEmptyStrings(values: readonly string[]): string[] {
+  return values.filter((value) => {
+    return isNonEmptyString(value)
   })
-
-  const dropped = values.filter((value) => {
-    return !isOneOf(allowed, value)
-  })
-
-  return {
-    kept,
-    warnings: dropped.map((value) => {
-      return `Dropped unsupported ${label} ${value}`
-    }),
-  }
 }
 
-export function pickDefault<T extends string>(kept: readonly T[], preferred: string): T {
-  const [first] = kept
+export function mapOutputSizes(params: OutputSizesParams): OutputSizesResult {
+  const { sizes, resolutions, aspects } = params
+  const result: OutputSizes = {}
+  const warnings: string[] = []
 
-  if (isNil(first)) {
-    throw new Error('Cannot pick a default from an empty list')
+  for (const resolution of resolutions) {
+    const rawAspects = sizes[resolution] ?? {}
+    const perResolution: SizeByAspect = {}
+
+    for (const aspect of aspects) {
+      const raw = rawAspects[aspect]
+      const size = parseSize(raw)
+
+      if (isNil(raw)) {
+        continue
+      }
+
+      if (isNil(size)) {
+        warnings.push(`Dropped malformed size ${raw} for ${resolution} ${aspect}`)
+        continue
+      }
+
+      perResolution[aspect] = size
+    }
+
+    if (!isEmpty(perResolution)) {
+      result[resolution] = perResolution
+    }
   }
 
-  const found = kept.find((value) => {
-    return value === preferred
-  })
+  if (isEmpty(result)) {
+    return { sizes: undefined, warnings }
+  }
 
-  return found ?? first
+  return { sizes: result, warnings }
 }
 
 /** Ready and stale models stay usable, invalid ones keep their own status. */
@@ -155,7 +167,7 @@ export function mapDuration(raw: UpaiDuration | undefined): DurationResult {
   return buildDuration({ min, roundedMax, raw })
 }
 
-export function parseSize(raw: string | undefined): `${number}x${number}` | null {
+function parseSize(raw: string | undefined): `${number}x${number}` | null {
   if (isNil(raw)) {
     return null
   }

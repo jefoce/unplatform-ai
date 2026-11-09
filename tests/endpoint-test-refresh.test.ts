@@ -130,6 +130,40 @@ afterAll(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
 })
 
+describe('endpoint test warnings', () => {
+  it('returns mapper warnings from the model lists', async () => {
+    const broken = structuredClone(videoFixture)
+    const [first] = broken.data
+
+    if (first === undefined) {
+      throw new Error('Missing video fixture')
+    }
+
+    first.capabilities.sizes['480p']['16:9'] = 'bad'
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+
+        if (url.endsWith('/health')) {
+          return jsonResponse(HEALTH)
+        }
+
+        if (url.endsWith('/videos/models')) {
+          return jsonResponse(broken)
+        }
+
+        return jsonResponse({ data: [] })
+      }),
+    )
+
+    const result = await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(result.warnings).toContain('Dropped malformed size bad for 480p 16:9')
+  })
+})
+
 describe('endpoint test refresh', () => {
   it('writes both model caches and clears the catalog', async () => {
     mockFetch()

@@ -6,7 +6,7 @@ import { isNonEmptyString } from './guards'
 import { MEDIA_KINDS, type MediaKindCounts } from './media/media-types'
 import { aspectAllowed } from './media/output-size'
 import { minDuration } from './presets'
-import type { AspectChoice, Resolution, VideoPreset } from './presets/video/types'
+import type { AspectChoice, VideoPreset } from './presets/video/types'
 import type { GenerationInput } from './schemas/generation-record'
 import type { FrameSlots } from './types'
 
@@ -47,7 +47,7 @@ export const clampDuration = (params: ClampDurationParams): number => {
 interface NormalizeAspectParams {
   aspect: AspectChoice
   preset: VideoPreset
-  resolution: Resolution
+  resolution: string
 }
 
 function normalizeAspect(params: NormalizeAspectParams): AspectChoice {

@@ -2,7 +2,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { getPreset } from '../src/core/presets'
-import type { Resolution } from '../src/core/presets/video/types'
 import { validateInput, validateSettings } from '../src/core/validation/video'
 import { input, preset, upload, uploadsOf } from './helpers/validation-fixtures'
 
@@ -182,7 +181,7 @@ describe('validateInput duration', () => {
 describe('validateInput resolution and aspect', () => {
   it('rejects an unsupported resolution', () => {
     const result = validateInput({
-      input: input({ resolution: '4k' as Resolution }),
+      input: input({ resolution: '4k' }),
       uploads: {},
       preset,
     })

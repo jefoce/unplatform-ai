@@ -7,6 +7,7 @@ import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
 import { CUSTOM_DURATION_OPTIONS_MAX } from '../src/core/constants'
+import { resolutionDisplay } from '../src/core/presets/common/display'
 import { mapCustomModel } from '../src/core/presets/custom/from-capabilities'
 import { CUSTOM_INVALID_REASON, CUSTOM_STALE_REASON } from '../src/core/presets/custom/shared'
 import type { MappedCustomModel } from '../src/core/presets/custom/types'
@@ -16,6 +17,7 @@ import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
 import { CustomEndpointSchema } from '../src/core/schemas/custom-endpoint'
 import { ImageInputSchema } from '../src/core/schemas/image-record'
 import { validateImageInput } from '../src/core/validation/image'
+import minimaxFixture from './fixtures/custom/minimax-h3-models.json'
 
 const ENDPOINT = CustomEndpointSchema.parse({
   id: 'endpoint-1',
@@ -27,6 +29,7 @@ const ENDPOINT = CustomEndpointSchema.parse({
 const VIDEO_MODELS = UpaiModelListSchema.parse(videoFixture).data
 const IMAGE_MODELS = UpaiModelListSchema.parse(imageFixture).data
 const INVALID_MODELS = UpaiModelListSchema.parse(invalidFixture).data
+const MINIMAX_MODELS = UpaiModelListSchema.parse(minimaxFixture).data
 
 function modelAt(models: readonly UpaiModel[], index: number): UpaiModel {
   const model = models[index]
@@ -217,7 +220,7 @@ describe('video mapping', () => {
     expect(result.warnings).toContain('Duration is above the 120 s cap')
   })
 
-  it('drops unsupported resolutions and falls back to a kept default', () => {
+  it('keeps an unknown resolution name and its default in endpoint order', () => {
     const base = modelAt(VIDEO_MODELS, 1)
 
     const model: UpaiModel = {
@@ -232,24 +235,39 @@ describe('video mapping', () => {
     const result = mapModel(model)
     const preset = expectVideo(result)
 
-    expect(preset.resolutions).toEqual(['480p'])
-    expect(preset.defaultResolution).toBe('480p')
-
-    expect(
-      result.warnings.some((warning) => {
-        return warning.includes('900p')
-      }),
-    ).toBe(true)
+    expect(preset.resolutions).toEqual(['480p', '900p'])
+    expect(preset.defaultResolution).toBe('900p')
+    expect(result.warnings).toEqual([])
   })
 
-  it('drops the model when no resolution is supported', () => {
+  it('keeps an unknown aspect name without a warning', () => {
     const base = modelAt(VIDEO_MODELS, 1)
 
     const model: UpaiModel = {
       ...base,
       capabilities: {
         ...base.capabilities,
-        resolutions: ['900p'],
+        aspect_ratios: ['16:9', '5:4'],
+        default_aspect_ratio: '5:4',
+      },
+    }
+
+    const result = mapModel(model)
+    const preset = expectVideo(result)
+
+    expect(preset.aspectRatios).toEqual(['16:9', '5:4'])
+    expect(preset.defaultAspectRatio).toBe('5:4')
+    expect(result.warnings).toEqual([])
+  })
+
+  it('drops the model when its default resolution is not listed', () => {
+    const base = modelAt(VIDEO_MODELS, 1)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        resolutions: ['480p', '720p'],
         default_resolution: '900p',
       },
     }
@@ -258,11 +276,36 @@ describe('video mapping', () => {
 
     expect(result.preset).toBeNull()
 
-    expect(
-      result.warnings.some((warning) => {
-        return warning.includes('900p')
-      }),
-    ).toBe(true)
+    expect(result.warnings).toContain('Dropped model: default resolution 900p is not listed')
+  })
+
+  it('drops the model when its default aspect ratio is not listed', () => {
+    const base = modelAt(VIDEO_MODELS, 1)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        aspect_ratios: ['16:9'],
+        default_aspect_ratio: '9:16',
+      },
+    }
+
+    const result = mapModel(model)
+
+    expect(result.preset).toBeNull()
+    expect(result.warnings).toContain('Dropped model: default aspect 9:16 is not listed')
+  })
+
+  it('drops the model when its resolution list is empty', () => {
+    const base = modelAt(VIDEO_MODELS, 1)
+
+    const model: UpaiModel = {
+      ...base,
+      capabilities: { ...base.capabilities, resolutions: [] },
+    }
+
+    expect(mapModel(model).preset).toBeNull()
   })
 
   it('carries required reference counts', () => {
@@ -304,6 +347,66 @@ describe('video mapping', () => {
     const result = mapModel({ ...base, status: 'stale', status_reason: 'workflow is newer' })
 
     expect(result.availability).toEqual({ status: 'available', reason: CUSTOM_STALE_REASON })
+  })
+})
+
+describe('minimax scale preset', () => {
+  it('maps both ready models with every scale resolution', () => {
+    for (const model of MINIMAX_MODELS) {
+      const result = mapModel(model)
+      const preset = expectVideo(result)
+
+      expect(preset.id).toBe(`custom.endpoint-1.${model.id}`)
+      expect(preset.family).toBe('custom')
+      expect(preset.resolutions).toHaveLength(14)
+      expect(preset.aspectRatios).toEqual(['16:9', '21:9', '4:3', '1:1', '3:4', '9:16'])
+      expect(preset.defaultResolution).toBe('0.9')
+      expect(preset.defaultAspectRatio).toBe('16:9')
+      expect(preset.duration).toEqual({ min: 4, max: 15, default: 5 })
+      expect(result.warnings).toEqual([])
+    }
+  })
+
+  it('labels 0.9 at 16:9 and 9:16 from the size table', () => {
+    const preset = expectVideo(mapModel(modelAt(MINIMAX_MODELS, 0)))
+
+    expect(resolutionDisplay(preset, { resolution: '0.9', aspect: '16:9' })).toEqual({
+      label: '1280×736',
+      detail: '0.9',
+    })
+
+    expect(resolutionDisplay(preset, { resolution: '0.9', aspect: '9:16' })).toEqual({
+      label: '736×1280',
+      detail: '0.9',
+    })
+  })
+
+  it('keeps a model with an unknown resolution and drops only a missing default', () => {
+    const base = modelAt(MINIMAX_MODELS, 0)
+
+    const unknown: UpaiModel = {
+      ...base,
+      capabilities: {
+        ...base.capabilities,
+        resolutions: [...base.capabilities.resolutions, '3.0'],
+        default_resolution: '3.0',
+      },
+    }
+
+    const kept = mapModel(unknown)
+
+    expect(kept.preset).not.toBeNull()
+    expect(expectVideo(kept).resolutions).toContain('3.0')
+
+    const missing: UpaiModel = {
+      ...base,
+      capabilities: { ...base.capabilities, default_resolution: '3.0' },
+    }
+
+    const dropped = mapModel(missing)
+
+    expect(dropped.preset).toBeNull()
+    expect(dropped.warnings).toContain('Dropped model: default resolution 3.0 is not listed')
   })
 })
 

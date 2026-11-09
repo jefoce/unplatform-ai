@@ -1,9 +1,10 @@
 'use client'
 
+import { isNil } from 'lodash-es'
 import { Monitor } from 'lucide-react'
 
 import { getPreset } from '@/core/presets'
-import type { Resolution } from '@/core/presets/video/types'
+import { resolutionDisplay, videoResolutionChoices } from '@/core/presets/common/display'
 import { pricePerSec } from '@/core/pricing/quote'
 import { useModelEntry } from '@/lib/api/catalog'
 import { cn } from '@/lib/cn'
@@ -42,8 +43,10 @@ export function ResolutionPopover() {
 
   const pricing = useModelEntry(preset.id)?.pricing
   const discount = pricing?.discount ?? 0
+  const selected = resolutionDisplay(preset, { resolution, aspect })
+  const choices = videoResolutionChoices(preset, aspect)
 
-  const handleSelectResolution = (option: Resolution): void => {
+  const handleSelectResolution = (option: string): void => {
     setResolution(option)
   }
 
@@ -58,12 +61,19 @@ export function ResolutionPopover() {
           )}
         >
           <Monitor size={16} />
-          {resolution}
+          {selected.label}
+          {!isNil(selected.detail) && <span className="text-xs text-fg-2">{selected.detail}</span>}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-56 space-y-1">
-        {preset.resolutions.map((option) => {
-          const ctx = { resolution: option, aspect, audio: isAudio, hasVideoInput }
+        {choices.map((choice) => {
+          const ctx = {
+            resolution: choice.value,
+            aspect,
+            audio: isAudio,
+            hasVideoInput,
+          }
+
           const rate = pricePerSec({ preset, ctx, skus: pricing?.skus })
           let listRate: number | null = null
 
@@ -73,9 +83,11 @@ export function ResolutionPopover() {
 
           return (
             <ResolutionOption
-              key={option}
-              option={option}
-              isSelected={option === resolution}
+              key={choice.value}
+              option={choice.value}
+              label={choice.label}
+              detail={choice.detail}
+              isSelected={choice.value === resolution}
               rate={rate}
               listRate={listRate}
               discount={discount}

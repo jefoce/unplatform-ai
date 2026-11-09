@@ -5,7 +5,7 @@ import { imageEstimateKey } from '@/lib/api/swr-keys'
 
 import { imageEstimateBody, ImageEstimateSchema } from '../src/core/api/image'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
-import type { ImageOption, ImagePreset, ImageResolution } from '../src/core/presets/image/types'
+import type { ImageOption, ImagePreset } from '../src/core/presets/image/types'
 import { type ImagePriceInput, imageQuoteContext, quote } from '../src/core/pricing/quote'
 import type { ImageGenerationInput } from '../src/core/schemas/image-record'
 import { imagePreset } from './helpers/image-presets'
@@ -249,7 +249,7 @@ const FLAT_RESOLUTION_IDS = new Set([
 
 interface MultiResolutionPreset {
   preset: ImagePreset
-  resolutions: readonly ImageOption<ImageResolution>[]
+  resolutions: readonly ImageOption<string>[]
 }
 
 const MULTI_RESOLUTION = IMAGE_PRESETS.flatMap((preset): MultiResolutionPreset[] => {
