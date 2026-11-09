@@ -13,6 +13,7 @@ import type * as LivePricingModule from '@/server/pricing/live'
 import { IMAGE_MAX_ACTIVE } from '../src/core/constants'
 import type { ImagePreset } from '../src/core/presets/image/types'
 import { type ImageOutput, type ImageRecord, isImageActive } from '../src/core/schemas/image-record'
+import { withLock } from '../src/server/sync/lock'
 
 const ROOT = path.join(os.tmpdir(), `cf-images-routes-${process.pid}-${Date.now()}`)
 const IMAGES = path.join(ROOT, 'images')
@@ -671,5 +672,58 @@ describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
     )
 
     expect(response.status).toBe(409)
+  })
+})
+
+describe('POST /api/images/[id]/outputs/[output-id]/frame with a queued delete', () => {
+  it('turns the link into a 404 instead of linking a missing file', async () => {
+    const saved = await repo.saveImage(record({ status: 'saving' }))
+
+    const output = await files.writeImageOutput({
+      recordId: saved.id,
+      outputId: randomUUID(),
+      index: 0,
+      bytes: Uint8Array.from(pngBytes),
+      mediaType: 'image/png',
+    })
+
+    await repo.saveImage({ ...saved, status: 'completed', outputs: [output] })
+
+    const hold = Promise.withResolvers<void>()
+
+    const holder = withLock(saved.id, async () => {
+      await hold.promise
+    })
+
+    const deletePromise = idRoute.DELETE(
+      request('DELETE', `http://127.0.0.1:3000/api/images/${saved.id}`),
+      { params: Promise.resolve({ id: saved.id }) },
+    )
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+
+    const framePromise = frameRoute.POST(
+      request('POST', `http://127.0.0.1:3000/api/images/${saved.id}/outputs/${output.id}/frame`),
+      { params: Promise.resolve({ id: saved.id, 'output-id': output.id }) },
+    )
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+
+    hold.resolve()
+    await holder
+
+    const removed = await deletePromise
+    const response = await framePromise
+
+    expect(removed.status).toBe(204)
+    expect(response.status).toBe(404)
+
+    const uploads = await import('@/server/repos/uploads')
+
+    expect(await uploads.listUploads()).toHaveLength(0)
   })
 })
