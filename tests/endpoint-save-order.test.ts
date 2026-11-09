@@ -15,7 +15,7 @@ const PREVIOUS_ROOT = process.env.STORAGE_ROOT
 process.env.STORAGE_ROOT = ROOT
 
 const repo = vi.hoisted(() => {
-  return { isApplyFailing: false, tokenSeenOnApply: null as string | null }
+  return { isApplyFailing: false, applyDelayMs: 0, tokenSeenOnApply: null as string | null }
 })
 
 const tokenState = vi.hoisted(() => {
@@ -28,6 +28,12 @@ vi.mock('@/server/repos/endpoints', async (importOriginal) => {
   return {
     ...actual,
     applyEndpoints: async (params: EndpointRepo.ApplyEndpointsParams) => {
+      if (repo.applyDelayMs > 0) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, repo.applyDelayMs)
+        })
+      }
+
       if (repo.isApplyFailing) {
         throw new Error('endpoint write failed')
       }
@@ -85,6 +91,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   repo.isApplyFailing = false
+  repo.applyDelayMs = 0
   repo.tokenSeenOnApply = null
   tokenState.isWriteFailing = false
 
@@ -143,5 +150,40 @@ describe('endpoint save order', () => {
     ).rejects.toThrow('endpoint write failed')
 
     expect(tokens.readTokenMap()).toEqual({ kept: 'old-token' })
+  })
+
+  it('keeps the endpoint file and token map from one save', async () => {
+    repo.applyDelayMs = 20
+
+    const ids = {
+      a: '11111111-1111-4111-8111-111111111111',
+      b: '22222222-2222-4222-8222-222222222222',
+    }
+
+    await Promise.all([
+      service.saveEndpoints({ endpoints: [{ ...endpoint('A', 'token-a'), id: ids.a }] }),
+      service.saveEndpoints({ endpoints: [{ ...endpoint('B', 'token-b'), id: ids.b }] }),
+    ])
+
+    const endpoints = await import('@/server/repos/endpoints')
+    const file = await endpoints.readEndpointFile()
+    const tokenMap = tokens.readTokenMap()
+
+    const savedIds = file.endpoints.map((entry) => {
+      return entry.id
+    })
+
+    const expectedTokens: Record<string, string> = {
+      [ids.a]: 'token-a',
+      [ids.b]: 'token-b',
+    }
+
+    for (const entry of file.endpoints) {
+      expect(tokenMap[entry.id]).toBe(expectedTokens[entry.id])
+    }
+
+    for (const id of Object.keys(tokenMap)) {
+      expect(savedIds).toContain(id)
+    }
   })
 })

@@ -22,6 +22,7 @@ import {
   normalizeBaseUrl,
 } from '../repos/endpoints'
 import { secretsReady } from '../secrets'
+import { withLock } from '../sync/lock'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
 import { forgetEndpointHealth, setEndpointHealth } from './endpoint-health'
 import { getEndpointOverview } from './endpoint-overview'
@@ -70,6 +71,13 @@ export async function saveEndpoints(params: SaveEndpointsParams): Promise<Endpoi
   assertBadges(prepared)
   await secretsReady()
 
+  return withLock('endpoint-save', () => {
+    return saveLocked(prepared)
+  })
+}
+
+/** Serialized under one save lock so the token map and the endpoint file come from one save. */
+async function saveLocked(prepared: PreparedEndpoint[]): Promise<EndpointOverview> {
   const current = await listEndpoints()
   const previousById = keyBy(current, 'id')
   const tokenMap = readTokenMap()
