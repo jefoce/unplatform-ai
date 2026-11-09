@@ -314,11 +314,43 @@ async function customPickerRows(context) {
   await gotoTab(driver, 'Video')
   await openModelPicker(driver)
   await waitPickerRow(driver, 'CU2', STALE_MODEL)
-  await shoot(driver, `custom-picker-stale-${suffix}`)
 
   const staleAlert = `[aria-label=${JSON.stringify(STALE_REASON)}]`
 
-  await driver.hover(staleAlert)
+  const hasStaleAlert = await driver.evaluate(`(() => {
+    const row = window.__e2e.all('button').find((node) => node.innerText.includes('CU2') && node.innerText.includes(${JSON.stringify(STALE_MODEL)}))
+    if (row === undefined) return false
+    row.scrollIntoView({ block: 'center' })
+    return row.querySelector(${JSON.stringify(staleAlert)}) !== null
+  })()`)
+
+  if (!hasStaleAlert) {
+    throw new Error('No stale alert icon in the CU2 row')
+  }
+
+  await driver.waitFor(
+    `(() => {
+      const rect = window.__e2e.rect(${JSON.stringify(staleAlert)})
+      return rect !== null && rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight
+    })()`,
+    WAIT_MS,
+    'the stale alert icon in view',
+  )
+
+  await shoot(driver, `custom-picker-stale-${suffix}`)
+
+  const alertRect = await driver.evaluate(`window.__e2e.rect(${JSON.stringify(staleAlert)})`)
+
+  if (alertRect === null) {
+    throw new Error('No stale alert icon rect')
+  }
+
+  await driver.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: alertRect.x + alertRect.width / 2,
+    y: alertRect.y + alertRect.height / 2,
+  })
+
   await driver.waitFor(
     `window.__e2e.exists('[role="tooltip"]')`,
     WAIT_MS,
