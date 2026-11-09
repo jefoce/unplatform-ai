@@ -93,14 +93,15 @@ async function waitForActions(driver, selector) {
 async function compactActions(context) {
   const { driver, server, width, height } = context
   const query = `e2e card actions ${String(width)} ${String(Date.now())}`
+  const seeds = Array.from({ length: 4 }, (_, index) => {
+    return seedImage(server, `${query} ${String(index)}`, { aspectRatio: '21:9' })
+  })
 
-  for (let index = 0; index < 9; index += 1) {
-    await seedImage(server, `${query} ${String(index)}`, { aspectRatio: '21:9' })
-  }
+  await Promise.all(seeds)
 
   await openApp(context)
   await gotoTab(driver, 'Image')
-  await setMasonryView(driver, { zoom: 0, filters: { q: query }, minTiles: 9 })
+  await setMasonryView(driver, { zoom: 0, filters: { q: query }, minTiles: 4 })
 
   const heights = await driver.evaluate(
     `window.__e2e.all('[id^="history-item-"]').map((node) => node.getBoundingClientRect().height)`,

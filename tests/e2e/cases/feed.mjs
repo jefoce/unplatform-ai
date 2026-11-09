@@ -341,29 +341,36 @@ export const feedCases = [
   {
     name: 'feed/first-load',
     run: firstLoad,
+    fresh: true,
   },
   {
     name: 'feed/submit-image',
     run: submitImage,
+    fresh: true,
   },
   {
     name: 'feed/watch-image-on-video-tab',
     run: watchImageOnVideoTab,
+    fresh: true,
   },
   {
     name: 'feed/submit-video',
     run: submitVideo,
+    fresh: true,
   },
   {
     name: 'feed/video-poster-after-complete',
     run: videoPosterAfterComplete,
+    fresh: true,
   },
   {
     name: 'feed/infinite-scroll-end',
     run: infiniteScrollEnd,
+    fresh: true,
   },
   {
     name: 'feed/grid-zoom-columns',
     run: gridZoomColumns,
+    fresh: true,
   },
 ]

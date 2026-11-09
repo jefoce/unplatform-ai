@@ -107,20 +107,25 @@ function fixtureLoader(name, server, width) {
 
 function makeContext(browser, server, width) {
   const cache = new Map()
-
-  return {
+  const context = {
     driver: browser.driver,
     server,
     width,
     height: HEIGHT,
+    setServer(next) {
+      context.server = next
+      cache.clear()
+    },
     fixture(name) {
       if (!cache.has(name)) {
-        cache.set(name, fixtureLoader(name, server, width)())
+        cache.set(name, fixtureLoader(name, context.server, width)())
       }
 
       return cache.get(name)
     },
   }
+
+  return context
 }
 
 function outboundBlocked(logs) {
@@ -154,7 +159,7 @@ async function cleanupStorage(server) {
 
 async function runWidth(width, rows) {
   console.log(`\n# width ${String(width)}`)
-  const server = await startServer()
+  let server = await startServer()
   let browser = null
   let logIndex = 0
 
@@ -164,6 +169,14 @@ async function runWidth(width, rows) {
     const context = makeContext(browser, server, width)
 
     for (const entry of cases) {
+      if (entry.fresh === true) {
+        await server.stop()
+        await cleanupStorage(server)
+        server = await startServer()
+        context.setServer(server)
+        logIndex = 0
+      }
+
       const started = Date.now()
       let error
 
@@ -203,6 +216,8 @@ async function runWidth(width, rows) {
 }
 
 async function main() {
+  const started = Date.now()
+
   if (cases.length === 0) {
     throw new Error(`No case matches --case=${String(caseFilter)}`)
   }
@@ -224,7 +239,7 @@ async function main() {
 
   const rows = []
 
-  // One build, one server per width: every selected case for a width shares its server.
+  // One build, one server per width. Cases marked fresh restart it from empty storage.
   for (const width of widths) {
     await runWidth(width, rows)
   }
@@ -237,6 +252,7 @@ async function main() {
   console.log(
     `\n${String(passed)}/${String(rows.length)} passed, ${String(failed)} failed, ${String(outbound)} outbound blocked`,
   )
+  console.log(`# total ${String(Date.now() - started)}ms`)
 
   if (failed > 0) {
     process.exitCode = 1
