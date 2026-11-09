@@ -11,6 +11,17 @@ vi.mock('@/core/constants', async () => {
   return { ...actual, IMAGE_COUNT_MAX: 2, IMAGE_OUTPUT_MAX_BYTES: 8 }
 })
 
+vi.mock('@/server/providers/custom/endpoint-source', () => {
+  return {
+    getEndpointToken: () => {
+      return null
+    },
+    getEndpointSync: () => {
+      return ENDPOINT
+    },
+  }
+})
+
 vi.mock('@/server/secrets', () => {
   return {
     getSecret: () => {

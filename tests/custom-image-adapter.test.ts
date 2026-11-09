@@ -9,6 +9,21 @@ import { UpaiJobSchema } from '@/core/protocol/upai'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { ImageGenerationInput } from '@/core/schemas/image-record'
 
+const endpointSource = vi.hoisted(() => {
+  return { isPresent: true }
+})
+
+vi.mock('@/server/providers/custom/endpoint-source', () => {
+  return {
+    getEndpointToken: () => {
+      return null
+    },
+    getEndpointSync: (id: string) => {
+      return endpointSource.isPresent && id === ENDPOINT.id ? ENDPOINT : null
+    },
+  }
+})
+
 vi.mock('@/server/secrets', () => {
   return {
     getSecret: () => {
@@ -75,6 +90,7 @@ const REFERENCES = [
 const fetchMock = vi.fn<typeof fetch>()
 
 beforeEach(() => {
+  endpointSource.isPresent = true
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -160,6 +176,42 @@ describe('custom image adapter', () => {
 
     expect(models.models[0]?.maxN).toBe(4)
     expect(models.models[0]?.referenceMax).toBe(1)
+  })
+})
+
+describe('custom image endpoint removal', () => {
+  it('rejects and stops polling when the endpoint disappears mid-job', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const created = await fixture('create-job-image.json')
+      const pending = UpaiJobSchema.parse(await fixture('job-pending.json'))
+      const inProgress = { ...pending, kind: 'image', model: 'sdxl' }
+
+      fetchMock
+        .mockResolvedValueOnce(new Response(JSON.stringify(created), { status: 202 }))
+        .mockImplementationOnce(async () => {
+          endpointSource.isPresent = false
+
+          return new Response(JSON.stringify(inProgress), { status: 200 })
+        })
+
+      const provider = createCustomImageProvider(ENDPOINT)
+      const promise = provider.generate({ preset: PRESET, input: INPUT, references: REFERENCES })
+
+      const assertion = expect(promise).rejects.toMatchObject({
+        code: 'endpoint_removed',
+        message: 'upai:endpoint_removed: Endpoint removed',
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(1000)
+      await assertion
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

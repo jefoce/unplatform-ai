@@ -32,7 +32,14 @@ import type {
   ProviderImageModelList,
 } from '../types'
 import { buildImageBody } from './body'
-import { errorDetail, jobFailureError, protocolError, timeoutError } from './errors'
+import { getEndpointSync } from './endpoint-source'
+import {
+  endpointRemovedError,
+  errorDetail,
+  jobFailureError,
+  protocolError,
+  timeoutError,
+} from './errors'
 import { testCustomEndpoint } from './health'
 import { customRequest, providerErrorFromResponse, requestHeaders, requestJson } from './http'
 import { trackCustomImageJob, untrackCustomImageJob } from './image-jobs'
@@ -113,6 +120,10 @@ async function waitForJob(params: ImageJobParams): Promise<UpaiJob> {
   const deadline = Date.now() + CUSTOM_IMAGE_MAX_WAIT_MS
 
   while (true) {
+    if (isNil(getEndpointSync(params.endpoint.id))) {
+      throw endpointRemovedError()
+    }
+
     const job = await readImageJob(params)
 
     if (isFinalStatus(job.status)) {
