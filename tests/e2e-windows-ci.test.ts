@@ -45,6 +45,45 @@ function stepBlock(job: string, name: string): string {
   return lines.slice(start, end).join('\n')
 }
 
+describe('linux e2e shards', () => {
+  const job = jobBlock('e2e')
+  const run = stepBlock(job, 'End-to-end flows')
+  const upload = stepBlock(job, 'Upload failure artifacts')
+  const docs = fs.readFileSync('docs/DEVELOPMENT.md', 'utf8')
+
+  it('names the job after the width', () => {
+    expect(job).toContain('name: e2e (${{ matrix.width }})')
+  })
+
+  it('runs all three widths without fail-fast', () => {
+    expect(job).toContain('width: [1280, 1728, 2560]')
+    expect(job).toContain('fail-fast: false')
+  })
+
+  it('times out after 25 minutes', () => {
+    expect(job).toContain('timeout-minutes: 25')
+  })
+
+  it('runs one width through bash', () => {
+    expect(run).toContain('shell: bash')
+    expect(run).toContain('run: node tests/e2e/run.mjs --width=${{ matrix.width }}')
+    expect(run).toContain('E2E_TMPDIR: ${{ runner.temp }}/e2e-${{ matrix.width }}')
+  })
+
+  it('uploads the temp dir and log on failure', () => {
+    expect(upload).toContain('if: failure()')
+    expect(upload).toContain('name: e2e-${{ matrix.width }}')
+    expect(upload).toContain('${{ runner.temp }}/e2e-${{ matrix.width }}.log')
+  })
+
+  it('documents the three shard names', () => {
+    expect(docs).toContain('e2e (1280)')
+    expect(docs).toContain('e2e (1728)')
+    expect(docs).toContain('e2e (2560)')
+    expect(docs).toContain('e2e-<width>')
+  })
+})
+
 describe('e2e-windows image case', () => {
   const step = stepBlock(jobBlock('e2e-windows'), 'Image first open')
 

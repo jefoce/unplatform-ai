@@ -129,8 +129,13 @@ jobs:
 
   e2e:
     if: github.actor != 'dependabot[bot]' || github.base_ref != 'releases'
+    name: e2e (${{ matrix.width }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [1280, 1728, 2560]
     env:
       # Tracks the Chrome major shipped by the ubuntu-24.04 runner image.
       E2E_CHROME_MAJOR: '156'
@@ -158,12 +163,23 @@ jobs:
           REMOTE_MOCK: '1'
         run: pnpm build
       - name: End-to-end flows
+        shell: bash
         env:
           E2E_SKIP_BUILD: '1'
           OPENROUTER_MOCK: '1'
           REMOTE_MOCK: '1'
           CUSTOM_ENDPOINT_MOCK: '1'
-        run: pnpm e2e
+          E2E_TMPDIR: ${{ runner.temp }}/e2e-${{ matrix.width }}
+        run: node tests/e2e/run.mjs --width=${{ matrix.width }} 2>&1 | tee "${{ runner.temp }}/e2e-${{ matrix.width }}.log"
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-${{ matrix.width }}
+          path: |
+            ${{ runner.temp }}/e2e-${{ matrix.width }}
+            ${{ runner.temp }}/e2e-${{ matrix.width }}.log
+          if-no-files-found: ignore
 
   e2e-windows:
     if: github.actor != 'dependabot[bot]' || github.base_ref != 'releases'
