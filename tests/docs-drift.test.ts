@@ -17,8 +17,8 @@ const SOURCE_ROOTS = ['src', 'src-tauri/src', 'scripts', 'tests']
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mjs', '.js', '.rs'])
 
 const ENV_READS = [
-  /\bprocess\.env\.([A-Z][A-Z0-9_]*)/g,
-  /process\.env\[['"]([A-Z][A-Z0-9_]*)['"]\]/g,
+  /\bprocess\.env\.([A-Za-z_][A-Za-z0-9_]*)/g,
+  /process\.env\[['"]([A-Za-z_][A-Za-z0-9_]*)['"]\]/g,
   /\b(?:std::)?env::var(?:_os)?\("([A-Z][A-Z0-9_]*)"\)/g,
   /\bnumberFromEnv\('([A-Z][A-Z0-9_]*)'/g,
 ]
@@ -51,6 +51,8 @@ const INTERNAL = new Set([
   'NEXT_RUNTIME',
   'NODE_ENV',
   'CHROME_PATH',
+  'ComSpec',
+  'npm_execpath',
   'E2E_CHROME_MAJOR',
   'E2E_CDP_PORT',
   'E2E_KEEP_TMP',

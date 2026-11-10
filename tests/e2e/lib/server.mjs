@@ -65,6 +65,21 @@ function printedSessionUrl(logs) {
   return found[1]
 }
 
+/** Start command without a shell, so Windows never hits the DEP0190 prompt. */
+function startCommand() {
+  const npmExecPath = process.env.npm_execpath?.trim()
+
+  if (npmExecPath !== undefined && /\.(?:c|m)?js$/i.test(npmExecPath)) {
+    return { command: process.execPath, args: [npmExecPath, 'start'] }
+  }
+
+  if (process.platform === 'win32') {
+    return { command: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', 'pnpm start'] }
+  }
+
+  return { command: 'pnpm', args: ['start'] }
+}
+
 /** One isolated app server on a free port with mock providers and a temp store. */
 export async function startServer(options = {}) {
   const { browserMode = false, storageRoot: existingRoot } = options
@@ -111,12 +126,11 @@ export async function startServer(options = {}) {
     env.APP_TOKEN = TOKEN
   }
 
-  const child = spawn('pnpm', ['start'], {
+  const { command, args } = startCommand()
+  const child = spawn(command, args, {
     cwd: ROOT,
     env,
     detached: process.platform !== 'win32',
-    // pnpm is a .cmd shim on Windows, which needs a shell to launch.
-    shell: process.platform === 'win32',
     stdio: ['pipe', 'pipe', 'pipe'],
   })
 
