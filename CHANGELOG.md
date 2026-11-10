@@ -7,7 +7,7 @@ Local image and video models from ComfyUI, with several endpoints and a badge fo
 ### Added
 
 - A ComfyUI custom endpoint provider over upai/1. Custom jobs need no OpenRouter key.
-- Several endpoints, each with a CU badge, a label, an optional token, a Test button and LAN access.
+- Several endpoints, each with a CU badge, a label, an optional token and a Test button. An endpoint can be on this computer or on your network.
 - Settings saves endpoints as a draft: add, edit and remove with Undo, then Save. A removed row disappears at once, and running jobs fail with "This endpoint was removed."
 - Price modes: model price, free, per run and per second. A local model at zero hides its price, an override shows it.
 - Custom image and video jobs, with the Waiting for ComfyUI and In queue, N ahead labels.
@@ -20,20 +20,16 @@ Local image and video models from ComfyUI, with several endpoints and a badge fo
 - Job notifications and history entries use the record's stored title and endpoint badge.
 - The app deletes a finished ComfyUI result after it is safely saved.
 - Reference files link from disk instead of being copied: native file dialog, OS drop, connected folders and generated outputs. The same file is reused once.
-- References move across image, video and audio kinds, with tile sizes fixed during the drag.
-- Compact card actions on short tiles.
-- Folder audio tiles show a waveform, and audio inputs show their details.
-- Windows file locks retry on delete and leave the record deleted; leftovers are removed on the next start.
+- Local video and audio upload to your own ComfyUI. Pictures and frames stay inline.
 
 ### Changed
 
-- Local video and audio upload to your own ComfyUI. Pictures and frames stay inline.
 - Local jobs share the smallest per-endpoint limit from ComfyUI, for video and image calls.
 - Failed or cancelled local runs cost 0.
 - An endpoint is marked offline only after repeated failed checks.
-- The preview keeps the media picker open.
+- References move across image, video and audio kinds.
 - The viewer fades the full image in over the blurred backdrop, with no thumbnail layer.
-- The app is now licensed under AGPL-3.0. Versions 0.4.0 and earlier stay MIT. About links the bundled license and third-party notices, and the notices check fails on license drift.
+- The app is now licensed under AGPL-3.0. Versions 0.4.0 and earlier stay MIT.
 
 ### Fixed
 
@@ -42,7 +38,13 @@ Local image and video models from ComfyUI, with several endpoints and a badge fo
 - R2 rejects report the key, bucket or connection problem instead of `UnknownError`.
 - Seedance real-person failures use the plain-text message when the error code is missing.
 - A workflow saved again refreshes its models, fixes the draft's resolution, aspect and references, and blocks a renamed or missing workflow with its old title.
-- Reference drags keep audio and mixed-kind tiles at their real sizes.
+- Dragging an audio reference no longer stretches other tiles.
+- Folder audio tiles show a waveform, and audio inputs show their details instead of a broken icon.
+- Compact card actions on short tiles.
+- The preview keeps the media picker open.
+- Deleting an image right after viewing it no longer fails on Windows.
+- The Image tab loads on its first open on Windows.
+- Third-party notices and the license open from About in the desktop app.
 
 ### Security
 
