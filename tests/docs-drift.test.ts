@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- drift checks share one documentation suite */
+
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -291,6 +293,35 @@ describe('0.5.0 documentation drift', () => {
     )
 
     expect(readme).toContain('](docs/user/COMFYUI.md)')
+  })
+})
+
+describe('ComfyUI guide hero and pack links', () => {
+  const PACK = 'https://github.com/jefoce/unplatform-ai-provider-node'
+
+  it('shows the hero image from the pack', () => {
+    const guide = fs.readFileSync(file('docs/user/COMFYUI.md'), 'utf8')
+
+    expect(guide).toContain('<img src="../images/comfyui-hero.svg"')
+    expect(fs.existsSync(file('docs/images/comfyui-hero.svg'))).toBe(true)
+  })
+
+  it('points at ComfyUI Manager and the pack guides', () => {
+    const guide = fs.readFileSync(file('docs/user/COMFYUI.md'), 'utf8')
+
+    expect(guide).toContain('ComfyUI Manager')
+    expect(guide).toContain('Unplatform AI Provider')
+
+    for (const target of [
+      `${PACK}/tree/HEAD/workflows`,
+      `${PACK}/blob/HEAD/docs/user/build-a-workflow.md`,
+      `${PACK}/blob/HEAD/docs/user/network.md`,
+      `${PACK}/blob/HEAD/docs/user/memory.md`,
+      `${PACK}/blob/HEAD/docs/user/troubleshooting.md`,
+      `${PACK}/blob/HEAD/docs/user/faq.md`,
+    ]) {
+      expect(guide, target).toContain(target)
+    }
   })
 })
 

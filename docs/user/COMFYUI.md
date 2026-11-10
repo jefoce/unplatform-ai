@@ -1,5 +1,9 @@
 # ComfyUI setup
 
+<img src="../images/comfyui-hero.svg" alt="Unplatform AI connects through the UPAI node pack to a local ComfyUI endpoint, which runs nine workflows with twelve image and video models, shown in the app's model picker." width="100%">
+
+<!-- Hero from github.com/jefoce/unplatform-ai-provider-node docs/images/hero-dark.svg at ae7ce52. -->
+
 Run local image and video models from ComfyUI. The app talks to ComfyUI through the Unplatform AI node pack over the upai/1 protocol. ComfyUI can run on the same computer or on your local network. These jobs need no OpenRouter key.
 
 | | |
@@ -11,23 +15,24 @@ Run local image and video models from ComfyUI. The app talks to ComfyUI through 
 ## What you need
 
 - ComfyUI 0.43.0 or newer.
-- The Unplatform AI node pack. Install it into `custom_nodes/unplatform-ai-provider-node`:
+- The Unplatform AI node pack. In ComfyUI Manager, search "Unplatform AI Provider", install it, then restart ComfyUI.
+- Without the registry, clone it into `custom_nodes/unplatform-ai-provider-node`:
 
 ```bash
 git clone https://github.com/jefoce/unplatform-ai-provider-node \
   custom_nodes/unplatform-ai-provider-node
 ```
 
-The pack's README has the node reference.
-
 - One or more workflows saved in ComfyUI.
 - The ComfyUI port. It is 8188 when ComfyUI runs from source or the portable build. ComfyUI Desktop shows its port in Settings.
 
-## 1. Start the server and save a workflow
+## Workflows
 
-Start ComfyUI. Build a workflow with a UPAI Model node, a UPAI Output node, a UPAI Prompt node and a UPAI Settings node. Add the reference, frame, image or audio nodes your model needs. Wire the model path to the output.
+The pack ships ready workflows in [workflows](https://github.com/jefoce/unplatform-ai-provider-node/tree/HEAD/workflows). [Build a workflow](https://github.com/jefoce/unplatform-ai-provider-node/blob/HEAD/docs/user/build-a-workflow.md) covers the UPAI nodes, several models in one file and the editor test.
 
-The app reads reference labels per kind, `image`, `video` and `audio`: `reference_labels.<kind>`, then `reference_label`, then its own default.
+## 1. Save a workflow
+
+Build a workflow with a UPAI Model node, a UPAI Output node, a UPAI Prompt node and a UPAI Settings node, plus the reference, frame, image or audio nodes your model needs. Wire the model path to the output. The app reads reference labels per kind, `image`, `video` and `audio`: `reference_labels.<kind>`, then `reference_label`, then its own default.
 
 Save the workflow. Saving publishes it to the pack. One workflow can hold several model and output pairs, and each pair becomes one model. To publish again without saving, press Publish workflow on the UPAI Model node.
 
@@ -37,7 +42,7 @@ Open Settings in the app and find ComfyUI. Press Add endpoint and fill in:
 
 - Label: any name, shown in Settings.
 - Badge: `CU1` and similar. The app assigns the next free number. A deleted number is never reused.
-- URL: your ComfyUI address, for example `http://127.0.0.1:8188`. A pasted `/upai` is dropped.
+- URL: your ComfyUI address. The pack docs use a base URL ending in `/upai`, for example `http://127.0.0.1:8188/upai`. The app accepts both addresses and drops `/upai`.
 - Token: optional. Needed when ComfyUI asks for one.
 - Price: see the next section.
 - Enabled: keeps the endpoint on or off.
@@ -59,30 +64,25 @@ A local model with a zero price hides its price. An override shows the amount yo
 
 ## Model states
 
-A model from ComfyUI is in one of three states.
-
 - Ready: selectable, Generate works.
 - Stale: selectable, but Generate is blocked until you save the workflow again in ComfyUI. The workflow changed after the last export.
 - Invalid: disabled, with the reason from ComfyUI.
 
-## LAN access
+## Another computer on the network
 
-ComfyUI listens only on this computer by default. To use it from another device, start ComfyUI with `--listen 0.0.0.0`, then do one of these:
+ComfyUI listens only on this computer by default. Starting it with `--listen 0.0.0.0`, the LAN address, the token and Tailscale are covered in [network](https://github.com/jefoce/unplatform-ai-provider-node/blob/HEAD/docs/user/network.md).
 
-- Turn on Allow LAN clients in ComfyUI Settings > Unplatform AI.
-- Set an API token in the same panel and paste the same token in the app.
+If the computer cannot reach ComfyUI, the app says: This computer cannot reach ComfyUI: enable LAN access in ComfyUI Settings > Unplatform AI, or add a token. Use a trusted network or a tunnel. Never expose ComfyUI directly to the internet.
 
-Use the LAN address in the app, for example `http://192.168.1.20:8188`. If the computer cannot reach ComfyUI, the app says:
+## VRAM and memory
 
-> This computer cannot reach ComfyUI: enable LAN access in ComfyUI Settings > Unplatform AI, or add a token
-
-Plain HTTP sends the token unencrypted. Use a trusted network or a tunnel such as Tailscale. Never expose ComfyUI directly to the internet.
+Per-workflow VRAM and RAM numbers, flags and smaller-file options are in [memory](https://github.com/jefoce/unplatform-ai-provider-node/blob/HEAD/docs/user/memory.md).
 
 ## Delete an endpoint
 
 Press Delete on an endpoint. The row is removed at once. Until you press Save, a notice at the bottom of the section says `<badge> removed.` with Undo. When jobs run, it adds `N running jobs will fail when you save.` Save applies it, Cancel restores the row. Running jobs fail with "This endpoint was removed." History keeps the badge and title, so old entries stay readable. No cancel call is sent to ComfyUI.
 
-## Something went wrong?
+## Problems
 
 | What you see | What to do |
 |---|---|
@@ -93,6 +93,8 @@ Press Delete on an endpoint. The row is removed at once. Until you press Save, a
 | ComfyUI upload space is full | Clear ComfyUI input or temp files, then try again. |
 | This workflow is gone from ComfyUI. | Save the workflow again in ComfyUI, then refresh the models. |
 | Workflow changed in ComfyUI. Save it in ComfyUI, then refresh. | Save the workflow again in ComfyUI, then generate again. |
+
+More answers are in [troubleshooting](https://github.com/jefoce/unplatform-ai-provider-node/blob/HEAD/docs/user/troubleshooting.md) and [FAQ](https://github.com/jefoce/unplatform-ai-provider-node/blob/HEAD/docs/user/faq.md).
 
 ## Privacy
 
