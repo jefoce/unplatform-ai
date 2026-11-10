@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 - unreleased
+## 0.5.0 - 2026-11-10
 
 Local image and video models from ComfyUI, with several endpoints and a badge for each.
 
