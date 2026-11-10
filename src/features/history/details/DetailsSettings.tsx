@@ -80,7 +80,7 @@ export function DetailsSettings(props: DetailsSettingsProps) {
         {formatSecondsShort(record.output?.durationSec ?? record.input.duration)}
       </span>
       <span className={SETTING_CLASSES}>
-        <RatioIcon ratio={record.input.aspectRatio} />
+        <RatioIcon ratio={record.input.aspectRatio} className="text-fg-2" />
         {aspect}
       </span>
       <span className={SETTING_CLASSES}>

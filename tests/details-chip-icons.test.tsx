@@ -91,6 +91,14 @@ function ratioBox(chip: HTMLElement): HTMLElement {
   return box as HTMLElement
 }
 
+function iconClasses(icon: Element | null | undefined): string {
+  return icon?.getAttribute('class') ?? ''
+}
+
+function expectRatioGray(chip: HTMLElement) {
+  expect(iconClasses(ratioBox(chip).parentElement)).toContain('text-fg-2')
+}
+
 describe('video details chips', () => {
   it('draws the resolution chip with Monitor and the aspect chip at the real ratio', () => {
     render(<DetailsSettings record={record('16:9')} />)
@@ -100,6 +108,19 @@ describe('video details chips', () => {
 
     expect(resolution.querySelector('svg.lucide-monitor')).not.toBeNull()
     expect(ratioBox(aspect).className).toContain('border')
+  })
+
+  it('colors every chip icon, aspect box included, in text-fg-2', () => {
+    const { container } = render(<DetailsSettings record={record('16:9')} />)
+    const icons = [...container.querySelectorAll('svg')]
+
+    expect(icons).toHaveLength(3)
+
+    for (const icon of icons) {
+      expect(iconClasses(icon)).toContain('text-fg-2')
+    }
+
+    expectRatioGray(screen.getByText('16:9'))
   })
 })
 
@@ -147,5 +168,21 @@ describe('image details chips', () => {
 
     expect(screen.getByText('Extra High').querySelector('svg.lucide-sparkles')).not.toBeNull()
     expect(screen.getByText('Transparent').querySelector('svg.lucide-layers-2')).not.toBeNull()
+  })
+
+  it('colors every chip icon, aspect box included, in text-fg-2', () => {
+    render(<DetailsPanel item={imageItem({ resolution: '1K' })} />)
+
+    const aspect = screen.getByText('1:1')
+    const row = aspect.parentElement as HTMLElement
+    const icons = [...row.querySelectorAll('svg')]
+
+    expect(icons).toHaveLength(3)
+
+    for (const icon of icons) {
+      expect(iconClasses(icon)).toContain('text-fg-2')
+    }
+
+    expectRatioGray(aspect)
   })
 })

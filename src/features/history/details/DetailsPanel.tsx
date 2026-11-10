@@ -146,7 +146,9 @@ function imageSettings(item: ImageGridItem) {
             {chip.kind === 'resolution' && <Monitor size={14} className="text-fg-2" aria-hidden />}
             {chip.kind === 'quality' && <Sparkles size={14} className="text-fg-2" aria-hidden />}
             {chip.kind === 'background' && <Layers2 size={14} className="text-fg-2" aria-hidden />}
-            {chip.kind === 'aspect' && <RatioIcon ratio={item.source.input.aspectRatio} />}
+            {chip.kind === 'aspect' && (
+              <RatioIcon ratio={item.source.input.aspectRatio} className="text-fg-2" />
+            )}
             {chip.label}
           </span>
         )
