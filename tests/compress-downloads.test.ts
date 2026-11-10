@@ -31,11 +31,32 @@ describe('compress-downloads', () => {
     const root = '/tmp/unplatform-ai'
     const target = 'x86_64-unknown-linux-gnu'
 
-    expect(bundleDir({ root, target })).toBe(
+    expect(bundleDir({ root, target, env: {} })).toBe(
       path.join(root, 'src-tauri', 'target', target, 'release', 'bundle'),
     )
 
-    expect(bundleDir({ root })).toBe(path.join(root, 'src-tauri', 'target', 'release', 'bundle'))
+    expect(bundleDir({ root, env: {} })).toBe(
+      path.join(root, 'src-tauri', 'target', 'release', 'bundle'),
+    )
+  })
+
+  it('resolves the bundle from CARGO_TARGET_DIR', () => {
+    const root = '/tmp/unplatform-ai'
+    const target = 'x86_64-unknown-linux-gnu'
+
+    const absolute = path.resolve(root, '/Volumes/ram/upai-build/cargo')
+
+    expect(
+      bundleDir({ root, target, env: { CARGO_TARGET_DIR: '/Volumes/ram/upai-build/cargo' } }),
+    ).toBe(path.join(absolute, target, 'release', 'bundle'))
+
+    expect(bundleDir({ root, env: { CARGO_TARGET_DIR: '../cargo' } })).toBe(
+      path.join(path.resolve(root, '../cargo'), 'release', 'bundle'),
+    )
+
+    expect(bundleDir({ root, env: {} })).toBe(
+      path.join(root, 'src-tauri', 'target', 'release', 'bundle'),
+    )
   })
 
   it('skips on a non-macOS host', async () => {

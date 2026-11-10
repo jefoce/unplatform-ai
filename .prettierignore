@@ -6,5 +6,6 @@ src-tauri/binaries
 src-tauri/gen
 pnpm-lock.yaml
 docs/**/*.md
+docs/protocol/upai-1/**
 tests/fixtures/**
 review_*.md

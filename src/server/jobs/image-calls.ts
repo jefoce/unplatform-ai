@@ -7,9 +7,13 @@ import { planImageCalls } from '@/core/plan-image-calls'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { ImageRecord } from '@/core/schemas/image-record'
 
+import { getEndpointSync } from '../providers/custom/endpoint-source'
+import { endpointRemovedError } from '../providers/custom/errors'
+import { instanceIdOf } from '../providers/custom/record-instance'
 import { ProviderError, providerStatusOf } from '../providers/provider-error'
 import { getImageProvider } from '../providers/registry'
-import type { ImageReferencePayload, ImageResultItem } from '../providers/types'
+import type { ImageReferencePayload, ImageResultItem, JobRef } from '../providers/types'
+import { recordHealthFromError, recordHealthOk } from '../services/endpoint-health'
 
 export interface PlannedCall {
   start: number
@@ -22,6 +26,7 @@ export interface CallOutcome extends PlannedCall {
   error: string | null
   errorStatus?: number
   isUncertain: boolean
+  job?: JobRef
 }
 
 export interface PreparedImage {
@@ -98,6 +103,11 @@ function failedOutcome(call: PlannedCall, error: unknown): CallOutcome {
 export async function submitCall(params: SubmitCallParams): Promise<CallOutcome> {
   const { prepared, call } = params
   const { record, preset, references } = prepared
+  const instanceId = instanceIdOf(record)
+
+  if (record.provider === 'custom' && isNil(getEndpointSync(instanceId))) {
+    return failedOutcome(call, endpointRemovedError())
+  }
 
   try {
     let seed: number | null = null
@@ -106,11 +116,15 @@ export async function submitCall(params: SubmitCallParams): Promise<CallOutcome>
       seed = seedForImage(record.seedUsed, call.start)
     }
 
-    const result = await getImageProvider(record.provider).generate({
+    const result = await getImageProvider(instanceId).generate({
       preset,
       input: { ...record.input, count: call.count, seed },
       references,
     })
+
+    if (record.provider === 'custom') {
+      recordHealthOk(instanceId)
+    }
 
     return {
       ...call,
@@ -118,8 +132,18 @@ export async function submitCall(params: SubmitCallParams): Promise<CallOutcome>
       costUsd: result.costUsd,
       error: null,
       isUncertain: false,
+      job: result.job,
     }
   } catch (error) {
+    if (record.provider === 'custom') {
+      recordHealthFromError({
+        endpointId: instanceId,
+        error,
+        source: 'job',
+        isJobRunning: true,
+      })
+    }
+
     return failedOutcome(call, error)
   }
 }

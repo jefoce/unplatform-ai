@@ -1,16 +1,19 @@
 import type { GridItemStatus } from '@/core/feed/grid-item'
 import { isNonEmptyString, isOneOf } from '@/core/guards'
 import { videoRecordAspect } from '@/core/media/aspect'
+import { fallbackErrorRules } from '@/core/presets/custom/errors'
 import { findImagePreset } from '@/core/presets/image'
 import { friendlyError } from '@/core/provider-errors'
 import type { FriendlyError } from '@/core/provider-errors/types'
 import { providerDescriptor } from '@/core/providers/registry'
+import { recordSource } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { ImageRecord } from '@/core/schemas/image-record'
 import {
   imageStatusHelp,
   STATUS_HELP,
   type StatusHelp,
+  statusHelpFor,
   type StatusHelpKey,
   statusHelpKey,
 } from '@/core/status-help'
@@ -44,6 +47,9 @@ export interface StatusView {
 
   /** Media aspect when the caller does not pass a box aspect. */
   aspect?: string
+
+  /** Provider progress percent, drawn as a 2 px bar along the card bottom. */
+  progressPercent?: number
 
   /** Keeps the grace timer and clock live. */
   isLive?: boolean
@@ -94,7 +100,7 @@ function imageRawError(item: ImageGridItem): string | null {
 
 /** Video record to a status view, including retry and reuse. */
 export function videoStatusView(record: GenerationRecord, onCancel?: () => void): StatusView {
-  const help = STATUS_HELP[statusHelpKey(record)]
+  const help = statusHelpFor({ key: statusHelpKey(record), provider: recordSource(record).kind })
   const friendly = recordError(record)
   const canRetry = isDownloadRetryable(record)
 
@@ -121,6 +127,7 @@ export function videoStatusView(record: GenerationRecord, onCancel?: () => void)
     graceNotBefore,
     onCancel,
     aspect: videoRecordAspect(record),
+    progressPercent: record.progress?.percent,
     isLive: ACTIVE_STATUSES.includes(record.status),
     onRetry,
     onRerun: () => {
@@ -140,7 +147,7 @@ function imageFriendlyError(params: ImageFriendlyErrorParams): FriendlyError {
 
   return friendlyError({
     raw,
-    rules: findImagePreset(record.input.presetId)?.errors ?? [],
+    rules: findImagePreset(record.input.presetId)?.errors ?? fallbackErrorRules(record.provider),
     httpCode,
     httpRules: providerDescriptor(record.provider).httpRules,
   })
@@ -158,7 +165,7 @@ function imageErrorStatus(item: ImageGridItem): number | undefined {
 /** Image item to a status view, with its record or output error translated. */
 export function imageStatusView(item: ImageGridItem, onCancel?: () => void): StatusView {
   const record = item.source
-  const help = imageStatusHelp(imageHelpKey(item))
+  const help = imageStatusHelp(imageHelpKey(item), record.provider)
   const raw = imageRawError(item)
   const isGrace = item.status === 'submitting' && record.submit?.stage === 'grace'
 
@@ -183,5 +190,17 @@ export function imageStatusView(item: ImageGridItem, onCancel?: () => void): Sta
     graceNotBefore,
     onCancel,
     isLive: item.status === 'submitting' || item.status === 'saving',
+  }
+}
+
+/** Replaces an active view with the offline label while the endpoint is down. */
+export function endpointOfflineView(view: StatusView): StatusView {
+  return {
+    ...view,
+    label: STATUS_HELP.endpoint_unreachable.label,
+    help: STATUS_HELP.endpoint_unreachable,
+    tone: 'gray',
+    error: null,
+    line: null,
   }
 }

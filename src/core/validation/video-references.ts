@@ -73,6 +73,14 @@ const checkReferenceCounts = (params: CheckReferenceCountsParams): void => {
     if (counts[kind] > preset.references[kind]) {
       errors.push(`Too many ${kind}s (${counts[kind]}, max ${preset.references[kind]})`)
     }
+
+    const required = preset.referencesRequired?.[kind] ?? 0
+
+    if (required > 0 && counts[kind] < required) {
+      const suffix = required === 1 ? '' : 's'
+
+      errors.push(`This model needs ${required} ${kind} reference${suffix}`)
+    }
   }
 }
 
@@ -248,6 +256,12 @@ export function validateReferences(params: ValidateWithContextParams): RuleResul
   const errors: string[] = []
 
   if (input.tab !== 'references') {
+    checkReferenceCounts({
+      counts: { image: 0, video: 0, audio: 0 },
+      preset,
+      errors,
+    })
+
     return { errors, warnings: [] }
   }
 

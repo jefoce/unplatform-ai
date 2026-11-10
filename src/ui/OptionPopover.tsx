@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react'
 import { isNil } from 'lodash-es'
 
 import { isOneOf } from '@/core/guards'
+import { cn } from '@/lib/cn'
 
 import { CheckItem } from './CheckItem'
 import { Chip } from './Chip'
@@ -22,11 +23,22 @@ interface OptionPopoverProps<T extends string> {
   closeOnPick?: boolean
   disabled?: boolean
   className?: string
+  contentClassName?: string
 }
 
 /** Single-choice option menu with a header, optional icons and details. */
 export function OptionPopover<T extends string>(props: OptionPopoverProps<T>) {
-  const { label, options, labels, value, icon, disabled: isDisabled = false, className } = props
+  const {
+    label,
+    options,
+    labels,
+    value,
+    icon,
+    disabled: isDisabled = false,
+    className,
+    contentClassName,
+  } = props
+
   const [isOpen, setIsOpen] = useState(false)
   const current = labels?.[value] ?? value
 
@@ -59,7 +71,12 @@ export function OptionPopover<T extends string>(props: OptionPopoverProps<T>) {
           </Chip>
         </PopoverTrigger>
       </Tooltip>
-      <PopoverContent role="radiogroup" aria-label={label} align="start" className="w-52 space-y-1">
+      <PopoverContent
+        role="radiogroup"
+        aria-label={label}
+        align="start"
+        className={cn('w-52 space-y-1', contentClassName)}
+      >
         <p className="px-2 py-1 text-xxs font-medium text-fg-2">{label}</p>
         {options.map((option) => {
           return (

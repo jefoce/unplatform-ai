@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import {
   GEMINI_RATIOS_STANDARD,
   IMAGE_PROMPT_MAX_CHARS,
@@ -24,7 +23,7 @@ export const GEMINI_3_PRO_IMAGE: ImagePreset = {
   promptMaxChars: IMAGE_PROMPT_MAX_CHARS,
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'google/gemini-3-pro-image',
       // $0.000002 per input token and $0.00012 per output token, live endpoints read
       // 2026-10-29. Output tokens come from the per-model Gemini table.

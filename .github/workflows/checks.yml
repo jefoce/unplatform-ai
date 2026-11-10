@@ -129,8 +129,16 @@ jobs:
 
   e2e:
     if: github.actor != 'dependabot[bot]' || github.base_ref != 'releases'
+    name: e2e (${{ matrix.width }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [1280, 1728, 2560]
+    env:
+      # Tracks the Chrome major shipped by the ubuntu-24.04 runner image.
+      E2E_CHROME_MAJOR: '156'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -155,8 +163,65 @@ jobs:
           REMOTE_MOCK: '1'
         run: pnpm build
       - name: End-to-end flows
+        shell: bash
         env:
           E2E_SKIP_BUILD: '1'
           OPENROUTER_MOCK: '1'
           REMOTE_MOCK: '1'
-        run: pnpm e2e
+          CUSTOM_ENDPOINT_MOCK: '1'
+          E2E_TMPDIR: ${{ runner.temp }}/e2e-${{ matrix.width }}
+        run: node tests/e2e/run.mjs --width=${{ matrix.width }} 2>&1 | tee "${{ runner.temp }}/e2e-${{ matrix.width }}.log"
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-${{ matrix.width }}
+          path: |
+            ${{ runner.temp }}/e2e-${{ matrix.width }}
+            ${{ runner.temp }}/e2e-${{ matrix.width }}.log
+          if-no-files-found: ignore
+
+  e2e-windows:
+    if: github.actor != 'dependabot[bot]' || github.base_ref != 'releases'
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      # Tracks the Chrome major shipped by the windows-2025 runner image.
+      E2E_CHROME_MAJOR: '156'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - name: Use the ffmpeg-static binary
+        shell: pwsh
+        run: |
+          $ffmpeg = node -p "require('ffmpeg-static')"
+          "FFMPEG_PATH=$ffmpeg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Use the runner image Chrome
+        shell: pwsh
+        run: |
+          # The windows-2025 image pins Chrome; installing another copy would drift.
+          $candidates = @(
+            "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+            "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+            "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+          )
+          $chrome = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not (Test-Path $chrome)) {
+            throw "The runner image has no Chrome at $($candidates -join ', ')"
+          }
+          "CHROME_PATH=$chrome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build
+        env:
+          OPENROUTER_MOCK: '1'
+          REMOTE_MOCK: '1'
+        run: pnpm build
+      - name: Image first open
+        shell: bash
+        env:
+          E2E_SKIP_BUILD: '1'
+          OPENROUTER_MOCK: '1'
+          REMOTE_MOCK: '1'
+          CUSTOM_ENDPOINT_MOCK: '1'
+        run: node tests/e2e/run.mjs --case=image-first

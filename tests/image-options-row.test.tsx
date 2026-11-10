@@ -157,6 +157,10 @@ describe('ImageOptionsRow menu rows', () => {
       expect(detail.className).toContain('text-fg-2')
       expect(row.querySelector('svg')).not.toBeNull()
     }
+
+    expect(within(menu).queryByText('--')).toBeNull()
+    expect(within(menu).queryByText(/Saved rates/)).toBeNull()
+    expect(menu.textContent).not.toContain('$')
   })
 
   it('keeps quality rows to a single line', async () => {

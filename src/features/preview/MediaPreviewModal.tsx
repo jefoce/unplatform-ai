@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { isNil } from 'lodash-es'
 
 import { thumbUrl } from '@/lib/api/media-urls'
@@ -105,6 +105,31 @@ function runPreviewAction(params: RunPreviewActionParams): void {
   action(item)
 }
 
+/** Escape closes the preview before any panel below it sees the key. */
+function usePreviewEscape(isOpen: boolean): void {
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+      closePreview()
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [isOpen])
+}
+
 /** Refreshes after the opener effect commits its latest selection. */
 function useSelectionRefresh(): () => void {
   const [count, setCount] = useState(0)
@@ -183,6 +208,7 @@ export function MediaPreviewModal(props: MediaPreviewModalProps) {
   }, [items.length])
 
   useChainKeys({ isEnabled: !isNil(request), onPrevious: handlePrev, onNext: handleNext, scopeRef })
+  usePreviewEscape(!isNil(request))
 
   if (!request) {
     return null
@@ -197,6 +223,7 @@ export function MediaPreviewModal(props: MediaPreviewModalProps) {
       label="Media preview"
       backdropClassName="bg-black/80"
       showClose
+      keepPanels
       className="flex h-[calc(100vh-48px)] max-h-275 w-[calc(100vw-48px)] max-w-450 flex-col overflow-hidden bg-page-2 p-0"
     >
       <div ref={scopeRef} className="flex min-h-0 flex-1 flex-col gap-3 p-3">

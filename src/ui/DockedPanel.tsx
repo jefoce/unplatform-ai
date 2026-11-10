@@ -79,6 +79,8 @@ function measureAnchor(params: MeasureParams): PanelSize {
   }
 }
 
+const KEEP_PANELS_SELECTOR = '[data-keep-panels], [data-sonner-toaster]'
+
 /** True when the outside interaction started inside the anchor element. */
 function isInsideAnchor(anchor: HTMLElement | null, target: EventTarget | null): boolean {
   return !isNil(anchor) && target instanceof Node && anchor.contains(target)
@@ -91,6 +93,11 @@ function isInsideAnyAnchor(
   return anchors.some((anchor) => {
     return isInsideAnchor(anchor, target)
   })
+}
+
+/** True when the interaction belongs to a surface that keeps the panel open. */
+function isInsideKeepPanels(target: EventTarget | null): boolean {
+  return target instanceof Element && !isNil(target.closest(KEEP_PANELS_SELECTOR))
 }
 
 /** Panel docked beside an anchor at wide widths, a centered modal below 900 px. */
@@ -128,7 +135,10 @@ export function DockedPanel(props: DockedPanelProps) {
   }, [anchor, isOpen, isWide, placement, width])
 
   const handleInteractOutside = (event: Event) => {
-    if (isInsideAnyAnchor([anchor, ...extraAnchors], event.target)) {
+    if (
+      isInsideAnyAnchor([anchor, ...extraAnchors], event.target) ||
+      isInsideKeepPanels(event.target)
+    ) {
       event.preventDefault()
     }
   }
@@ -160,6 +170,7 @@ export function DockedPanel(props: DockedPanelProps) {
           className={cn(PANEL_CLASSES, className)}
           style={size ?? undefined}
           onInteractOutside={handleInteractOutside}
+          onFocusOutside={handleInteractOutside}
         >
           <PopoverPrimitive.Title className="sr-only">{label}</PopoverPrimitive.Title>
           {children}

@@ -253,7 +253,7 @@ export function ReferenceThumb(props: ReferenceThumbProps) {
 
   return (
     <Tooltip content={content}>
-      <div className={tileClass}>
+      <div className={tileClass} data-keep-panels>
         <ReferenceThumbBody
           imageSrc={imageSrc}
           audioUpload={audioUpload}

@@ -1,5 +1,7 @@
-import { compact, find, isNil } from 'lodash-es'
+import { find, isNil } from 'lodash-es'
 
+import { isNonEmptyString } from '@/core/guards'
+import { imageResolutionDisplay } from '@/core/presets/common/display'
 import { findImagePreset } from '@/core/presets/image'
 import type { ImageAspectChoice, ImageOption, ImagePreset } from '@/core/presets/image/types'
 import { formatEstimate, formatUsd } from '@/core/pricing/format'
@@ -13,7 +15,7 @@ import { ACTIVE_STATUSES } from '@/core/types'
 import { type ImageGridItem, imageShareCount } from '@/lib/feed/output-items'
 import { formatClock } from '@/lib/format'
 
-interface CostInfo {
+export interface CostInfo {
   text: string
   note: string
 }
@@ -140,20 +142,60 @@ function aspectSetting(preset: ImagePreset, input: ImageGenerationInput): string
   return aspectLabel(input.aspectRatio)
 }
 
-/** Labels for the controls the record preset actually supports. */
-export function imageSettingLabels(input: ImageGenerationInput): string[] {
+export interface ImageSettingChip {
+  kind: 'resolution' | 'quality' | 'background' | 'aspect'
+  label: string
+}
+
+/** Chips for the controls the record preset actually supports, in display order. */
+export function imageSettingChips(input: ImageGenerationInput): ImageSettingChip[] {
   const preset = findImagePreset(input.presetId)
 
+  // Preset gone: show only the settings the record itself carries.
   if (isNil(preset)) {
-    return []
+    const recordChips: ImageSettingChip[] = []
+
+    if (!isNil(input.resolution)) {
+      recordChips.push({ kind: 'resolution', label: input.resolution })
+    }
+
+    if (isNonEmptyString(input.aspectRatio)) {
+      recordChips.push({ kind: 'aspect', label: aspectLabel(input.aspectRatio) })
+    }
+
+    return recordChips
   }
 
-  return compact([
-    optionLabel(preset.resolutions, input.resolution),
-    optionLabel(preset.qualities, input.quality),
-    optionLabel(preset.backgrounds, input.background),
-    aspectSetting(preset, input),
-  ])
+  const chips: ImageSettingChip[] = []
+
+  if (!isNil(input.resolution)) {
+    const label = imageResolutionDisplay(preset, {
+      resolution: input.resolution,
+      aspect: input.aspectRatio,
+    }).label
+
+    chips.push({ kind: 'resolution', label })
+  }
+
+  const quality = optionLabel(preset.qualities, input.quality)
+
+  if (!isNil(quality)) {
+    chips.push({ kind: 'quality', label: quality })
+  }
+
+  const background = optionLabel(preset.backgrounds, input.background)
+
+  if (!isNil(background)) {
+    chips.push({ kind: 'background', label: background })
+  }
+
+  const aspect = aspectSetting(preset, input)
+
+  if (!isNil(aspect)) {
+    chips.push({ kind: 'aspect', label: aspect })
+  }
+
+  return chips
 }
 
 /** Seed of a saved image output, null otherwise. */

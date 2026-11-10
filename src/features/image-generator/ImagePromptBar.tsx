@@ -5,12 +5,14 @@ import { isNil } from 'lodash-es'
 import { useShallow } from 'zustand/react/shallow'
 
 import { IMAGE_MAX_ACTIVE } from '@/core/constants'
+import { isPriceVisibleFor } from '@/core/pricing/visibility'
 import { issueText, type ValidationIssue } from '@/core/validation/common'
 import { imageWarnings, validateImagePrompt, validateImageSettings } from '@/core/validation/image'
 import { GenerateButton } from '@/features/generator/generate/GenerateButton'
 import { isPriceReason, useSubmitGate } from '@/features/generator/generate/use-submit-gate'
 import { useProviderReady } from '@/features/generator/use-provider-ready'
 import { registerPickerAnchor } from '@/features/media-picker/picker/anchors'
+import { useModelEntry } from '@/lib/api/catalog'
 
 import { ImagePromptControls } from './ImagePromptControls'
 import { ImageReferences } from './ImageReferences'
@@ -19,6 +21,23 @@ import { useImageGeneratorStore } from './store'
 import { useImageEstimate } from './use-image-estimate'
 import { useImageSubmit } from './use-image-submit'
 import { useImageUploadsRefresh } from './use-image-uploads-refresh'
+
+interface PromptErrorParams {
+  providerReason: string | null
+  issue: ValidationIssue | undefined
+  isAtLimit: boolean
+  limitMessage: string
+}
+
+function promptError(params: PromptErrorParams): string | undefined {
+  const { providerReason, issue, isAtLimit, limitMessage } = params
+
+  if (isAtLimit) {
+    return limitMessage
+  }
+
+  return providerReason ?? issueMessage(issue)
+}
 
 function issueMessage(issue?: ValidationIssue): string | undefined {
   if (isNil(issue)) {
@@ -79,19 +98,24 @@ export function ImagePromptBar(props: ImagePromptBarProps) {
     })
   })
 
-  const provider = useProviderReady(draft.presetId)
+  const provider = useProviderReady(draft.presetId, 'image')
+  const entry = useModelEntry(draft.presetId)
   const isAtLimit = activeCount >= IMAGE_MAX_ACTIVE
   const isDisabled = issues.length > 0 || !provider.isReady || isAtLimit
   const isSettingsValid = settingsIssues.length === 0
   const [first] = blocking.length > 0 ? blocking : warnings
   const limitMessage = `${IMAGE_MAX_ACTIVE} images already generating. Wait for one to finish.`
-  let error = issueMessage(first) ?? provider.reason ?? undefined
 
-  if (isAtLimit) {
-    error = limitMessage
-  }
+  const promptReason = promptError({
+    providerReason: provider.reason,
+    issue: first,
+    isAtLimit,
+    limitMessage,
+  })
 
   const estimate = useImageEstimate(isSettingsValid)
+  const priceUsd = estimate.usd ?? 0
+  const isPriceVisible = isPriceVisibleFor(entry, priceUsd)
 
   const gate = useSubmitGate({
     isValid: issues.length === 0,
@@ -101,6 +125,8 @@ export function ImagePromptBar(props: ImagePromptBarProps) {
     price: estimate.usd,
     limitMessage,
   })
+
+  let error = promptReason
 
   if (isNil(error) && isPriceReason(gate.reason)) {
     error = gate.reason ?? undefined
@@ -132,6 +158,7 @@ export function ImagePromptBar(props: ImagePromptBarProps) {
                 disabled={isDisabled}
                 error={error}
                 price={estimate.usd}
+                isPriceVisible={isPriceVisible}
                 isApproximate={estimate.isApproximate}
               />
             </div>

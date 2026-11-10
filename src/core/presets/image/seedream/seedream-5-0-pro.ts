@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import { imagePricing, imageResolutionOptions } from '../../common/options'
 import type { ImagePreset } from '../types'
 import { SEEDREAM_FAMILY } from './family'
@@ -14,7 +13,7 @@ export const SEEDREAM_5_PRO: ImagePreset = {
   referenceMax: 14,
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'bytedance-seed/seedream-5-0-pro',
       // $0.045 at 1K and $0.09 for the high-resolution 2K variant.
       // $0.003 per reference image.

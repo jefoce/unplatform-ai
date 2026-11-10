@@ -3,8 +3,10 @@
 import { isNil } from 'lodash-es'
 import { toast } from 'sonner'
 
+import { snapshotTitle } from '@/core/record-source'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { applyImageOutputReference } from '@/features/generator/media-actions'
+import { rememberPresetTitle } from '@/features/generator/model/preset-title'
 import { useImageGeneratorStore } from '@/features/image-generator/store'
 import { cancelGrace } from '@/features/shared/cancel-grace'
 import { setWorkspaceTab } from '@/features/shared/use-workspace-tab'
@@ -132,6 +134,7 @@ export async function reuseImagePrompt(item: ImageGridItem): Promise<void> {
       uploads = await fetchUploadsByIds(input.references)
     }
 
+    rememberPresetTitle(input.presetId, snapshotTitle(item.source))
     store.setPreset(input.presetId)
     store.setPrompt(input.prompt)
     store.setCount(input.count)

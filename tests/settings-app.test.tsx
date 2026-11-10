@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppSection } from '@/features/updates/AppSection'
 import { useUpdateStore } from '@/features/updates/update-store'
 
+import packageJson from '../package.json'
+
 const platformMock = vi.hoisted(() => {
   return {
     appInfo: vi.fn(),
@@ -12,6 +14,9 @@ const platformMock = vi.hoisted(() => {
     installUpdate: vi.fn(),
     setAutoCheck: vi.fn(),
     openReleasePage: vi.fn(),
+    openExternal: vi.fn(),
+    openNotices: vi.fn(),
+    openLicense: vi.fn(),
   }
 })
 
@@ -25,8 +30,14 @@ beforeEach(() => {
   platformMock.setAutoCheck.mockReset()
   platformMock.openReleasePage.mockReset()
   platformMock.checkUpdate.mockReset()
+  platformMock.openExternal.mockReset()
+  platformMock.openNotices.mockReset()
+  platformMock.openLicense.mockReset()
   platformMock.setAutoCheck.mockResolvedValue(undefined)
   platformMock.openReleasePage.mockResolvedValue(undefined)
+  platformMock.openExternal.mockResolvedValue(undefined)
+  platformMock.openNotices.mockResolvedValue(undefined)
+  platformMock.openLicense.mockResolvedValue(undefined)
 
   useUpdateStore.setState({
     appInfo: null,
@@ -156,5 +167,42 @@ describe('AppSection', () => {
     })
 
     expect(useUpdateStore.getState().appInfo?.autoCheck).toBe(false)
+  })
+})
+
+describe('AppSection about', () => {
+  it('shows the package version and opens the license, source and notices links', () => {
+    process.env.NEXT_PUBLIC_APP_VERSION = packageJson.version
+
+    useUpdateStore.setState({
+      appInfo: {
+        version: '0.2.0',
+        installKind: 'browser',
+        autoCheck: false,
+        lastCheck: null,
+      },
+    })
+
+    render(<AppSection />)
+
+    expect(
+      screen.getByText(`Unplatform AI ${packageJson.version}, Copyright (c) 2026 jefoce`),
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Licensed under AGPL-3.0' }))
+
+    expect(platformMock.openLicense).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source code' }))
+
+    expect(platformMock.openExternal).toHaveBeenCalledWith(
+      'https://github.com/jefoce/unplatform-ai',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Third-party notices' }))
+
+    expect(platformMock.openNotices).toHaveBeenCalledTimes(1)
+
+    delete process.env.NEXT_PUBLIC_APP_VERSION
   })
 })

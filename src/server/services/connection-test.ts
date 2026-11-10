@@ -2,7 +2,11 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import { PROVIDER_IDS, type ProviderId, type StorageProviderId } from '@/core/providers/types'
+import {
+  PROVIDER_KIND_IDS,
+  type ProviderKindId,
+  type StorageProviderId,
+} from '@/core/providers/types'
 import type { TestResult } from '@/core/types'
 
 import { getVideoProvider } from '../providers/registry'
@@ -11,10 +15,10 @@ import { testR2 } from '../storage/r2'
 import { getObjectStore } from '../storage/registry'
 import { clearModelCatalog } from './model-catalog'
 
-type TestTarget = ProviderId | StorageProviderId
+type TestTarget = ProviderKindId | StorageProviderId
 
-function isVideoTarget(target: TestTarget): target is ProviderId {
-  return (PROVIDER_IDS as readonly string[]).includes(target)
+function isVideoTarget(target: TestTarget): target is ProviderKindId {
+  return (PROVIDER_KIND_IDS as readonly string[]).includes(target)
 }
 
 /** Tests the stored credentials without returning them. */

@@ -1,4 +1,5 @@
 import { Channel, invoke, type InvokeArgs } from '@tauri-apps/api/core'
+import { resolveResource } from '@tauri-apps/api/path'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { ask, open } from '@tauri-apps/plugin-dialog'
 import {
@@ -6,7 +7,7 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { chunk, isNil } from 'lodash-es'
 
 import { HISTORY_BATCH_MAX } from '@/core/constants'
@@ -34,11 +35,30 @@ async function invokeChecked<T>(command: string, args?: InvokeArgs): Promise<T> 
   try {
     return await invoke<T>(command, args)
   } catch (error) {
-    if (error instanceof Error) {
-      throw error
-    }
+    throw asError(error)
+  }
+}
 
-    throw new Error(String(error))
+function asError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error
+  }
+
+  return new Error(String(error))
+}
+
+/** Opens a bundled resource, logs only the error name so the path stays out, then rethrows. */
+async function openResource(name: string): Promise<void> {
+  try {
+    const path = await resolveResource(name)
+
+    await openPath(path)
+  } catch (error) {
+    const failure = asError(error)
+
+    await invoke('log_client_error', { resource: name, message: failure.name }).catch(() => {})
+
+    throw failure
   }
 }
 
@@ -96,6 +116,14 @@ export const desktopPlatform: Platform = {
 
   openExternal: async (url: string) => {
     await openUrl(url)
+  },
+
+  openNotices: async () => {
+    await openResource('THIRD_PARTY_NOTICES.md')
+  },
+
+  openLicense: async () => {
+    await openResource('LICENSE')
   },
 
   confirm: async (message: string) => {

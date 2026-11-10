@@ -1,10 +1,10 @@
 import { z } from 'zod'
 
-import { findPreset } from '@/core/presets'
 import { buildPriceInputSchema } from '@/core/validation/video'
 import { errorResponse, jsonError, jsonResponse, zodError } from '@/server/http'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { estimateGeneration, loadPriceDraft } from '@/server/services/estimate-generation'
+import { findVideoPresetAny } from '@/server/services/model-catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return zodError(presetId.error)
     }
 
-    const preset = findPreset(presetId.data.presetId)
+    const preset = await findVideoPresetAny(presetId.data.presetId)
 
     if (!preset) {
       return jsonError({ status: 400, error: 'Unknown model' })

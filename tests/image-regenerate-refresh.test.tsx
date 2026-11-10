@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { presetTitleOf } from '@/features/generator/model/preset-title'
 import { regenerateItem } from '@/features/history/actions/regenerate-actions'
+import { useImageGeneratorStore } from '@/features/image-generator/store'
 
 import type { ImageRecord } from '../src/core/schemas/image-record'
 import { imageItems } from '../src/lib/feed/output-items'
@@ -10,12 +12,24 @@ import { required } from './helpers/required'
 const mocks = vi.hoisted(() => {
   return {
     createImage: vi.fn(),
+    fetchUploadsByIds: vi.fn(),
     refreshImages: vi.fn(),
   }
 })
 
 vi.mock('@/lib/api/images', () => {
-  return { createImage: mocks.createImage }
+  return {
+    createImage: mocks.createImage,
+    cancelImageRequest: vi.fn(),
+    deleteImageOutput: vi.fn(),
+    deleteImageRecord: vi.fn(),
+    revealImageOutput: vi.fn(),
+    setOutputFavorite: vi.fn(),
+  }
+})
+
+vi.mock('@/lib/api/generations', () => {
+  return { createGeneration: vi.fn(), fetchUploadsByIds: mocks.fetchUploadsByIds }
 })
 
 vi.mock('@/lib/image-feed-refresh', () => {
@@ -85,6 +99,7 @@ function failedRecord(): ImageRecord {
 
 beforeEach(() => {
   mocks.createImage.mockReset()
+  mocks.fetchUploadsByIds.mockReset()
   mocks.refreshImages.mockReset()
 })
 
@@ -93,6 +108,17 @@ function seedRecord(isSeedLocked: boolean): ImageRecord {
     ...failedRecord(),
     seedLocked: isSeedLocked,
     input: { ...failedRecord().input, seed: 123 },
+  }
+}
+
+function removedCustomRecord(): ImageRecord {
+  const base = failedRecord()
+
+  return {
+    ...base,
+    preset: { id: 'custom.cu1.gone', title: 'Gone Workflow', slug: 'gone' },
+    presetSnapshot: { id: 'custom.cu1.gone', title: 'Gone Workflow', family: 'custom' },
+    input: { ...base.input, presetId: 'custom.cu1.gone', references: [] },
   }
 }
 
@@ -144,5 +170,15 @@ describe('regenerateItem', () => {
     await regenerateItem(item)
 
     expect(mocks.createImage).toHaveBeenCalledWith(expect.objectContaining({ seed: null }))
+  })
+
+  it('loads the draft for a removed custom model and submits nothing', async () => {
+    const item = required(imageItems(removedCustomRecord())[0], 'removed custom image item')
+
+    await regenerateItem(item)
+
+    expect(mocks.createImage).not.toHaveBeenCalled()
+    expect(useImageGeneratorStore.getState().presetId).toBe('custom.cu1.gone')
+    expect(presetTitleOf('custom.cu1.gone')).toBe('Gone Workflow')
   })
 })

@@ -1,10 +1,13 @@
 'use client'
 
 import { isNil } from 'lodash-es'
-import { Lock } from 'lucide-react'
+import { Layers2, Lock, Monitor, Sparkles } from 'lucide-react'
 
+import { showPrice } from '@/core/pricing/visibility'
 import { canonicalizePrompt } from '@/core/prompt-tokens'
+import { recordSource } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
+import type { ImageRecord } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
 import { currentImagePreset } from '@/features/image-generator/preset'
 import { useImageGeneratorStore } from '@/features/image-generator/store'
@@ -18,12 +21,21 @@ import {
   recordSlots,
 } from '@/lib/feed/output-items'
 import { useNow } from '@/lib/use-now'
+import { EndpointBadge } from '@/ui/EndpointBadge'
+import { RatioIcon } from '@/ui/RatioIcon'
 import { Tooltip } from '@/ui/Tooltip'
 
-import { costInfo, imageCostInfo, imageOutputSeed, imageSettingLabels } from './details-info'
+import {
+  type CostInfo,
+  costInfo,
+  imageCostInfo,
+  imageOutputSeed,
+  imageSettingChips,
+} from './details-info'
 import { DetailsActions } from './DetailsActions'
 import { DetailsPrompt } from './DetailsPrompt'
 import { DetailsSettings } from './DetailsSettings'
+import { DetailsSource } from './DetailsSource'
 import { ImageActions } from './ImageActions'
 import { InputThumbs } from './InputThumbs'
 import { imageReferenceThumbItems, thumbItems } from './thumb-item'
@@ -40,22 +52,46 @@ interface DetailsPanelProps {
 }
 
 interface PanelHeader {
+  badge: string | null
   title: string
   costText: string
   costNote: string
 }
 
-/** Model, price and its note for either kind. */
-function panelHeader(item: HistoryItem): PanelHeader {
-  if (isVideoItem(item)) {
-    const cost = costInfo(item.source)
+function isLocalFree(record: GenerationRecord | ImageRecord, usd: number): boolean {
+  return !showPrice(recordSource(record), usd)
+}
 
-    return { title: item.source.preset.title, costText: cost.text, costNote: cost.note }
+function costTextFor(record: GenerationRecord | ImageRecord, text: string): string {
+  const usd = record.cost.actualUsd ?? record.cost.estimatedUsd
+
+  if (isLocalFree(record, usd)) {
+    return ''
   }
 
-  const cost = imageCostInfo(item)
+  return text
+}
 
-  return { title: item.modelTitle, costText: cost.text, costNote: cost.note }
+/** Cost text and note for either kind, with the matching record shape. */
+function headerCost(item: HistoryItem): CostInfo {
+  if (isVideoItem(item)) {
+    return costInfo(item.source)
+  }
+
+  return imageCostInfo(item)
+}
+
+/** Model, price and its note for either kind. Local zero prices are hidden. */
+function panelHeader(item: HistoryItem): PanelHeader {
+  const source = recordSource(item.source)
+  const cost = headerCost(item)
+
+  return {
+    badge: source.badge,
+    title: source.presetTitle,
+    costText: costTextFor(item.source, cost.text),
+    costNote: cost.note,
+  }
 }
 
 interface VideoBodyParams {
@@ -83,7 +119,7 @@ function videoBody(params: VideoBodyParams) {
 
 /** Setting chips the record preset supports, plus its output seed. */
 function imageSettings(item: ImageGridItem) {
-  const labels = imageSettingLabels(item.source.input)
+  const chips = imageSettingChips(item.source.input)
   const seed = imageOutputSeed(item)
 
   const handleUseSeed = () => {
@@ -104,10 +140,16 @@ function imageSettings(item: ImageGridItem) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {labels.map((label) => {
+      {chips.map((chip) => {
         return (
-          <span key={label} className={SETTING_CLASSES}>
-            {label}
+          <span key={chip.kind} className={SETTING_CLASSES}>
+            {chip.kind === 'resolution' && <Monitor size={14} className="text-fg-2" aria-hidden />}
+            {chip.kind === 'quality' && <Sparkles size={14} className="text-fg-2" aria-hidden />}
+            {chip.kind === 'background' && <Layers2 size={14} className="text-fg-2" aria-hidden />}
+            {chip.kind === 'aspect' && (
+              <RatioIcon ratio={item.source.input.aspectRatio} className="text-fg-2" />
+            )}
+            {chip.label}
           </span>
         )
       })}
@@ -186,15 +228,20 @@ export function DetailsPanel(props: DetailsPanelProps) {
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-2xl border border-line bg-page-2 p-3 pb-4">
       <div className={cn('flex items-center justify-between gap-2', hasTopRightInset && 'pr-10')}>
-        <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
+        <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-fg">
+          {!isNil(header.badge) && <EndpointBadge badge={header.badge} />}
           {header.title}
         </span>
-        <Tooltip content={header.costNote}>
-          <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
-            {header.costText}
-          </span>
-        </Tooltip>
+        {header.costText !== '' && (
+          <Tooltip content={header.costNote}>
+            <span className="inline-flex h-6 min-w-0 items-center truncate rounded-lg border border-divider bg-transparent pr-2 pl-1.5 text-xxs font-semibold text-fg">
+              {header.costText}
+            </span>
+          </Tooltip>
+        )}
       </div>
+
+      <DetailsSource record={item.source} />
 
       {body({ item, isActive, now, onDeleted: props.onDeleted })}
     </div>

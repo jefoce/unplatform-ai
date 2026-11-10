@@ -2,8 +2,10 @@ import { z } from 'zod'
 
 import { FLATTEN_COLORS, IMAGE_FORMATS } from '../media/media-types'
 import { RESOLVED_TRANSPORTS } from '../presets/common/transport'
-import { ASPECT_RATIOS, RESOLUTIONS } from '../presets/video/types'
-import { PROVIDER_IDS } from '../providers/types'
+import { UPAI_WAITING_ON } from '../protocol/upai'
+import { PROVIDER_KIND_IDS } from '../providers/types'
+import { PresetSnapshotSchema } from './preset-snapshot'
+import { RecordSourceSchema } from './record-source'
 import { MediaKindSchema, UploadSourceSchema } from './upload-item'
 
 export const GENERATOR_TABS = ['frames', 'references'] as const
@@ -37,8 +39,8 @@ export const FrameSlotsSchema = z.object({
   end: z.string().nullable(),
 })
 
-const AspectChoiceSchema = z.enum([...ASPECT_RATIOS, 'auto'])
-const ResolutionSchema = z.enum(RESOLUTIONS)
+const AspectChoiceSchema = z.string()
+const ResolutionSchema = z.string()
 
 const GenerationInputSchema = z.object({
   presetId: z.string(),
@@ -71,7 +73,15 @@ export const RecordSubmitSchema = z.object({
 
 export type RecordSubmit = z.infer<typeof RecordSubmitSchema>
 
-const RecordJobSchema = z.object({
+export const RecordProgressSchema = z.object({
+  percent: z.number().min(0).max(100),
+  queuePosition: z.number().int().nullable(),
+  waitingOn: z.enum(UPAI_WAITING_ON).nullable(),
+})
+
+export type RecordProgress = z.infer<typeof RecordProgressSchema>
+
+export const RecordJobSchema = z.object({
   id: z.string(),
   generationId: z.string().optional(),
   submittedAt: z.string(),
@@ -141,11 +151,14 @@ export const GenerationRecordSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   status: JobStatusSchema,
-  provider: z.enum(PROVIDER_IDS).default('openrouter'),
+  provider: z.enum(PROVIDER_KIND_IDS).default('openrouter'),
+  source: RecordSourceSchema.optional(),
   input: GenerationInputSchema,
   preset: RecordPresetSchema,
+  presetSnapshot: PresetSnapshotSchema.optional(),
   inputsSnapshot: InputSnapshotSchema,
   submit: RecordSubmitSchema.optional(),
+  progress: RecordProgressSchema.optional(),
   job: RecordJobSchema.optional(),
   download: RecordDownloadSchema.optional(),
   downloadFailed: z.boolean().nullish(),

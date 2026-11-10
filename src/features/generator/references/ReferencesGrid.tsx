@@ -1,12 +1,13 @@
 'use client'
 
-import { closestCenter, DndContext } from '@dnd-kit/core'
-import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
+import { DndContext } from '@dnd-kit/core'
+import { SortableContext, type SortingStrategy } from '@dnd-kit/sortable'
 
 import type { KindExtensions } from '@/core/media/media-kinds'
 import type { VideoPreset } from '@/core/presets/video/types'
 
 import { AddReferenceTile } from './AddReferenceTile'
+import { referenceCollisionDetection } from './reference-collision'
 import { labelFor, noteFor } from './reference-notes'
 import { ReferenceCounters } from './ReferenceCounters'
 import { ReferenceDragOverlay } from './ReferenceDragOverlay'
@@ -21,6 +22,11 @@ interface ReferencesGridProps {
   onPick: () => void
 }
 
+/** Grid tiles keep their natural slots, no transform shifting during drag. */
+const noSortStrategy: SortingStrategy = () => {
+  return null
+}
+
 /** Sortable reference grid with counters and drag reorder. */
 export function ReferencesGrid(props: ReferencesGridProps) {
   const { preset, extensions, max, isUploadsLoading } = props
@@ -30,7 +36,7 @@ export function ReferencesGrid(props: ReferencesGridProps) {
   return (
     <DndContext
       sensors={grid.sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={referenceCollisionDetection}
       onDragStart={grid.handleDragStart}
       onDragOver={grid.handleDragOver}
       onDragEnd={grid.handleDragEnd}
@@ -40,8 +46,8 @@ export function ReferencesGrid(props: ReferencesGridProps) {
         <ReferenceCounters counts={grid.counts} preset={preset} plan={grid.plan} />
         <div className="grid grid-cols-4 justify-center gap-2">
           {max > 0 && <AddReferenceTile onPick={props.onPick} />}
-          <SortableContext items={grid.references} strategy={rectSortingStrategy}>
-            {grid.references.map((id) => {
+          <SortableContext items={grid.order} strategy={noSortStrategy}>
+            {grid.order.map((id) => {
               return (
                 <ReferenceItem
                   key={id}
@@ -64,6 +70,7 @@ export function ReferencesGrid(props: ReferencesGridProps) {
       </div>
       <ReferenceDragOverlay
         activeId={grid.activeId}
+        activeSize={grid.activeSize}
         uploadsById={grid.uploadsById}
         planned={grid.planned}
         slots={grid.slots}

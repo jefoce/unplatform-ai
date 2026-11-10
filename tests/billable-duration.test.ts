@@ -12,6 +12,12 @@ const prime = getPreset('wan-3.0-prime')
 const seedance = getPreset('seedance-2.0')
 const seedance25 = getPreset('seedance-2.5')
 
+/** Same reference cap as Wan, without the quick-pick duration steps. */
+const continuous = {
+  ...wan,
+  duration: { min: wan.duration.min, max: wan.duration.max, default: wan.duration.default },
+}
+
 const draft = (presetId: string, duration: number, references: string[] = []): GenerationInput => {
   return {
     presetId,
@@ -95,7 +101,7 @@ describe('duration normalization', () => {
 
     const allowed = normalizeForPreset({
       input: draft('wan-3.0', 23, ['v1']),
-      preset: wan,
+      preset: continuous,
       uploads,
     })
 
@@ -105,7 +111,7 @@ describe('duration normalization', () => {
     const valid = validateInput({
       input: draft('wan-3.0', 23, ['v1']),
       uploads,
-      preset: wan,
+      preset: continuous,
       ctx: { modelStatus: 'unverified', modelReason: null, remoteConfigured: true },
     })
 
@@ -113,7 +119,7 @@ describe('duration normalization', () => {
 
     const over = normalizeForPreset({
       input: draft('wan-3.0', 24, ['v1']),
-      preset: wan,
+      preset: continuous,
       uploads,
     })
 
@@ -123,11 +129,36 @@ describe('duration normalization', () => {
     const rejected = validateInput({
       input: draft('wan-3.0', 24, ['v1']),
       uploads,
-      preset: wan,
+      preset: continuous,
       ctx: { modelStatus: 'unverified', modelReason: null, remoteConfigured: true },
     })
 
     expect(rejected.ok).toBe(false)
     expect(rejected.errors).toContain('Max 23s: reference videos are 7s in total, limit 30s')
+  })
+})
+
+describe('duration steps', () => {
+  const stepped = { ...seedance, duration: { min: 5, max: 9, default: 5, step: 4 } }
+
+  it('accepts only the allowed duration steps', () => {
+    const allowed = [5, 9].map((duration) => {
+      return validateInput({ input: draft('seedance-2.0', duration), uploads: {}, preset: stepped })
+    })
+
+    expect(
+      allowed.every((result) => {
+        return result.ok
+      }),
+    ).toBe(true)
+
+    const rejected = validateInput({
+      input: draft('seedance-2.0', 6),
+      uploads: {},
+      preset: stepped,
+    })
+
+    expect(rejected.ok).toBe(false)
+    expect(rejected.errors).toContain('duration: Choose an allowed duration')
   })
 })

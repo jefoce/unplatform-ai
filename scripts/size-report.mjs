@@ -129,8 +129,8 @@ async function writeBaseline(report) {
 }
 
 export async function collect(params = {}) {
-  const { root = ROOT, target, runtimeDir } = params
-  const bundle = bundleDir({ root, target })
+  const { root = ROOT, target, runtimeDir, env } = params
+  const bundle = bundleDir({ root, target, env })
   const app = await findOne(path.join(bundle, 'macos'), '.app')
   if (!app) throw new Error(`No .app under ${path.relative(root, bundle)}/macos`)
 

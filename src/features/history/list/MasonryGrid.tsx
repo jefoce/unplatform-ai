@@ -70,7 +70,12 @@ export function MasonryGrid(props: MasonryGridProps) {
   }
 
   return (
-    <div ref={containerRef} className="relative w-full" style={{ height: totalHeight }}>
+    <div
+      ref={containerRef}
+      className="relative w-full"
+      style={{ height: totalHeight }}
+      data-grid-width={width}
+    >
       {visibleRows.map((row) => {
         return row.items.map((tile) => {
           const item = byId[tile.id]
@@ -92,6 +97,7 @@ export function MasonryGrid(props: MasonryGridProps) {
                 onOpen={props.onOpen}
                 variant="masonry"
                 mediaWidth={tile.width}
+                tileHeight={tile.height}
               />
             </div>
           )

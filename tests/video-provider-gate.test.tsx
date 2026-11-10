@@ -17,7 +17,7 @@ vi.mock('@/features/generator/use-provider-ready', () => {
   }
 })
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return {
     useModelEntry: () => {
       return null

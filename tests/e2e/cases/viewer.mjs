@@ -305,7 +305,7 @@ async function previousArrow(context) {
   await closeViewer(driver)
 }
 
-async function previewThumbFirstPaint(context) {
+async function previewNoThumbFirstPaint(context) {
   const { driver } = context
 
   await context.fixture('savedImage')
@@ -317,30 +317,24 @@ async function previewThumbFirstPaint(context) {
     30_000,
     'an image tile',
   )
-  await driver.waitFor(
-    `window.__e2e.all('[id^="history-item-"] img').some((img) => img.complete && img.naturalWidth > 0)`,
-    30_000,
-    'the tile thumb',
-  )
 
-  const elapsed = await driver.evaluate(`new Promise((resolve) => {
+  const hasThumb = await driver.evaluate(`new Promise((resolve) => {
     const tile = window.__e2e.all('[aria-label="Open image details"]')[0]
-    const start = performance.now()
     tile.click()
     const check = () => {
-      const dialog = document.querySelector('[role="dialog"]')
-      const image = dialog?.querySelector('[style*="aspect-ratio"] img')
-      if (image && image.complete && image.naturalWidth > 0) {
-        resolve(performance.now() - start)
+      const stage = document.querySelector('[role="dialog"] [style*="aspect-ratio"]')
+      if (stage === null) {
+        requestAnimationFrame(check)
         return
       }
-      requestAnimationFrame(check)
+      const thumb = [...stage.querySelectorAll('img')].find((img) => (img.getAttribute('src') ?? '').includes('/api/thumbs'))
+      resolve(thumb !== undefined)
     }
     requestAnimationFrame(check)
   })`)
 
-  if (elapsed > 300) {
-    throw new Error(`Preview thumb painted after ${elapsed.toFixed(1)} ms`)
+  if (hasThumb) {
+    throw new Error('Viewer stage painted a thumbnail on the first frame')
   }
 
   await closeViewer(driver)
@@ -360,7 +354,7 @@ export const viewerCases = [
     run: zoomedPan,
   },
   {
-    name: 'viewer/preview-thumb-first-paint',
-    run: previewThumbFirstPaint,
+    name: 'viewer/preview-no-thumb-first-paint',
+    run: previewNoThumbFirstPaint,
   },
 ]

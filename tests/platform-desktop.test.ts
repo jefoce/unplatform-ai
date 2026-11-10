@@ -6,7 +6,14 @@ import { messageOf } from '../src/core/errors'
 import { record } from './helpers/history'
 
 const mocks = vi.hoisted(() => {
-  return { exportBatch: vi.fn(), exportImageBatch: vi.fn(), invoke: vi.fn(), open: vi.fn() }
+  return {
+    exportBatch: vi.fn(),
+    exportImageBatch: vi.fn(),
+    invoke: vi.fn(),
+    open: vi.fn(),
+    openPath: vi.fn(),
+    resolveResource: vi.fn(),
+  }
 })
 
 vi.mock('@tauri-apps/api/core', () => {
@@ -29,8 +36,12 @@ vi.mock('@tauri-apps/plugin-notification', () => {
   return { isPermissionGranted: vi.fn(), requestPermission: vi.fn(), sendNotification: vi.fn() }
 })
 
+vi.mock('@tauri-apps/api/path', () => {
+  return { resolveResource: mocks.resolveResource }
+})
+
 vi.mock('@tauri-apps/plugin-opener', () => {
-  return { openUrl: vi.fn() }
+  return { openPath: mocks.openPath, openUrl: vi.fn() }
 })
 
 vi.mock('@/lib/api/folders', () => {
@@ -43,6 +54,46 @@ vi.mock('@/lib/api/generations', () => {
 
 vi.mock('@/lib/api/images', () => {
   return { exportImageBatch: mocks.exportImageBatch }
+})
+
+describe('desktop bundled links', () => {
+  it('opens the license by resource name', async () => {
+    const path = '/Applications/Unplatform AI.app/Contents/Resources/LICENSE'
+
+    mocks.resolveResource.mockResolvedValue(path)
+    mocks.openPath.mockResolvedValue(undefined)
+
+    await desktopPlatform.openLicense()
+
+    expect(mocks.resolveResource).toHaveBeenCalledWith('LICENSE')
+
+    expect(mocks.openPath).toHaveBeenCalledWith(path)
+  })
+
+  it('logs only the error name and rethrows when opening fails', async () => {
+    const path = '/Applications/Unplatform AI.app/Contents/Resources/LICENSE'
+
+    mocks.resolveResource.mockResolvedValue(path)
+    mocks.openPath.mockRejectedValue(new Error(`no handler for ${path}`))
+    mocks.invoke.mockResolvedValue(undefined)
+
+    const error = await desktopPlatform.openLicense().catch((caught: unknown) => {
+      return caught
+    })
+
+    expect(messageOf(error)).toBe(`no handler for ${path}`)
+
+    expect(mocks.invoke).toHaveBeenCalledWith('log_client_error', {
+      resource: 'LICENSE',
+      message: 'Error',
+    })
+
+    const logged = mocks.invoke.mock.calls.find((call) => {
+      return call[0] === 'log_client_error'
+    })
+
+    expect(String(logged?.[1].message)).not.toContain(path)
+  })
 })
 
 describe('desktop update install', () => {

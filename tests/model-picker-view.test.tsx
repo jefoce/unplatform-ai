@@ -7,7 +7,6 @@ import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { ModelRow } from '@/features/generator/model/ModelRow'
 import { ModelVideoRow } from '@/features/generator/model/ModelVideoRow'
 import { videoPickerModel } from '@/features/generator/model/video-picker-model'
-import { useModelEntry } from '@/lib/api/models'
 
 import type { CatalogEntry } from '../src/core/catalog'
 import type { PickerModel } from '../src/core/feed/picker-model'
@@ -15,15 +14,15 @@ import { getPreset } from '../src/core/presets'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
 import type { PricingInfo } from '../src/core/pricing/types'
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return {
-    useModelEntry: vi.fn(() => {
-      return null
-    }),
+    useCatalog: () => {
+      return { catalog: undefined, isLoading: false, isValidating: false }
+    },
+    refreshCatalog: vi.fn(async () => {}),
   }
 })
 
-const mockUseModelEntry = vi.mocked(useModelEntry)
 const WAN = getPreset('wan-3.0')
 
 const PRICING: PricingInfo = {
@@ -51,7 +50,6 @@ class Observer {
 function handleNoop(): void {}
 
 beforeEach(() => {
-  mockUseModelEntry.mockReturnValue(null)
   vi.stubGlobal('ResizeObserver', Observer)
 
   vi.stubGlobal('matchMedia', () => {
@@ -73,6 +71,13 @@ describe('videoPickerModel', () => {
       status: 'available',
       reason: null,
       pricing: PRICING,
+      source: {
+        kind: 'openrouter',
+        instanceId: 'openrouter',
+        badge: null,
+        workflowName: null,
+        local: false,
+      },
     }
 
     const model = videoPickerModel(WAN, entry)
@@ -87,7 +92,7 @@ describe('videoPickerModel', () => {
 
 describe('ModelRow generic view', () => {
   it('renders the description and the price text', () => {
-    render(<ModelRow model={IMAGE_ROW} selected={false} onSelect={vi.fn()} />)
+    render(<ModelRow model={IMAGE_ROW} entry={null} selected={false} onSelect={vi.fn()} />)
 
     expect(screen.getByText('Image Model')).toBeTruthy()
     expect(screen.getByText('A description')).toBeTruthy()
@@ -95,13 +100,35 @@ describe('ModelRow generic view', () => {
   })
 
   it('reports the selected state on the row button', () => {
-    const { rerender } = render(<ModelRow model={IMAGE_ROW} selected={false} onSelect={vi.fn()} />)
+    const { rerender } = render(
+      <ModelRow model={IMAGE_ROW} entry={null} selected={false} onSelect={vi.fn()} />,
+    )
 
     expect(screen.getByRole('button').getAttribute('aria-pressed')).toBe('false')
 
-    rerender(<ModelRow model={IMAGE_ROW} selected onSelect={vi.fn()} />)
+    rerender(<ModelRow model={IMAGE_ROW} entry={null} selected onSelect={vi.fn()} />)
 
     expect(screen.getByRole('button').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('clamps a long description to two lines with a title', () => {
+    const description =
+      'A very long image model description that should wrap across two lines and then clamp with an ellipsis when it keeps growing.'
+
+    render(
+      <ModelRow
+        model={{ ...IMAGE_ROW, description }}
+        entry={null}
+        selected={false}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    const node = screen.getByText(description)
+
+    expect(node.className).toContain('line-clamp-2')
+    expect(node.className).not.toContain('truncate')
+    expect(node.getAttribute('title')).toBe(description)
   })
 })
 
@@ -110,16 +137,30 @@ describe('ModelRow image view', () => {
     const preset = IMAGE_PRESETS[0]
     const handleSelect = vi.fn()
 
-    mockUseModelEntry.mockReturnValue({
+    const entry: CatalogEntry = {
       modelId: preset.bindings[0].modelId,
       presetId: preset.id,
       provider: 'openrouter',
       status: 'missing',
       reason: 'Not available on OpenRouter right now.',
       pricing: null,
-    })
+      source: {
+        kind: 'openrouter',
+        instanceId: 'openrouter',
+        badge: null,
+        workflowName: null,
+        local: false,
+      },
+    }
 
-    render(<ModelRow model={imagePickerModel(preset)} selected={false} onSelect={handleSelect} />)
+    render(
+      <ModelRow
+        model={imagePickerModel(preset)}
+        entry={entry}
+        selected={false}
+        onSelect={handleSelect}
+      />,
+    )
 
     const row = screen.getByRole('button')
 
@@ -150,6 +191,13 @@ describe('ModelVideoRow', () => {
     status: 'no_provider',
     reason: null,
     pricing: { ...PRICING, listSkus: { duration_seconds_480p: 0.06 }, discount: 0.15 },
+    source: {
+      kind: 'openrouter',
+      instanceId: 'openrouter',
+      badge: null,
+      workflowName: null,
+      local: false,
+    },
   }
 
   it('keeps a long title on one truncated line and still shows the price', () => {
@@ -213,7 +261,11 @@ describe('ModelPicker bar variant', () => {
     const trigger = screen.getByRole('button', { name: 'Image Model' })
 
     expect(trigger.textContent).toBe('Image Model')
-    expect(trigger.querySelector('svg.lucide-chevron-right')).not.toBeNull()
+
+    expect(trigger.querySelector('svg.lucide-chevron-right')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    )
+
     expect(trigger.className).toContain('text-sm')
     expect(trigger.className).toContain('font-semibold')
     expect(trigger.className).not.toContain('truncate')
@@ -226,7 +278,13 @@ describe('ModelPicker custom models', () => {
     const handleSelect = vi.fn()
 
     render(<ModelPicker models={[IMAGE_ROW]} selectedId="missing" onSelect={handleSelect} />)
-    fireEvent.click(screen.getByRole('button', { name: /Model/ }))
+    const trigger = screen.getByRole('button', { name: /Model/ })
+
+    expect(trigger.querySelector('svg.lucide-chevron-right')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    )
+
+    fireEvent.click(trigger)
     fireEvent.click(screen.getByRole('button', { name: /Image Model/ }))
 
     expect(handleSelect).toHaveBeenCalledWith('image-model')

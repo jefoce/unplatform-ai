@@ -15,7 +15,7 @@ export function ModelBadge(props: ModelBadgeProps) {
       aria-label={label}
       className="inline-flex h-6 items-center gap-1 rounded-md bg-white/5 px-1.5 text-xs text-fg-2"
     >
-      <Icon size={12} />
+      <Icon size={12} aria-hidden />
       {text}
     </span>
   )

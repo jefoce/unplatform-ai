@@ -63,6 +63,10 @@ export const mockPlatform: Platform = {
 
   openExternal: vi.fn(async () => {}),
 
+  openNotices: vi.fn(async () => {}),
+
+  openLicense: vi.fn(async () => {}),
+
   confirm: vi.fn(async () => {
     return true
   }),

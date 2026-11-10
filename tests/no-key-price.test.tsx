@@ -12,7 +12,7 @@ import { videoPickerModel } from '@/features/generator/model/video-picker-model'
 import { GeneratorPanel } from '@/features/generator/panel/GeneratorPanel'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { pickerAnchor } from '@/features/media-picker/picker/anchors'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 
 import type { CatalogEntry } from '../src/core/catalog'
 import { getPreset } from '../src/core/presets'
@@ -44,7 +44,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/api/models', () => {
+vi.mock('@/lib/api/catalog', () => {
   return { useModelEntry: mocks.useModelEntry }
 })
 
@@ -173,6 +173,13 @@ function catalogEntry(status: 'missing' | 'no_provider'): CatalogEntry {
     status,
     reason: 'Add your OpenRouter key in Settings.',
     pricing: PRICING,
+    source: {
+      kind: 'openrouter',
+      instanceId: 'openrouter',
+      badge: null,
+      workflowName: null,
+      local: false,
+    },
   }
 }
 
@@ -204,11 +211,15 @@ afterEach(cleanup)
 
 describe('ModelRow without a key', () => {
   it('shows the catalog rate, the struck list rate and the reason', () => {
-    mockUseModelEntry.mockReturnValue(catalogEntry('no_provider'))
     const handleSelect = vi.fn()
 
     render(
-      <ModelRow model={videoPickerModel(WAN, null)} selected={false} onSelect={handleSelect} />,
+      <ModelRow
+        model={videoPickerModel(WAN, null)}
+        entry={catalogEntry('no_provider')}
+        selected={false}
+        onSelect={handleSelect}
+      />,
     )
 
     const row = screen.getByRole('button')
@@ -225,9 +236,14 @@ describe('ModelRow without a key', () => {
   })
 
   it('shows no price when the model is missing', () => {
-    mockUseModelEntry.mockReturnValue(catalogEntry('missing'))
-
-    render(<ModelRow model={videoPickerModel(WAN, null)} selected={false} onSelect={vi.fn()} />)
+    render(
+      <ModelRow
+        model={videoPickerModel(WAN, null)}
+        entry={catalogEntry('missing')}
+        selected={false}
+        onSelect={vi.fn()}
+      />,
+    )
 
     const row = screen.getByRole('button')
 

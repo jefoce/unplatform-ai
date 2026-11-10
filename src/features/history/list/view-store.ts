@@ -5,7 +5,6 @@ import { z } from 'zod'
 
 import { ZOOM_MAX, ZOOM_MIN } from '@/core/constants'
 import { DEFAULT_FILTERS, FILTER_PARAMS } from '@/core/feed/history-filters'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
 import { GENERATOR_TABS } from '@/core/schemas/generation-record'
 import { AUDIO_FILTERS, HISTORY_MODES, type HistoryFilters, STATUS_FILTERS } from '@/core/types'
 import { createViewStore } from '@/lib/create-view-store'
@@ -21,8 +20,8 @@ const PersistedFiltersSchema = z.object({
   status: z.enum(STATUS_FILTERS).optional(),
   tab: z.enum([...GENERATOR_TABS, 'all']).optional(),
   mode: z.enum(HISTORY_MODES).optional(),
-  resolution: z.enum([...RESOLUTIONS, 'all']).optional(),
-  aspect: z.enum([...ASPECT_RATIOS, 'all']).optional(),
+  resolution: z.string().optional(),
+  aspect: z.string().optional(),
   audio: z.enum(AUDIO_FILTERS).optional(),
 })
 
@@ -60,7 +59,7 @@ export const zoomToGridColumns = (zoom: number): number => {
   return stepValue(GRID_COLUMNS, zoom)
 }
 
-/** Tile width from the design table, measured at the 1518px reference row. */
+/** Tile width for the list proportions, measured from the 1518 px reference row. */
 export const zoomToTileWidth = (zoom: number): number => {
   return stepValue(TILE_WIDTHS, zoom)
 }

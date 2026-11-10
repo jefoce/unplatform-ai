@@ -41,6 +41,37 @@ function readPasteTarget(event: ClipboardEvent): PasteTarget {
   return { files, isEditing: Boolean(target?.closest(EDITABLE_SELECTOR)), text }
 }
 
+interface DropEventParams {
+  event: DragEvent
+  isDesktop: boolean
+  depth: RefObject<number>
+  setDragging: (isDragging: boolean) => void
+  onFiles: (files: File[]) => void
+}
+
+/** Resets drag state, then hands webview files over only outside desktop. */
+function handleDropEvent(params: DropEventParams): void {
+  const { event, isDesktop, depth, setDragging, onFiles } = params
+
+  if (!hasFiles(event.dataTransfer)) {
+    return
+  }
+
+  event.preventDefault()
+  depth.current = 0
+  setDragging(false)
+
+  if (isDesktop) {
+    return
+  }
+
+  const files = Array.from(event.dataTransfer?.files ?? [])
+
+  if (files.length > 0) {
+    onFiles(files)
+  }
+}
+
 interface HintParams {
   request: PickerRequest | null
   tab: GeneratorTab
@@ -75,8 +106,9 @@ interface DesktopDropParams {
 }
 
 /** Desktop Finder drops feed the same drag state as the HTML listeners. */
-function useDesktopDrop(params: DesktopDropParams): void {
+function useDesktopDrop(params: DesktopDropParams): boolean {
   const { setDragging, onPaths } = params
+  const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
     let stop: (() => void) | null = null
@@ -88,6 +120,8 @@ function useDesktopDrop(params: DesktopDropParams): void {
       if (isCancelled) {
         return
       }
+
+      setIsDesktop(platform.kind === 'desktop')
 
       const unsubscribe = await platform.onFileDrop((event) => {
         if (event.type === 'leave') {
@@ -123,6 +157,8 @@ function useDesktopDrop(params: DesktopDropParams): void {
       stop?.()
     }
   }, [setDragging, onPaths])
+
+  return isDesktop
 }
 
 /** One window drag, drop and paste handler for the generator and the open picker. */
@@ -141,13 +177,12 @@ export function useWindowFileInput(params: UseWindowFileInputParams): UseWindowF
   const depth = useRef(0)
   const callback = useRef(onFiles)
   const pathsCallback = useRef(onPaths)
+  const isDesktop = useDesktopDrop({ setDragging: setIsDragging, onPaths: pathsCallback })
 
   useEffect(() => {
     callback.current = onFiles
     pathsCallback.current = onPaths
   }, [onFiles, onPaths])
-
-  useDesktopDrop({ setDragging: setIsDragging, onPaths: pathsCallback })
 
   useEffect(() => {
     const handleDragEnter = (event: DragEvent): void => {
@@ -182,19 +217,13 @@ export function useWindowFileInput(params: UseWindowFileInputParams): UseWindowF
     }
 
     const handleDrop = (event: DragEvent): void => {
-      if (!hasFiles(event.dataTransfer)) {
-        return
-      }
-
-      event.preventDefault()
-      depth.current = 0
-      setIsDragging(false)
-
-      const files = Array.from(event.dataTransfer?.files ?? [])
-
-      if (files.length > 0) {
-        callback.current(files)
-      }
+      handleDropEvent({
+        event,
+        isDesktop,
+        depth,
+        setDragging: setIsDragging,
+        onFiles: callback.current,
+      })
     }
 
     const handlePaste = (event: ClipboardEvent): void => {
@@ -225,7 +254,7 @@ export function useWindowFileInput(params: UseWindowFileInputParams): UseWindowF
       window.removeEventListener('drop', handleDrop)
       window.removeEventListener('paste', handlePaste)
     }
-  }, [])
+  }, [isDesktop])
 
   return { isDragging, hint: hintFor({ request, tab, workspace }) }
 }

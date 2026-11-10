@@ -1,39 +1,24 @@
-import { canCancelInGrace } from '@/core/submit-state'
 import { errorResponse, type IdRouteContext, jsonError } from '@/server/http'
-import { cancelScheduledSubmit } from '@/server/jobs/submit-queue'
-import { deleteGenerationFiles, getGeneration } from '@/server/repos/generations'
+import { cancelGeneration } from '@/server/jobs/generation-actions'
 import { assertLocalRequest } from '@/server/request-guard'
-import { withLock } from '@/server/sync/lock'
 
-/** Cancels a generation only while it is still inside the grace window. */
+/** Cancels a grace generation, or stops a running custom job on its endpoint. */
 export async function POST(request: Request, { params }: IdRouteContext) {
   try {
     assertLocalRequest(request)
     const { id } = await params
+    const result = await cancelGeneration(id)
 
-    const result = await withLock(id, async () => {
-      const record = await getGeneration(id)
-
-      if (!record) {
-        return 'missing'
-      }
-
-      if (!canCancelInGrace(record)) {
-        return 'sent'
-      }
-
-      cancelScheduledSubmit(id)
-      await deleteGenerationFiles(id)
-
-      return 'cancelled'
-    })
-
-    if (result === 'missing') {
+    if (result === 'not_found') {
       return jsonError({ status: 404, error: 'Generation not found' })
     }
 
     if (result === 'sent') {
       return jsonError({ status: 409, error: 'Already sent, cannot cancel' })
+    }
+
+    if (result === 'endpoint_removed') {
+      return jsonError({ status: 409, error: 'This endpoint was removed.' })
     }
 
     return new Response(null, { status: 204 })

@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import {
   IMAGE_PROMPT_MAX_CHARS,
   IMAGE_REFERENCE_LIMITS,
@@ -22,7 +21,7 @@ export const GEMINI_31_FLASH_IMAGE: ImagePreset = {
   promptMaxChars: IMAGE_PROMPT_MAX_CHARS,
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'google/gemini-3.1-flash-image',
       // $0.000066 per output token, the highest endpoint rate read 2026-10-30.
       // vertex/us bills 0.000066, ai-studio and vertex/global bill 0.00006.

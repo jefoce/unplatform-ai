@@ -171,6 +171,13 @@ describe('captured image catalog status', () => {
         status: status.status,
         reason: status.reason,
         pricing: null,
+        source: {
+          kind: 'openrouter',
+          instanceId: 'openrouter',
+          badge: null,
+          workflowName: null,
+          local: false,
+        },
       }),
     ).toBe(false)
   })
@@ -198,6 +205,13 @@ describe('captured image catalog status', () => {
         status: status.status,
         reason: status.reason,
         pricing: null,
+        source: {
+          kind: 'openrouter',
+          instanceId: 'openrouter',
+          badge: null,
+          workflowName: null,
+          local: false,
+        },
       }),
     ).toBe(true)
   })

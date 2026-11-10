@@ -18,6 +18,9 @@ interface ModalProps {
 
   /** Round close control in the top-right corner. */
   showClose?: boolean
+
+  /** Keeps docked panels open while this dialog is used. */
+  keepPanels?: boolean
   label: string
 }
 
@@ -30,19 +33,24 @@ export function Modal(props: ModalProps) {
     backdropClassName,
     hideOverlay: shouldHideOverlay,
     showClose: shouldShowClose,
+    keepPanels: shouldKeepPanels,
     label,
   } = props
+
+  const keepPanelsValue = shouldKeepPanels === true ? '' : undefined
 
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={props.onOpenChange}>
       <DialogPrimitive.Portal>
         {shouldHideOverlay !== true && (
           <DialogPrimitive.Overlay
+            data-keep-panels={keepPanelsValue}
             className={cn('fixed inset-0 z-50 bg-backdrop', backdropClassName)}
           />
         )}
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          data-keep-panels={keepPanelsValue}
           className={cn(
             'fixed top-1/2 left-1/2 z-50 max-h-[85vh] w-[min(900px,90vw)] -translate-1/2',
             'rounded-2xl border border-line-strong bg-surface shadow-[0_0_0_1px_var(--color-overlay),0_24px_60px_-20px_var(--color-backdrop)] outline-none',

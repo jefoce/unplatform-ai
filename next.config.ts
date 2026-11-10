@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['sharp', '@napi-rs/keyring'],
   outputFileTracingExcludes: {
     '*': [
+      '.e2e-tmp/**',
       '**/*.map',
       '**/*.d.ts',
       '**/*.d.mts',

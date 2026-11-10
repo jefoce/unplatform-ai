@@ -4,12 +4,12 @@ import { isNil } from 'lodash-es'
 import { Layers2, Monitor, Sparkles, Square, SquareDashed, Wand2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { imageResolutionChoices, imageResolutionDisplay } from '@/core/presets/common/display'
 import type {
   ImageAspectChoice,
   ImageBackground,
   ImageOption,
   ImagePreset,
-  ImageResolution,
 } from '@/core/presets/image/types'
 import { OptionPopover } from '@/ui/OptionPopover'
 import { RatioIcon } from '@/ui/RatioIcon'
@@ -21,15 +21,6 @@ const BACKGROUND_ICONS: Record<ImageBackground, ReactNode> = {
   auto: <Wand2 size={14} aria-hidden />,
   opaque: <Square size={14} aria-hidden />,
   transparent: <SquareDashed size={14} aria-hidden />,
-}
-
-const RESOLUTION_DETAILS: Record<ImageResolution, string> = {
-  '512': '512px',
-  '768': '768px',
-  '1K': '1024px',
-  '1.5K': '1536px',
-  '2K': '2048px',
-  '4K': '4096px',
 }
 
 function valuesOf<T extends string>(options: readonly ImageOption<T>[]): T[] {
@@ -68,8 +59,13 @@ function resolutionIcon(): ReactNode {
   return <Monitor size={14} aria-hidden />
 }
 
-function resolutionDetail(value: ImageResolution): string | null {
-  return RESOLUTION_DETAILS[value]
+function resolutionDetailFor(
+  preset: ImagePreset,
+  aspect: string,
+): (value: string) => string | null {
+  return (value) => {
+    return imageResolutionDisplay(preset, { resolution: value, aspect }).detail
+  }
 }
 
 interface ImageOptionsRowProps {
@@ -116,6 +112,9 @@ export function ImageOptionsRow(props: ImageOptionsRowProps) {
     return { value, label: aspectLabel(value) }
   })
 
+  const resolutionChoices = imageResolutionChoices(preset, aspectRatio)
+  const resolutionDetail = resolutionDetailFor(preset, aspectRatio)
+
   return (
     <>
       <OptionPopover
@@ -131,13 +130,14 @@ export function ImageOptionsRow(props: ImageOptionsRowProps) {
       {!isNil(preset.resolutions) && !isNil(resolution) && (
         <OptionPopover
           label="Resolution"
-          options={valuesOf(preset.resolutions)}
-          labels={labelsOf(preset.resolutions)}
+          options={valuesOf(resolutionChoices)}
+          labels={labelsOf(resolutionChoices)}
           value={resolution}
           onValueChange={setResolution}
           icon={<Monitor size={14} aria-hidden />}
           optionIcon={resolutionIcon}
           optionDetail={resolutionDetail}
+          contentClassName="max-h-[min(60vh,22rem)] overflow-y-auto"
         />
       )}
 

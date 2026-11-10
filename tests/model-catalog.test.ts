@@ -10,13 +10,19 @@ import { VIDEO_PRESETS } from '../src/core/presets'
 import { activeBinding, primaryBinding } from '../src/core/presets/common/bindings'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
 import type { VideoPreset } from '../src/core/presets/video/types'
-import type { ProviderId } from '../src/core/providers/types'
+import type { ProviderKindId } from '../src/core/providers/types'
+
+vi.hoisted(() => {
+  const os = process.getBuiltinModule('node:os')
+
+  process.env.STORAGE_ROOT = `${os.tmpdir()}/cf-model-catalog-${process.pid}`
+})
 
 const multi = vi.hoisted(() => {
   return {
     id: 'multi-binding',
     laterModel: 'later/model',
-    fakeProvider: 'fake' as ProviderId,
+    fakeProvider: 'fake' as ProviderKindId,
   }
 })
 
@@ -278,6 +284,18 @@ describe('getModelCatalog providers', () => {
     expect(entry?.modelId).toBe(multi.laterModel)
     expect(entry?.provider).toBe(multi.fakeProvider)
     expect(entry?.status).toBe('available')
+  })
+
+  it('does not rebuild static entries on a custom refresh', async () => {
+    await getModelCatalog()
+    mocks.getPricing.mockClear()
+    mocks.listModels.mockClear()
+
+    const { entries } = await getModelCatalog({ isRefreshCustom: true })
+
+    expect(entries.length).toBeGreaterThan(0)
+    expect(mocks.getPricing).not.toHaveBeenCalled()
+    expect(mocks.listModels).not.toHaveBeenCalled()
   })
 })
 

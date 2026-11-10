@@ -4,7 +4,8 @@ import type { MediaKind } from '@/core/media/media-types'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
-import type { ProviderId } from '@/core/providers/types'
+import type { UpaiWaitingOn } from '@/core/protocol/upai'
+import type { ProviderKindId } from '@/core/providers/types'
 import type { GenerationInput, JobStatus } from '@/core/schemas/generation-record'
 import type { ImageGenerationInput } from '@/core/schemas/image-record'
 import type { AccountSource, TestResult } from '@/core/types'
@@ -62,6 +63,12 @@ export interface JobUsage {
   usesEstimatedCost: boolean
 }
 
+export interface JobProgress {
+  percent: number
+  queuePosition: number | null
+  waitingOn: UpaiWaitingOn | null
+}
+
 export interface JobSnapshot {
   status: JobStatus
   generationId: string | null
@@ -69,6 +76,7 @@ export interface JobSnapshot {
   urls: readonly string[] | null
   usage: JobUsage | null
   error: string | null
+  progress?: JobProgress
 }
 
 export interface ContentFallback {
@@ -100,13 +108,15 @@ export interface AccountLookupParams {
 }
 
 export interface VideoProvider {
-  readonly id: ProviderId
+  readonly id: ProviderKindId
 
   /** Hosts allowed for a provider-supplied content URL. Subdomains count. */
   readonly contentHosts: readonly string[]
   isConfigured(): boolean
   submit(params: SubmitJobParams): Promise<SubmittedJob>
   getJob(job: JobRef): Promise<JobSnapshot>
+  cancel?(job: JobRef): Promise<void>
+  deleteResult?(job: JobRef): Promise<void>
   fetchContent(request: ContentRequest): Promise<Response>
   getAccount(params?: AccountLookupParams): Promise<ProviderAccount>
   getPricing(preset: VideoPreset, isForce?: boolean): Promise<PricingInfo>
@@ -158,12 +168,15 @@ export type ImageResultItem = ImageResultData | ImageResultError
 export interface ImageResult {
   items: readonly ImageResultItem[]
   costUsd: number | null
+  job?: JobRef
 }
 
 export interface ImageProvider {
-  readonly id: ProviderId
+  readonly id: ProviderKindId
   isConfigured(): boolean
   generate(params: ImageGenerateParams): Promise<ImageResult>
+  cancel?(job: JobRef): Promise<void>
+  deleteResult?(job: JobRef): Promise<void>
   listModels(): Promise<ProviderImageModelList>
   listEndpoints(modelId: string): Promise<EndpointSignal>
   testConnection(): Promise<TestResult>

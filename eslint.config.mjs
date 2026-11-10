@@ -11,6 +11,7 @@ import tseslint from 'typescript-eslint'
 
 import callbackProps from './eslint-rules/callback-props.mjs'
 import inlineHookCallbacks from './eslint-rules/inline-hook-callbacks.mjs'
+import noCustomPresetLiteral from './eslint-rules/no-custom-preset-literal.mjs'
 import paddingAroundFunctions from './eslint-rules/padding-around-functions.mjs'
 import {
   INLINE_FUNCTION_SELECTORS,
@@ -29,6 +30,7 @@ const localPlugin = {
   rules: {
     'callback-props': callbackProps,
     'inline-hook-callbacks': inlineHookCallbacks,
+    'no-custom-preset-literal': noCustomPresetLiteral,
     'padding-around-functions': paddingAroundFunctions,
   },
 }
@@ -313,6 +315,15 @@ export default defineConfig([
         TYPE_SELECTORS,
         UNION_SELECTORS,
       ),
+    },
+  },
+  {
+    // Custom preset ids are built and identified only inside core/presets.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/core/presets/**'],
+    plugins: { local: localPlugin },
+    rules: {
+      'local/no-custom-preset-literal': 'error',
     },
   },
   {

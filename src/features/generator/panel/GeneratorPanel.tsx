@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 import { compact, isNil, noop } from 'lodash-es'
 import { useShallow } from 'zustand/react/shallow'
 
+import { isPriceVisibleFor } from '@/core/pricing/visibility'
 import { registerPickerAnchor } from '@/features/media-picker/picker/anchors'
 import { useUploadsRefresh } from '@/lib/use-uploads-refresh'
 
@@ -39,13 +40,16 @@ interface PanelErrorParams {
   priceReason: string | null
 }
 
-/** Validation first, then the provider reason, then the price reasons. */
+/** Provider reason first: unreachable, missing, stale, then validation and price. */
 function panelError(params: PanelErrorParams): string | undefined {
   const { validationError, providerReason, priceReason } = params
-  const error = validationError ?? providerReason ?? undefined
 
-  if (!isNil(error)) {
-    return error
+  if (!isNil(providerReason)) {
+    return providerReason
+  }
+
+  if (!isNil(validationError)) {
+    return validationError
   }
 
   if (isPriceReason(priceReason)) {
@@ -76,6 +80,9 @@ export function GeneratorPanel() {
     isPriceLoading,
     price,
   })
+
+  const priceUsd = price ?? 0
+  const isPriceVisible = isPriceVisibleFor(draft.entry, priceUsd)
 
   const error = panelError({
     validationError: draft.validation.errors[0],
@@ -156,6 +163,7 @@ export function GeneratorPanel() {
           disabled={!isReady}
           error={error}
           price={price}
+          isPriceVisible={isPriceVisible}
           listPrice={listPrice}
           discount={discount}
         />

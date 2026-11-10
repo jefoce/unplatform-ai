@@ -2,7 +2,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { getPreset } from '../src/core/presets'
-import type { Resolution } from '../src/core/presets/video/types'
 import { validateInput, validateSettings } from '../src/core/validation/video'
 import { input, preset, upload, uploadsOf } from './helpers/validation-fixtures'
 
@@ -157,31 +156,32 @@ describe('validateInput duration', () => {
     expect(seedanceLow.errors).toContain('duration: Minimum 4s')
   })
 
-  it('accepts any integer between the minimum and the preset max', () => {
+  it('accepts any whole second inside the range', () => {
+    const result = validateInput({ input: input({ duration: 6 }), uploads: {}, preset })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('treats options as quick picks, not a restriction', () => {
     const optionPreset = {
       ...preset,
       duration: { min: 4, max: 8, default: 6, options: [4, 6, 8] as const },
     }
 
-    expect(
-      validateInput({ input: input({ duration: 5 }), uploads: {}, preset: optionPreset }).ok,
-    ).toBe(true)
-
     const result = validateInput({
-      input: input({ duration: 9 }),
+      input: input({ duration: 5 }),
       uploads: {},
       preset: optionPreset,
     })
 
-    expect(result.ok).toBe(false)
-    expect(result.errors[0]).toContain('duration')
+    expect(result.ok).toBe(true)
   })
 })
 
 describe('validateInput resolution and aspect', () => {
   it('rejects an unsupported resolution', () => {
     const result = validateInput({
-      input: input({ resolution: '4k' as Resolution }),
+      input: input({ resolution: '4k' }),
       uploads: {},
       preset,
     })
@@ -342,5 +342,33 @@ describe('validateInput frames', () => {
     })
 
     expect(result.errors).toContain('Image too small: 200 px, min 240 px (small.png)')
+  })
+})
+
+describe('validateInput required frames', () => {
+  const emptyFrames = { start: null, end: null }
+
+  it('rejects a missing required first frame', () => {
+    const requiredStart = { ...preset, frames: { ...preset.frames, startRequired: true } }
+
+    const result = validateInput({
+      input: input({ tab: 'frames', prompt: 'A cat', frames: emptyFrames }),
+      uploads: {},
+      preset: requiredStart,
+    })
+
+    expect(result.errors).toContain('A first frame is required')
+  })
+
+  it('rejects a missing required last frame', () => {
+    const requiredEnd = { ...preset, frames: { ...preset.frames, endRequired: true } }
+
+    const result = validateInput({
+      input: input({ tab: 'frames', prompt: 'A cat', frames: emptyFrames }),
+      uploads: {},
+      preset: requiredEnd,
+    })
+
+    expect(result.errors).toContain('A last frame is required')
   })
 })

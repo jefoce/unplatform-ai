@@ -1,16 +1,13 @@
 'use client'
 
 import { arrayMove } from '@dnd-kit/sortable'
-import { keyBy, uniqBy } from 'lodash-es'
+import { isNil, keyBy, uniqBy } from 'lodash-es'
 import { toast } from 'sonner'
 
 import type { UploadsById } from '@/core/api/uploads'
-import type {
-  ImageAspectChoice,
-  ImageBackground,
-  ImageQuality,
-  ImageResolution,
-} from '@/core/presets/image/types'
+import { isCustomPresetId } from '@/core/presets/custom'
+import { findImagePreset } from '@/core/presets/image'
+import type { ImageAspectChoice, ImageBackground, ImageQuality } from '@/core/presets/image/types'
 import { type ImageGenerationInput, ImageInputSchema } from '@/core/schemas/image-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { referenceBlockReason } from '@/features/generator/reference-rules'
@@ -25,7 +22,7 @@ interface ImageGeneratorState extends ImageGenerationInput {
   setPrompt: (prompt: string) => void
   setCount: (count: number) => void
   setAspectRatio: (aspectRatio: ImageAspectChoice) => void
-  setResolution: (resolution: ImageResolution | null) => void
+  setResolution: (resolution: string | null) => void
   setQuality: (quality: ImageQuality | null) => void
   setBackground: (background: ImageBackground | null) => void
   setSeed: (seed: number | null) => void
@@ -100,7 +97,16 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
     return {
       ...INITIAL,
       setPreset: (id) => {
-        const preset = currentImagePreset(id)
+        const preset = findImagePreset(id)
+
+        if (!preset) {
+          if (isCustomPresetId(id)) {
+            set({ presetId: id })
+          }
+
+          return
+        }
+
         const previous = get()
         const draft = imageDraftForPreset(previous, preset)
 
@@ -245,7 +251,13 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
     }
   },
   normalize: (state) => {
-    return imageDraftForPreset(state, currentImagePreset(state.presetId))
+    const found = findImagePreset(state.presetId)
+
+    if (isNil(found) && isCustomPresetId(state.presetId)) {
+      return {}
+    }
+
+    return imageDraftForPreset(state, found ?? currentImagePreset(state.presetId))
   },
 })
 /* eslint-enable max-lines-per-function */

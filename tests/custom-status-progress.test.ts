@@ -1,0 +1,126 @@
+import { describe, expect, it } from 'vitest'
+
+import { CUSTOM_ERROR_RULES } from '@/core/presets/custom/errors'
+import { friendlyError } from '@/core/provider-errors'
+import { STATUS_HELP, statusHelpKey } from '@/core/status-help'
+import { isCustomActiveRecord } from '@/features/history/status/status-tone'
+import { endpointOfflineView, videoStatusView } from '@/features/history/status/status-view'
+
+import { storedRecord } from './helpers/stored-record'
+
+const SOURCE = {
+  kind: 'custom' as const,
+  instanceId: 'cu1',
+  badge: 'CU1',
+  presetTitle: 'Wan 2.2 I2V',
+  workflowName: 'Wan 2.2',
+  endpointLabel: 'Studio PC',
+  local: true,
+}
+
+function custom(overrides: Parameters<typeof storedRecord>[1] = {}) {
+  return storedRecord('custom-record', {
+    provider: 'custom',
+    source: SOURCE,
+    status: 'in_progress',
+    ...overrides,
+  })
+}
+
+interface CustomRuleCase {
+  raw: string
+  title: string
+  hint: string
+  kind: string
+}
+
+const RULE_CASES: readonly CustomRuleCase[] = [
+  {
+    raw: 'upai:job_not_found: unknown job',
+    title: 'ComfyUI lost this job.',
+    hint: 'ComfyUI was restarted or the job was cleaned up. Generate again.',
+    kind: 'provider',
+  },
+]
+
+describe('custom error rules', () => {
+  it('translates job_not_found as a provider error', () => {
+    for (const row of RULE_CASES) {
+      const friendly = friendlyError({ raw: row.raw, rules: CUSTOM_ERROR_RULES, httpRules: null })
+
+      expect(friendly.title, row.raw).toBe(row.title)
+      expect(friendly.hint, row.raw).toBe(row.hint)
+      expect(friendly.kind, row.raw).toBe(row.kind)
+    }
+  })
+})
+
+describe('custom job progress', () => {
+  it('shows the provider percent in the pill', () => {
+    const record = custom({
+      progress: { percent: 45, queuePosition: null, waitingOn: null },
+    })
+
+    const view = videoStatusView(record)
+
+    expect(view.label).toBe('Generating 45%')
+    expect(view.progressPercent).toBe(45)
+  })
+
+  it('maps comfyui_busy to the waiting label', () => {
+    const record = custom({
+      status: 'pending',
+      progress: { percent: 0, queuePosition: null, waitingOn: 'comfyui_busy' },
+    })
+
+    expect(statusHelpKey(record)).toBe('waiting_comfyui')
+    expect(STATUS_HELP.waiting_comfyui.label).toBe('Waiting for ComfyUI')
+  })
+
+  it('shows the queue position when the pack reports one', () => {
+    const record = custom({
+      status: 'pending',
+      progress: { percent: 0, queuePosition: 2, waitingOn: 'pack_queue' },
+    })
+
+    expect(videoStatusView(record).label).toBe('In queue, 2 ahead')
+  })
+
+  it('says In queue when the pack has no queue position', () => {
+    const record = custom({
+      status: 'pending',
+      progress: { percent: 0, queuePosition: null, waitingOn: 'pack_queue' },
+    })
+
+    expect(videoStatusView(record).label).toBe('In queue')
+  })
+
+  it('maps a comfy_unavailable error to the offline label', () => {
+    const record = custom({ error: 'upai:comfy_unavailable: connection refused' })
+
+    expect(statusHelpKey(record)).toBe('endpoint_unreachable')
+  })
+
+  it('replaces the active view with the offline view', () => {
+    const view = endpointOfflineView(videoStatusView(custom()))
+
+    expect(view.label).toBe('ComfyUI offline, will resume')
+    expect(view.tone).toBe('gray')
+    expect(view.error).toBeNull()
+  })
+
+  it('is not active while the output is downloading', () => {
+    const record = custom({ download: { startedAt: '2026-01-01T00:00:00.000Z' } })
+
+    expect(isCustomActiveRecord(custom())).toBe(true)
+    expect(isCustomActiveRecord(record)).toBe(false)
+  })
+
+  it('translates a removed endpoint when the runtime preset is gone', () => {
+    const base = custom({ error: 'upai:endpoint_removed: Endpoint removed' })
+
+    const record = { ...base, input: { ...base.input, presetId: 'cu-missing' } }
+
+    expect(videoStatusView(record).error?.title).toBe('This endpoint was removed.')
+  })
+})

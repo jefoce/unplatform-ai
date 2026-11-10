@@ -66,7 +66,7 @@ export function DurationPopover() {
           value={draft.duration}
           min={min}
           max={limit}
-          step={1}
+          step={preset.duration.step ?? 1}
           ariaLabel="Duration"
           name="duration"
           onValueChange={setDuration}

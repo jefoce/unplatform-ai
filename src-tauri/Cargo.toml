@@ -1,8 +1,9 @@
 [package]
 name = "unplatform-ai"
-version = "0.4.0"
+version = "0.5.0"
 description = "Unplatform AI desktop shell"
 authors = ["jefoce"]
+license = "AGPL-3.0-only"
 edition = "2021"
 rust-version = "1.90"
 

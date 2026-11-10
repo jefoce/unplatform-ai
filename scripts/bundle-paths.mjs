@@ -19,8 +19,9 @@ export function targetFromArgs(argv, env = process.env) {
 
 /** Bundle directory for a target triple, or the host layout when there is none. */
 export function bundleDir(params) {
-  const { root, target } = params
-  const base = path.join(root, 'src-tauri', 'target')
+  const { root, target, env = process.env } = params
+  const configured = env.CARGO_TARGET_DIR
+  const base = configured ? path.resolve(root, configured) : path.join(root, 'src-tauri', 'target')
 
   return target
     ? path.join(base, target, 'release', 'bundle')

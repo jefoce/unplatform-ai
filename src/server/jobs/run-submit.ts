@@ -5,17 +5,18 @@ import { isNil } from 'lodash-es'
 import type { UploadsById } from '@/core/api/uploads'
 import { MAX_REQUEST_MB } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
-import { findPreset } from '@/core/presets'
 import { INTERRUPT_SENDING_TEXT } from '@/core/provider-errors/app'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { graceDelayMs, inputIds, transportsFor, withTransports } from '@/core/submit-state'
 import type { ResolvedTransport } from '@/core/transport'
 import type { Dict } from '@/core/utility-types'
 
+import { missingPresetError } from '../providers/custom/record-instance'
 import { ProviderError, providerStatusOf } from '../providers/provider-error'
 import type { SubmittedJob } from '../providers/types'
 import { getGeneration, saveGeneration } from '../repos/generations'
 import { secretsReady } from '../secrets'
+import { findVideoPresetAny } from '../services/model-catalog'
 import { loadUploads } from '../services/uploads'
 import { getObjectStore } from '../storage/registry'
 import { withLock } from '../sync/lock'
@@ -73,10 +74,10 @@ async function beginUpload(id: string): Promise<Prepared | null> {
       return null
     }
 
-    const preset = findPreset(record.input.presetId)
+    const preset = await findVideoPresetAny(record.input.presetId)
 
     if (!preset) {
-      throw new Error('Unknown model')
+      throw missingPresetError(record)
     }
 
     const uploads = await loadUploads(record.input)
@@ -123,15 +124,22 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
     throw new Error(`File missing: ${gone.originalName}`)
   }
 
-  const preset = findPreset(record.input.presetId)
+  const preset = await findVideoPresetAny(record.input.presetId)
 
   if (!preset) {
-    throw new Error('Unknown model')
+    throw missingPresetError(record)
   }
 
   await uploadUrls({ id: record.id, uploads, transports, signal })
   throwIfStopped(signal)
-  const built = await buildMedia({ uploads, transports, preset })
+
+  const built = await buildMedia({
+    uploads,
+    transports,
+    preset,
+    endpointId: endpointIdOf(record),
+    signal,
+  })
 
   await recordSent(record.id, built.plan)
 
@@ -161,12 +169,21 @@ async function uploadAndSend(params: Prepared, signal?: AbortSignal): Promise<vo
     return
   }
 
-  const response = await send({ record, preset, uploads, transports, built })
+  const response = await send({ record, preset, uploads, transports, built, signal })
   const saved = await complete(record.id, response)
 
   if (saved) {
     emitJobSent(record.id)
   }
+}
+
+/** Custom records carry the endpoint id in their source snapshot. */
+function endpointIdOf(record: GenerationRecord): string | null {
+  if (isNil(record.source)) {
+    return null
+  }
+
+  return record.source.instanceId
 }
 
 /** Records the send, accepting a record that skipped the upload stage. */
@@ -228,6 +245,10 @@ function failText(record: GenerationRecord, error: unknown): string {
 /** Formats a stored failure without repeating the HTTP status. */
 export function submitError(error: unknown): string {
   if (error instanceof ProviderError) {
+    if (error.providerId === 'custom') {
+      return error.storedMessage
+    }
+
     return formatError(error)
   }
 

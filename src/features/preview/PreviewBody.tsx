@@ -102,13 +102,7 @@ export function PreviewBody(props: PreviewBodyProps) {
   return (
     <ZoomLayer resetKey={item.id}>
       <MediaBox aspect={aspect}>
-        <MediaImage
-          src={src}
-          thumbSrc={thumbUrl({ ref })}
-          alt={item.originalName}
-          fit="contain"
-          onLoad={handleImageLoad}
-        />
+        <MediaImage src={src} alt={item.originalName} fit="contain" onLoad={handleImageLoad} />
       </MediaBox>
     </ZoomLayer>
   )

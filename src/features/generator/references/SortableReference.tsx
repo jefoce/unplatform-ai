@@ -28,17 +28,21 @@ export function SortableReference(props: SortableReferenceProps) {
   })
 
   const isAudio = upload?.kind === 'audio'
+  const draggingMarker = isDragging ? 'true' : undefined
 
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         isAudio && 'col-span-2 aspect-[2.12/1]',
         !isAudio && 'aspect-square',
         props.className,
         isDragging && 'rounded-xl opacity-30 outline-1 outline-accent/60 outline-dashed',
       )}
+      data-reference-id={id}
+      data-reference-kind={upload?.kind}
+      data-reference-dragging={draggingMarker}
       {...attributes}
       {...listeners}
     >

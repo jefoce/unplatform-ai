@@ -7,14 +7,15 @@ import type { AspectChoice } from '@/core/presets/video/types'
 interface RatioIconProps {
   ratio: AspectChoice | ImageAspectChoice
   size?: number
+  className?: string
 }
 
 /** Outlined box drawn at the aspect ratio, `auto` uses the lucide icon. */
 export function RatioIcon(props: RatioIconProps) {
-  const { ratio, size = 14 } = props
+  const { ratio, size = 14, className } = props
 
   if (ratio === 'auto') {
-    return <Ratio size={size} aria-hidden />
+    return <Ratio size={size} className={className} aria-hidden />
   }
 
   const sides = parseAspect(ratio) ?? [1, 1]
@@ -23,7 +24,7 @@ export function RatioIcon(props: RatioIconProps) {
 
   return (
     <span
-      className="inline-flex items-center justify-center"
+      className={`inline-flex items-center justify-center ${className ?? ''}`}
       style={{ width: size, height: size }}
       aria-hidden
     >

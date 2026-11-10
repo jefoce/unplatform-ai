@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
+import type { ProviderKindId } from '@/core/providers/types'
+import type { GenerationRecord, JobStatus } from '@/core/schemas/generation-record'
+
+const records = vi.hoisted(() => {
+  return { list: [] as GenerationRecord[] }
+})
+
 vi.mock('@/server/jobs/download-queue', () => {
   return {
     downloadQueueIds: () => {
@@ -36,7 +43,7 @@ vi.mock('@/server/jobs/image-submit-queue', () => {
 vi.mock('@/server/repos/generations', () => {
   return {
     listGenerations: async () => {
-      return []
+      return records.list
     },
   }
 })
@@ -68,6 +75,7 @@ const HealthSchema = z
     desktop: z.boolean(),
     ready: z.boolean(),
     generating: z.number(),
+    customVideo: z.number(),
     downloading: z.number(),
     sending: z.number(),
     imageSending: z.number(),
@@ -98,6 +106,7 @@ async function readHealth(): Promise<z.infer<typeof HealthSchema>> {
 }
 
 afterEach(() => {
+  records.list = []
   session.has = true
 
   if (originalVersion === undefined) {
@@ -108,6 +117,18 @@ afterEach(() => {
 
   process.env.NEXT_PUBLIC_APP_VERSION = originalVersion
 })
+
+function record(params: { provider: ProviderKindId; status: JobStatus }): GenerationRecord {
+  const { provider, status } = params
+
+  return {
+    id: `${provider}-${status}`,
+    provider,
+    status,
+    submit: null,
+    download: null,
+  } as unknown as GenerationRecord
+}
 
 describe('health route', () => {
   it('names the image sending field imageSending', async () => {
@@ -135,6 +156,18 @@ describe('health route', () => {
     const body = await readHealth()
 
     expect(body.version).toBeNull()
+  })
+
+  it('counts custom work apart from the OpenRouter generating count', async () => {
+    records.list = [
+      record({ provider: 'openrouter', status: 'in_progress' }),
+      record({ provider: 'custom', status: 'pending' }),
+    ]
+
+    const body = await readHealth()
+
+    expect(body.generating).toBe(1)
+    expect(body.customVideo).toBe(1)
   })
 
   it('reports null when the version is empty', async () => {

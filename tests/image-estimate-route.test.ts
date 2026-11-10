@@ -12,6 +12,16 @@ vi.mock('@/server/session', () => {
   }
 })
 
+vi.mock('@/server/services/model-catalog', async () => {
+  const { findImagePreset } = await import('@/core/presets/image')
+
+  return {
+    findImagePresetAny: async (presetId: string) => {
+      return findImagePreset(presetId)
+    },
+  }
+})
+
 const { POST } = await import('@/app/api/images/estimate/route')
 
 afterEach(() => {

@@ -7,8 +7,9 @@ import type { GenerationEstimate } from '@/core/api/video'
 import type { CatalogEntry } from '@/core/catalog'
 import { referenceVideoSeconds } from '@/core/duration-limits'
 import { inputForSubmit } from '@/core/normalize-input'
-import { findPreset, getPreset } from '@/core/presets'
-import { activeBinding } from '@/core/presets/common/bindings'
+import type { ProviderBinding } from '@/core/presets/common/binding'
+import { activeBinding, primaryBinding } from '@/core/presets/common/bindings'
+import { endpointIdFromPresetId } from '@/core/presets/custom'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { quoteWithFallback, type VideoQuoteContext } from '@/core/pricing/quote'
 import type { SkuTable } from '@/core/pricing/types'
@@ -18,11 +19,12 @@ import { type PriceInput, validateInput } from '@/core/validation/video'
 import { validateAspect } from '@/core/validation/video-rules'
 
 import { ValidationError } from '../errors'
-import { loadLivePricing } from '../pricing/live'
+import { resolveRunPricing } from '../pricing/endpoints'
+import { type LivePricing, loadLivePricing } from '../pricing/live'
 import { getVideoProvider } from '../providers/registry'
 import { getActiveCount } from '../repos/generations'
 import { getObjectStore } from '../storage/registry'
-import { getModelCatalog } from './model-catalog'
+import { findVideoPresetAny, getModelCatalog } from './model-catalog'
 import { loadUploads } from './uploads'
 
 export interface GenerationDraft {
@@ -31,9 +33,14 @@ export interface GenerationDraft {
   uploads: UploadsById
 }
 
+interface EstimateSource {
+  binding: ProviderBinding
+  live: LivePricing | null
+}
+
 /** Validates one draft and loads only its referenced uploads. */
 export async function loadDraft(raw: GenerationInput): Promise<GenerationDraft> {
-  const preset = findPreset(raw.presetId)
+  const preset = await findVideoPresetAny(raw.presetId)
 
   if (!preset) {
     throw new ValidationError(['Unknown model'])
@@ -65,7 +72,11 @@ export async function loadDraft(raw: GenerationInput): Promise<GenerationDraft> 
 
 /** Uploads for a price-only draft. Only aspect is validated, so the price can show early. */
 export async function loadPriceDraft(raw: PriceInput): Promise<GenerationDraft> {
-  const preset = getPreset(raw.presetId)
+  const preset = await findVideoPresetAny(raw.presetId)
+
+  if (!preset) {
+    throw new ValidationError(['Unknown model'])
+  }
 
   await loadCatalogEntry(preset.id)
   const input = inputForSubmit({ ...raw, prompt: '', seed: null })
@@ -92,7 +103,7 @@ export async function loadCatalogEntry(presetId: string): Promise<CatalogEntry |
     return undefined
   }
 
-  if (entry.status === 'missing' || entry.status === 'no_provider') {
+  if (entry.status === 'missing' || entry.status === 'no_provider' || entry.status === 'invalid') {
     throw new ValidationError([entry.reason ?? 'Model unavailable'])
   }
 
@@ -103,17 +114,16 @@ export async function loadCatalogEntry(presetId: string): Promise<CatalogEntry |
 export async function estimateGeneration(draft: GenerationDraft): Promise<GenerationEstimate> {
   const { preset, input, uploads } = draft
 
-  const binding = activeBinding(preset, (item) => {
-    return getVideoProvider(item.provider).isConfigured()
+  const { binding, live } = await estimateSource(preset)
+  const discountPct = discountOf(live)
+
+  const pricing = await resolveRunPricing({
+    presetId: preset.id,
+    pricing: binding.pricing,
+    seconds: input.duration,
   })
 
-  const live = await loadLivePricing({
-    provider: binding.provider,
-    kind: 'video',
-    modelId: binding.modelId,
-    fallback: binding.pricing.fallback,
-    presetId: preset.id,
-  })
+  const resolved = { ...binding, pricing }
 
   const hasVideoInput =
     input.tab === 'references' &&
@@ -135,11 +145,11 @@ export async function estimateGeneration(draft: GenerationDraft): Promise<Genera
 
   let skus: SkuTable | undefined
 
-  if (live.source === 'live') {
+  if (live?.source === 'live') {
     skus = live.skus
   }
 
-  const estimate = quoteWithFallback({ preset, binding, ctx, skus })
+  const estimate = quoteWithFallback({ preset, binding: resolved, ctx, skus })
 
   if (isNil(estimate)) {
     return {
@@ -147,15 +157,15 @@ export async function estimateGeneration(draft: GenerationDraft): Promise<Genera
       listUsd: null,
       pricePerSec: null,
       priceSource: 'unknown',
-      discount: live.discountPct,
+      discount: discountPct,
       referenceSeconds,
     }
   }
 
   let list = null
 
-  if (live.discountPct > 0) {
-    list = quoteWithFallback({ preset, binding, ctx, skus: live.listSkus })
+  if (discountPct > 0) {
+    list = quoteWithFallback({ preset, binding: resolved, ctx, skus: live?.listSkus })
   }
 
   return {
@@ -163,9 +173,34 @@ export async function estimateGeneration(draft: GenerationDraft): Promise<Genera
     listUsd: list?.total ?? estimate.total,
     pricePerSec: estimate.perUnit,
     priceSource: estimate.source,
-    discount: live.discountPct,
+    discount: discountPct,
     referenceSeconds,
   }
+}
+
+/** Live pricing for the active binding. Custom endpoints never fetch live rates. */
+async function estimateSource(preset: VideoPreset): Promise<EstimateSource> {
+  if (!isNil(endpointIdFromPresetId(preset.id))) {
+    return { binding: primaryBinding(preset), live: null }
+  }
+
+  const binding = activeBinding(preset, (item) => {
+    return getVideoProvider(item.provider).isConfigured()
+  })
+
+  const live = await loadLivePricing({
+    provider: binding.provider,
+    kind: 'video',
+    modelId: binding.modelId,
+    fallback: binding.pricing.fallback,
+    presetId: preset.id,
+  })
+
+  return { binding, live }
+}
+
+function discountOf(live: LivePricing | null): number {
+  return live?.discountPct ?? 0
 }
 
 /** Canonical prompt slots from reference order. */

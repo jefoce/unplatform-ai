@@ -115,3 +115,23 @@ describe('validateImageInput preset gaps', () => {
     ])
   })
 })
+
+describe('custom image requirements', () => {
+  it('accepts an empty prompt when the model marks it optional', () => {
+    const preset = { ...imagePreset('gemini-3.1-flash-image'), promptOptional: true }
+
+    expect(validateImagePrompt(preset, '')).toEqual([])
+    expect(validateImageInput(preset, base({ prompt: '' }))).toEqual([])
+  })
+
+  it('requires the configured image references', () => {
+    const preset = {
+      ...imagePreset('gemini-3.1-flash-image'),
+      referencesRequired: { image: 1, video: 0, audio: 0 },
+    }
+
+    expect(validateImageInput(preset, base())).toEqual([
+      issue('This model needs 1 image reference'),
+    ])
+  })
+})

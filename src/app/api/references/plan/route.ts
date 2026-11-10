@@ -2,12 +2,12 @@ import { isNil, uniq } from 'lodash-es'
 import { z } from 'zod'
 
 import { MAX_IDS, MAX_REQUEST_MB, REQUEST_RESERVE_MB } from '@/core/constants'
-import { findPreset } from '@/core/presets'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { errorResponse, jsonError, jsonResponse, zodError } from '@/server/http'
 import { encodeImages } from '@/server/media/image-data-url'
 import { getUpload } from '@/server/repos/uploads'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
+import { findVideoPresetAny } from '@/server/services/model-catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return zodError(body.error)
     }
 
-    const preset = findPreset(body.data.presetId)
+    const preset = await findVideoPresetAny(body.data.presetId)
 
     if (!preset) {
       return jsonError({ status: 400, error: 'Unknown model' })

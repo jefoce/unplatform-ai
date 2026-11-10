@@ -1,6 +1,12 @@
 import { isNil } from 'lodash-es'
 
-import type { JobStatus, RecordDownload, RecordSubmit } from './schemas/generation-record'
+import type { ProviderKindId } from './providers/types'
+import type {
+  JobStatus,
+  RecordDownload,
+  RecordProgress,
+  RecordSubmit,
+} from './schemas/generation-record'
 
 export const STATUS_HELP_KEYS = [
   'processing',
@@ -13,6 +19,9 @@ export const STATUS_HELP_KEYS = [
   'failed',
   'expired',
   'cancelled',
+  'waiting_comfyui',
+  'queued_n',
+  'endpoint_unreachable',
 ] as const
 
 export type StatusHelpKey = (typeof STATUS_HELP_KEYS)[number]
@@ -97,6 +106,63 @@ export const STATUS_HELP: Record<StatusHelpKey, StatusHelp> = {
     charged: 'No',
     quit: 'Yes',
   },
+  waiting_comfyui: {
+    label: 'Waiting for ComfyUI',
+    what: 'ComfyUI is busy with another job',
+    cancel: 'Yes, with Stop in ComfyUI',
+    charged: 'When it finishes',
+    quit: 'ComfyUI keeps running this job. The app picks it up on the next start.',
+  },
+  queued_n: {
+    label: 'In queue, N ahead',
+    what: 'Waiting in the ComfyUI queue',
+    cancel: 'Yes, with Stop in ComfyUI',
+    charged: 'When it finishes',
+    quit: 'ComfyUI keeps running this job. The app picks it up on the next start.',
+  },
+  endpoint_unreachable: {
+    label: 'ComfyUI offline, will resume',
+    what: 'ComfyUI is not reachable',
+    cancel: 'No',
+    charged: 'When it finishes',
+    quit: 'Quit is safe. The app checks again on the next start.',
+  },
+}
+
+/** ComfyUI wording for the shared submit stages. Labels stay unchanged. */
+const CUSTOM_HELP_OVERRIDES: Partial<Record<StatusHelpKey, Partial<StatusHelp>>> = {
+  uploading: {
+    what: 'Sending your reference files to ComfyUI',
+  },
+  sending: {
+    what: 'Handing the job to ComfyUI',
+  },
+  pending: {
+    what: 'ComfyUI accepted it and is starting the workflow',
+  },
+}
+
+export interface StatusHelpParams {
+  key: StatusHelpKey
+  provider: ProviderKindId
+}
+
+/** Status help with the provider wording applied. */
+export function statusHelpFor(params: StatusHelpParams): StatusHelp {
+  const { key, provider } = params
+  const help = STATUS_HELP[key]
+
+  if (provider !== 'custom') {
+    return help
+  }
+
+  const overrides = CUSTOM_HELP_OVERRIDES[key]
+
+  if (isNil(overrides)) {
+    return help
+  }
+
+  return { ...help, ...overrides }
 }
 
 /** Image wording for the shared status help. */
@@ -119,8 +185,17 @@ const IMAGE_HELP_OVERRIDES: Partial<Record<StatusHelpKey, Partial<StatusHelp>>> 
 }
 
 /** One status help entry with image wording. */
-export function imageStatusHelp(key: StatusHelpKey): StatusHelp {
-  const help = STATUS_HELP[key]
+export function imageStatusHelp(
+  key: StatusHelpKey,
+  provider: ProviderKindId = 'openrouter',
+): StatusHelp {
+  const help = statusHelpFor({ key, provider })
+  const isCustomUploading = key === 'uploading' && provider === 'custom'
+
+  if (isCustomUploading) {
+    return help
+  }
+
   const overrides = IMAGE_HELP_OVERRIDES[key]
 
   if (isNil(overrides)) {
@@ -144,25 +219,60 @@ interface StatusHelpRecord {
   status: JobStatus
   submit?: RecordSubmit
   download?: RecordDownload
+  progress?: RecordProgress
+  error?: string
 }
 
-/** Current visual state, including submit stages and the download phase. */
+/** Waiting keys for a custom job that has not started on the model yet. */
+function waitingKey(record: StatusHelpRecord): StatusHelpKey | null {
+  const waitingOn = record.progress?.waitingOn
+
+  if (waitingOn === 'comfyui_busy') {
+    return 'waiting_comfyui'
+  }
+
+  if (waitingOn === 'pack_queue') {
+    return 'queued_n'
+  }
+
+  return null
+}
+
+function activeKey(record: StatusHelpRecord, status: JobStatus): StatusHelpKey {
+  const waiting = waitingKey(record)
+
+  if (!isNil(waiting)) {
+    return waiting
+  }
+
+  if (record.error?.includes('comfy_unavailable') === true) {
+    return 'endpoint_unreachable'
+  }
+
+  return STATUS_KEYS[status]
+}
+
+/** Current visual state, including submit stages, waiting states and the download. */
 export function statusHelpKey(record: StatusHelpRecord): StatusHelpKey {
   if (record.download) {
     return 'downloading'
   }
 
-  if (record.status !== 'submitting') {
-    return STATUS_KEYS[record.status]
+  if (record.status === 'submitting') {
+    const stage = record.submit?.stage
+
+    if (stage === 'uploading' || stage === 'sending') {
+      return stage
+    }
+
+    return 'processing'
   }
 
-  const stage = record.submit?.stage
-
-  if (stage === 'uploading' || stage === 'sending') {
-    return stage
+  if (record.status === 'pending' || record.status === 'in_progress') {
+    return activeKey(record, record.status)
   }
 
-  return 'processing'
+  return STATUS_KEYS[record.status]
 }
 
 /** Tooltip text: what is happening plus cancel, charge and quit safety. */

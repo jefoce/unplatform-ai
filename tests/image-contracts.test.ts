@@ -10,6 +10,7 @@ import {
   IMAGES_KEY,
 } from '@/lib/api/swr-keys'
 import { imageOutputPath, imageRecordPath, IMAGES_DIR, imageTempPath } from '@/server/paths'
+import type { JobProgress } from '@/server/providers/types'
 
 import {
   type ImageBatchBody,
@@ -31,6 +32,7 @@ import {
   IMAGE_REFERENCE_MAX_MB,
   IMAGE_REFERENCE_MAX_SIDE_PX,
   IMAGE_ROW_MAX_HEIGHT,
+  IMAGE_ROW_MIN_HEIGHT,
   IMAGE_ROW_OVERSCAN,
   IMAGE_SUBMIT_PARALLEL,
 } from '../src/core/constants'
@@ -71,7 +73,7 @@ import {
   PRICE_UNITS,
   type PriceQuote,
 } from '../src/core/pricing/types'
-import type { ProviderId } from '../src/core/providers/types'
+import type { ProviderKindId } from '../src/core/providers/types'
 import {
   IMAGE_OUTPUT_MEDIA_TYPES,
   IMAGE_OUTPUT_STATUSES,
@@ -187,7 +189,7 @@ const defaultInSet = <T extends string>(
 }
 
 type ContractTypes = readonly [
-  ProviderId,
+  ProviderKindId,
   ImagePreset,
   ImageResolution,
   ImageAspectRatio,
@@ -200,6 +202,7 @@ type ContractTypes = readonly [
   readonly ImageOption<string>[],
   ImagePriceLine,
   BindingBase,
+  JobProgress,
   ImageRecordStatus,
   ImageOutputStatus,
   ImageOutputMediaType,
@@ -331,7 +334,7 @@ describe('image schemas', () => {
   it('accepts a valid submit body and rejects bad input', () => {
     expect(ImageSubmitSchema.safeParse(VALID_SUBMIT_BODY).success).toBe(true)
     expect(ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, count: 5 }).success).toBe(false)
-    expect(ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, prompt: '' }).success).toBe(false)
+    expect(ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, prompt: '' }).success).toBe(true)
 
     expect(
       ImageSubmitSchema.safeParse({ ...VALID_SUBMIT_BODY, references: ['not-a-uuid'] }).success,
@@ -376,10 +379,11 @@ describe('image shared contracts', () => {
       IMAGE_SUBMIT_PARALLEL,
       IMAGE_GRID_GAP,
       IMAGE_ROW_MAX_HEIGHT,
+      IMAGE_ROW_MIN_HEIGHT,
       IMAGE_ROW_OVERSCAN,
       IMAGE_REFERENCE_MAX_SIDE_PX,
       IMAGE_REFERENCE_MAX_MB,
-    ]).toEqual([4, 2, 4, 640, 2, 2048, 5])
+    ]).toEqual([4, 2, 4, 640, 150, 2, 2048, 5])
 
     expect(imageRecordPath('x').endsWith('x.json')).toBe(true)
     expect(imageTempPath({ id: 'x', index: 1, ext: '.png' })).toContain('.tmp-')

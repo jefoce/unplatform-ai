@@ -74,12 +74,29 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 | Variable | Effect |
 |---|---|
 | `OPENROUTER_MOCK=1` | Local timeline. Pending for 3 s (`MOCK_QUEUE_MS`), in progress for 6 s (`MOCK_GENERATE_MS`), then a locally generated video. No API key needed and no cost. |
+| `CUSTOM_ENDPOINT_MOCK=1` | In-process upai/1 endpoint mock read from `docs/protocol/upai-1/fixtures`, and it skips the custom endpoint upload network. No ComfyUI or Python. |
 | `REMOTE_MOCK=1` | Local R2 replacement, only honored together with mock OpenRouter. Links point at the local server. |
 | `REMOTE_MOCK_MBPS` | Throttles mock uploads, default 20. |
 | `REMOTE_MOCK=fail` | Every mock upload fails. |
 | `[fail]` in the prompt | Mock job ends as failed. |
 
 Mock mode keeps the Test button enabled without stored keys.
+
+### Custom endpoint provider
+
+The custom provider talks upai/1 to the ComfyUI node pack. Start the pack mock server for adapter work:
+
+The pack repo is a sibling checkout by default; set `UPAI_PACK_ROOT` for another location.
+
+```bash
+cd "${UPAI_PACK_ROOT:-../unplatform-ai-provider-node}" && .venv/bin/python -m upai_provider.mock_server --port 8190
+```
+
+Point an endpoint at `http://127.0.0.1:8190` and press Test. `CUSTOM_ENDPOINT_MOCK=1` is the fallback: the in-process mock serves `docs/protocol/upai-1/fixtures` and needs no ComfyUI or Python.
+
+The protocol copy at `docs/protocol/upai-1` is pinned in `SOURCE` to `unplatform-ai-provider-node` commit `c47b0b35`. Update the copy and the fixture drift test together.
+
+No test uses a real key. The adapter suites use the mock server or the in-process fixtures.
 
 ## 5. Adding a model
 
@@ -161,11 +178,13 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `OPENROUTER_API_KEY` | Required for real generation |
 | `OPENROUTER_MANAGEMENT_KEY` | Optional, adds balance to the credits pill |
 | `OPENROUTER_MOCK` | `1` turns on the mock provider |
+| `CUSTOM_ENDPOINT_MOCK` | `1` turns on the in-process custom endpoint mock and skips the custom endpoint upload network |
 | `STORAGE_ROOT` | Data folder, default `~/.unplatform-ai` |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_ACCESS_KEY_ID` | R2 token access key |
 | `R2_SECRET_ACCESS_KEY` | R2 token secret |
 | `R2_BUCKET` | Bucket name |
+| `CUSTOM_ENDPOINT_TOKENS` | Custom endpoint auth tokens, stored as JSON |
 | `REMOTE_MOCK` | Local R2 mock, `1` or `fail` |
 | `REMOTE_MOCK_MBPS` | Mock upload speed |
 | `APP_TOKEN` | Session token override for dev and smoke runs. Unset reuses `$STORAGE_ROOT/browser-session` (or mints it) and prints the session URL. |
@@ -176,7 +195,9 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `UPAI_SECRETS_BACKEND` | `file` forces the file backend, for debugging keychain issues |
 | `UPAI_UPDATE_ENDPOINT` | Updater manifest URL, for packaged rc tests |
 | `LIVE_CATALOG` | `1` runs the live OpenRouter catalog test |
+| `MEASURE_FACETS` | `1` runs the 4000-record history facets measurement |
 | `E2E_SLOW_MEDIA_MS` | Holds `/api/media` responses for the thumb-first paint e2e check |
+| `E2E` | `1` uses the file chooser stub at `$STORAGE_ROOT/e2e-choose.txt` during e2e runs |
 | `WRITE_IMAGE_PRICE_FIXTURE` | `1` rewrites the image price fixture during the drift test |
 | `FFMPEG_PATH` | ffmpeg binary for the dev server and smoke runs |
 | `APP_ORIGIN` | Origin used by mock remote links |
@@ -205,9 +226,11 @@ pnpm vitest
 
 `pnpm lint` runs ESLint. `pnpm knip` reports unused files, exports and dependencies, and is part of the gate and CI.
 
-`.github/workflows/ci.yml` runs on pushes to `releases`, on pushes to version branches (`[0-9]*.[0-9]*.[0-9]*`) and on pull requests. Concurrency group `ci-<ref>` cancels a superseded run. It calls `.github/workflows/checks.yml` (typecheck, lint, deps, format, knip, test, build) and runs a `workflows` job that lints the pipeline itself. `.github/workflows/audit.yml` runs `pnpm audit --prod --audit-level high` and `cargo audit` on a weekly schedule and on pull requests that touch `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.toml` or `src-tauri/Cargo.lock`, where they block. Tag pushes go to the release workflow, which runs the same checks once for `v*-rc.*`.
+`.github/workflows/ci.yml` runs on pushes to `releases` and on pull requests. Version branches run CI through their open pull request, so a branch with an open pull request does not run twice. Concurrency group `ci-<ref>` cancels a superseded run. It calls `.github/workflows/checks.yml` (typecheck, lint, deps, format, knip, test, build) and runs a `workflows` job that lints the pipeline itself. `.github/workflows/audit.yml` runs `pnpm audit --prod --audit-level high` and `cargo audit` on a weekly schedule and on pull requests that touch `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.toml` or `src-tauri/Cargo.lock`, where they block. Tag pushes go to the release workflow, which runs the same checks once for `v*-rc.*`.
 
 The `workflows` job runs actionlint through its pinned Docker image, shellcheck over `.github/scripts/*.sh`, `scripts/ffmpeg/*.sh`, `scripts/node/*.sh` and `scripts/generate-header.sh`, and zizmor 1.31.1 at `--min-severity medium --min-confidence high`. actionlint also shellchecks every `run:` block. `.github/workflows/catalog-drift.yml` runs the live catalog test weekly.
+
+`checks / e2e` runs three width shards named `e2e (1280)`, `e2e (1728)` and `e2e (2560)`, with `fail-fast: false` and a 25-minute timeout each. Every shard builds once, passes `--width` to `tests/e2e/run.mjs` and points `E2E_TMPDIR` at its own directory. On failure the shard uploads its temp dir and log as `e2e-<width>`. The Windows note still holds: `e2e-windows` runs the single image-first case on `windows-2025` against the runner image Chrome, with a 15-minute timeout.
 
 Dependabot opens one grouped monthly pull request for npm, cargo and GitHub Actions against `releases`, with `open-pull-requests-limit: 1` and the `dependencies` label. Semver-major updates are ignored. `pr-version` never merges those pull requests: it passes, adds the `apply-on-next` label, and keeps one reminder comment that says to apply the updates on the next version branch. Branch protection can optionally require the `apply-on-next` check so an unlabeled Dependabot pull request cannot merge. The notices check, e2e and audit skip a Dependabot pull request into `releases`. CodeQL default setup runs weekly on actions, JavaScript/TypeScript and Rust.
 
@@ -237,7 +260,7 @@ Dependabot opens one grouped monthly pull request for npm, cargo and GitHub Acti
 - `features/media-picker/picker/store.ts` holds one request: kinds, optional extensions and one of two modes. `toggle` takes `useSelectedIds`, `useUploadsById`, `canAdd` and `onToggle` from the opener, reads selection from the generator and stays open. `pick` takes only `onPick` and closes after the pick.
 - No local selection and no Add button. A file click runs the opener's action.
 - Reference limits come from `features/generator/reference-rules.ts` (`referenceRoom` and `referenceBlockReason`).
-- Folder files link on click and match an attached upload by its `target` through `core/folder-match.ts`.
+- Folder files link on click and match an attached upload by its `target` through `core/folder-match.ts`. Desktop paths and connected-folder picks link by path, browser uploads and pathless pastes copy bytes, and the link fallback still copies when symlink and hard link both fail.
 - `DockedPanel` docks the picker beside the generator anchor at 900 px and up, and shows a centered modal below that.
 
 ## 14. Desktop build
@@ -271,7 +294,7 @@ The bundle sets `LSUIElement` so the sidecar gets no Dock tile. Next sets `proce
 
 That policy flip can leave WebKit treating the webview as inactive, which on macOS 14+ throttles rendering to a few fps. Every window is built with `BackgroundThrottlingPolicy::Disabled` and the app activates on launch, so the UI stays at full frame rate while another app is frontmost.
 
-WKWebView still caps page rendering near 60 fps on ProMotion. After the window is built, `server/boot.rs` calls `fps::disable_60fps_cap` through `with_webview` and turns off the private `PreferPageRenderingUpdatesNear60FPSEnabled` feature in `WKPreferences`, which unlocks up to 120 fps. The call is wrapped in `catch_unwind` and writes `120 Hz page rendering ...` to `desktop.log`. Every private selector is checked first, so a missing one leaves rendering at 60 fps instead of crashing.
+WKWebView still caps page rendering near 60 fps on ProMotion. After the window is built, `server/boot.rs` calls `fps::disable_60fps_cap` through `with_webview` and turns off the private `PreferPageRenderingUpdatesNear60FPSEnabled` feature in `WKPreferences`, which allows up to 120 fps. The call is wrapped in `catch_unwind` and writes `120 Hz page rendering ...` to `desktop.log`. Every private selector is checked first, so a missing one leaves rendering at 60 fps instead of crashing.
 
 The private API is direct-distribution only. It is not App Store safe.
 
@@ -285,7 +308,7 @@ Entitlements in `src-tauri/Entitlements.plist`:
 
 Signing is ad hoc (`signingIdentity: "-"`). Rebuilds count as a new program to macOS, so Keychain prompts can return.
 
-Measured on 2026-11-02, macOS arm64: DMG 34.1 MiB (35,749,578 bytes, ULMO), app bundle 82.5 MiB (86,530,330 bytes), updater archive 40.6 MiB (42,591,629 bytes). Inside the app: server archive 11.2 MiB (11,699,059 bytes), shell 8.8 MiB (9,232,080 bytes), Node sidecar 51.0 MiB (53,512,352 bytes) and ffmpeg 9.4 MiB (9,837,024 bytes). First launch extracts the server to 44.0 MiB (46,187,444 bytes), so the install total is 126.6 MiB (132,717,774 bytes). The Node sidecar is the amaro-off small-ICU 24.22.1 build (`icu_small true`, `node_use_amaro false`). `pnpm desktop:build` converts the DMG to ULMO and packs `.app.tar.gz` with `gzip -9` before the size report; the release workflow re-signs the archive when a signing key is set.
+`scripts/size-baseline.json` holds the current measured sizes on macOS arm64. `pnpm size:report` prints the current numbers for a local build. The Node sidecar is the amaro-off small-ICU 24.22.1 build (`icu_small true`, `node_use_amaro false`). `pnpm desktop:build` converts the DMG to ULMO and packs `.app.tar.gz` with `gzip -9` before the size report; the release workflow re-signs the archive when a signing key is set.
 
 Extracting the archive with `tar --zstd` into fresh temp dirs took 0.28 s, 0.27 s and 0.26 s (warm cache). This is an extraction proxy, not a full first-launch measurement.
 

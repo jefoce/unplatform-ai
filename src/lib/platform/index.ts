@@ -54,6 +54,12 @@ export const platform = {
   openExternal: async (url: string): Promise<void> => {
     return (await impl()).openExternal(url)
   },
+  openNotices: async (): Promise<void> => {
+    return (await impl()).openNotices()
+  },
+  openLicense: async (): Promise<void> => {
+    return (await impl()).openLicense()
+  },
   confirm: async (message: string): Promise<boolean> => {
     return (await impl()).confirm(message)
   },

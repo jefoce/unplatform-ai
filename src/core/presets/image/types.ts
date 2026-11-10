@@ -1,6 +1,8 @@
+import type { MediaKind, MediaKindCounts } from '../../media/media-types'
 import type { Rule } from '../../provider-errors/types'
 import type { BindingBase } from '../common/binding'
 import type { PresetIcon } from '../common/icon'
+import type { OutputSizes } from '../common/output-sizes'
 import type { PresetReferenceLimits } from '../common/reference-limits'
 
 export const IMAGE_RESOLUTIONS = ['512', '768', '1K', '1.5K', '2K', '4K'] as const
@@ -33,7 +35,9 @@ export const IMAGE_ASPECT_RATIOS = [
 ] as const
 
 export type ImageAspectRatio = (typeof IMAGE_ASPECT_RATIOS)[number]
-export type ImageAspectChoice = ImageAspectRatio | 'auto'
+
+/** Any aspect string a custom endpoint offers, plus the static list. */
+export type ImageAspectChoice = string
 
 export const IMAGE_QUALITIES = ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 export type ImageQuality = (typeof IMAGE_QUALITIES)[number]
@@ -41,7 +45,7 @@ export type ImageQuality = (typeof IMAGE_QUALITIES)[number]
 export const IMAGE_BACKGROUNDS = ['auto', 'opaque', 'transparent'] as const
 export type ImageBackground = (typeof IMAGE_BACKGROUNDS)[number]
 
-export const IMAGE_FAMILIES = ['gemini', 'openai', 'seedream', 'flux'] as const
+export const IMAGE_FAMILIES = ['gemini', 'openai', 'seedream', 'flux', 'custom'] as const
 export type ImageFamily = (typeof IMAGE_FAMILIES)[number]
 
 export const IMAGE_PARAMS = [
@@ -67,15 +71,17 @@ export interface ImagePreset {
   title: string
   family: ImageFamily
   description: string
+  workflowName?: string | null
 
   /** Picker icon, from the existing preset icon set. */
   icon: PresetIcon
 
   /** null hides the control. */
-  resolutions: readonly ImageOption<ImageResolution>[] | null
-  defaultResolution: ImageResolution | null
-  aspectRatios: readonly ImageAspectChoice[]
-  defaultAspectRatio: ImageAspectChoice
+  resolutions: readonly ImageOption<string>[] | null
+  defaultResolution: string | null
+  aspectRatios: readonly string[]
+  defaultAspectRatio: string
+  outputSizes?: OutputSizes
 
   /** Real output when the provider default is `auto`. Square for GPT Image. */
   autoAspectRatio?: ImageAspectRatio
@@ -91,11 +97,16 @@ export interface ImagePreset {
   maxN: number
   referenceMax: number
   referenceLimits?: PresetReferenceLimits
+  referencesRequired?: MediaKindCounts
   seed: boolean
   promptMaxChars: number
 
+  /** False until a real run proves the model accepts an empty prompt. */
+  promptOptional?: boolean
+
   /** Model-facing label for a reference. `{n}` is the slot number. */
   refLabel: string
+  refLabels?: Partial<Record<MediaKind, string>>
   bindings: readonly [BindingBase, ...BindingBase[]]
   errors: readonly Rule[]
 }

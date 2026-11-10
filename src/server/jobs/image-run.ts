@@ -3,14 +3,17 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { IMAGE_SUBMIT_PARALLEL, MAX_REQUEST_MB, REQUEST_RESERVE_MB } from '@/core/constants'
-import { findImagePreset } from '@/core/presets/image'
+import type { ImageRecord } from '@/core/schemas/image-record'
 import { graceDelayMs } from '@/core/submit-state'
 
 import { encodeImages } from '../media/image-data-url'
+import { missingPresetError, submitQueueKeyOf } from '../providers/custom/record-instance'
 import { getImage, saveImage } from '../repos/images'
 import { getUpload } from '../repos/uploads'
 import { secretsReady } from '../secrets'
-import { createLimiter } from '../sync/limiter'
+import { getMaxRunning } from '../services/endpoint-health'
+import { findImagePresetAny } from '../services/model-catalog'
+import { createLimiter, type Limiter } from '../sync/limiter'
 import { withLock } from '../sync/lock'
 import { type CallOutcome, plannedCalls, type PreparedImage, submitCall } from './image-calls'
 import { finishImage, saveOutcome } from './image-outputs'
@@ -21,7 +24,20 @@ import type { SubmitOutcome } from './submit-queue-factory'
 
 const LIMIT_BYTES = MAX_REQUEST_MB * 1024 * 1024 - REQUEST_RESERVE_MB * 1024 * 1024
 
-const limiter = createLimiter('imageSubmitCalls', IMAGE_SUBMIT_PARALLEL)
+const openrouterLimiter = createLimiter('imageSubmitCalls', IMAGE_SUBMIT_PARALLEL)
+
+/** Custom calls share one limiter per pack instance. */
+function limiterFor(record: ImageRecord): Limiter {
+  const key = submitQueueKeyOf(record)
+
+  if (!key.startsWith('custom:')) {
+    return openrouterLimiter
+  }
+
+  const instanceKey = key.slice('custom:'.length)
+
+  return createLimiter(`imageSubmitCalls:${instanceKey}`, getMaxRunning(instanceKey))
+}
 
 /** Encodes references, then runs every planned call. Partial results are kept. */
 export async function runImageSubmit(id: string, signal?: AbortSignal): Promise<SubmitOutcome> {
@@ -62,10 +78,10 @@ async function beginSending(id: string): Promise<PreparedImage | null> {
       return null
     }
 
-    const preset = findImagePreset(record.input.presetId)
+    const preset = await findImagePresetAny(record.input.presetId)
 
     if (!preset) {
-      throw new Error('Unknown model')
+      throw missingPresetError(record)
     }
 
     const uploads = await Promise.all(
@@ -172,7 +188,7 @@ async function runCalls(prepared: PreparedImage): Promise<CallOutcome[]> {
 
   await Promise.all(
     calls.map((call) => {
-      return limiter.run(async () => {
+      return limiterFor(prepared.record).run(async () => {
         const outcome = await submitCall({ prepared, call })
 
         resolved.push(outcome)

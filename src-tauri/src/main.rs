@@ -34,6 +34,7 @@ fn main() {
             updater::update_install,
             updater::update_set_auto,
             updater::update_open_release,
+            server::log_client_error,
         ])
         .setup(|app| {
             // Bundle is LSUIElement so the sidecar stays out of the Dock.

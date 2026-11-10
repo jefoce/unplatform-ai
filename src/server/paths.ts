@@ -35,6 +35,7 @@ const DATA_DIR = path.join(STORAGE_ROOT, 'data')
 export const THUMBS_DIR = path.join(STORAGE_ROOT, '.cache', 'thumbs')
 export const COMPAT_DIR = path.join(STORAGE_ROOT, '.cache', 'compat')
 export const FOLDERS_FILE = path.join(DATA_DIR, 'folders.json')
+export const CLEANUP_QUEUE_FILE = path.join(DATA_DIR, 'cleanup-queue.json')
 
 export interface DownloadPaths {
   json: string

@@ -7,13 +7,16 @@ import type { ImageRecord } from '../src/core/schemas/image-record'
 import { imageItems } from '../src/lib/feed/output-items'
 import { required } from './helpers/required'
 
-function record(stage: 'grace' | 'uploading' | 'sending'): ImageRecord {
+function record(
+  stage: 'grace' | 'uploading' | 'sending',
+  provider: ImageRecord['provider'] = 'openrouter',
+): ImageRecord {
   return {
     id: '3f2504e0-4f89-41d3-9a0c-0305e82c3400',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     status: 'submitting',
-    provider: 'openrouter',
+    provider,
     preset: { id: 'gemini-3.1-flash-image', title: 'Nano Banana', slug: 'gemini' },
     input: {
       presetId: 'gemini-3.1-flash-image',
@@ -85,5 +88,19 @@ describe('image status help', () => {
     expect(imageStatusView(required(pending, 'image item')).help.label).toBe('Generating')
 
     expect(STATUS_HELP.processing.what).toBe('Waiting 10 seconds before sending')
+  })
+
+  it('uses ComfyUI wording for custom image uploading', () => {
+    const [item] = imageItems(record('uploading', 'custom'))
+    const view = imageStatusView(required(item, 'image item'))
+
+    expect(view.help.what).toBe('Sending your reference files to ComfyUI')
+    expect(view.help.label).toBe('Uploading')
+  })
+
+  it('uses ComfyUI wording for custom image pending', () => {
+    expect(imageStatusHelp('pending', 'custom').what).toBe(
+      'ComfyUI accepted it and is starting the workflow',
+    )
   })
 })

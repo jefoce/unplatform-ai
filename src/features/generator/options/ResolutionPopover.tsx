@@ -1,11 +1,22 @@
 'use client'
 
+import { isNil } from 'lodash-es'
 import { Monitor } from 'lucide-react'
 
+import type { CatalogEntry } from '@/core/catalog'
 import { getPreset } from '@/core/presets'
-import type { Resolution } from '@/core/presets/video/types'
+import { primaryBinding } from '@/core/presets/common/bindings'
+import {
+  resolutionDisplay,
+  resolutionHeight,
+  videoResolutionChoices,
+} from '@/core/presets/common/display'
+import type { VideoPreset } from '@/core/presets/video/types'
 import { pricePerSec } from '@/core/pricing/quote'
-import { useModelEntry } from '@/lib/api/models'
+import type { PricingInfo } from '@/core/pricing/types'
+import { isPriceVisibleFor } from '@/core/pricing/visibility'
+import type { Dict } from '@/core/utility-types'
+import { useModelEntry } from '@/lib/api/catalog'
 import { cn } from '@/lib/cn'
 import { CHIP_TEXT_CLASSES } from '@/ui/Chip'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/Popover'
@@ -14,7 +25,52 @@ import { useGeneratorStore } from '../store/store'
 import { hasVideoReference } from '../store/store-helpers'
 import { ResolutionOption } from './ResolutionOption'
 
+interface ChoiceRateParams {
+  preset: VideoPreset
+  resolution: string
+  aspect: string
+  isAudio: boolean
+  hasVideoInput: boolean
+  skus: Dict<number> | undefined
+  listSkus: Dict<number> | undefined
+  discount: number
+}
+
+interface ChoiceRate {
+  rate: number | null
+  listRate: number | null
+}
+
+function choiceRate(params: ChoiceRateParams): ChoiceRate {
+  const { preset, resolution, aspect, isAudio, hasVideoInput, skus, listSkus, discount } = params
+  const ctx = { resolution, aspect, audio: isAudio, hasVideoInput }
+  const rate = pricePerSec({ preset, ctx, skus })
+  let listRate: number | null = null
+
+  if (discount > 0) {
+    listRate = pricePerSec({ preset, ctx, skus: listSkus })
+  }
+
+  return { rate, listRate }
+}
+
+/** Local models hide a zero per-run price, API models always show. */
+function showsResolutionRates(preset: VideoPreset, entry: CatalogEntry | null): boolean {
+  const usd = entry?.pricing?.skus.per_run ?? primaryBinding(preset).pricing.fallback.per_run ?? 0
+
+  return isPriceVisibleFor(entry, usd)
+}
+
+/** The fallback note only makes sense next to a visible rate column. */
+function showsFallbackFooter(
+  isRateShown: boolean,
+  pricing: PricingInfo | null | undefined,
+): boolean {
+  return isRateShown && pricing?.source === 'fallback'
+}
+
 /** Resolution button and preset list with list and discounted per-second rates. */
+/* eslint-disable-next-line max-lines-per-function -- one popover owns its rows, rate column and footer */
 export function ResolutionPopover() {
   const resolution = useGeneratorStore((state) => {
     return state.resolution
@@ -40,12 +96,13 @@ export function ResolutionPopover() {
     }),
   )
 
-  const pricing = useModelEntry(preset.id)?.pricing
+  const entry = useModelEntry(preset.id)
+  const pricing = entry?.pricing
   const discount = pricing?.discount ?? 0
-
-  const handleSelectResolution = (option: Resolution): void => {
-    setResolution(option)
-  }
+  const selected = resolutionDisplay(preset, { resolution, aspect })
+  const compact = resolutionHeight(preset, { resolution, aspect })
+  const choices = videoResolutionChoices(preset, aspect)
+  const isRateShown = showsResolutionRates(preset, entry)
 
   return (
     <Popover>
@@ -58,33 +115,48 @@ export function ResolutionPopover() {
           )}
         >
           <Monitor size={16} />
-          {resolution}
+          {isNil(compact) && selected.label}
+          {isNil(compact) && !isNil(selected.detail) && (
+            <span className="text-xs text-fg-2">{selected.detail}</span>
+          )}
+          {!isNil(compact) && compact}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-56 space-y-1">
-        {preset.resolutions.map((option) => {
-          const ctx = { resolution: option, aspect, audio: isAudio, hasVideoInput }
-          const rate = pricePerSec({ preset, ctx, skus: pricing?.skus })
-          let listRate: number | null = null
-
-          if (discount > 0) {
-            listRate = pricePerSec({ preset, ctx, skus: pricing?.listSkus })
-          }
+      <PopoverContent
+        align="end"
+        className="max-h-[min(60vh,22rem)] w-56 space-y-1 overflow-y-auto"
+      >
+        {choices.map((choice) => {
+          const { rate, listRate } = choiceRate({
+            preset,
+            resolution: choice.value,
+            aspect,
+            isAudio,
+            hasVideoInput,
+            skus: pricing?.skus,
+            listSkus: pricing?.listSkus,
+            discount,
+          })
 
           return (
             <ResolutionOption
-              key={option}
-              option={option}
-              isSelected={option === resolution}
+              key={choice.value}
+              option={choice.value}
+              label={choice.label}
+              detail={choice.detail}
+              isSelected={choice.value === resolution}
               rate={rate}
               listRate={listRate}
               discount={discount}
-              onSelect={handleSelectResolution}
+              isRateShown={isRateShown}
+              onSelect={setResolution}
             />
           )
         })}
-        {pricing?.source === 'fallback' && (
-          <p className="px-2 pb-1 text-xxs text-fg-2">Saved rates, live price unavailable</p>
+        {showsFallbackFooter(isRateShown, pricing) && (
+          <p className="sticky bottom-0 bg-glass px-2 py-1 text-xxs text-fg-2">
+            Saved rates, live price unavailable
+          </p>
         )}
       </PopoverContent>
     </Popover>

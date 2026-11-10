@@ -40,6 +40,12 @@ export interface Platform {
   notify(title: string, body: string): Promise<void>
   openExternal(url: string): Promise<void>
 
+  /** Opens the bundled third-party notices on desktop, the GitHub copy in the browser. */
+  openNotices(): Promise<void>
+
+  /** Opens the bundled license on desktop, the GitHub copy in the browser. */
+  openLicense(): Promise<void>
+
   /** Native confirm dialog, false when dismissed. */
   confirm(message: string): Promise<boolean>
 

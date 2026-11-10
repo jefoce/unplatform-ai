@@ -7,10 +7,13 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ImagePresets from '@/core/presets/image'
 import type * as LivePricingModule from '@/server/pricing/live'
 
 import { IMAGE_MAX_ACTIVE } from '../src/core/constants'
+import type { ImagePreset } from '../src/core/presets/image/types'
 import { type ImageOutput, type ImageRecord, isImageActive } from '../src/core/schemas/image-record'
+import { withLock } from '../src/server/sync/lock'
 
 const ROOT = path.join(os.tmpdir(), `cf-images-routes-${process.pid}-${Date.now()}`)
 const IMAGES = path.join(ROOT, 'images')
@@ -32,8 +35,13 @@ const catalog = vi.hoisted(() => {
   return { missingPresetId: null as string | null }
 })
 
-vi.mock('@/server/services/model-catalog', () => {
+vi.mock('@/server/services/model-catalog', async () => {
+  const { findImagePreset } = await import('../src/core/presets/image')
+
   return {
+    findImagePresetAny: async (presetId: string) => {
+      return findImagePreset(presetId)
+    },
     getModelCatalog: async () => {
       const entries =
         catalog.missingPresetId === null
@@ -139,6 +147,7 @@ let files: ImageFiles
 let listRoute: ListModule
 let idRoute: IdModule
 let frameRoute: FrameModule
+let presets: typeof ImagePresets
 let pngBytes = Buffer.from('')
 let testIndex = 0
 
@@ -157,6 +166,7 @@ beforeAll(async () => {
   listRoute = await import('@/app/api/images/route')
   idRoute = await import('@/app/api/images/[id]/route')
   frameRoute = await import('@/app/api/images/[id]/outputs/[output-id]/frame/route')
+  presets = await import('@/core/presets/image')
 })
 
 beforeEach(async () => {
@@ -177,6 +187,8 @@ beforeEach(async () => {
   getSecret.mockImplementation((name: string) => {
     return name === 'OPENROUTER_API_KEY' ? 'test-key' : null
   })
+
+  presets.setRuntimeImagePresets([])
 })
 
 afterAll(async () => {
@@ -458,6 +470,90 @@ describe('POST /api/images', () => {
   })
 })
 
+async function addCustomImagePreset(isPromptOptional: boolean): Promise<string> {
+  const endpoints = await import('@/server/repos/endpoints')
+
+  const { file } = await endpoints.applyEndpoints({
+    entries: [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        label: 'Local',
+        baseUrl: 'http://127.0.0.1:8188',
+        enabled: true,
+        pricing: { mode: 'model', usd: 0 },
+        instanceId: null,
+        lastHealth: null,
+      },
+    ],
+  })
+
+  const endpointId = file.endpoints[0]?.id ?? ''
+  const base = presets.findImagePreset(presets.DEFAULT_IMAGE_PRESET_ID)
+
+  if (base === null) {
+    throw new Error('image preset missing')
+  }
+
+  const presetId = `custom.${endpointId}.sdxl`
+
+  const preset: ImagePreset = {
+    ...base,
+    id: presetId,
+    title: 'SDXL',
+    promptOptional: isPromptOptional,
+    resolutions: [{ value: '1K', label: '1K' }],
+    defaultResolution: '1K',
+    aspectRatios: ['1:1'],
+    defaultAspectRatio: '1:1',
+    qualities: null,
+    defaultQuality: null,
+    backgrounds: null,
+    defaultBackground: null,
+    seed: false,
+    bindings: [
+      {
+        provider: 'custom',
+        modelId: 'sdxl',
+        pricing: { formula: 'perRun', skuRules: [], fallback: { run: 0 } },
+      },
+    ],
+  }
+
+  presets.setRuntimeImagePresets([preset])
+
+  return presetId
+}
+
+describe('POST /api/images custom preset', () => {
+  it('accepts a custom image preset without an OpenRouter key', async () => {
+    getSecret.mockReturnValue(null)
+
+    const presetId = await addCustomImagePreset(false)
+
+    const response = await listRoute.POST(
+      request('POST', 'http://127.0.0.1:3000/api/images', { ...submitBody, presetId }),
+    )
+
+    expect(response.status).toBe(201)
+  })
+
+  it('accepts an empty prompt when the custom model makes it optional', async () => {
+    getSecret.mockReturnValue(null)
+
+    const presetId = await addCustomImagePreset(true)
+
+    const response = await listRoute.POST(
+      request('POST', 'http://127.0.0.1:3000/api/images', {
+        ...submitBody,
+        presetId,
+        prompt: '',
+      }),
+    )
+
+    expect(response.status).toBe(201)
+  })
+})
+
 describe('POST /api/images pricing', () => {
   it('prices a create before the active cap lock', async () => {
     pricingGate.isGated = true
@@ -513,7 +609,7 @@ describe('GET and DELETE /api/images/[id]', () => {
 })
 
 describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
-  it('copies a saved output into uploads that survives deleting the output', async () => {
+  it('links a saved output that goes missing when the output is deleted', async () => {
     const saved = await repo.saveImage(record({ status: 'saving' }))
 
     const output = await files.writeImageOutput({
@@ -541,9 +637,9 @@ describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
 
     expect(response.status).toBe(201)
     expect(item.kind).toBe('image')
-    expect(item.source).toBe('file')
-    expect(item.linkMode).toBeUndefined()
-    expect(item.target).toBeUndefined()
+    expect(item.source).toBe('link')
+    expect(item.linkMode).toBeDefined()
+    expect(item.target).toContain(`${saved.id}-0.png`)
 
     const removed = await idRoute.DELETE(
       request('DELETE', `http://127.0.0.1:3000/api/images/${saved.id}`),
@@ -555,7 +651,7 @@ describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
     const uploads = await import('@/server/repos/uploads')
     const upload = await uploads.getUpload(item.id)
 
-    expect(upload?.missing).toBe(false)
+    expect(upload?.missing).toBe(true)
   })
 
   it('returns 409 for a failed output', async () => {
@@ -576,5 +672,58 @@ describe('POST /api/images/[id]/outputs/[output-id]/frame', () => {
     )
 
     expect(response.status).toBe(409)
+  })
+})
+
+describe('POST /api/images/[id]/outputs/[output-id]/frame with a queued delete', () => {
+  it('turns the link into a 404 instead of linking a missing file', async () => {
+    const saved = await repo.saveImage(record({ status: 'saving' }))
+
+    const output = await files.writeImageOutput({
+      recordId: saved.id,
+      outputId: randomUUID(),
+      index: 0,
+      bytes: Uint8Array.from(pngBytes),
+      mediaType: 'image/png',
+    })
+
+    await repo.saveImage({ ...saved, status: 'completed', outputs: [output] })
+
+    const hold = Promise.withResolvers<void>()
+
+    const holder = withLock(saved.id, async () => {
+      await hold.promise
+    })
+
+    const deletePromise = idRoute.DELETE(
+      request('DELETE', `http://127.0.0.1:3000/api/images/${saved.id}`),
+      { params: Promise.resolve({ id: saved.id }) },
+    )
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+
+    const framePromise = frameRoute.POST(
+      request('POST', `http://127.0.0.1:3000/api/images/${saved.id}/outputs/${output.id}/frame`),
+      { params: Promise.resolve({ id: saved.id, 'output-id': output.id }) },
+    )
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+
+    hold.resolve()
+    await holder
+
+    const removed = await deletePromise
+    const response = await framePromise
+
+    expect(removed.status).toBe(204)
+    expect(response.status).toBe(404)
+
+    const uploads = await import('@/server/repos/uploads')
+
+    expect(await uploads.listUploads()).toHaveLength(0)
   })
 })

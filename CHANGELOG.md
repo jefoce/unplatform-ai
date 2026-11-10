@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.5.0 - 2026-11-10
+
+Local image and video models from ComfyUI, with several endpoints and a badge for each.
+
+### Added
+
+- A ComfyUI custom endpoint provider over upai/1. Custom jobs need no OpenRouter key.
+- Several endpoints, each with a CU badge, a label, an optional token and a Test button. An endpoint can be on this computer or on your network.
+- Settings saves endpoints as a draft: add, edit and remove with Undo, then Save. A removed row disappears at once, and running jobs fail with "This endpoint was removed."
+- Price modes: model price, free, per run and per second. A local model at zero hides its price, an override shows it.
+- Custom image and video jobs, with the Waiting for ComfyUI and In queue, N ahead labels.
+- Video jobs also show a progress percent.
+- Stop in ComfyUI for a running video, and a quit guard explaining that ComfyUI keeps running the job.
+- Custom models in the picker with ready, stale, invalid and unreachable states, descriptions, capability badges and compact resolution labels. Opening the picker refreshes the custom catalog; the Refresh button forces it.
+- Custom resolutions from the endpoint's own labels and size table, including scale labels such as `0.9` and their pixel sizes.
+- Per-kind reference labels and a shared fallback label, rendered in the prompt sent to ComfyUI.
+- History facets, plus stored source and snapshot data so old entries keep their badge, title and workflow after an endpoint or workflow changes.
+- Job notifications and history entries use the record's stored title and endpoint badge.
+- The app deletes a finished ComfyUI result after it is safely saved.
+- Reference files link from disk instead of being copied: native file dialog, OS drop, connected folders and generated outputs. The same file is reused once.
+- Local video and audio upload to your own ComfyUI. Pictures and frames stay inline.
+
+### Changed
+
+- Local jobs share the smallest per-endpoint limit from ComfyUI, for video and image calls.
+- Failed or cancelled local runs cost 0.
+- An endpoint is marked offline only after repeated failed checks.
+- References move across image, video and audio kinds.
+- The viewer fades the full image in over the blurred backdrop, with no thumbnail layer.
+- The app is now licensed under AGPL-3.0. Versions 0.4.0 and earlier stay MIT.
+
+### Fixed
+
+- Endpoint tokens, Test results and health stay attached to the saved URL, and Save cannot mix two edits.
+- A lost ComfyUI job says ComfyUI lost this job.
+- R2 rejects report the key, bucket or connection problem instead of `UnknownError`.
+- Seedance real-person failures use the plain-text message when the error code is missing.
+- A workflow saved again refreshes its models, fixes the draft's resolution, aspect and references, and blocks a renamed or missing workflow with its old title.
+- Dragging an audio reference no longer stretches other tiles.
+- Folder audio tiles show a waveform, and audio inputs show their details instead of a broken icon.
+- Compact card actions on short tiles.
+- The preview keeps the media picker open.
+- Deleting an image right after viewing it no longer fails on Windows.
+- The Image tab loads on its first open on Windows.
+- Third-party notices and the license open from About in the desktop app.
+
+### Security
+
+- Custom requests use the saved origin, refuse redirects and cap JSON, image and video bodies.
+- Endpoint tokens stay server-side, are capped and are shown only by their last four characters.
+- Custom video downloads cap at 512 MiB and OpenRouter downloads at 2 GiB.
+
 ## 0.4.0 - 2026-11-03
 
 The Image workspace, the Unplatform AI name and icon, and one pricing engine for images and videos.

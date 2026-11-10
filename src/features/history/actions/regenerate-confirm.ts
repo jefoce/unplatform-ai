@@ -5,6 +5,8 @@ import { primaryBinding } from '@/core/presets/common/bindings'
 import { findImagePreset } from '@/core/presets/image'
 import { formatUsd } from '@/core/pricing/format'
 import { imageQuoteContext, quote, type VideoQuoteContext } from '@/core/pricing/quote'
+import { showPrice } from '@/core/pricing/visibility'
+import { recordSource } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { ImageRecord } from '@/core/schemas/image-record'
 import type { ImageGridItem } from '@/lib/feed/output-items'
@@ -73,17 +75,36 @@ function videoQuoteUsd(record: GenerationRecord): number {
   return result?.total ?? record.cost.estimatedUsd
 }
 
-/** Confirm copy for an image resubmit, priced from a fresh quote of its input. */
-export function imageRegenerateDescription(item: ImageGridItem): string {
-  const { input } = item.source
-  const price = imageQuoteUsd(item.source)
+/** ` for ~$x`, empty when a local run was estimated at zero. Custom runs use the stored estimate. */
+function priceSuffix<T extends GenerationRecord | ImageRecord>(
+  record: T,
+  quoteUsd: (record: T) => number,
+): string {
+  const source = recordSource(record)
+  let usd = record.cost.estimatedUsd
 
-  return `Regenerate ${imageCountText(input.count)} for ~${formatUsd(price)}?`
+  if (source.kind !== 'custom') {
+    usd = quoteUsd(record)
+  }
+
+  if (!showPrice(source, usd)) {
+    return ''
+  }
+
+  return ` for ~${formatUsd(usd)}`
 }
 
-/** Confirm copy for a video resubmit, priced from a fresh quote of its input. */
-export function videoRegenerateDescription(record: GenerationRecord): string {
-  const price = videoQuoteUsd(record)
+/** Confirm copy for an image resubmit, priced from its input or its stored custom estimate. */
+export function imageRegenerateDescription(item: ImageGridItem): string {
+  const { input } = item.source
+  const suffix = priceSuffix(item.source, imageQuoteUsd)
 
-  return `Regenerate this video for ~${formatUsd(price)}?`
+  return `Regenerate ${imageCountText(input.count)}${suffix}?`
+}
+
+/** Confirm copy for a video resubmit, priced from its input or its stored custom estimate. */
+export function videoRegenerateDescription(record: GenerationRecord): string {
+  const suffix = priceSuffix(record, videoQuoteUsd)
+
+  return `Regenerate this video${suffix}?`
 }

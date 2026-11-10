@@ -1,16 +1,19 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { isNil, omit } from 'lodash-es'
 import { toast } from 'sonner'
 
-import { inputForSubmit } from '@/core/normalize-input'
-import { getPreset } from '@/core/presets'
+import { CATALOG_MISSING_REASON } from '@/core/catalog'
+import { inputForSubmit, normalizeForPreset } from '@/core/normalize-input'
+import { findPreset, getPreset } from '@/core/presets'
 import { friendlyError } from '@/core/provider-errors'
 import { providerDescriptor } from '@/core/providers/registry'
-import { PROVIDER_IDS, type ProviderId } from '@/core/providers/types'
+import type { ProviderKindId } from '@/core/providers/types'
 import { openSettings } from '@/features/settings/settings-store'
 import { requestNotifications } from '@/features/shared/request-notifications'
 import { refreshCredits } from '@/lib/api/credits'
+import { freshPresetReason } from '@/lib/api/endpoints-status'
 import { createGeneration } from '@/lib/api/generations'
 import { refreshHistoryFeeds } from '@/lib/history-feed-refresh'
 import { useAsyncAction } from '@/lib/use-async-action'
@@ -23,7 +26,7 @@ interface ShowErrorParams {
   message: string
   presetId: string
   presetTitle: string
-  provider: ProviderId
+  provider: ProviderKindId
 }
 
 /** Shows the plain error with the preset name, plus Settings when the key is missing. */
@@ -70,11 +73,42 @@ export function useGenerate(options: GenerateOptions = {}) {
     }
 
     resultId.current = null
-    requestNotifications()
     setError(null)
 
     try {
-      const input = inputForSubmit(inputFromState(useGeneratorStore.getState()))
+      const state = useGeneratorStore.getState()
+      const fresh = await freshPresetReason(state.presetId)
+
+      if (!isNil(fresh)) {
+        setError(fresh)
+        toast.error(fresh)
+
+        return
+      }
+
+      const preset = findPreset(state.presetId)
+
+      if (isNil(preset)) {
+        setError(CATALOG_MISSING_REASON)
+        toast.error(CATALOG_MISSING_REASON)
+
+        return
+      }
+
+      const normalized = normalizeForPreset({
+        input: inputFromState(state),
+        preset,
+        uploads: state.uploadsById,
+      })
+
+      if (normalized.notes.length > 0) {
+        toast(normalized.notes.join(' \u00b7 '))
+      }
+
+      useGeneratorStore.setState(omit(normalized.input, 'prompt'))
+      requestNotifications()
+
+      const input = inputForSubmit(normalized.input)
       const record = await createGeneration(input)
 
       resultId.current = record.id
@@ -109,7 +143,7 @@ export function useGenerate(options: GenerateOptions = {}) {
         message,
         presetId: preset.id,
         presetTitle: preset.title,
-        provider: PROVIDER_IDS[0],
+        provider: 'openrouter',
       })
     }
   })

@@ -1,6 +1,8 @@
+/* eslint-disable max-lines -- row layout cases share one suite */
+
 import { describe, expect, it } from 'vitest'
 
-import { IMAGE_ROW_MAX_HEIGHT } from '../src/core/constants'
+import { IMAGE_ROW_MAX_HEIGHT, IMAGE_ROW_MIN_HEIGHT } from '../src/core/constants'
 import { justifyRows } from '../src/core/feed/justify-rows'
 import type { MasonryItem, MasonryRow } from '../src/core/feed/masonry-types'
 import { required } from './helpers/required'
@@ -40,7 +42,7 @@ describe('justifyRows', () => {
       gap: 4,
     })
 
-    expect(rowAt(rows, 0).height).toBeCloseTo(99.8)
+    expect(rowAt(rows, 0).height).toBe(IMAGE_ROW_MIN_HEIGHT)
     expect(widthOf(rowAt(rows, 0))).toBe(2000)
   })
 
@@ -127,7 +129,7 @@ describe('justifyRows fewer items than columns', () => {
       expect(Math.abs(placed.width - slotWidth)).toBeLessThanOrEqual(1)
     }
 
-    expect(rowAt(rows, 0).height).toBeCloseTo(slotWidth)
+    expect(rowAt(rows, 0).height).toBe(IMAGE_ROW_MIN_HEIGHT)
     expect(widthOf(rowAt(rows, 0))).toBe(373)
   })
 
@@ -147,12 +149,12 @@ describe('justifyRows fewer items than columns', () => {
     const smallestSlotHeight = Math.min(slotWidth / (4 / 3), slotWidth)
     const row = rowAt(rows, 0)
 
-    expect(row.height).toBeCloseTo(smallestSlotHeight)
+    expect(row.height).toBe(IMAGE_ROW_MIN_HEIGHT)
 
     for (const [index, placed] of row.items.entries()) {
       const aspect = required(aspects[index], 'aspect')
 
-      expect(placed.height).toBeCloseTo(smallestSlotHeight)
+      expect(placed.height).toBe(IMAGE_ROW_MIN_HEIGHT)
       expect(Math.abs(placed.width - aspect * smallestSlotHeight)).toBeLessThanOrEqual(1)
     }
 
@@ -168,6 +170,32 @@ describe('justifyRows fewer items than columns', () => {
     })
 
     expect(widthOf(rowAt(rows, 0))).toBe(1000)
+  })
+})
+
+describe('justifyRows minimum height', () => {
+  it('raises a short row to the minimum and keeps the fill width', () => {
+    const rows = justifyRows({ items: [item('a', 21 / 9)], width: 1280, cols: 8, gap: 4 })
+    const row = rowAt(rows, 0)
+    const tile = required(row.items.at(0), 'tile')
+    const slotWidth = (1280 - 4 * 7) / 8
+
+    expect(row.height).toBe(IMAGE_ROW_MIN_HEIGHT)
+    expect(tile.height).toBe(IMAGE_ROW_MIN_HEIGHT)
+    expect(Math.abs(tile.width - slotWidth)).toBeLessThanOrEqual(1)
+    expect(widthOf(row)).toBeLessThanOrEqual(1280)
+  })
+
+  it('leaves a row taller than the minimum unchanged', () => {
+    const rows = justifyRows({
+      items: [item('a', 1), item('b', 1), item('c', 1), item('d', 1)],
+      width: 1000,
+      cols: 4,
+      gap: 4,
+    })
+
+    expect(rowAt(rows, 0).height).toBeCloseTo((1000 - 12) / 4)
+    expect(rowAt(rows, 0).height).toBeGreaterThan(IMAGE_ROW_MIN_HEIGHT)
   })
 })
 
@@ -234,7 +262,7 @@ describe('justifyRows partial rows', () => {
 
     const last = rowAt(rows, 1)
 
-    expect(last.height).toBeCloseTo(100)
+    expect(last.height).toBe(IMAGE_ROW_MIN_HEIGHT)
     expect(widthOf(last)).toBe(1000)
   })
 

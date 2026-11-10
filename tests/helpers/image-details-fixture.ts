@@ -1,4 +1,5 @@
 import type { ImageOutput, ImageRecord } from '../../src/core/schemas/image-record'
+import type { RecordSource } from '../../src/core/schemas/record-source'
 import { type ImageGridItem, imageItems } from '../../src/lib/feed/output-items'
 
 const RECORD_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
@@ -31,7 +32,9 @@ interface ImageRecordOverrides {
   references?: string[]
   inputsSnapshot?: ImageRecord['inputsSnapshot']
   output?: ImageOutput
+  estimatedUsd?: number
   actualUsd?: number | null
+  source?: RecordSource
 }
 
 function actualUsdOf(overrides: ImageRecordOverrides): number | null {
@@ -44,6 +47,10 @@ function actualUsdOf(overrides: ImageRecordOverrides): number | null {
 
 function referencesOf(overrides: ImageRecordOverrides): string[] {
   return overrides.references ?? []
+}
+
+function estimatedUsdOf(overrides: ImageRecordOverrides): number {
+  return overrides.estimatedUsd ?? 0.2
 }
 
 function promptOf(overrides: ImageRecordOverrides): string {
@@ -76,12 +83,13 @@ function imageRecord(overrides: ImageRecordOverrides = {}): ImageRecord {
       seed: null,
     },
     inputsSnapshot: overrides.inputsSnapshot,
+    source: overrides.source,
     outputs: [overrides.output ?? savedOutput()],
     seedUsed: null,
     cost: {
       currency: 'USD',
       unit: 'token',
-      estimatedUsd: 0.2,
+      estimatedUsd: estimatedUsdOf(overrides),
       actualUsd: actualUsdOf(overrides),
       priceSource: 'mock',
       billed: true,

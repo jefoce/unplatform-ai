@@ -24,6 +24,9 @@ vi.mock('@/lib/api/images', () => {
     cancelImageRequest: vi.fn(),
     deleteImageOutput: vi.fn(),
     deleteImageRecord: vi.fn(),
+    imagePageKey: () => {
+      return '/api/images'
+    },
     refreshImages: vi.fn(),
     revealImageOutput: vi.fn(),
     setOutputFavorite: vi.fn(),

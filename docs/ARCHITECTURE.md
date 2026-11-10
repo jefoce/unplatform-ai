@@ -35,15 +35,20 @@ Updates run in the Rust shell. It reads `latest.json` from the GitHub release ov
 | `src/core/media` | Shared media kinds, output sizes and formatting rules. |
 | `src/core/feed` | Sorting, filtering, pagination and layout shared by the history and picker feeds. |
 | `src/core/api` | Request and response schemas shared by the image routes and the client. |
+| `src/core/protocol` | upai/1 wire schemas, error codes and job shapes, shared by client and server. |
 | `src/core/utility-types.ts` | Shared utility types `Dict` and `HasId`. |
 | `src/server` | IO: boot, route helpers, jobs, services, repos, providers, storage, secrets, media, config. |
 | `src/server/boot.ts` | Composition root. Lock, secrets, queue wiring, poller, parent watch, ffmpeg. |
 | `src/server/config` | `isMockMode`, the app-wide dev switch shared by the provider and storage registries. |
 | `src/server/jobs` | `submit-queue`, `run-submit`, `submit-media`, `submit-record`, `poller`, `download-queue`, `reconcile`, plus `image-submit-queue`, `image-run`, `image-calls`, `image-reconcile`, `image-outputs` and `image-record`. |
 | `src/server/services` | Orchestration for routes and jobs: `credits`, `model-catalog`, `remote-inputs`, `remote-cap`, `upload-probe`, `uploads`, `connection-test`, `create-generation`, `estimate-generation`, plus `image-create`, `image-actions` and `image-files`. |
+| `src/server/services/endpoint-overview.ts`, `endpoint-save.ts`, `endpoint-tokens.ts` | Endpoint list, save, tokens and runtime counts. |
+| `src/server/services/history-facets` | Incremental model, resolution and aspect facets over the record stores. |
+| `src/server/services/endpoint-health` | Endpoint health state, fresh checks and the per-instance run limit. |
 | `src/server/providers` | `VideoProvider` interface, registry, OpenRouter adapter, mock adapter, `ProviderError` kinds. |
+| `src/server/providers/custom` | upai/1 adapter per endpoint, health probe, pinned requests and record source. |
 | `src/server/storage` | `ObjectStore` interface, registry, generic S3 store, R2 config, mock store, hashing. |
-| `src/server/repos` | `generations`, `images`, `uploads`, `folders`, `json-dir-store`. |
+| `src/server/repos` | `generations`, `images`, `uploads`, `folders`, `endpoints`, `json-dir-store`. |
 | `src/server/sync` | `withLock`, the per-key serialization primitive, `createLimiter` for per-key caps, and `ttl-cache`, the `globalState` TTL cache. |
 | `src/server/media` | `image-data-url`, `image-encode`, `to-data-url`, `thumbs`, `compat`, `ffmpeg`. |
 | `src/features` | UI grouped by feature: generator, image generator, history, media picker, preview, settings, player, studio, updates. |
@@ -60,6 +65,7 @@ Updates run in the Rust shell. It reads `latest.json` from the GitHub release ov
 | `src/app` | Next routes and the page shell. |
 | `src-tauri` | Desktop shell, sidecar supervisor, window, settings and `updater.rs`. |
 | `scripts` | `prepare-desktop.mjs`, `smoke-server.mjs`, `notices.mjs`. |
+| `docs/protocol/upai-1` | Vendored upai/1 spec, schemas and fixtures, pinned in `SOURCE`. |
 | `tests` | Vitest suites. |
 
 Rules:
@@ -82,8 +88,11 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 | `status` | Lifecycle state | submit queue, poller, download queue, cancel route |
 | `input` | Exact panel state, canonical prompt slots | create route |
 | `preset` | `id`, `title`, `slug` at submit time | create route |
+| `source` | Provider kind, instance id, badge, title, workflow name and local flag at submit | create route |
+| `presetSnapshot` | Loose preset copy: id, title, family | create route |
 | `inputsSnapshot` | Kind, name, source, transport per upload | create route, run-submit |
 | `submit` | Stage plus grace `notBefore` or progress | create route, run-submit |
+| `progress` | Percent, queue position and waiting reason | poller |
 | `download` | `startedAt` while the file is queued or downloading | download queue |
 | `job` | OpenRouter job id, timestamps, expiry | run-submit, poller |
 | `seedUsed`, `favorite` | Resolved seed and user flag | create route, PATCH route |
@@ -103,6 +112,10 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 
 `source: link` points at a file in a connected folder, nothing is copied. `source: file` is a copy in `uploads/`.
 
+### ImageRecord (`images/<uuid>.json`)
+
+An image record carries the same `source` and `presetSnapshot` fields as a video record. Progress is video-only. The status set differs: `submitting`, `saving`, `completed`, `partial`, `failed` and `cancelled`.
+
 ### FolderItem (`data/folders.json`)
 
 | Field | Meaning | Writer |
@@ -111,6 +124,15 @@ All records are JSON on disk. Names are uuid based: `<uuid>.json`, `<uuid>.mp4`,
 | `name` | Display name | folder route |
 | `path` | Absolute folder path | folder route |
 | `addedAt` | Sort key | folder route |
+
+### Custom endpoints (`data/endpoints.json`)
+
+| Field | Meaning | Writer |
+|---|---|---|
+| `endpoints` | id, label, badge, base URL, enabled, pricing, instance id and last health per endpoint | Settings save |
+| `badgeCounter` | Last badge number handed out, so a deleted number is never reused | endpoints repo |
+
+`data/endpoint-models/<id>.json` caches the upai/1 model lists for one endpoint: `fetchedAt`, `video`, `image` and `missingSince`. `CUSTOM_ENDPOINT_TOKENS` is one secret JSON map from endpoint id to bearer token. The raw token is never logged, and Settings shows only its last four characters.
 
 ### Runtime files
 
@@ -151,6 +173,8 @@ submitting/grace -> submitting/uploading -> submitting/sending
 
 `completed` is saved only after the mp4 exists. Download failures return the record to `in_progress` and retry up to `MAX_DOWNLOAD_RETRIES`.
 
+For a custom endpoint, once a finished video or image result is safely saved, the app deletes it from ComfyUI. This runs only when the endpoint health reports `result_delete`, and it is best effort: a failed delete is logged once and never changes the record.
+
 User-facing labels come from `src/core/status-help.ts`:
 
 | Label | Video state | Image state |
@@ -188,6 +212,8 @@ Transport comes from `preset.inputTransport[kind]`. `auto` uses `url` when R2 is
 
 If a provider rejects base64 input, submit retries once with all media as URLs. A missing R2 for a `url` transport blocks validation before submit.
 
+Custom video and audio references use `upload`: the app hashes the file, asks the endpoint for an upload, then sends video and audio to ComfyUI. Images and frames stay inline as data URLs. Every custom request is pinned to the endpoint origin: scheme, host and port must match, and a redirect is refused.
+
 ## 7. Presets
 
 `src/core/presets/` is the only model registry. Each model has one file under its family folder, shared family files hold everything that does not differ. A preset controls duration, resolutions, aspect ratios, frames, audio, reference counts and per-kind limits, transport, prompt length, seed support, output sizes, labels, pricing keys, content policy and picker hints.
@@ -200,6 +226,12 @@ If a provider rejects base64 input, submit retries once with all media as URLs. 
 | Seedance 2.5 | 4-30 s | 480p, 720p | 30 / 10 / 10 | video |
 
 Image presets live under `src/core/presets/image`, one file per family and one file per model. They define resolutions or a fixed size, aspect ratios, quality and background controls, reference limits, seed support and pricing. `IMAGE_PRESETS` in `image/index.ts` is the picker order and the source of the image model table in the README.
+
+### Custom models
+
+Custom presets are runtime data, not files. Each enabled endpoint serves its cached upai/1 model list, and `mapCustomModel` turns each model into a preset with id `custom.<endpointId>.<modelId>`. The mapper keeps every non-empty resolution and aspect ratio name the endpoint offers, in endpoint order, so a name outside the static lists is still selectable. It rounds the duration to its step, maps output sizes, reference counts, frames, seed, prompt limit and count, and prices the run at `perRun` from the model price. Invalid defaults, empty lists and an invalid duration produce no preset, each with a warning. Malformed sizes are dropped with a warning.
+
+A model is `ready`, `stale` or `invalid`. Ready is available. Stale is available with a reason and Generate is blocked until the workflow is saved again in ComfyUI. Invalid is disabled, with the reason from the pack. A model missing from a fresh model list stays selectable as missing for `CUSTOM_MISSING_KEEP_DAYS`, then disappears.
 
 Each model holds `bindings` in priority order. A binding is `provider`, `modelId` and `pricing`, plus `transport` per media kind for video. The first binding whose provider is configured wins. A record stores the chosen provider and model id at submit time, so polling and download keep using that provider after settings change.
 
@@ -227,6 +259,7 @@ Adding a model:
 | Gate | Limit | Purpose |
 |---|---|---|
 | Active generations | 4 per kind | `MAX_ACTIVE_JOBS` for video and `IMAGE_MAX_ACTIVE` for image, each checked and inserted under one lock per kind |
+| Custom submit | `max_running` per endpoint instance | Submit queue keyed by `custom:<instance>`. Endpoints that report the same `instance_id` share one limit, default 1. |
 | `withLock(key)` | 1 per key | Record, `upload:<id>`, `folders`, `secrets`, `compat:<hash>` |
 | Submit queue | 2 active | Upload and send jobs |
 | Poller | 3 parallel | OpenRouter status reads |
@@ -269,16 +302,29 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `BLUR_SATURATION` | 1.5 | Saturation applied to the pre-blurred stage backdrop |
 | `BLUR_SIGMA` | 8 | Gaussian sigma of the pre-blurred stage backdrop |
 | `BLUR_WIDTH` | 96 | Pre-blurred stage backdrop width |
+| `CARD_COMPACT_HEIGHT` | 220 | Tiles shorter than this use compact card actions |
 | `CREDITS_FOCUS_STALE_MS` | 30000 | Focus refresh when the last credits fetch is older |
 | `CREDITS_POLL_MS` | 60000 | Credit balance refresh interval |
 | `CREDITS_SETTLE_MS` | 15000 | Follow-up credits refresh after a job finishes |
 | `CREDITS_SETTLE_WINDOW_MS` | 120000 | Window for a newly seen settled record to trigger a refresh |
 | `CREDIT_DANGER_USD` | 0.5 | Balance that shows the danger color |
 | `CREDIT_WARN_USD` | 2 | Balance that shows the warning color |
+| `CUSTOM_CATALOG_MIN_REFRESH_MS` | 15000 | Shortest gap between automatic custom catalog refreshes |
+| `CUSTOM_CHECK_TIMEOUT_MS` | 3000 | Fresh availability check timeout on Generate |
+| `CUSTOM_DURATION_MAX_SEC` | 120 | Longest duration a custom model may advertise |
+| `CUSTOM_DURATION_OPTIONS_MAX` | 64 | Most quick-pick duration options kept from one custom model |
+| `CUSTOM_IMAGE_MAX_WAIT_MS` | 900000 | Longest wait for one custom image job |
+| `CUSTOM_MISSING_KEEP_DAYS` | 30 | Days a missing custom model stays in the cache |
+| `CUSTOM_REF_TOTAL_SEC` | 30 | Combined reference seconds custom presets advertise |
+| `CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES` | 536870912 | Largest video download accepted from a custom endpoint |
 | `DETAILS_MIN_WIDTH` | 240 | Minimum details panel width |
 | `DOCKED_PANEL_EDGE_GAP` | 16 | Gap between a docked panel and the viewport edges |
 | `DOCKED_PANEL_WIDTH` | 560 | Default docked panel width, the video picker size |
 | `DOWNLOAD_STAGGER_MS` | 300 | Delay between batch download starts |
+| `ENDPOINT_FAILURE_THRESHOLD` | 2 | Consecutive failures before an idle endpoint is reported offline |
+| `ENDPOINT_HEALTH_MAX_AGE_MS` | 30000 | A health state older than this is refreshed on the next use |
+| `ENDPOINT_JOB_FAILURE_THRESHOLD` | 3 | Consecutive failures before an endpoint with a running job is reported offline |
+| `ENDPOINT_TEST_CACHE_LIMIT` | 32 | Cached server tests kept in memory, oldest insertion evicted first |
 | `EXPORT_TOKEN_TTL_MS` | 600000 | Window to use a save-dialog path |
 | `FETCH_TIMEOUTS.submit` | 300000 | Submit request timeout |
 | `FETCH_TIMEOUTS.poll` | 30000 | Poll request timeout |
@@ -308,6 +354,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `IMAGE_REFERENCE_MAX_MB` | 5 | Reference image size cap |
 | `IMAGE_REFERENCE_MAX_SIDE_PX` | 2048 | Reference image side cap |
 | `IMAGE_ROW_MAX_HEIGHT` | 640 | Masonry row height cap |
+| `IMAGE_ROW_MIN_HEIGHT` | 150 | Shortest masonry row, shorter rows crop the tile |
 | `IMAGE_ROW_OVERSCAN` | 2 | Masonry rows rendered outside the viewport |
 | `IMAGE_SUBMIT_PARALLEL` | 2 | Image submit calls running at once |
 | `LOCK_BOOT_GRACE_MS` | 60000 | Live owner with a younger lock is still starting |
@@ -325,10 +372,12 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `MAX_REQUEST_MB` | 64 | Total encoded request cap |
 | `MAX_UPLOAD_BYTES` | 67108864 | Multipart request cap |
 | `MAX_UPLOAD_FILES` | 20 | Files accepted in one multipart upload |
+| `MEDIA_WIDTH_RETRY_FRAMES` | 30 | Frames the media width hook retries a zero measurement |
 | `MODEL_CATALOG_TTL_MS` | 60000 | Model catalog cache lifetime |
 | `MODEL_LIST_MAX_PAGES` | 20 | Model list pages followed before the list is incomplete |
 | `MOCK_GENERATE_MS` | 6000 | Mock generation duration |
 | `MOCK_QUEUE_MS` | 3000 | Mock queue duration |
+| `OPENROUTER_VIDEO_MAX_BYTES` | 2147483648 | Largest video download accepted from OpenRouter |
 | `POLL_INTERVAL_MS` | 8000 | Job polling interval |
 | `POLL_PARALLEL` | 3 | Parallel status polls |
 | `PREVIEW_AT_SEC` | 0.5 | Preview frame time |
@@ -398,3 +447,5 @@ Routes throw `HttpError` with a status and a short message. `errorResponse` turn
 Job errors are stored on the record as `error`, never thrown to the UI after the request ended. Secrets and presigned URLs are never logged.
 
 `core/provider-errors/` turns the stored text into a plain title and hint at render time. Each preset file exports its family `errors` rules under `src/core/presets/{video,image}/<family>/errors.ts`. Those rules run first, then app errors, then the provider HTTP codes. First match wins, specific codes before parent codes, and a family table never matches the other family. Raw text stays on the record, the failed card and status overlay show the plain text, and Details exposes the raw text with Copy. Records written before a table change pick up the new text without migration.
+
+Custom adapter errors keep the raw `upai:<code>: <message>` line. `src/core/presets/custom/errors.ts` maps the code to a title and hint: unauthorized, forbidden, invalid_request, model_not_found, workflow_invalid, too_large, queue_full, job_failed, comfy_unavailable, config_invalid, timeout and endpoint_removed. The custom family never falls through to the OpenRouter rules.

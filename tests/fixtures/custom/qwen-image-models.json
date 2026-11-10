@@ -1,0 +1,69 @@
+{
+  "data": [
+    {
+      "description": "",
+      "kind": "image",
+      "status": "ready",
+      "status_reason": null,
+      "updated_at": "2026-11-09T12:00:00Z",
+      "pricing": {
+        "per_run_usd": 0
+      },
+      "capabilities": {
+        "prompt": {
+          "required": true,
+          "max_chars": 4000
+        },
+        "negative_prompt": false,
+        "references": {
+          "image": {
+            "max": 0,
+            "required": 0
+          },
+          "video": {
+            "max": 0,
+            "required": 0
+          },
+          "audio": {
+            "max": 0,
+            "required": 0
+          }
+        },
+        "resolutions": ["1K", "1.5K", "2K"],
+        "default_resolution": "2K",
+        "aspect_ratios": ["1:1", "4:3", "16:9", "9:16"],
+        "default_aspect_ratio": "4:3",
+        "sizes": {
+          "1K": {
+            "1:1": "1024x1024",
+            "4:3": "1184x896",
+            "16:9": "1536x864",
+            "9:16": "864x1536"
+          },
+          "1.5K": {
+            "1:1": "1536x1536",
+            "4:3": "2048x1536",
+            "16:9": "2048x1152",
+            "9:16": "1152x2048"
+          },
+          "2K": {
+            "1:1": "1792x1792",
+            "4:3": "2400x1792",
+            "16:9": "2688x1512",
+            "9:16": "1512x2688"
+          }
+        },
+        "seed": true,
+        "reference_limits": {
+          "image": {
+            "max_bytes": 20971520,
+            "formats": ["png", "jpg", "jpeg", "webp"]
+          }
+        }
+      },
+      "id": "qwen-image-2.1",
+      "name": "Qwen Image 2.1",
+      "workflow": null
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  checkAppLicense,
   checkBundled,
   checkLicenseLinks,
   checkNpmSection,
@@ -13,8 +14,55 @@ import {
   libvipsSection,
 } from '../scripts/notices.mjs'
 
+interface PackageJson {
+  license: string
+}
+
+interface OpenerPermission {
+  identifier: string
+  allow: { path?: string; url?: string }[]
+}
+
+interface CapabilityFile {
+  permissions: (string | OpenerPermission)[]
+}
+
+interface TauriConfig {
+  bundle: { resources: Record<string, string> }
+}
+
+function isPermissionObject(value: string | OpenerPermission): value is OpenerPermission {
+  return typeof value !== 'string'
+}
+
 const NOTICES = fs.readFileSync(path.resolve('THIRD_PARTY_NOTICES.md'), 'utf8')
 const TAURI = fs.readFileSync(path.resolve('src-tauri/tauri.conf.json'), 'utf8')
+const TAURI_CONFIG = JSON.parse(TAURI) as TauriConfig
+
+const DEFAULT_CAPABILITY = JSON.parse(
+  fs.readFileSync(path.resolve('src-tauri/capabilities/default.json'), 'utf8'),
+) as CapabilityFile
+
+const REMOTE_CAPABILITY = JSON.parse(
+  fs.readFileSync(path.resolve('src-tauri/capability-remote.json'), 'utf8'),
+) as CapabilityFile
+
+/** Allow entries of one opener permission, paths and URLs alike. */
+function openerAllow(capability: CapabilityFile, identifier: string): string[] {
+  const permission = capability.permissions.filter(isPermissionObject).find((entry) => {
+    return entry.identifier === identifier
+  })
+
+  if (permission === undefined) {
+    throw new Error(`capability has no ${identifier}`)
+  }
+
+  return permission.allow.map((entry) => {
+    return entry.path ?? entry.url ?? ''
+  })
+}
+
+const PACKAGE = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')) as PackageJson
 const NPM_START = '<!-- npm-licenses:start -->'
 const NPM_END = '<!-- npm-licenses:end -->'
 const NPM_SECTION = '## npm production dependencies\n\n### MIT\n\n- left-pad 1.3.0'
@@ -51,6 +99,28 @@ describe('third-party notices', () => {
     await expect(checkBundled(NOTICES)).resolves.toBeUndefined()
   })
 
+  it('matches the package.json license', () => {
+    expect(() => {
+      checkAppLicense(NOTICES, PACKAGE.license)
+    }).not.toThrow()
+  })
+
+  it('passes when the app license line matches', () => {
+    const text = `Unplatform AI itself is licensed under ${PACKAGE.license}. See [LICENSE](LICENSE).`
+
+    expect(() => {
+      checkAppLicense(text, PACKAGE.license)
+    }).not.toThrow()
+  })
+
+  it('fails when the app license line disagrees', () => {
+    const text = 'Unplatform AI itself is MIT licensed. See [LICENSE](LICENSE).'
+
+    expect(() => {
+      checkAppLicense(text, PACKAGE.license)
+    }).toThrow('app license must say')
+  })
+
   it('passes when the npm section is current', () => {
     expect(() => {
       checkNpmSection(noticesWithNpm(NPM_SECTION), NPM_SECTION)
@@ -76,7 +146,9 @@ describe('third-party notices', () => {
       fs.rmdirSync(dir)
     }
   })
+})
 
+describe('third-party notices bundle', () => {
   it('ships the GPL and LGPL license texts', () => {
     const gpl = fs.readFileSync(path.resolve('licenses/COPYING.GPLv3'), 'utf8')
     const lgpl = fs.readFileSync(path.resolve('licenses/COPYING.LGPLv2.1'), 'utf8')
@@ -107,6 +179,44 @@ describe('third-party notices', () => {
 
   it('keeps the media framework in the AppImage', () => {
     expect(TAURI).toContain('"bundleMediaFramework": true')
+  })
+
+  it('allows opening the bundled notices file', () => {
+    const opener = DEFAULT_CAPABILITY.permissions.filter(isPermissionObject).find((permission) => {
+      return permission.identifier === 'opener:allow-open-path'
+    })
+
+    if (opener === undefined) {
+      throw new Error('default.json has no opener:allow-open-path')
+    }
+
+    expect(
+      opener.allow.map((entry) => {
+        return entry.path
+      }),
+    ).toContain('$RESOURCE/THIRD_PARTY_NOTICES.md')
+
+    expect(TAURI_CONFIG.bundle.resources['resources/THIRD_PARTY_NOTICES.md']).toBe(
+      'THIRD_PARTY_NOTICES.md',
+    )
+  })
+})
+
+describe('tauri capabilities', () => {
+  it('keeps the opener allow lists equal in both capability files', () => {
+    for (const identifier of ['opener:allow-open-url', 'opener:allow-open-path']) {
+      expect(openerAllow(REMOTE_CAPABILITY, identifier)).toEqual(
+        openerAllow(DEFAULT_CAPABILITY, identifier),
+      )
+    }
+  })
+
+  it('allows the notices and license files in both capability files', () => {
+    for (const capability of [DEFAULT_CAPABILITY, REMOTE_CAPABILITY]) {
+      expect(openerAllow(capability, 'opener:allow-open-path')).toEqual(
+        expect.arrayContaining(['$RESOURCE/THIRD_PARTY_NOTICES.md', '$RESOURCE/LICENSE']),
+      )
+    }
   })
 })
 

@@ -11,6 +11,7 @@ interface SelectionCheckboxProps {
   id: string
   label: string
   className?: string
+  isCompact?: boolean
 }
 
 function handleStopPropagation(event: MouseEvent<HTMLSpanElement>): void {
@@ -19,7 +20,9 @@ function handleStopPropagation(event: MouseEvent<HTMLSpanElement>): void {
 
 /** Inline checkbox for a card's media area. */
 export function SelectionCheckbox(props: SelectionCheckboxProps) {
-  const { id, label, className } = props
+  const { id, label, className, isCompact = false } = props
+  const sizeClass = isCompact ? 'size-4' : 'size-5'
+  const checkSize = isCompact ? 10 : 12
 
   const {
     selected: isSelected,
@@ -65,12 +68,13 @@ export function SelectionCheckbox(props: SelectionCheckboxProps) {
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          'flex size-5 items-center justify-center rounded-full transition-colors',
+          'flex items-center justify-center rounded-full transition-colors',
+          sizeClass,
           isSelected && 'border-[1.5px] border-white bg-white text-black',
           !isSelected && 'border-[1.5px] border-white/90 bg-black/20 hover:bg-black/40',
         )}
       >
-        {isSelected && <Check size={12} strokeWidth={3} aria-hidden />}
+        {isSelected && <Check size={checkSize} strokeWidth={3} aria-hidden />}
       </button>
     </span>
   )

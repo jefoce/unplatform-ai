@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { isNil } from 'lodash-es'
+import { isNil, uniqBy } from 'lodash-es'
 import { useSWRConfig } from 'swr'
 
 import type { UploadItem } from '@/core/schemas/upload-item'
@@ -20,15 +20,23 @@ export interface PickerUpload {
 
 /** Applies uploaded files through the request mode, closing after a pick. */
 function applyUploaded(request: PickerRequest, items: UploadItem[]): void {
+  const unique = uniqBy(items, 'id')
+
   if (request.mode.kind === 'toggle') {
-    for (const item of items) {
+    const selected = request.mode.getSelectedIds()
+
+    for (const item of unique) {
+      if (selected.includes(item.id)) {
+        continue
+      }
+
       request.mode.onToggle(item)
     }
 
     return
   }
 
-  const [item] = items
+  const [item] = unique
 
   if (isNil(item)) {
     return

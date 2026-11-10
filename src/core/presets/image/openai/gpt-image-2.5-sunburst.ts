@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import { tokenPricing } from '../../common/options'
 import type { ImagePreset } from '../types'
 import {
@@ -17,7 +16,7 @@ export const GPT_IMAGE_25_SUNBURST: ImagePreset = {
   backgrounds: OPENAI_BACKGROUNDS_25,
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'openai/gpt-image-2.5-sunburst',
       // $0.00003 output, $0.000008 image input and $0.000005 text input per token,
       // live endpoints read 2026-10-29. Output tokens follow the quality table,

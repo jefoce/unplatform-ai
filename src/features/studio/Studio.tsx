@@ -12,6 +12,7 @@ import { MediaPicker } from '@/features/media-picker/picker/MediaPicker'
 import { MediaPreviewModal } from '@/features/preview/MediaPreviewModal'
 import type { PreviewItem } from '@/features/preview/preview-store'
 import { SettingsModal } from '@/features/settings/SettingsModal'
+import { EndpointsStatusProvider } from '@/features/shared/endpoints-status-context'
 import { useWorkspaceTab } from '@/features/shared/use-workspace-tab'
 import { AppSection } from '@/features/updates/AppSection'
 import { UpdateToast } from '@/features/updates/UpdateToast'
@@ -55,30 +56,32 @@ export function Studio() {
   const layout = isImage ? IMAGE_LAYOUT : VIDEO_LAYOUT
 
   return (
-    <JobWatcher imageRecords={imageWorkspace.records}>
-      <main className={layout}>
-        {isImage && (
-          <ImageWorkspace
-            {...imageWorkspace}
-            promptBar={<ImagePromptBar activeCount={imageWorkspace.activeCount} />}
-          />
-        )}
-        {!isImage && (
-          <>
-            <aside className="flex max-h-full w-80 shrink-0 flex-col self-start overflow-hidden rounded-panel border border-line bg-page-2 max-compact:max-h-[min(720px,90vh)] max-compact:w-full">
-              <GeneratorPanel />
-            </aside>
-            <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-panel border border-line-strong bg-page">
-              <HistorySection />
-            </section>
-          </>
-        )}
-      </main>
-      <WindowDropOverlay isDragging={isDragging} hint={hint} />
-      <MediaPicker />
-      <MediaPreviewModal toolbar={renderPreviewToolbar} />
-      <SettingsModal appSection={<AppSection />} />
-      <UpdateToast />
-    </JobWatcher>
+    <EndpointsStatusProvider>
+      <JobWatcher imageRecords={imageWorkspace.records}>
+        <main className={layout}>
+          {isImage && (
+            <ImageWorkspace
+              {...imageWorkspace}
+              promptBar={<ImagePromptBar activeCount={imageWorkspace.activeCount} />}
+            />
+          )}
+          {!isImage && (
+            <>
+              <aside className="flex max-h-full w-80 shrink-0 flex-col self-start overflow-hidden rounded-panel border border-line bg-page-2 max-compact:max-h-[min(720px,90vh)] max-compact:w-full">
+                <GeneratorPanel />
+              </aside>
+              <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-panel border border-line-strong bg-page">
+                <HistorySection />
+              </section>
+            </>
+          )}
+        </main>
+        <WindowDropOverlay isDragging={isDragging} hint={hint} />
+        <MediaPicker />
+        <MediaPreviewModal toolbar={renderPreviewToolbar} />
+        <SettingsModal appSection={<AppSection />} />
+        <UpdateToast />
+      </JobWatcher>
+    </EndpointsStatusProvider>
   )
 }

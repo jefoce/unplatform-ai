@@ -191,6 +191,25 @@ describe('upload dedupe across sources', () => {
 
     expect(stored.sha256).toBeUndefined()
   })
+
+  it('returns one id when the same file is linked twice', async () => {
+    const source = path.join(ROOT, 'same-path.png')
+
+    await fs.writeFile(source, Buffer.from('same path twice'))
+
+    const first = await uploads.createLinkUpload({ absPath: source })
+    const second = await uploads.createLinkUpload({ absPath: source })
+
+    expect(second.id).toBe(first.id)
+
+    const names = await namesInUploads()
+
+    expect(
+      names.filter((name) => {
+        return name.endsWith('.png')
+      }),
+    ).toHaveLength(1)
+  })
 })
 
 describe('upload dedupe storage', () => {

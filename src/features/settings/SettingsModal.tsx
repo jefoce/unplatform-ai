@@ -48,7 +48,7 @@ export function SettingsModal(props: SettingsModalProps) {
 
   useSettingsPrompt(status, isMock)
 
-  const draft = useSettingsDraft({ status, mock: isMock, closeSettings })
+  const draft = useSettingsDraft({ status, mock: isMock, isOpen, closeSettings })
 
   const sectionRefs = useMemo(() => {
     return createSectionRefs()

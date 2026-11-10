@@ -1,5 +1,6 @@
 import { isNonEmptyString } from '@/core/guards'
 import { findPreset } from '@/core/presets'
+import { fallbackErrorRules } from '@/core/presets/custom/errors'
 import { friendlyError } from '@/core/provider-errors'
 import type { FriendlyError } from '@/core/provider-errors/types'
 import { providerDescriptor } from '@/core/providers/registry'
@@ -13,7 +14,7 @@ export function recordError(record: GenerationRecord): FriendlyError | null {
 
   return friendlyError({
     raw: record.error,
-    rules: findPreset(record.input.presetId)?.errors ?? [],
+    rules: findPreset(record.input.presetId)?.errors ?? fallbackErrorRules(record.provider),
     httpCode: record.errorStatus,
     httpRules: providerDescriptor(record.provider).httpRules,
   })

@@ -110,7 +110,7 @@ function toggleMode(): PickerToggleMode {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(getPlatform).mockResolvedValue(mockPlatform)
+  vi.mocked(getPlatform).mockResolvedValue({ ...mockPlatform, kind: 'browser' })
   useGeneratorStore.setState({ tab: 'references' })
 })
 
@@ -145,10 +145,11 @@ describe('useWindowFileInput drag', () => {
     expect(state()).toBe('idle')
   })
 
-  it('calls the handler with dropped files', () => {
+  it('calls the handler with dropped files in the browser', async () => {
     const onFiles = vi.fn()
 
     renderHarness(onFiles)
+    await flushDropSetup()
 
     fireEvent.dragEnter(window, { dataTransfer: dragData({ files: [png] }) })
     fireEvent.drop(window, { dataTransfer: dragData({ files: [png] }) })
@@ -159,6 +160,10 @@ describe('useWindowFileInput drag', () => {
 })
 
 describe('useWindowFileInput desktop platform', () => {
+  beforeEach(() => {
+    vi.mocked(getPlatform).mockResolvedValue(mockPlatform)
+  })
+
   it('marks dragging from an over event and clears on leave', async () => {
     renderHarness(vi.fn())
     await flushDropSetup()
@@ -188,6 +193,19 @@ describe('useWindowFileInput desktop platform', () => {
     })
 
     expect(onPaths).toHaveBeenCalledWith(['/tmp/a.png'])
+    expect(onFiles).not.toHaveBeenCalled()
+    expect(state()).toBe('idle')
+  })
+
+  it('does not upload HTML drop files on desktop', async () => {
+    const onFiles = vi.fn()
+
+    renderHarness(onFiles)
+    await flushDropSetup()
+
+    fireEvent.dragEnter(window, { dataTransfer: dragData({ files: [png] }) })
+    fireEvent.drop(window, { dataTransfer: dragData({ files: [png] }) })
+
     expect(onFiles).not.toHaveBeenCalled()
     expect(state()).toBe('idle')
   })

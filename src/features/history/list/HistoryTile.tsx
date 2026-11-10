@@ -1,8 +1,9 @@
 'use client'
 
+import { isNil } from 'lodash-es'
 import type { CSSProperties } from 'react'
 
-import { GRID_TILE_ASPECT } from '@/core/constants'
+import { CARD_COMPACT_HEIGHT, GRID_TILE_ASPECT } from '@/core/constants'
 import { cn } from '@/lib/cn'
 import {
   type HistoryItem,
@@ -30,6 +31,7 @@ interface HistoryTileProps {
   onOpen: (item: HistoryItem) => void
   variant?: TileVariant
   mediaWidth: number
+  tileHeight?: number
 }
 
 const BASE_CLASSES =
@@ -92,13 +94,25 @@ const gridTileStyle = (tileWidth: number): CSSProperties => {
   }
 }
 
+const isCompactTile = (isMasonry: boolean, tileHeight: number | undefined): boolean => {
+  return isMasonry && !isNil(tileHeight) && tileHeight < CARD_COMPACT_HEIGHT
+}
+
+const compactAttrOf = (isCompact: boolean): string | undefined => {
+  const attr = isCompact ? 'true' : undefined
+
+  return attr
+}
+
 /** Grid tile: images use one item per output, video keeps one per record. */
 export function HistoryTile(props: HistoryTileProps) {
   const { item, variant = 'grid' } = props
   const isVideo = isVideoItem(item)
   const isCompleted = item.status === 'completed'
   const isMasonry = variant === 'masonry'
-  const { zoom } = props
+  const { zoom, tileHeight } = props
+  const isCompact = isCompactTile(isMasonry, tileHeight)
+  const compactAttr = compactAttrOf(isCompact)
 
   const radius = TILE_RADIUS[variant][item.recordKind]
   const measuredWidth = renderedWidth(props.mediaWidth, zoom)
@@ -137,8 +151,11 @@ export function HistoryTile(props: HistoryTileProps) {
       onKeyDown={handleKeyDown}
       className={cn(BASE_CLASSES, cursorClass, radius, SIZE_CLASSES[variant])}
       style={tileStyle}
+      data-compact={compactAttr}
     >
-      {item.canSelect && <SelectionCheckbox id={item.id} label={selectionLabel(item)} />}
+      {item.canSelect && (
+        <SelectionCheckbox id={item.id} label={selectionLabel(item)} isCompact={isCompact} />
+      )}
 
       {isVideo && (
         <VideoTileMedia
@@ -153,7 +170,13 @@ export function HistoryTile(props: HistoryTileProps) {
         <ImageTileMedia item={item} thumbSrc={poster} isCompleted={isCompleted} radius={radius} />
       )}
 
-      <HistoryTileChrome item={item} isCompleted={isCompleted} isSelecting={isSelecting} />
+      <HistoryTileChrome
+        item={item}
+        isCompleted={isCompleted}
+        isSelecting={isSelecting}
+        isCompact={isCompact}
+        tileHeight={tileHeight}
+      />
 
       {isSelected && (
         <span

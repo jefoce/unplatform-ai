@@ -1,11 +1,11 @@
 'use client'
 
-import { omit } from 'lodash-es'
+import { isNil, omit } from 'lodash-es'
 import { z } from 'zod'
 
 import { normalizeForPreset } from '@/core/normalize-input'
 import { DEFAULT_VIDEO_PRESET_ID, findPreset, getPreset } from '@/core/presets'
-import { ASPECT_RATIOS, RESOLUTIONS } from '@/core/presets/video/types'
+import { isCustomPresetId } from '@/core/presets/custom'
 import { FrameSlotsSchema, GENERATOR_TABS } from '@/core/schemas/generation-record'
 import { createDraftStore } from '@/lib/create-draft-store'
 
@@ -21,8 +21,8 @@ const DraftSchema = z.object({
   prompts: PromptMapSchema,
   audio: z.boolean(),
   duration: z.number(),
-  aspectRatio: z.enum([...ASPECT_RATIOS, 'auto']),
-  resolution: z.enum(RESOLUTIONS),
+  aspectRatio: z.string(),
+  resolution: z.string(),
   frames: FrameSlotsSchema,
   references: z.array(z.string()),
   seed: z.number().nullable(),
@@ -30,7 +30,13 @@ const DraftSchema = z.object({
 
 /** Reapplies the preset rules to a restored draft. */
 function normalizeDraft(state: GeneratorState): Partial<GeneratorState> {
-  const preset = findPreset(state.presetId) ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
+  const found = findPreset(state.presetId)
+
+  if (isNil(found) && isCustomPresetId(state.presetId)) {
+    return {}
+  }
+
+  const preset = found ?? getPreset(DEFAULT_VIDEO_PRESET_ID)
 
   const { input } = normalizeForPreset({
     input: inputFromState(state),

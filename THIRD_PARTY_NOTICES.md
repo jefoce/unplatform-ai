@@ -1,6 +1,6 @@
 # Third-party notices
 
-Unplatform AI itself is MIT licensed. See [LICENSE](LICENSE).
+Unplatform AI itself is licensed under AGPL-3.0-only. See [LICENSE](LICENSE).
 
 This file lists the runtimes bundled in desktop installers. The npm section is generated from `pnpm licenses list --prod --json` by `pnpm notices`; run it after dependency changes.
 

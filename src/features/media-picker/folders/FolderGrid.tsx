@@ -4,9 +4,10 @@ import { isEmpty } from 'lodash-es'
 
 import type { FolderDir, FolderFile } from '@/core/api/folders'
 import type { UploadsById } from '@/core/api/uploads'
+import { extWithDot, mimeFromExt } from '@/core/media/media-kinds'
 import type { MediaKind } from '@/core/media/media-types'
 import { referenceSlots } from '@/core/prompt-tokens'
-import { thumbUrl } from '@/lib/api/media-urls'
+import { mediaUrl, thumbUrl } from '@/lib/api/media-urls'
 
 import type { PickerMode } from '../picker/store'
 import { PICKER_GRID_CLASSES, PICKER_GRID_STYLE } from '../tiles/tile-classes'
@@ -52,10 +53,9 @@ export function FolderGrid(props: FolderGridProps) {
         })}
 
         {files.map((file) => {
-          const src = thumbUrl({
-            ref: `folders/${folderId}/${file.rel}`,
-            w: undefined,
-          })
+          const ref = `folders/${folderId}/${file.rel}`
+          const src = thumbUrl({ ref, w: undefined })
+          const audioSrc = mediaUrl(ref, mimeFromExt(extWithDot(file.name)) ?? undefined)
 
           return (
             <FolderGridTile
@@ -64,6 +64,7 @@ export function FolderGrid(props: FolderGridProps) {
               folderPath={folderPath}
               file={file}
               src={src}
+              audioSrc={audioSrc}
               mode={mode}
               selectedIds={selectedIds}
               uploadsById={uploadsById}

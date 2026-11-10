@@ -1,11 +1,10 @@
 import 'server-only'
 
-import { createReadStream, type Stats } from 'node:fs'
+import { createReadStream, type ReadStream, type Stats } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Readable } from 'node:stream'
 
-import { isNil } from 'lodash-es'
+import { isNil, isString } from 'lodash-es'
 
 import { isNonEmptyString } from '@/core/guards'
 import { mimeFromExt } from '@/core/media/media-kinds'
@@ -131,7 +130,92 @@ function rangeResponse(params: RangeResponseParams): Response {
 
   const stream = createReadStream(absPath, range ?? undefined)
 
-  return new Response(Readable.toWeb(stream) as ReadableStream, { status, headers })
+  return new Response(streamBody({ stream, signal: request.signal }), { status, headers })
+}
+
+interface StreamBodyParams {
+  stream: ReadStream
+  signal: AbortSignal
+}
+
+/** Destroys the file handle on cancel or abort, and drops the abort listener on close. */
+function streamBody(params: StreamBodyParams): ReadableStream<Uint8Array> {
+  const { stream, signal } = params
+  let isDone = false
+
+  const handleAbort = (): void => {
+    stream.destroy()
+  }
+
+  const stop = (): void => {
+    signal.removeEventListener('abort', handleAbort)
+  }
+
+  const finish = (
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    error?: unknown,
+  ): void => {
+    if (isDone) {
+      return
+    }
+
+    isDone = true
+    stop()
+
+    if (isNil(error)) {
+      controller.close()
+
+      return
+    }
+
+    controller.error(error)
+  }
+
+  signal.addEventListener('abort', handleAbort)
+
+  if (signal.aborted) {
+    stream.destroy()
+  }
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      stream.on('data', (chunk: Buffer | string) => {
+        if (isDone) {
+          return
+        }
+
+        if (isString(chunk)) {
+          controller.enqueue(Buffer.from(chunk))
+        } else {
+          controller.enqueue(chunk)
+        }
+
+        if (!isNil(controller.desiredSize) && controller.desiredSize <= 0) {
+          stream.pause()
+        }
+      })
+
+      stream.on('end', () => {
+        finish(controller)
+      })
+
+      stream.on('error', (error) => {
+        finish(controller, error)
+      })
+
+      stream.on('close', () => {
+        finish(controller)
+      })
+    },
+    pull() {
+      stream.resume()
+    },
+    cancel() {
+      isDone = true
+      stop()
+      stream.destroy()
+    },
+  })
 }
 
 function parseRange(header: string, size: number): Range | null {

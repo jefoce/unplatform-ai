@@ -1,0 +1,103 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { EndpointOverviewEntry } from '@/core/api/endpoints'
+import { DetailsSource } from '@/features/history/details/DetailsSource'
+import type * as EndpointsContextModule from '@/features/shared/endpoints-status-context'
+import { useEndpointsSnapshot } from '@/features/shared/endpoints-status-context'
+
+import { storedRecord } from './helpers/stored-record'
+
+vi.mock('@/features/shared/endpoints-status-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof EndpointsContextModule>()
+
+  return { ...actual, useEndpointsSnapshot: vi.fn() }
+})
+
+const mockEndpoints = vi.mocked(useEndpointsSnapshot)
+
+function endpoint(): EndpointOverviewEntry {
+  return {
+    id: 'cu1',
+    label: 'Studio PC',
+    badge: 'CU1',
+    baseUrl: 'http://127.0.0.1:8188',
+    enabled: true,
+    pricing: { mode: 'model', usd: 0 },
+    instanceId: null,
+    lastHealth: null,
+    runningJobs: 0,
+    status: 'ok',
+    videoCount: 1,
+    imageCount: 1,
+    tokenHint: null,
+    hasToken: false,
+  }
+}
+
+function customRecord() {
+  return storedRecord('custom-record', {
+    provider: 'custom',
+    source: {
+      kind: 'custom',
+      instanceId: 'cu1',
+      badge: 'CU1',
+      presetTitle: 'Wan 2.2 I2V',
+      workflowName: 'Wan 2.2',
+      endpointLabel: 'Studio PC',
+      local: true,
+    },
+  })
+}
+
+beforeEach(() => {
+  mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
+})
+
+afterEach(() => {
+  cleanup()
+})
+
+describe('custom details source', () => {
+  it('shows the workflow and endpoint snapshot', () => {
+    render(<DetailsSource record={customRecord()} />)
+
+    expect(screen.getByText('Workflow: Wan 2.2')).toBeTruthy()
+    expect(screen.getByText('Endpoint: Studio PC')).toBeTruthy()
+  })
+
+  it('marks a deleted endpoint', () => {
+    mockEndpoints.mockReturnValue({ endpoints: [], isLoading: false, error: null })
+
+    render(<DetailsSource record={customRecord()} />)
+
+    expect(screen.getByText('Endpoint: Studio PC (removed)')).toBeTruthy()
+  })
+
+  it('does not mark a removed endpoint while the list loads', () => {
+    mockEndpoints.mockReturnValue({ endpoints: [], isLoading: true, error: null })
+
+    render(<DetailsSource record={customRecord()} />)
+
+    expect(screen.getByText('Endpoint: Studio PC')).toBeTruthy()
+  })
+
+  it('does not mark a removed endpoint when the list failed', () => {
+    mockEndpoints.mockReturnValue({
+      endpoints: [],
+      isLoading: false,
+      error: new Error('failed'),
+    })
+
+    render(<DetailsSource record={customRecord()} />)
+
+    expect(screen.getByText('Endpoint: Studio PC')).toBeTruthy()
+  })
+
+  it('renders nothing for an OpenRouter record', () => {
+    const { container } = render(<DetailsSource record={storedRecord('plain')} />)
+
+    expect(container.textContent).toBe('')
+  })
+})

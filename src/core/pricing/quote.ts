@@ -3,16 +3,12 @@ import { isNil } from 'lodash-es'
 import { planImageCalls } from '../plan-image-calls'
 import type { BindingBase, ProviderBinding } from '../presets/common/binding'
 import { primaryBinding } from '../presets/common/bindings'
-import type {
-  ImageAspectChoice,
-  ImagePreset,
-  ImageQuality,
-  ImageResolution,
-} from '../presets/image/types'
-import type { AspectChoice, Resolution, VideoPreset } from '../presets/video/types'
+import type { ImageAspectChoice, ImagePreset, ImageQuality } from '../presets/image/types'
+import type { AspectChoice, VideoPreset } from '../presets/video/types'
 import {
   imageTokenCost,
   perImageCost,
+  perRunCost,
   perSecondCost,
   perSecondRate,
   videoTokenCost,
@@ -22,7 +18,7 @@ import type { PriceUnit, PricingConfig, Quote, QuoteSource, SkuTable } from './t
 
 /** Settings that change a video price. */
 export interface PriceContext {
-  resolution: Resolution
+  resolution: string
   aspect: AspectChoice
   audio: boolean
   hasVideoInput: boolean
@@ -38,7 +34,7 @@ export interface VideoQuoteContext extends PriceContext {
 export interface ImagePriceInput {
   count: number
   aspectRatio: ImageAspectChoice
-  resolution: ImageResolution | null
+  resolution: string | null
   quality: ImageQuality | null
   background: string | null
   references: readonly string[]
@@ -146,6 +142,13 @@ function videoCost(params: VideoCostParams) {
     return videoTokenCost(params)
   }
 
+  if (pricing.formula === 'perRun') {
+    return perRunCost({
+      table: params.table,
+      units: Math.max(pricing.minBillableSec ?? 0, params.ctx.duration),
+    })
+  }
+
   return null
 }
 
@@ -165,6 +168,14 @@ function imageCost(params: ImageCostParams) {
 
   if (pricing.formula === 'imageTokens') {
     return imageTokenCost(params)
+  }
+
+  if (pricing.formula === 'perRun') {
+    return perRunCost({
+      table: params.table,
+      units: params.ctx.count,
+      runs: params.ctx.calls,
+    })
   }
 
   return null

@@ -99,6 +99,13 @@ export const IMAGE_SUBMIT_PARALLEL = 2
 export const IMAGE_GRID_GAP = 4
 export const HISTORY_GRID_GAP = 12
 export const IMAGE_ROW_MAX_HEIGHT = 640
+
+/** Shortest masonry row. Shorter justified rows crop the tile instead. */
+export const IMAGE_ROW_MIN_HEIGHT = 150
+
+/** Tiles shorter than this use compact card actions. */
+export const CARD_COMPACT_HEIGHT = 220
+
 export const IMAGE_ROW_OVERSCAN = 2
 export const IMAGE_REFERENCE_MAX = 16
 export const IMAGE_REFERENCE_MAX_SIDE_PX = 2048
@@ -169,8 +176,47 @@ export const PRICING_LIVE_TTL_MS = 3_600_000
 /** Model catalog cache lifetime. Settings saves clear it. */
 export const MODEL_CATALOG_TTL_MS = 60_000
 
+/** Shortest gap between two automatic custom catalog refreshes. */
+export const CUSTOM_CATALOG_MIN_REFRESH_MS = 15_000
+
 /** Provider model lists are paginated. More pages than this means the list is incomplete. */
 export const MODEL_LIST_MAX_PAGES = 20
+
+/** Longest wait for one custom image job, then the call fails. */
+export const CUSTOM_IMAGE_MAX_WAIT_MS = 15 * 60_000
+
+/** Combined reference seconds custom presets advertise. */
+export const CUSTOM_REF_TOTAL_SEC = 30
+
+/** Longest duration a custom model may advertise, in seconds. */
+export const CUSTOM_DURATION_MAX_SEC = 120
+
+/** Most quick-pick duration options kept from one custom model. */
+export const CUSTOM_DURATION_OPTIONS_MAX = 64
+
+/** Largest video download accepted from a custom endpoint. */
+export const CUSTOM_VIDEO_DOWNLOAD_MAX_BYTES = 512 * 1024 * 1024
+
+/** Largest video download accepted from OpenRouter. */
+export const OPENROUTER_VIDEO_MAX_BYTES = 2 * 1024 ** 3
+
+/** Fresh availability check timeout on Generate. */
+export const CUSTOM_CHECK_TIMEOUT_MS = 3_000
+
+/** Days a missing custom model stays in the cache before it is dropped. */
+export const CUSTOM_MISSING_KEEP_DAYS = 30
+
+/** A health state older than this is refreshed on the next use. */
+export const ENDPOINT_HEALTH_MAX_AGE_MS = 30_000
+
+/** Consecutive failures before an idle endpoint is reported offline. */
+export const ENDPOINT_FAILURE_THRESHOLD = 2
+
+/** Consecutive failures before an endpoint with a running job is reported offline. */
+export const ENDPOINT_JOB_FAILURE_THRESHOLD = 3
+
+/** Cached server tests kept in memory, oldest insertion evicted first. */
+export const ENDPOINT_TEST_CACHE_LIMIT = 32
 
 export const SUBMIT_GRACE_MS = 10_000
 export const SUBMIT_YIELD_MS = 50
@@ -222,3 +268,6 @@ export const DOCKED_PANEL_WIDTH = 560
 
 /** Gap kept between a docked panel and the viewport edges. */
 export const DOCKED_PANEL_EDGE_GAP = 16
+
+/** Frames the media width hook retries a zero measurement before it stops. */
+export const MEDIA_WIDTH_RETRY_FRAMES = 30

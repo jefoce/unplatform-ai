@@ -1,3 +1,4 @@
+import { isNil } from 'lodash-es'
 import {
   Copy,
   Download,
@@ -7,6 +8,7 @@ import {
   Hash,
   RefreshCw,
   RotateCcw,
+  Square,
   Trash2,
 } from 'lucide-react'
 
@@ -31,11 +33,45 @@ interface MenuEntriesParams {
   hasFullVideoRefs: boolean
   revealLabel: string
   actions: MenuActions
+  stop: (() => void) | null
+}
+
+function clipboardEntries(actions: MenuActions): MenuEntry[] {
+  return [
+    {
+      key: 'copy-prompt',
+      label: 'Copy prompt',
+      icon: <Copy size={14} aria-hidden />,
+      onSelect: actions.onCopyPrompt,
+    },
+    {
+      key: 'copy-seed',
+      label: 'Copy seed',
+      icon: <Hash size={14} aria-hidden />,
+      onSelect: actions.onCopySeed,
+    },
+  ]
+}
+
+function stopEntries(stop: () => void): MenuEntry[] {
+  return [
+    {
+      key: 'stop',
+      label: 'Stop in ComfyUI',
+      icon: <Square size={14} aria-hidden />,
+      onSelect: stop,
+    },
+  ]
 }
 
 /** Regenerate, reveal, reuse and delete, plus the video frame and clipboard rows. */
 export function menuEntries(params: MenuEntriesParams): MenuEntry[] {
-  const { isVideo, isCompleted, hasFullVideoRefs, revealLabel, actions } = params
+  const { isVideo, isCompleted, hasFullVideoRefs, revealLabel, actions, stop } = params
+
+  if (!isNil(stop)) {
+    return stopEntries(stop)
+  }
+
   const entries: MenuEntry[] = []
 
   if (isCompleted) {
@@ -97,19 +133,7 @@ export function menuEntries(params: MenuEntriesParams): MenuEntry[] {
 
     entries.push({ key: 'copy-separator', separator: true })
 
-    entries.push({
-      key: 'copy-prompt',
-      label: 'Copy prompt',
-      icon: <Copy size={14} aria-hidden />,
-      onSelect: actions.onCopyPrompt,
-    })
-
-    entries.push({
-      key: 'copy-seed',
-      label: 'Copy seed',
-      icon: <Hash size={14} aria-hidden />,
-      onSelect: actions.onCopySeed,
-    })
+    entries.push(...clipboardEntries(actions))
   }
 
   if (isCompleted || isVideo) {

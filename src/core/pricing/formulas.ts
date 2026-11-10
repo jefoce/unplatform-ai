@@ -2,19 +2,13 @@ import { isNil } from 'lodash-es'
 
 import { parseAspect } from '../media/geometry'
 import { outputSize } from '../media/output-size'
-import type {
-  ImageAspectChoice,
-  ImageAspectRatio,
-  ImagePreset,
-  ImageQuality,
-  ImageResolution,
-} from '../presets/image/types'
-import type { AspectChoice, Resolution, VideoPreset } from '../presets/video/types'
+import type { ImageAspectChoice, ImagePreset, ImageQuality } from '../presets/image/types'
+import type { AspectChoice, VideoPreset } from '../presets/video/types'
 import { matchesCondition, skuKey } from './sku'
 import type { AspectBucket, FormulaResult, PricingConfig, SkuTable, TokenRule } from './types'
 
 interface VideoFormulaContext {
-  resolution: Resolution
+  resolution: string
   aspect: AspectChoice
   audio: boolean
   hasVideoInput: boolean
@@ -109,11 +103,29 @@ export function videoTokenCost(params: VideoCostParams): FormulaResult | null {
   return { perUnit: rate, total: rate * seconds, isApproximate: false, unit: 'second' }
 }
 
+interface PerRunParams {
+  table: SkuTable
+  units: number
+  runs?: number
+}
+
+/** One flat price per provider run. A missing key prices at 0. */
+export function perRunCost(params: PerRunParams): FormulaResult {
+  const { table, units, runs = 1 } = params
+  const raw = table.per_run
+  const isFinitePrice = !isNil(raw) && Number.isFinite(raw)
+  const price = isFinitePrice ? raw : 0
+  const total = price * runs
+  const divisor = units > 0 ? units : 1
+
+  return { perUnit: total / divisor, total, isApproximate: false, unit: 'run' }
+}
+
 interface ImageFormulaContext {
   count: number
   calls: number
   aspectRatio: ImageAspectChoice
-  resolution: ImageResolution | null
+  resolution: string | null
   quality: ImageQuality | null
   references: number
   promptChars: number
@@ -126,7 +138,7 @@ interface ImageCostParams {
   table: SkuTable
 }
 
-function aspectOf(ratio: ImageAspectRatio): AspectBucket | null {
+function aspectOf(ratio: string): AspectBucket | null {
   const sides = parseAspect(ratio)
 
   if (isNil(sides)) {
@@ -147,7 +159,7 @@ function aspectOf(ratio: ImageAspectRatio): AspectBucket | null {
 }
 
 /** The ratio a choice bills at, with `auto` resolved to the provider default. */
-function resolvedAspectOf(preset: ImagePreset, choice: ImageAspectChoice): ImageAspectRatio {
+function resolvedAspectOf(preset: ImagePreset, choice: ImageAspectChoice): string {
   if (choice !== 'auto') {
     return choice
   }

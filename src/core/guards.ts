@@ -19,3 +19,8 @@ export function isOneOf<const T extends readonly string[]>(
 ): value is T[number] {
   return isString(value) && list.includes(value)
 }
+
+/** Narrows a string key to one the object declares. */
+export function isKeyOf<T extends object>(record: T, key: string): key is keyof T & string {
+  return key in record
+}

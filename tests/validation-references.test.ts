@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- cases stay in one suite */
 import { describe, expect, it } from 'vitest'
 
 import { getPreset } from '../src/core/presets'
@@ -77,6 +78,80 @@ describe('validateInput reference counts', () => {
     })
 
     expect(result.errors).toContain('Audio references need at least one image or video reference')
+  })
+})
+
+describe('validateInput required references', () => {
+  const required = {
+    ...preset,
+    referencesRequired: { image: 2, video: 0, audio: 0 },
+  }
+
+  it('rejects fewer than the required image references', () => {
+    const result = validateInput({
+      input: input({ references: ['img'] }),
+      uploads: uploadsOf(upload('img', 'image')),
+      preset: required,
+    })
+
+    expect(result.errors).toContain('This model needs 2 image references')
+  })
+
+  it('accepts the required image references', () => {
+    const result = validateInput({
+      input: input({ references: ['a', 'b'] }),
+      uploads: uploadsOf(upload('a', 'image'), upload('b', 'image')),
+      preset: required,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+  })
+})
+
+describe('validateInput cross-tab requirements', () => {
+  const required = {
+    ...preset,
+    frames: { ...preset.frames, startRequired: true },
+    referencesRequired: { image: 1, video: 0, audio: 0 },
+  }
+
+  it('blocks the references tab without a start frame or reference', () => {
+    const result = validateInput({
+      input: input({ tab: 'references', frames: { start: null, end: null }, references: [] }),
+      uploads: {},
+      preset: required,
+    })
+
+    expect(result.errors).toContain('A first frame is required')
+    expect(result.errors).toContain('This model needs 1 image reference')
+  })
+
+  it('accepts the references tab with a start frame and the required reference', () => {
+    const result = validateInput({
+      input: input({
+        tab: 'references',
+        frames: { start: 'start', end: null },
+        references: ['img'],
+      }),
+      uploads: uploadsOf(upload('start', 'image'), upload('img', 'image')),
+      preset: required,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+  })
+
+  it('blocks the frames tab when a required reference is missing', () => {
+    const requiredRefs = { ...preset, referencesRequired: { image: 1, video: 0, audio: 0 } }
+
+    const result = validateInput({
+      input: input({ tab: 'frames', frames: { start: 'start', end: null }, references: [] }),
+      uploads: uploadsOf(upload('start', 'image')),
+      preset: requiredRefs,
+    })
+
+    expect(result.errors).toContain('This model needs 1 image reference')
   })
 })
 

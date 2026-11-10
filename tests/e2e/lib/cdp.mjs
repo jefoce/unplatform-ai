@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
+
+import { checkChromeMajor } from './chrome-version.mjs'
 
 const POLL_MS = 100
 const IDLE_QUIET_MS = 500
@@ -21,7 +24,21 @@ const HOVER_QUERIES = [
 ]
 
 /** Temp directory the runner owns. `E2E_TMPDIR` points at one writable parent. */
-export const TEMP_BASE = process.env.E2E_TMPDIR?.trim() || path.join(process.cwd(), '.e2e-tmp')
+export const TEMP_BASE =
+  process.env.E2E_TMPDIR?.trim() || path.join(os.tmpdir(), 'unplatform-ai-e2e')
+
+/** Removes leftover Chrome profiles from earlier runs. Read errors are ignored. */
+export async function clearStaleChromeProfiles() {
+  await fs.mkdir(TEMP_BASE, { recursive: true })
+
+  const entries = await fs.readdir(TEMP_BASE).catch(() => [])
+
+  for (const entry of entries) {
+    if (entry.startsWith('chrome-')) {
+      await fs.rm(path.join(TEMP_BASE, entry), { recursive: true, force: true })
+    }
+  }
+}
 
 /** Resolves the browser binary from `CHROME_PATH`. CI exports it before the run. */
 export async function findChrome() {
@@ -462,6 +479,16 @@ export class PageDriver {
     await this.waitFor(`document.readyState === 'complete'`, 30_000, 'reload')
   }
 
+  /** Saves a viewport screenshot under the e2e temp directory. */
+  async captureScreenshot(name) {
+    const shot = await this.send('Page.captureScreenshot', { format: 'png' })
+    const file = path.join(TEMP_BASE, `${name}.png`)
+
+    await fs.writeFile(file, Buffer.from(shot.data, 'base64'))
+
+    return file
+  }
+
   async close() {
     this.cdp.close()
   }
@@ -473,10 +500,15 @@ export async function startBrowser(width, height, options = {}) {
   const attachedPort = process.env.E2E_CDP_PORT?.trim()
 
   if (!forceLaunch && attachedPort !== undefined && attachedPort !== '') {
-    const driver = await PageDriver.attach(Number(attachedPort))
+    const port = Number(attachedPort)
+    const version = await readJson(`http://127.0.0.1:${port}/json/version`)
+
+    checkChromeMajor(version.Browser)
+
+    const driver = await PageDriver.attach(port)
     await driver.setViewport(width, height)
 
-    return { driver, process: null, attached: true, port: Number(attachedPort) }
+    return { driver, process: null, attached: true, port }
   }
 
   const binary = await findChrome()
@@ -503,11 +535,13 @@ export async function startBrowser(width, height, options = {}) {
     stderr += String(chunk)
   })
 
-  await waitForJson(
+  const version = await waitForJson(
     `http://127.0.0.1:${String(port)}/json/version`,
     20_000,
     `Chrome did not start: ${stderr}`,
   )
+
+  checkChromeMajor(version.Browser)
 
   const driver = await PageDriver.attach(port)
   await driver.setViewport(width, height)

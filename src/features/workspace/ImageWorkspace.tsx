@@ -4,6 +4,7 @@ import { type ReactNode } from 'react'
 
 import { ReferenceButton } from '@/features/history/actions/ReferenceButton'
 import { FeedSection } from '@/features/history/list/FeedSection'
+import { imagePageKey } from '@/lib/api/images'
 import { type HistoryItem, isImageItem } from '@/lib/feed/output-items'
 
 import { useImageViewStore } from './image-view-store'
@@ -47,25 +48,29 @@ export function ImageWorkspace(props: ImageWorkspaceProps) {
     return state.filters
   })
 
+  const pageKey = imagePageKey(filters)
+
   return (
-    <FeedSection
-      items={items}
-      isLoading={isLoading}
-      hasMore={hasMore}
-      isLoadingMore={isLoadingMore}
-      error={props.error}
-      onRetry={props.onRetry}
-      loadMore={loadMore}
-      view={view}
-      zoom={zoom}
-      filters={filters}
-      toolbar={<WorkspaceIsland />}
-      toolbarPlacement="overlay"
-      emptyKind="image"
-      isSavedOnly
-      promptBar={promptBar}
-      padding={{ base: 'pb-60', selecting: 'pb-60' }}
-      viewerToolbar={renderImageToolbar}
-    />
+    <div className="h-full" data-image-page-key={pageKey}>
+      <FeedSection
+        items={items}
+        isLoading={isLoading}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        error={props.error}
+        onRetry={props.onRetry}
+        loadMore={loadMore}
+        view={view}
+        zoom={zoom}
+        filters={filters}
+        toolbar={<WorkspaceIsland />}
+        toolbarPlacement="overlay"
+        emptyKind="image"
+        isSavedOnly
+        promptBar={promptBar}
+        padding={{ base: 'pb-60', selecting: 'pb-60' }}
+        viewerToolbar={renderImageToolbar}
+      />
+    </div>
   )
 }

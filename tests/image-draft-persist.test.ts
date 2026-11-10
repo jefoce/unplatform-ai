@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+/* eslint-disable max-lines-per-function -- draft cases share one storage key and rehydrate helper */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const DRAFT_KEY = 'unplatform-ai:image-draft'
@@ -90,5 +92,36 @@ describe('image draft persistence', () => {
     expect(state.prompt).toBe('')
     expect(state.count).toBe(1)
     expect(state.references).toEqual([])
+  })
+
+  it('keeps a custom preset before its catalog entry loads', async () => {
+    const presetId = 'custom.ep1.sdxl'
+
+    window.localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        state: {
+          presetId,
+          prompt: 'a fox',
+          count: 1,
+          aspectRatio: '1:1',
+          resolution: null,
+          quality: null,
+          background: null,
+          references: [],
+          seed: null,
+        },
+        version: 1,
+      }),
+    )
+
+    const { useImageGeneratorStore } = await import('@/features/image-generator/store')
+
+    await waitForRehydrate()
+
+    const state = useImageGeneratorStore.getState()
+
+    expect(state.presetId).toBe(presetId)
+    expect(state.prompt).toBe('a fox')
   })
 })

@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- guide checks share one documentation suite */
+
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -10,7 +12,7 @@ import { VIDEO_PRESETS } from '../src/core/presets'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
 import { APP_RULES } from '../src/core/provider-errors/app'
 import { OPENROUTER_DESCRIPTOR } from '../src/core/providers/openrouter'
-import { PROVIDERS, STORAGE_PROVIDERS } from '../src/core/providers/registry'
+import { providerDescriptor, PROVIDERS, STORAGE_PROVIDERS } from '../src/core/providers/registry'
 import { GUIDE_BASE } from '../src/core/providers/types'
 import { STATUS_HELP } from '../src/core/status-help'
 import type { Dict } from '../src/core/utility-types'
@@ -185,15 +187,19 @@ describe('user guides', () => {
     }
   })
 
-  it('links the README and the app to both guides', () => {
+  it('links the README and the app to every guide', () => {
     const readme = fs.readFileSync(file('README.md'), 'utf8')
 
-    for (const rel of ['docs/user/OPENROUTER.md', 'docs/user/CLOUDFLARE-R2.md']) {
+    for (const rel of [
+      'docs/user/OPENROUTER.md',
+      'docs/user/CLOUDFLARE-R2.md',
+      'docs/user/COMFYUI.md',
+    ]) {
       expect(readme).toContain(`](${rel})`)
       expect(fs.existsSync(file(rel)), rel).toBe(true)
     }
 
-    for (const descriptor of [...PROVIDERS, ...STORAGE_PROVIDERS]) {
+    for (const descriptor of [providerDescriptor('custom'), ...PROVIDERS, ...STORAGE_PROVIDERS]) {
       const link = required(
         descriptor.links.find((candidate) => {
           return candidate.label === 'Setup guide'
@@ -294,6 +300,9 @@ describe('documentation text', () => {
         .map((name) => {
           return path.join('docs', name)
         }),
+      ...fs.readdirSync(path.join(DOCS, 'user')).map((name) => {
+        return path.join('docs', 'user', name)
+      }),
     ]
 
     for (const rel of files) {

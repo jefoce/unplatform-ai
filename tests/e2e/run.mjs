@@ -1,10 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { cardActionsCases } from './cases/card-actions.mjs'
 import { cspCases } from './cases/csp.mjs'
 import { creditsCases } from './cases/credits.mjs'
+import { customCases } from './cases/custom.mjs'
+import { detailsCases } from './cases/details.mjs'
 import { failureCases } from './cases/failure.mjs'
 import { feedCases } from './cases/feed.mjs'
+import { imageFirstCases } from './cases/image-first.mjs'
 import { layoutCases } from './cases/layout.mjs'
 import { likeCases } from './cases/like.mjs'
 import { menuCases } from './cases/menu.mjs'
@@ -14,9 +18,18 @@ import { promptCases } from './cases/prompt.mjs'
 import { referenceCases } from './cases/references.mjs'
 import { selectionCases } from './cases/selection.mjs'
 import { sessionCases } from './cases/session.mjs'
+import { settingsCases } from './cases/settings.mjs'
 import { statusCases } from './cases/status.mjs'
 import { viewerCases } from './cases/viewer.mjs'
-import { assertHoverMedia, findChrome, startBrowser, stopBrowser, TEMP_BASE } from './lib/cdp.mjs'
+import {
+  assertHoverMedia,
+  clearStaleChromeProfiles,
+  findChrome,
+  startBrowser,
+  stopBrowser,
+  TEMP_BASE,
+} from './lib/cdp.mjs'
+import { exitCodeFor } from './lib/exit-code.mjs'
 import { buildApp, seedFailedImage, seedImage, seedVideo, startServer } from './lib/server.mjs'
 
 const WIDTHS = [1280, 1728, 2560]
@@ -26,13 +39,18 @@ const OUTBOUND_MARKER = '[e2e-outbound] blocked'
 let outbound = 0
 
 const CASES = [
+  ...imageFirstCases,
+  ...cardActionsCases,
   ...cspCases,
   ...creditsCases,
+  ...customCases,
+  ...detailsCases,
   ...feedCases,
   ...likeCases,
   ...failureCases,
   ...selectionCases,
   ...sessionCases,
+  ...settingsCases,
   ...statusCases,
   ...viewerCases,
   ...referenceCases,
@@ -60,8 +78,10 @@ function argValue(prefix) {
 }
 
 const requestedWidths = parseList(argValue('--width='))
+const requestedHeight = argValue('--height=')
 const caseFilter = argValue('--case=')
 const widths = requestedWidths === null ? WIDTHS : requestedWidths.map(Number)
+const height = requestedHeight === undefined ? HEIGHT : Number(requestedHeight)
 const cases =
   caseFilter === undefined ? CASES : CASES.filter((entry) => entry.name.includes(caseFilter))
 
@@ -90,22 +110,28 @@ function fixtureLoader(name, server, width) {
   return loader
 }
 
-function makeContext(browser, server, width) {
+function makeContext(params) {
+  const { browser, server, width, height } = params
   const cache = new Map()
-
-  return {
+  const context = {
     driver: browser.driver,
     server,
     width,
-    height: HEIGHT,
+    height,
+    setServer(next) {
+      context.server = next
+      cache.clear()
+    },
     fixture(name) {
       if (!cache.has(name)) {
-        cache.set(name, fixtureLoader(name, server, width)())
+        cache.set(name, fixtureLoader(name, context.server, width)())
       }
 
       return cache.get(name)
     },
   }
+
+  return context
 }
 
 function outboundBlocked(logs) {
@@ -137,18 +163,27 @@ async function cleanupStorage(server) {
   await fs.rm(resolved, { recursive: true, force: true })
 }
 
-async function runWidth(width, rows) {
+async function runWidth(params) {
+  const { width, height, rows } = params
   console.log(`\n# width ${String(width)}`)
-  const server = await startServer()
+  let server = await startServer()
   let browser = null
   let logIndex = 0
 
   try {
-    browser = await startBrowser(width, HEIGHT)
+    browser = await startBrowser(width, height)
     await assertHoverMedia(browser.driver)
-    const context = makeContext(browser, server, width)
+    const context = makeContext({ browser, server, width, height })
 
     for (const entry of cases) {
+      if (entry.fresh === true) {
+        await server.stop()
+        await cleanupStorage(server)
+        server = await startServer()
+        context.setServer(server)
+        logIndex = 0
+      }
+
       const started = Date.now()
       let error
 
@@ -188,6 +223,8 @@ async function runWidth(width, rows) {
 }
 
 async function main() {
+  const started = Date.now()
+
   if (cases.length === 0) {
     throw new Error(`No case matches --case=${String(caseFilter)}`)
   }
@@ -198,20 +235,24 @@ async function main() {
     }
   }
 
+  if (!Number.isFinite(height) || height <= 0) {
+    throw new Error(`Bad height: ${String(height)}`)
+  }
+
   const attachedPort = process.env.E2E_CDP_PORT?.trim()
 
   if (attachedPort === undefined || attachedPort === '') {
     await findChrome()
   }
 
+  await clearStaleChromeProfiles()
   await buildApp()
-  await fs.mkdir(TEMP_BASE, { recursive: true })
 
   const rows = []
 
-  // One build, one server per width: every selected case for a width shares its server.
+  // One build, one server per width. Cases marked fresh restart it from empty storage.
   for (const width of widths) {
-    await runWidth(width, rows)
+    await runWidth({ width, height, rows })
   }
 
   const passed = rows.filter((row) => {
@@ -222,13 +263,16 @@ async function main() {
   console.log(
     `\n${String(passed)}/${String(rows.length)} passed, ${String(failed)} failed, ${String(outbound)} outbound blocked`,
   )
+  console.log(`# total ${String(Date.now() - started)}ms`)
 
-  if (failed > 0) {
-    process.exitCode = 1
-  }
+  return failed
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exitCode = 1
-})
+main()
+  .then((failed) => {
+    process.exit(exitCodeFor(failed))
+  })
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })

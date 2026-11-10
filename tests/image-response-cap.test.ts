@@ -6,6 +6,7 @@ import { IMAGE_OUTPUT_MAX_BYTES } from '../src/core/constants'
 import { IMAGE_PRESETS } from '../src/core/presets/image'
 import type { ImagePreset } from '../src/core/presets/image/types'
 import type { ImageGenerationInput } from '../src/core/schemas/image-record'
+import { BodyTooLargeError, readCappedBody } from '../src/server/media/read-capped-body'
 
 vi.mock('@/server/secrets', () => {
   return {
@@ -80,5 +81,15 @@ describe('image response cap', () => {
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0]).not.toHaveProperty('error')
+  })
+})
+
+describe('capped body reader', () => {
+  it('throws BodyTooLargeError past the cap', async () => {
+    await expect(readCappedBody(new Response('12345'), 4)).rejects.toBeInstanceOf(BodyTooLargeError)
+  })
+
+  it('returns the body under the cap', async () => {
+    await expect(readCappedBody(new Response('1234'), 4)).resolves.toEqual(Buffer.from('1234'))
   })
 })

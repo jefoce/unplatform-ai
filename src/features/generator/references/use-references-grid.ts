@@ -30,6 +30,7 @@ export function useReferencesGrid(preset: VideoPreset) {
 
   const {
     activeId,
+    activeSize,
     order,
     sensors,
     handleDragStart,
@@ -47,6 +48,8 @@ export function useReferencesGrid(preset: VideoPreset) {
     replaceReference,
     removeReference,
     activeId,
+    activeSize,
+    order,
     sensors,
     handleDragStart,
     handleDragOver,

@@ -10,6 +10,7 @@ import { type RemoteStatus, useRemoteStatusData } from '@/lib/api/remote'
 import { formatBytes } from '@/lib/format'
 import { Button } from '@/ui/Button'
 
+import { CustomEndpointSection } from './CustomEndpointSection'
 import { KeyLimitHint } from './KeyLimitHint'
 import { SecretSection } from './SecretSection'
 import type { SettingsSection } from './settings-store'
@@ -49,15 +50,11 @@ export function SettingsBody(props: SettingsBodyProps) {
     onTest: handleTest,
   } = draft
 
-  const handleRetry = () => {
-    return void draft.onRetry()
-  }
-
   if (!isEmpty(status?.loadError)) {
     return (
       <div className="flex items-start justify-between gap-3 rounded-lg border border-danger/40 bg-danger/10 p-3">
         <p className="text-xs text-danger">{status?.loadError}</p>
-        <Button size="sm" variant="outline" loading={isRetrying} onClick={handleRetry}>
+        <Button size="sm" variant="outline" loading={isRetrying} onClick={draft.onRetry}>
           Retry
         </Button>
       </div>
@@ -91,6 +88,8 @@ export function SettingsBody(props: SettingsBodyProps) {
           />
         )
       })}
+
+      <CustomEndpointSection sectionRef={sectionRefs.custom} draft={draft.endpoints} />
 
       {STORAGE_PROVIDERS.map((descriptor) => {
         return (

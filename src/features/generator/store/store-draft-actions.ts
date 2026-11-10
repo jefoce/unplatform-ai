@@ -7,6 +7,7 @@ import { maxDurationFor } from '@/core/duration-limits'
 import { isNonEmptyString } from '@/core/guards'
 import { clampDuration, normalizeForPreset } from '@/core/normalize-input'
 import { findPreset, getPreset } from '@/core/presets'
+import { isCustomPresetId } from '@/core/presets/custom'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-record'
 
@@ -81,6 +82,10 @@ export function createDraftActions(set: GeneratorSetState): DraftActions {
         const preset = findPreset(id)
 
         if (!preset) {
+          if (isCustomPresetId(id)) {
+            return { presetId: id }
+          }
+
           return {}
         }
 

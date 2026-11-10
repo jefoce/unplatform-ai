@@ -11,13 +11,14 @@ const SERVICE: &str = "unplatform-ai";
 /// One keychain item holds every key as a JSON object.
 const ACCOUNT: &str = "secrets";
 const MAX_VALUE: usize = 4096;
-const ALLOWED: [&str; 6] = [
+const ALLOWED: [&str; 7] = [
     "OPENROUTER_API_KEY",
     "OPENROUTER_MANAGEMENT_KEY",
     "R2_ACCOUNT_ID",
     "R2_ACCESS_KEY_ID",
     "R2_SECRET_ACCESS_KEY",
     "R2_BUCKET",
+    "CUSTOM_ENDPOINT_TOKENS",
 ];
 
 /// Serializes read-modify-write cycles on the single item.
@@ -228,6 +229,11 @@ mod tests {
     fn rejects_unknown_op() {
         let error = parse(r#"{"id":1,"op":"reset","name":"R2_BUCKET"}"#).unwrap_err();
         assert_eq!(error, "unknown op");
+    }
+
+    #[test]
+    fn allows_custom_endpoint_tokens() {
+        assert!(ALLOWED.contains(&"CUSTOM_ENDPOINT_TOKENS"));
     }
 
     #[test]

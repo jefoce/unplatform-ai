@@ -4,10 +4,47 @@ import type { SecretName } from '../secret-names'
 /** Base URL of the user guides on GitHub, resolved on the default branch. */
 export const GUIDE_BASE = 'https://github.com/jefoce/unplatform-ai/blob/HEAD/docs/user'
 
-/** @public */
-export const PROVIDER_IDS = ['openrouter'] as const
+export const PROVIDER_KIND_IDS = ['openrouter', 'custom'] as const
 
-export type ProviderId = (typeof PROVIDER_IDS)[number]
+export type ProviderKindId = (typeof PROVIDER_KIND_IDS)[number]
+
+export interface ProviderKind {
+  id: ProviderKindId
+  title: string
+  multiple: boolean
+  dynamic: boolean
+  local: boolean
+  video: boolean
+  image: boolean
+}
+
+export const PROVIDER_KINDS = {
+  openrouter: {
+    id: 'openrouter',
+    title: 'OpenRouter',
+    multiple: false,
+    dynamic: false,
+    local: false,
+    video: true,
+    image: true,
+  },
+  custom: {
+    id: 'custom',
+    title: 'ComfyUI',
+    multiple: true,
+    dynamic: true,
+    local: true,
+    video: true,
+    image: true,
+  },
+} as const satisfies Record<ProviderKindId, ProviderKind>
+
+export interface ProviderInstance {
+  id: string
+  kind: ProviderKindId
+  label: string
+  badge: string | null
+}
 
 /** @public */
 export const STORAGE_PROVIDER_IDS = ['r2'] as const
@@ -30,7 +67,7 @@ export interface ProviderLink {
 }
 
 export interface ProviderDescriptor {
-  id: ProviderId
+  id: ProviderKindId
   label: string
   fields: readonly ProviderSecretField[]
   requiredSecrets: readonly SecretName[]

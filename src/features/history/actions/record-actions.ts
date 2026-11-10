@@ -4,9 +4,11 @@ import { compact, uniq } from 'lodash-es'
 import { toast } from 'sonner'
 
 import { extWithDot } from '@/core/media/media-kinds'
+import { snapshotTitle } from '@/core/record-source'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { focusGenerator } from '@/features/generator/focus-generator'
+import { rememberPresetTitle } from '@/features/generator/model/preset-title'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import {
   favoriteFromHistoryPages,
@@ -159,6 +161,8 @@ export async function rerunRecord(record: GenerationRecord, presetId?: string): 
     }
 
     const ghosts = ghostUploads({ record, ids, uploads })
+
+    rememberPresetTitle(record.input.presetId, snapshotTitle(record))
 
     useGeneratorStore
       .getState()

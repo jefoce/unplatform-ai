@@ -169,7 +169,7 @@ describe('active image watch away from the image tab', () => {
     await flush()
 
     expect(toast.success).toHaveBeenCalledWith(
-      'Image ready',
+      'Nano Banana',
       expect.objectContaining({ description: 'a cat' }),
     )
 

@@ -41,10 +41,6 @@ interface S3ClientBundle {
   client: S3Client
 }
 
-interface ErrorWithName {
-  name?: unknown
-}
-
 interface S3ErrorMetadata {
   httpStatusCode?: number
 }
@@ -135,7 +131,13 @@ export function createS3Store(config: S3StoreConfig): ObjectStore {
         onProgress?.(loaded ?? 0, total ?? stats.size)
       })
 
-      const res = await completeUpload({ upload, signal })
+      let res: CompleteMultipartUploadCommandOutput
+
+      try {
+        res = await completeUpload({ upload, signal })
+      } catch (error) {
+        throw uploadError(error, signal)
+      }
 
       return {
         key,
@@ -182,7 +184,7 @@ async function probeBucket(client: S3Client, bucket: string): Promise<TestResult
 
     return { ok: true }
   } catch (error) {
-    return { ok: false, error: s3ErrorCode(error) }
+    return { ok: false, error: s3ErrorText(error) }
   } finally {
     await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })).catch(() => {})
   }
@@ -259,16 +261,36 @@ function listedFrom(entry: S3ObjectEntry): ListedObject | null {
   }
 }
 
-function s3ErrorCode(error: unknown): string {
-  if (isObject(error)) {
-    const name = (error as ErrorWithName).name
-
-    if (isString(name) && name !== '') {
-      return name
-    }
+/** An abort keeps its original error, any other SDK failure becomes the code. */
+function uploadError(error: unknown, signal: AbortSignal | undefined): unknown {
+  if (signal?.aborted === true) {
+    return error
   }
 
-  return 'R2 test failed'
+  return new Error(s3ErrorText(error))
+}
+
+/** SDK failures become `r2:<status>:<name>` so core can translate them later. */
+export function s3ErrorText(error: unknown): string {
+  if (!isObject(error)) {
+    return 'r2:network:unknown'
+  }
+
+  const err = error as S3ErrorShape
+  const status = err.$metadata?.httpStatusCode
+  let code = 'network'
+
+  if (Number.isFinite(status)) {
+    code = String(status)
+  }
+
+  let name = 'unknown'
+
+  if (isString(err.name) && err.name !== '') {
+    name = err.name
+  }
+
+  return `r2:${code}:${name}`
 }
 
 function isNotFound(error: unknown): boolean {

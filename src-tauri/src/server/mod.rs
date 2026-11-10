@@ -76,6 +76,32 @@ pub fn record_panic(info: &std::panic::PanicHookInfo<'_>) {
     logs::append_desktop_log(format!("[unplatform-ai] panic: {message} at {location}").as_bytes());
 }
 
+const CLIENT_RESOURCE_LIMIT: usize = 64;
+const CLIENT_MESSAGE_LIMIT: usize = 500;
+
+/// Drops line breaks and caps on a char boundary so client text cannot forge log lines.
+fn sanitize_client_text(text: &str, limit: usize) -> String {
+    text.chars()
+        .filter(|c| !matches!(*c, '\r' | '\n'))
+        .take(limit)
+        .collect()
+}
+
+/// Builds the sanitized desktop log line for a webview failure.
+fn client_error_line(resource: &str, message: &str) -> String {
+    format!(
+        "[unplatform-ai] {}: {}",
+        sanitize_client_text(resource, CLIENT_RESOURCE_LIMIT),
+        sanitize_client_text(message, CLIENT_MESSAGE_LIMIT),
+    )
+}
+
+/// Writes a webview failure to desktop.log. The caller passes a resource name, never a path.
+#[tauri::command]
+pub(crate) fn log_client_error(resource: String, message: String) {
+    logs::append_desktop_log(client_error_line(&resource, &message).as_bytes());
+}
+
 /// Shows a native fatal dialog and exits. Only the first call has an effect.
 pub fn fatal(app: &AppHandle<Wry>, message: &str) {
     let state = app.state::<State>();
@@ -92,4 +118,41 @@ pub fn fatal(app: &AppHandle<Wry>, message: &str) {
         .kind(MessageDialogKind::Error)
         .blocking_show();
     app.exit(1);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::client_error_line;
+
+    #[test]
+    fn strips_line_breaks() {
+        let line = client_error_line("ui\r\nnav", "boom\nhere\r");
+
+        assert_eq!(line, "[unplatform-ai] uinav: boomhere");
+    }
+
+    #[test]
+    fn caps_the_resource() {
+        let resource = "r".repeat(100);
+        let line = client_error_line(&resource, "x");
+
+        assert_eq!(line, format!("[unplatform-ai] {}: x", "r".repeat(64)));
+    }
+
+    #[test]
+    fn caps_the_message() {
+        let message = "m".repeat(600);
+        let line = client_error_line("ui", &message);
+
+        assert_eq!(line, format!("[unplatform-ai] ui: {}", "m".repeat(500)));
+    }
+
+    #[test]
+    fn caps_multibyte_at_a_char_boundary() {
+        let message = "é".repeat(600);
+        let line = client_error_line("ui", &message);
+        let expected = format!("[unplatform-ai] ui: {}", "é".repeat(500));
+
+        assert_eq!(line, expected);
+    }
 }

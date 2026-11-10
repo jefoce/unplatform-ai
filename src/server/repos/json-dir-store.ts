@@ -12,10 +12,20 @@ import { listJsonFileNames, readJson } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { globalState } from '../global-state'
 
+export const JSON_DIR_CHANGES = ['remember', 'forget'] as const
+
+export type JsonDirChangeKind = (typeof JSON_DIR_CHANGES)[number]
+
+export interface JsonDirChange {
+  id: string
+  kind: JsonDirChangeKind
+}
+
 interface IndexState<T> {
   map: Map<string, T>
   dirMtimeMs: number
   loaded: boolean
+  listeners: Set<(change: JsonDirChange) => void>
 }
 
 export interface JsonDirStore<T extends HasId> {
@@ -23,6 +33,7 @@ export interface JsonDirStore<T extends HasId> {
   get(id: string): Promise<T | null>
   remember(item: T): Promise<void>
   forget(id: string): Promise<void>
+  onChange(listener: (change: JsonDirChange) => void): () => void
 }
 
 interface JsonDirStoreParams<T> {
@@ -30,6 +41,23 @@ interface JsonDirStoreParams<T> {
   dir: string
   fileOf: (id: string) => string
   schema: ZodType<T>
+}
+
+function directoryMtime(dir: string): Promise<number> {
+  return fs.stat(dir).then(
+    (stats) => {
+      return stats.mtimeMs
+    },
+    () => {
+      return 0
+    },
+  )
+}
+
+function notifyAll(listeners: Set<(change: JsonDirChange) => void>, change: JsonDirChange): void {
+  for (const listener of listeners) {
+    listener(change)
+  }
 }
 
 /** Indexes `<id>.json` files in one directory, reloading when its mtime changes. */
@@ -41,22 +69,12 @@ export function jsonDirStore<T extends HasId>(params: JsonDirStoreParams<T>): Js
       map: new Map(),
       dirMtimeMs: -1,
       loaded: false,
+      listeners: new Set(),
     }
   })
 
-  const dirMtime = (): Promise<number> => {
-    return fs.stat(dir).then(
-      (stats) => {
-        return stats.mtimeMs
-      },
-      () => {
-        return 0
-      },
-    )
-  }
-
   async function load(): Promise<Map<string, T>> {
-    const mtimeMs = await dirMtime()
+    const mtimeMs = await directoryMtime(dir)
 
     if (state.loaded && state.dirMtimeMs === mtimeMs) {
       return state.map
@@ -93,7 +111,7 @@ export function jsonDirStore<T extends HasId>(params: JsonDirStoreParams<T>): Js
       return
     }
 
-    state.dirMtimeMs = await dirMtime()
+    state.dirMtimeMs = await directoryMtime(dir)
   }
 
   return {
@@ -119,10 +137,19 @@ export function jsonDirStore<T extends HasId>(params: JsonDirStoreParams<T>): Js
     async remember(item) {
       state.map.set(item.id, item)
       await refreshMtime()
+      notifyAll(state.listeners, { id: item.id, kind: 'remember' })
     },
     async forget(id) {
       state.map.delete(id)
       await refreshMtime()
+      notifyAll(state.listeners, { id, kind: 'forget' })
+    },
+    onChange(listener) {
+      state.listeners.add(listener)
+
+      return () => {
+        state.listeners.delete(listener)
+      }
     },
   }
 }

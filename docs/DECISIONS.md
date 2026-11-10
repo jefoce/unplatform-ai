@@ -1,5 +1,79 @@
 # Decisions
 
+## 2026-11-07 - upai/1 is vendored, not generated
+
+Decision: `docs/protocol/upai-1` holds the spec, schemas and fixtures from `unplatform-ai-provider-node` at commit `c47b0b35`, recorded in `SOURCE`. The copy includes the optional `prompt.reference_label` capability. A drift test pins both the `SOURCE` file and the fixtures.
+
+Why: the adapter, the pack and the tests need one wire contract, and a moving external repo would make the fixtures disagree.
+
+## 2026-11-07 - Provider kinds and instances
+
+Decision: `PROVIDER_KIND_IDS` is `openrouter` and `custom`. A custom endpoint is an instance of the `custom` kind with its own id and badge. A record stores `provider` plus `source` with `kind`, `instanceId`, `badge`, `presetTitle`, `workflowName`, `endpointLabel` and `local`. A new provider kind adds an id and an adapter, and no record change.
+
+Why: one record shape serves both kinds, and history keeps its labels after an endpoint is deleted.
+
+## 2026-11-07 - Endpoints are one JSON file with a badge counter
+
+Decision: `data/endpoints.json` holds `endpoints` and `badgeCounter`. Badges are `CU<n>`, allocated under the endpoints lock. The counter never goes back, so a deleted number is not reused. Bearer tokens live in one `CUSTOM_ENDPOINT_TOKENS` secret map keyed by endpoint id.
+
+Why: the list is small and a single file keeps the save atomic. One token map means one secret write per save.
+
+## 2026-11-07 - No SQLite, facets come from the record stores
+
+Decision: history facets are built from the in-memory `json-dir-store` records, updated on the store `onChange` hook and re-aggregated on the next read. There is no database.
+
+Why: the repos already hold every record in memory, and a second index on disk would need its own recovery and migration.
+
+Rejected: SQLite and a per-file facet cache.
+
+## 2026-11-07 - A workflow rename creates a new custom model id
+
+Decision: the wire model id is `<workflow-slug>.<model-id>`. Renaming a workflow in ComfyUI changes its slug and creates a new id. Old history keeps the `presetSnapshot` title, workflow name and badge from submit time.
+
+Why: the pack identifies models by workflow file name, and history must stay readable after the rename.
+
+## 2026-11-07 - Local zero price hides the price
+
+Decision: `showPrice` hides a price when the source is local and the amount is zero. An API model at zero still shows `$0.00`. A custom record writes `actualUsd` from its resolved price, so credits count it as known.
+
+Why: a local run costs nothing, and a hidden zero reads better than a dollar sign. Writing zero keeps the unknown count honest.
+
+## 2026-11-07 - Deleting an endpoint is allowed with running jobs
+
+Decision: Settings warns when an endpoint with running jobs is deleted, and the save proceeds. Video jobs fail with `upai:endpoint_removed` and the card says "This endpoint was removed." No cancel call is sent to ComfyUI.
+
+Why: the user owns the endpoint and the warning names the cost. A cancel call to a removed endpoint would fail anyway.
+
+## 2026-11-07 - Custom submits limit per endpoint instance
+
+Decision: custom submits use one queue per pack instance, keyed by `instanceId`. The limit is the smallest fresh `max_running` from health, default 1. Two endpoints that report the same `instance_id` share one queue and one limit.
+
+Why: one ComfyUI install runs one set of jobs, and two badges for the same install must not double the load.
+
+## 2026-11-07 - Custom fetch pins the endpoint origin
+
+Decision: `customRequest` rebuilds the URL from the endpoint origin plus `/upai`, refuses a different origin, sets `redirect: 'manual'` and rejects every 3xx. `safeFetchProviderUrl` stays on the OpenRouter path.
+
+Why: an endpoint URL comes from the user, so a redirect or an absolute path must not move a request to another host.
+
+## 2026-11-07 - Quit guard keeps ComfyUI video jobs
+
+Decision: a running custom video job keeps the quit guard visible but is not waited on. ComfyUI keeps the job and the app resumes polling on the next start. A running custom image job is cancelled at shutdown.
+
+Why: a video job lives on ComfyUI and survives the app. An image job lives in the app's process, so it cannot resume.
+
+## 2026-11-07 - Preset snapshot is loose
+
+Decision: `presetSnapshot` stores only `id`, `title`, `family`, because custom presets have no zod schema. `source` covers display labels, badge and workflow name.
+
+Why: snapshotting a runtime preset cannot be strict, and the fields history needs already live in `source`.
+
+## 2026-11-07 - Image Stop is not in history
+
+Decision: 0.5.0 has no Stop for a running custom image job in history, because an image record has no job reference. Stop in ComfyUI is available for a running video, whose record stores the job id.
+
+Why: adding a job id to image records is a bigger data change than the release needs, and a Stop button that cannot find its job would be worse than none.
+
 ## 2026-11-04 - Animations ignore the OS reduced-motion setting (owner decision, 0.4.0)
 
 Decision: no `prefers-reduced-motion`, `motion-reduce:` or `motion-safe:` variant in `src`. The grace pill fade, the status glow and the workspace transitions run the same for every user. `prefers-reduced-transparency` still applies.
@@ -114,9 +188,9 @@ Why: WebKitGTK parses `backdrop-filter`, so an `@supports not` fallback never fi
 
 Rejected: an `@supports not (backdrop-filter: blur(1px))` fallback, a user-agent hack per component, and a runtime class toggle.
 
-## 2026-10-25 - Ternaries carry one simple choice
+## 2026-10-25 - Ternaries carry one direct choice
 
-Decision: a ternary is allowed only as `const name = test ? a : b`. The test is one simple check, branches are plain values. Components are never rendered through a ternary, use `&&`, an early return or a component variable (`const Icon = isOn ? A : B`). `TERNARY_SELECTORS` enforces the rule in `src`, tests stay exempt.
+Decision: a ternary is allowed only as `const name = test ? a : b`. The test is one direct check, branches are plain values. Components are never rendered through a ternary, use `&&`, an early return or a component variable (`const Icon = isOn ? A : B`). `TERNARY_SELECTORS` enforces the rule in `src`, tests stay exempt.
 
 Why: a JSX or call branch hides a second code path inside an expression, and the selector keeps each choice named.
 
@@ -368,7 +442,7 @@ Rejected: desktop only (slow iteration), browser only (no keychain or native dia
 
 Decision: the desktop server uses 47821 by default, saved in `desktop.json`. A busy port falls back to a free one and is saved.
 
-Why: a predictable origin makes the session URL, navigation guard and dev tooling simple.
+Why: a predictable origin keeps the session URL, navigation guard and dev tooling predictable.
 
 Rejected: a random port every launch.
 
@@ -508,7 +582,7 @@ After a restart, mock content uses record.input as the fallback source for dimen
 
 Directory browse failures throw typed BrowseError values with status 400 for invalid input and 404 for missing paths.
 
-## 2026-10-20 - Review follow-ups
+## 2026-10-20 - Follow-up fixes
 
 - Tab normalization runs `inputForSubmit` on submit and server side, and history thumbs render only the record's tab.
 - Boot reconcile no longer expires by age. A job expires only on OpenRouter expired, 404, or a passed `expires_at`.

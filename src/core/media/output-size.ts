@@ -1,6 +1,7 @@
 import { isNil } from 'lodash-es'
 
-import type { AspectRatio, Resolution, VideoPreset } from '../presets/video/types'
+import { isKeyOf } from '../guards'
+import type { VideoPreset } from '../presets/video/types'
 import { parseAspect, type PixelSize } from './geometry'
 
 export const SHORT_SIDE = {
@@ -18,8 +19,8 @@ const even = (value: number): number => {
 
 interface AspectAllowedParams {
   preset: VideoPreset
-  resolution: Resolution
-  aspect: AspectRatio
+  resolution: string
+  aspect: string
 }
 
 /** When a preset lists exact sizes, an aspect is valid only where a size exists. */
@@ -35,8 +36,8 @@ export function aspectAllowed(params: AspectAllowedParams): boolean {
 
 interface OutputSizeParams {
   preset: VideoPreset
-  resolution: Resolution
-  aspect: AspectRatio
+  resolution: string
+  aspect: string
 }
 
 /** Size from the preset's `WIDTHxHEIGHT` string, null when a part is missing. */
@@ -62,6 +63,10 @@ export function outputSize(params: OutputSizeParams): PixelSize | null {
   const sides = parseAspect(aspect)
 
   if (isNil(sides)) {
+    return null
+  }
+
+  if (!isKeyOf(SHORT_SIDE, resolution)) {
     return null
   }
 

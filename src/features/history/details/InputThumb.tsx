@@ -5,10 +5,13 @@ import { type KeyboardEvent } from 'react'
 import { isNonEmptyString } from '@/core/guards'
 import { uploadThumbUrl } from '@/lib/api/media-urls'
 import { cn } from '@/lib/cn'
+import { waveBars } from '@/lib/wave-bars'
 import { RetryImage } from '@/ui/RetryImage'
 import { Tooltip } from '@/ui/Tooltip'
 
 import { openThumb, type ThumbItem } from './thumb-item'
+
+const AUDIO_THUMB_BARS = 12
 
 interface InputThumbProps {
   item: ThumbItem
@@ -21,6 +24,8 @@ export function InputThumb(props: InputThumbProps) {
   const { item, items, index } = props
   const firstChar = item.name.charAt(0).toUpperCase()
   const initial = firstChar === '' ? '?' : firstChar
+  const isAudio = item.kind === 'audio'
+  const audioBars = waveBars(item.name, AUDIO_THUMB_BARS)
 
   const handleOpen = () => {
     return void openThumb({ item, items, index })
@@ -61,7 +66,21 @@ export function InputThumb(props: InputThumbProps) {
         )}
       >
         {item.missing && initialBadge}
-        {!item.missing && (
+        {!item.missing && isAudio && (
+          <span data-audio-thumb className="flex size-full items-center gap-px bg-white/5 px-1">
+            {audioBars.map((height, barIndex) => {
+              return (
+                <span
+                  /* eslint-disable-next-line react/no-array-index-key -- static list */
+                  key={barIndex}
+                  style={{ height: `${height}%` }}
+                  className="min-w-px flex-1 rounded-full bg-fg-2/60"
+                />
+              )
+            })}
+          </span>
+        )}
+        {!item.missing && !isAudio && (
           <RetryImage
             src={uploadThumbUrl(item.id)}
             alt=""

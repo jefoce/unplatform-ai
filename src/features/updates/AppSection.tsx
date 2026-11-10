@@ -9,6 +9,7 @@ import { useNow } from '@/lib/use-now'
 import { Button } from '@/ui/Button'
 import { Switch } from '@/ui/form/Switch'
 
+import { AboutSection } from './AboutSection'
 import { AppNotes } from './AppNotes'
 import { AppSectionHeader } from './AppSectionHeader'
 import { progressText } from './progress-text'
@@ -112,6 +113,7 @@ export function AppSection() {
     return (
       <section className="space-y-1">
         <AppSectionHeader version={version} />
+        <AboutSection version={version} />
       </section>
     )
   }
@@ -166,6 +168,8 @@ export function AppSection() {
         label="Check for updates automatically"
         onCheckedChange={setAutoCheck}
       />
+
+      <AboutSection version={version} />
     </section>
   )
 }

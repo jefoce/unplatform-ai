@@ -3,7 +3,7 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import type { SkuTable } from '@/core/pricing/types'
-import type { ProviderId } from '@/core/providers/types'
+import type { ProviderKindId } from '@/core/providers/types'
 
 import { isMockMode } from '../config/mock-mode'
 import { globalState } from '../global-state'
@@ -23,7 +23,7 @@ export interface LivePricing {
 }
 
 export interface LivePricingParams {
-  provider: ProviderId
+  provider: ProviderKindId
   kind: PricingKind
   modelId: string
   fallback: SkuTable
@@ -37,12 +37,12 @@ const loaders = globalState<Map<string, LivePricingLoader>>('pricingLoaders', ()
   return new Map()
 })
 
-function keyOf(provider: ProviderId, kind: PricingKind): string {
+function keyOf(provider: ProviderKindId, kind: PricingKind): string {
   return `${provider}:${kind}`
 }
 
 interface RegisterLivePricingParams {
-  provider: ProviderId
+  provider: ProviderKindId
   kind: PricingKind
   loader: LivePricingLoader
 }

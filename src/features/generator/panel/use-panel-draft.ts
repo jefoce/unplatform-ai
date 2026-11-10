@@ -8,7 +8,7 @@ import { getPreset } from '@/core/presets'
 import type { GenerationInput } from '@/core/schemas/generation-record'
 import { validateInput, validateSettings } from '@/core/validation/video'
 import { useSecrets } from '@/features/settings/use-secrets'
-import { useModelEntry } from '@/lib/api/models'
+import { useModelEntry } from '@/lib/api/catalog'
 import { useRemoteStatus } from '@/lib/api/remote'
 
 import { useGeneratorStore } from '../store/store'
@@ -62,7 +62,7 @@ export function usePanelDraft() {
   const modelStatus = entry?.status ?? 'unverified'
   const modelReason = entry?.reason ?? null
   const { status: secrets } = useSecrets()
-  const provider = useProviderReady(presetId)
+  const provider = useProviderReady(presetId, 'video')
   const isKeyMissing = provider.isKeyMissing
   const isSecretsFailed = !isEmpty(secrets?.loadError)
 
@@ -99,6 +99,7 @@ export function usePanelDraft() {
     isKeyMissing,
     isSecretsFailed,
     provider,
+    entry,
     prompt,
     setPrompt,
   }

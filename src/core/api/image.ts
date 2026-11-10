@@ -52,7 +52,7 @@ export const ImageBatchSchema = z.object({
 export type ImageBatchBody = z.infer<typeof ImageBatchSchema>
 
 export const ImageSubmitSchema = ImageInputSchema.extend({
-  prompt: z.string().min(1),
+  prompt: z.string(),
   references: z.array(z.uuid()).max(IMAGE_REFERENCE_MAX),
 }).strict()
 

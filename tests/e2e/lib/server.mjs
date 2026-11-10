@@ -1,9 +1,9 @@
-import { spawn } from 'node:child_process'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { freePort, TEMP_BASE } from './cdp.mjs'
+import { stopChild } from './stop-child.mjs'
 
 const ROOT = path.resolve(import.meta.dirname, '../../..')
 const OUTBOUND_GUARD = path.resolve(import.meta.dirname, 'outbound-guard.cjs')
@@ -65,6 +65,14 @@ function printedSessionUrl(logs) {
   return found[1]
 }
 
+/** Runs Next directly without a shell, so Windows never hits the DEP0190 prompt. */
+function startCommand() {
+  return {
+    command: process.execPath,
+    args: [path.join(ROOT, 'node_modules/next/dist/bin/next'), 'start', '-H', '127.0.0.1'],
+  }
+}
+
 /** One isolated app server on a free port with mock providers and a temp store. */
 export async function startServer(options = {}) {
   const { browserMode = false, storageRoot: existingRoot } = options
@@ -76,7 +84,12 @@ export async function startServer(options = {}) {
   const env = { ...process.env }
 
   for (const name of Object.keys(env)) {
-    if (name.startsWith('OPENROUTER_') || name.startsWith('R2_') || name === 'REMOTE_MOCK') {
+    if (
+      name.startsWith('OPENROUTER_') ||
+      name.startsWith('R2_') ||
+      name === 'REMOTE_MOCK' ||
+      name === 'CUSTOM_ENDPOINT_MOCK'
+    ) {
       delete env[name]
     }
   }
@@ -91,6 +104,8 @@ export async function startServer(options = {}) {
     STORAGE_ROOT: storageRoot,
     OPENROUTER_MOCK: '1',
     REMOTE_MOCK: '1',
+    CUSTOM_ENDPOINT_MOCK: '1',
+    E2E: '1',
     NODE_ENV: 'production',
     FFMPEG_PATH: ffmpeg,
     NODE_OPTIONS: nodeOptions,
@@ -104,7 +119,8 @@ export async function startServer(options = {}) {
     env.APP_TOKEN = TOKEN
   }
 
-  const child = spawn('pnpm', ['start'], {
+  const { command, args } = startCommand()
+  const child = spawn(command, args, {
     cwd: ROOT,
     env,
     detached: process.platform !== 'win32',
@@ -174,7 +190,7 @@ export async function startServer(options = {}) {
   }
 
   if (!isReady) {
-    child.kill('SIGKILL')
+    await stopChild({ child })
     throw new Error(`Server did not become ready:\n${logs.join('')}`)
   }
 
@@ -185,45 +201,7 @@ export async function startServer(options = {}) {
   }
 
   const stop = async () => {
-    if (child.exitCode !== null) {
-      return
-    }
-
-    try {
-      if (process.platform === 'win32') {
-        child.kill('SIGTERM')
-      } else {
-        process.kill(-child.pid, 'SIGTERM')
-      }
-    } catch (error) {
-      if (error.code !== 'ESRCH') {
-        throw error
-      }
-    }
-
-    const exited = await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        resolve(false)
-      }, 10_000)
-      child.once('exit', () => {
-        clearTimeout(timer)
-        resolve(true)
-      })
-    })
-
-    if (!exited) {
-      try {
-        if (process.platform === 'win32') {
-          child.kill('SIGKILL')
-        } else {
-          process.kill(-child.pid, 'SIGKILL')
-        }
-      } catch (error) {
-        if (error.code !== 'ESRCH') {
-          throw error
-        }
-      }
-    }
+    await stopChild({ child })
   }
 
   return { baseUrl, port, storageRoot, logs, api, stop, token: sessionToken, sessionUrl }

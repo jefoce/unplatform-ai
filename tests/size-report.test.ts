@@ -74,7 +74,7 @@ describe('size-report', () => {
     fs.mkdirSync(runtime, { recursive: true })
     fs.writeFileSync(path.join(runtime, 'server.js'), Buffer.alloc(40))
 
-    const report = await collect({ root, runtimeDir: runtime })
+    const report = await collect({ root, runtimeDir: runtime, env: {} })
 
     expect(report.parts.serverBinary).toBe(10)
     expect(report.parts.shell).toBe(20)
@@ -95,7 +95,8 @@ describe('size-report', () => {
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '0.4.0' }))
     writeBundle(bundle, 100)
 
-    const report = await collect({ root, target, runtimeDir: path.join(root, 'runtime') })
+    const runtime = path.join(root, 'runtime')
+    const report = await collect({ root, target, runtimeDir: runtime, env: {} })
 
     expect(report.app).toBe(path.relative(root, path.join(bundle, 'macos', 'Test.app')))
     expect(report.parts.serverBinary).toBe(110)

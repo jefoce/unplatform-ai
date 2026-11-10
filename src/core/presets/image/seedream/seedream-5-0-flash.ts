@@ -1,4 +1,3 @@
-import { PROVIDER_IDS } from '../../../providers/types'
 import { imagePricing, imageResolutionOptions } from '../../common/options'
 import type { ImagePreset } from '../types'
 import { SEEDREAM_FAMILY } from './family'
@@ -14,7 +13,7 @@ export const SEEDREAM_5_FLASH: ImagePreset = {
   referenceMax: 14,
   bindings: [
     {
-      provider: PROVIDER_IDS[0],
+      provider: 'openrouter',
       modelId: 'bytedance-seed/seedream-5-0-flash',
       // $0.018 per image at every supported resolution. Reference images are
       // free (input_image 0), so no input line is stored.

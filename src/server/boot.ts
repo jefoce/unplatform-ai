@@ -3,6 +3,7 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { isMockMode } from './config/mock-mode'
+import { flushCleanupQueue } from './fs/cleanup-queue'
 import { acquireInstanceLock } from './instance-lock'
 import { reconcileImages } from './jobs/image-reconcile'
 import { runImageSubmit } from './jobs/image-run'
@@ -14,6 +15,7 @@ import { configureSubmitQueue } from './jobs/submit-queue'
 import { assertFfmpeg } from './media/ffmpeg'
 import { startParentWatch } from './parent-watch'
 import { STORAGE_ROOT } from './paths'
+import { registerCustomImageShutdown } from './providers/custom/image-jobs'
 import { createMockImageProvider } from './providers/mock/images'
 import { registerAccountSecretsListener } from './providers/openrouter/account'
 import { createOpenRouterImageProvider } from './providers/openrouter/images'
@@ -25,6 +27,7 @@ import {
 import { registerVideoModelsSecretsListener } from './providers/openrouter/video-models'
 import { registerImageProvider } from './providers/registry'
 import { secretsReady } from './secrets'
+import { registerEndpointHealthListener } from './services/endpoint-health'
 import { registerModelCatalogSecretsListener } from './services/model-catalog'
 import { browserSessionUrl } from './session'
 import { registerShutdownSignals } from './shutdown'
@@ -61,6 +64,8 @@ export async function bootServer(): Promise<void> {
   registerImageModelsSecretsListener()
   registerModelCatalogSecretsListener()
   registerObjectStoreSecretsListener()
+  registerEndpointHealthListener()
+  registerCustomImageShutdown()
 
   registerImageProvider('openrouter', () => {
     if (isMockMode()) {
@@ -74,6 +79,7 @@ export async function bootServer(): Promise<void> {
   configureSubmitQueue({ run: runSubmit })
   onJobSent(startPoller)
 
+  await flushCleanupQueue()
   startPoller()
   startParentWatch()
   await reconcileImages()

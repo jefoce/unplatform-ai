@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { MediaKind } from '../src/core/media/media-types'
-import { getPreset } from '../src/core/presets'
+import { getPreset, VIDEO_PRESETS } from '../src/core/presets'
+import { IMAGE_PRESETS } from '../src/core/presets/image'
 import {
   canonicalizePrompt,
   idForSlot,
@@ -147,6 +148,89 @@ describe('renderPromptForApi', () => {
     const prompt = 'A plain prompt\t\twith  spaces'
 
     expect(renderPromptForApi(prompt, getPreset('wan-3.0'))).toBe(prompt)
+  })
+
+  it('renders angle bracket templates with kind and number tokens', () => {
+    const preset = { ...getPreset('wan-3.0'), refLabel: '<{kind}_{n}>' }
+
+    expect(renderPromptForApi('@Image 1 and @Video 2', preset)).toBe('<image_1> and <video_2>')
+  })
+
+  it('renders capitalized kind and zero-based index tokens', () => {
+    const preset = { ...getPreset('wan-3.0'), refLabel: '{Kind} #{i}' }
+
+    expect(renderPromptForApi('@Image 1', preset)).toBe('Image #0')
+  })
+
+  it('renders per-kind labels when the preset has them', () => {
+    const preset = {
+      ...getPreset('wan-3.0'),
+      refLabels: {
+        image: '<Picture {n}>',
+        video: '<Video {n}>',
+        audio: '<Audio {n}>',
+      },
+    }
+
+    expect(renderPromptForApi('@Image 1, @Video 1 and @Audio 1', preset)).toBe(
+      '<Picture 1>, <Video 1> and <Audio 1>',
+    )
+  })
+
+  it('falls back to the shared label for a kind without its own', () => {
+    const preset = {
+      ...getPreset('wan-3.0'),
+      refLabel: '<{kind}_{n}>',
+      refLabels: { image: '<Picture {n}>' },
+    }
+
+    expect(renderPromptForApi('@Image 1, @Video 1 and @Audio 1', preset)).toBe(
+      '<Picture 1>, <video_1> and <audio_1>',
+    )
+  })
+})
+
+describe('static preset reference labels', () => {
+  it('keeps every video refLabel unchanged', () => {
+    expect(
+      VIDEO_PRESETS.map((preset) => {
+        return [preset.id, preset.refLabel]
+      }),
+    ).toEqual([
+      ['wan-3.0', '{Kind} {n}'],
+      ['wan-3.0-prime', '{Kind} {n}'],
+      ['seedance-2.0', '{Kind} {n}'],
+      ['seedance-2.5', '@{Kind} {n}'],
+    ])
+  })
+
+  it('keeps every image refLabel unchanged', () => {
+    const labels = IMAGE_PRESETS.map((preset) => {
+      return [preset.id, preset.refLabel]
+    })
+
+    expect(labels).toEqual([
+      ['gemini-nano-banana-2.1', 'image {n}'],
+      ['gemini-3.1-flash-lite-image', 'image {n}'],
+      ['gemini-3.1-flash-image', 'image {n}'],
+      ['gemini-3-pro-image', 'image {n}'],
+      ['gemini-2.5-flash-image', 'image {n}'],
+      ['seedream-5-0-flash', 'image {n}'],
+      ['seedream-5-0-lite', 'image {n}'],
+      ['seedream-5-0-pro', 'image {n}'],
+      ['gpt-image-2.5-sunburst', 'image {n}'],
+      ['gpt-image-2.5-flare', 'image {n}'],
+      ['gpt-image-2', 'image {n}'],
+      ['flux-3-image-klein', 'image {n}'],
+    ])
+  })
+
+  it('keeps one rendered sample prompt per family unchanged', () => {
+    expect(renderPromptForApi('@Image 1 and @Video 2', getPreset('wan-3.0'))).toBe(
+      'Image 1 and Video 2',
+    )
+
+    expect(renderPromptForApi('@Image 1', IMAGE_PRESETS[0])).toBe('image 1')
   })
 })
 

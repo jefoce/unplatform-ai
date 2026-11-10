@@ -1,39 +1,23 @@
-/* eslint-disable max-lines -- one queue owns marking, downloading and failure accounting */
 import 'server-only'
-
-import { createWriteStream } from 'node:fs'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { Readable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
-import type { ReadableStream } from 'node:stream/web'
 
 import { isNil } from 'lodash-es'
 
-import { FETCH_TIMEOUTS, MAX_DOWNLOAD_RETRIES, SUBMIT_YIELD_MS } from '@/core/constants'
-import { isNonEmptyString } from '@/core/guards'
+import { MAX_DOWNLOAD_RETRIES, SUBMIT_YIELD_MS } from '@/core/constants'
 import { COPY_EXPIRED_TEXT } from '@/core/provider-errors/app'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 
-import { commitFile } from '../fs/atomic-file'
 import { exists, isDiskFull } from '../fs/stat'
 import { globalState } from '../global-state'
-import { probeMedia } from '../media/ffmpeg'
 import { makePreview } from '../media/preview'
 import { downloadPaths } from '../paths'
-import { getVideoProvider } from '../providers/registry'
-import { safeFetchProviderUrl } from '../providers/safe-fetch'
 import type { JobSnapshot } from '../providers/types'
 import { getGeneration, saveGeneration, updateGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
+import { deleteFinishedResult } from './delete-finished-result'
+import { download, DownloadIntegrityError, type DownloadTask } from './download-file'
 import { buildOutput } from './download-output'
 
 const MAX_DOWNLOADS = 2
-
-interface DownloadTask {
-  record: GenerationRecord
-  job: JobSnapshot
-}
 
 interface DownloadQueue {
   pending: Map<string, DownloadTask>
@@ -45,14 +29,6 @@ interface DownloadQueue {
 
 const DISK_FULL = 'Disk is full. Free some space, the download retries every minute.'
 const DISK_FULL_RETRY_MS = 60_000
-
-/** A body that reached the disk but cannot be a complete video. */
-class DownloadIntegrityError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'DownloadIntegrityError'
-  }
-}
 
 const downloads = globalState<DownloadQueue>('downloadQueue', () => {
   return {
@@ -256,7 +232,7 @@ async function completeDownload(params: CompleteDownloadParams): Promise<void> {
 
   const output = await buildOutput({ record, video, preview })
 
-  await saveIfPresent(record.id, {
+  const isSaved = await saveIfPresent(record.id, {
     download: undefined,
     status: 'completed',
     output,
@@ -269,21 +245,27 @@ async function completeDownload(params: CompleteDownloadParams): Promise<void> {
   // Counters clear only after the record is saved, so a failed finalize is still retried.
   downloads.failures.delete(record.id)
   downloads.diskFullAt.delete(record.id)
+
+  if (isSaved) {
+    deleteFinishedResult({ record, kind: 'video' })
+  }
 }
 
 /**
  * Patches the current record under its lock, so a delete or a favorite toggle
  * during the download wins over the snapshot taken before it started.
  */
-async function saveIfPresent(id: string, patch: Partial<GenerationRecord>): Promise<void> {
-  await withLock(id, async () => {
+async function saveIfPresent(id: string, patch: Partial<GenerationRecord>): Promise<boolean> {
+  return withLock(id, async () => {
     const current = await getGeneration(id)
 
     if (!current) {
-      return
+      return false
     }
 
     await saveGeneration({ ...current, ...patch })
+
+    return true
   })
 }
 
@@ -322,98 +304,4 @@ async function saveRetry(record: GenerationRecord, error: unknown): Promise<void
   }
 
   await saveFailure(record.id, { download: undefined, error: errorText, status: 'in_progress' })
-}
-
-async function download(params: DownloadTask): Promise<void> {
-  const { record } = params
-  const paths = downloadPaths(record.id)
-  const response = await openContent(params)
-
-  if (!response.body) {
-    throw new Error('Empty video response')
-  }
-
-  await fs.mkdir(path.dirname(paths.part), { recursive: true })
-
-  try {
-    const body = response.body as unknown as ReadableStream
-
-    await pipeline(Readable.fromWeb(body), createWriteStream(paths.part), {
-      signal: AbortSignal.timeout(FETCH_TIMEOUTS.content),
-    })
-
-    await verifyDownload({ response, file: paths.part })
-    await commitFile({ temp: paths.part, target: paths.video })
-  } catch (error) {
-    await fs.unlink(paths.part).catch(() => {})
-
-    throw error
-  }
-}
-
-interface VerifyDownloadParams {
-  response: Response
-  file: string
-}
-
-/** Rejects a short body or one the media probe cannot read, before it becomes the video. */
-async function verifyDownload(params: VerifyDownloadParams): Promise<void> {
-  const { response, file } = params
-  const declared = response.headers.get('content-length')
-  const stats = await fs.stat(file)
-
-  if (!isNil(declared)) {
-    const expected = Number(declared)
-
-    if (!Number.isFinite(expected) || stats.size !== expected) {
-      throw new DownloadIntegrityError(
-        `Truncated video download (${stats.size} of ${declared} bytes)`,
-      )
-    }
-  }
-
-  const probe = await probeMedia(file).catch((error: unknown) => {
-    throw new DownloadIntegrityError(`Video check failed: ${String(error)}`)
-  })
-
-  if (isNil(probe.width) || isNil(probe.height)) {
-    throw new DownloadIntegrityError('Downloaded file is not a playable video')
-  }
-}
-
-async function openContent(params: DownloadTask): Promise<Response> {
-  const { record, job } = params
-  const jobId = record.job?.id
-  const submittedAt = record.job?.submittedAt ?? ''
-  const provider = getVideoProvider(record.provider)
-
-  try {
-    if (!isNonEmptyString(jobId)) {
-      throw new Error('Missing provider job id')
-    }
-
-    return await provider.fetchContent({
-      job: { jobId, submittedAt },
-      index: 0,
-      fallback: record.input,
-    })
-  } catch (error) {
-    const url = job.urls?.[0]
-
-    if (!isNonEmptyString(url)) {
-      throw error
-    }
-
-    const res = await safeFetchProviderUrl({
-      url,
-      hosts: provider.contentHosts,
-      timeoutMs: FETCH_TIMEOUTS.content,
-    })
-
-    if (!res.ok) {
-      throw new Error(`Video download failed (${res.status})`)
-    }
-
-    return res
-  }
 }

@@ -5,16 +5,23 @@ import { randomInt, randomUUID } from 'node:crypto'
 import { isNil } from 'lodash-es'
 
 import { SEED_MAX, SUBMIT_GRACE_MS } from '@/core/constants'
+import { planImageCalls } from '@/core/plan-image-calls'
 import { primaryBinding } from '@/core/presets/common/bindings'
+import { endpointIdFromPresetId } from '@/core/presets/custom'
 import type { ImagePreset } from '@/core/presets/image/types'
 import { imageQuoteContext, imageUnitOf, quoteWithFallback } from '@/core/pricing/quote'
 import type { SkuTable } from '@/core/pricing/types'
+import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { ImageCost, ImageGenerationInput, ImageRecord } from '@/core/schemas/image-record'
+import { PresetSnapshotSchema } from '@/core/schemas/preset-snapshot'
 import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { HttpError } from '../errors'
 import { startImageSubmit } from '../jobs/image-submit-queue'
 import { loadLivePricing } from '../pricing/live'
+import { getEndpoint } from '../providers/custom/endpoint-source'
+import { resolveCustomRunPrice } from '../providers/custom/pricing'
+import { customRecordSource } from '../providers/custom/record-source'
 import { saveImage } from '../repos/images'
 import { getUpload } from '../repos/uploads'
 import { uploadsSnapshot } from './upload-snapshot'
@@ -58,11 +65,34 @@ async function referenceUploads(input: ImageGenerationInput): Promise<UploadItem
   })
 }
 
+interface CustomImagePriceParams {
+  endpoint: CustomEndpoint
+  preset: ImagePreset
+  count: number
+}
+
+/** A custom image bills one run per provider call, not per output. */
+function customImagePrice(params: CustomImagePriceParams): number {
+  const { endpoint, preset, count } = params
+  const runPrice = resolveCustomRunPrice({ endpoint, preset, duration: 1 })
+
+  return runPrice * planImageCalls(count, preset).length
+}
+
 /** Price of one image call, computed before the active cap lock. */
 export async function priceImage(
   params: ImagePriceParams,
 ): Promise<Pick<ImageCost, 'estimatedUsd' | 'priceSource'>> {
   const { preset, input } = params
+  const endpoint = await customEndpointOrNull(preset.id)
+
+  if (!isNil(endpoint)) {
+    return {
+      estimatedUsd: customImagePrice({ endpoint, preset, count: input.count }),
+      priceSource: 'fallback',
+    }
+  }
+
   const binding = primaryBinding(preset)
 
   const live = await loadLivePricing({
@@ -94,6 +124,23 @@ export async function priceImage(
   return { estimatedUsd: result.total, priceSource: result.source }
 }
 
+/** `custom.<endpointId>.<modelId>` is the only link from preset to endpoint. */
+async function customEndpointOrNull(presetId: string): Promise<CustomEndpoint | null> {
+  const endpointId = endpointIdFromPresetId(presetId)
+
+  if (isNil(endpointId)) {
+    return null
+  }
+
+  const endpoint = await getEndpoint(endpointId)
+
+  if (isNil(endpoint)) {
+    throw new HttpError(409, 'Endpoint removed')
+  }
+
+  return endpoint
+}
+
 function seedUsed(preset: ImagePreset, seed: number | null): number | null {
   if (!preset.seed) {
     return null
@@ -111,6 +158,7 @@ export async function createImage(params: CreateImageParams): Promise<ImageRecor
   const { preset, input, price } = params
 
   const uploads = await referenceUploads(input)
+  const endpoint = await customEndpointOrNull(preset.id)
 
   const binding = primaryBinding(preset)
   const now = new Date().toISOString()
@@ -123,6 +171,11 @@ export async function createImage(params: CreateImageParams): Promise<ImageRecor
     ...price,
     actualUsd: null,
     billed: null,
+  }
+
+  if (!isNil(endpoint)) {
+    cost.estimatedUsd = customImagePrice({ endpoint, preset, count: input.count })
+    cost.priceSource = 'fallback'
   }
 
   const record: ImageRecord = {
@@ -144,6 +197,16 @@ export async function createImage(params: CreateImageParams): Promise<ImageRecor
     seedUsed: seedUsed(preset, input.seed),
     seedLocked: isSeedLocked,
     cost,
+  }
+
+  if (!isNil(endpoint)) {
+    record.source = customRecordSource(preset, endpoint)
+
+    record.presetSnapshot = PresetSnapshotSchema.parse({
+      id: preset.id,
+      title: preset.title,
+      family: preset.family,
+    })
   }
 
   const saved = await saveImage(record)

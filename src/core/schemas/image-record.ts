@@ -1,20 +1,18 @@
 import { z } from 'zod'
 
 import { IMAGE_COUNT_MAX, SEED_MAX } from '../constants'
-import {
-  IMAGE_ASPECT_RATIOS,
-  IMAGE_BACKGROUNDS,
-  IMAGE_QUALITIES,
-  IMAGE_RESOLUTIONS,
-} from '../presets/image/types'
+import { IMAGE_BACKGROUNDS, IMAGE_QUALITIES } from '../presets/image/types'
 import { PRICE_UNITS } from '../pricing/types'
-import { PROVIDER_IDS } from '../providers/types'
+import { PROVIDER_KIND_IDS } from '../providers/types'
 import {
   InputSnapshotSchema,
   PRICE_SOURCES,
+  RecordJobSchema,
   RecordPresetSchema,
   RecordSubmitSchema,
 } from './generation-record'
+import { PresetSnapshotSchema } from './preset-snapshot'
+import { RecordSourceSchema } from './record-source'
 
 export const IMAGE_RECORD_STATUSES = [
   'submitting',
@@ -73,8 +71,8 @@ export const ImageInputSchema = z.object({
   presetId: z.string().min(1),
   prompt: z.string(),
   count: z.number().int().min(1).max(IMAGE_COUNT_MAX),
-  aspectRatio: z.enum([...IMAGE_ASPECT_RATIOS, 'auto']),
-  resolution: z.enum(IMAGE_RESOLUTIONS).nullable(),
+  aspectRatio: z.string(),
+  resolution: z.string().nullable(),
   quality: z.enum(IMAGE_QUALITIES).nullable(),
   background: z.enum(IMAGE_BACKGROUNDS).nullable(),
   references: z.array(z.string()),
@@ -103,11 +101,14 @@ export const ImageRecordSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   status: z.enum(IMAGE_RECORD_STATUSES),
-  provider: z.enum(PROVIDER_IDS).default('openrouter'),
+  provider: z.enum(PROVIDER_KIND_IDS).default('openrouter'),
+  source: RecordSourceSchema.optional(),
   preset: RecordPresetSchema,
+  presetSnapshot: PresetSnapshotSchema.optional(),
   input: ImageInputSchema,
   inputsSnapshot: InputSnapshotSchema.optional(),
   submit: RecordSubmitSchema.optional(),
+  job: RecordJobSchema.optional(),
   outputs: z.array(ImageOutputSchema),
   seedUsed: z.number().nullable(),
 
