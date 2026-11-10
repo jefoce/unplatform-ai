@@ -1,9 +1,9 @@
-import { spawn } from 'node:child_process'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { freePort, TEMP_BASE } from './cdp.mjs'
+import { stopChild } from './stop-child.mjs'
 
 const ROOT = path.resolve(import.meta.dirname, '../../..')
 const OUTBOUND_GUARD = path.resolve(import.meta.dirname, 'outbound-guard.cjs')
@@ -65,19 +65,12 @@ function printedSessionUrl(logs) {
   return found[1]
 }
 
-/** Start command without a shell, so Windows never hits the DEP0190 prompt. */
+/** Runs Next directly without a shell, so Windows never hits the DEP0190 prompt. */
 function startCommand() {
-  const npmExecPath = process.env.npm_execpath?.trim()
-
-  if (npmExecPath !== undefined && /\.(?:c|m)?js$/i.test(npmExecPath)) {
-    return { command: process.execPath, args: [npmExecPath, 'start'] }
+  return {
+    command: process.execPath,
+    args: [path.join(ROOT, 'node_modules/next/dist/bin/next'), 'start', '-H', '127.0.0.1'],
   }
-
-  if (process.platform === 'win32') {
-    return { command: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', 'pnpm start'] }
-  }
-
-  return { command: 'pnpm', args: ['start'] }
 }
 
 /** One isolated app server on a free port with mock providers and a temp store. */
@@ -197,7 +190,7 @@ export async function startServer(options = {}) {
   }
 
   if (!isReady) {
-    child.kill('SIGKILL')
+    await stopChild({ child })
     throw new Error(`Server did not become ready:\n${logs.join('')}`)
   }
 
@@ -208,45 +201,7 @@ export async function startServer(options = {}) {
   }
 
   const stop = async () => {
-    if (child.exitCode !== null) {
-      return
-    }
-
-    try {
-      if (process.platform === 'win32') {
-        child.kill('SIGTERM')
-      } else {
-        process.kill(-child.pid, 'SIGTERM')
-      }
-    } catch (error) {
-      if (error.code !== 'ESRCH') {
-        throw error
-      }
-    }
-
-    const exited = await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        resolve(false)
-      }, 10_000)
-      child.once('exit', () => {
-        clearTimeout(timer)
-        resolve(true)
-      })
-    })
-
-    if (!exited) {
-      try {
-        if (process.platform === 'win32') {
-          child.kill('SIGKILL')
-        } else {
-          process.kill(-child.pid, 'SIGKILL')
-        }
-      } catch (error) {
-        if (error.code !== 'ESRCH') {
-          throw error
-        }
-      }
-    }
+    await stopChild({ child })
   }
 
   return { baseUrl, port, storageRoot, logs, api, stop, token: sessionToken, sessionUrl }

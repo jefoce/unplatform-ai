@@ -1,6 +1,9 @@
+import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+import { stopChild } from './e2e/lib/stop-child.mjs'
 
 const WORKFLOW = '.github/workflows/checks.yml'
 const SERVER = 'tests/e2e/lib/server.mjs'
@@ -85,7 +88,12 @@ describe('linux e2e shards', () => {
 })
 
 describe('e2e-windows image case', () => {
-  const step = stepBlock(jobBlock('e2e-windows'), 'Image first open')
+  const job = jobBlock('e2e-windows')
+  const step = stepBlock(job, 'Image first open')
+
+  it('times out after 15 minutes', () => {
+    expect(job).toContain('timeout-minutes: 15')
+  })
 
   it('runs under bash', () => {
     expect(step).toContain('shell: bash')
@@ -103,8 +111,50 @@ describe('e2e server start command', () => {
     expect(source).not.toContain("shell: process.platform === 'win32'")
   })
 
-  it('resolves the start command without a shell', () => {
-    expect(source).toContain('process.env.npm_execpath')
-    expect(source).toContain('process.env.ComSpec')
+  it('runs Next directly on every platform', () => {
+    expect(source).toContain('process.execPath')
+    expect(source).toContain('node_modules/next/dist/bin/next')
+    expect(source).not.toContain('npm_execpath')
+    expect(source).not.toContain('ComSpec')
+  })
+})
+
+class FakeChild extends EventEmitter {
+  pid = 4321
+  exitCode: number | null = null
+  signalCode: string | null = null
+  stdin = { destroy: vi.fn() }
+  stdout = { destroy: vi.fn() }
+  stderr = { destroy: vi.fn() }
+  kill = vi.fn()
+
+  scheduleExit(): void {
+    setTimeout(() => {
+      this.exitCode = 0
+      this.emit('exit', 0, null)
+    }, 0)
+  }
+}
+
+describe('stopChild on Windows', () => {
+  it('kills the process tree and waits for the exit', async () => {
+    const child = new FakeChild()
+
+    const spawnFn = vi.fn((_command: string, _args: string[], _options: object) => {
+      child.scheduleExit()
+    })
+
+    await stopChild({ child, platform: 'win32', spawnFn })
+
+    expect(spawnFn).toHaveBeenCalledWith('taskkill', ['/pid', '4321', '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+
+    expect(spawnFn.mock.calls[0]?.[2]).not.toHaveProperty('shell')
+    expect(child.kill).not.toHaveBeenCalled()
+    expect(child.stdin.destroy).toHaveBeenCalled()
+    expect(child.stdout.destroy).toHaveBeenCalled()
+    expect(child.stderr.destroy).toHaveBeenCalled()
   })
 })

@@ -29,6 +29,7 @@ import {
   stopBrowser,
   TEMP_BASE,
 } from './lib/cdp.mjs'
+import { exitCodeFor } from './lib/exit-code.mjs'
 import { buildApp, seedFailedImage, seedImage, seedVideo, startServer } from './lib/server.mjs'
 
 const WIDTHS = [1280, 1728, 2560]
@@ -264,12 +265,14 @@ async function main() {
   )
   console.log(`# total ${String(Date.now() - started)}ms`)
 
-  if (failed > 0) {
-    process.exitCode = 1
-  }
+  return failed
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exitCode = 1
-})
+main()
+  .then((failed) => {
+    process.exit(exitCodeFor(failed))
+  })
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })

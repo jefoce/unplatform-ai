@@ -184,7 +184,7 @@ jobs:
   e2e-windows:
     if: github.actor != 'dependabot[bot]' || github.base_ref != 'releases'
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       # Tracks the Chrome major shipped by the windows-2025 runner image.
       E2E_CHROME_MAJOR: '156'
