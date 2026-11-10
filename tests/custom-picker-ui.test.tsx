@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable max-lines, max-lines-per-function -- picker cases share one custom entry table */
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
+import { rememberPresetTitle } from '@/features/generator/model/preset-title'
 import { useGeneratorStore } from '@/features/generator/store/store'
 import { refreshCatalog, useCatalog } from '@/lib/api/catalog'
 
@@ -195,6 +197,21 @@ describe('custom model picker', () => {
     expect(handleSelect).toHaveBeenCalledWith(STALE.presetId)
   })
 
+  it('drops the stale warning when the same model turns ready', () => {
+    const ready = entry({ preset: customPreset(STALE.presetId, 'Flux Dev') })
+
+    useEntries([STALE])
+
+    const view = render(<ModelPicker />)
+
+    expect(within(openPicker()).getByLabelText(STALE.reason ?? '')).toBeTruthy()
+
+    useEntries([ready])
+    view.rerender(<ModelPicker />)
+
+    expect(within(screen.getByRole('dialog')).queryByLabelText(STALE.reason ?? '')).toBeNull()
+  })
+
   it('disables an unreachable row and hides a missing one', () => {
     useEntries([AVAILABLE, UNREACHABLE, MISSING])
 
@@ -230,6 +247,31 @@ describe('custom model picker', () => {
     expect(screen.getByRole('button', { name: /Model/ }).textContent).toContain(
       '[CU1] Gone Workflow',
     )
+  })
+
+  it('keeps a renamed selected model in the trigger with its remembered title', () => {
+    const oldId = 'custom.cu1.renamed-old'
+    const newId = 'custom.cu1.renamed-new'
+
+    rememberPresetTitle(oldId, 'Old Wan Workflow')
+    useEntries([entry({ preset: customPreset(newId, 'New Wan Workflow') })])
+
+    render(<ModelPicker selectedId={oldId} />)
+
+    expect(screen.getByRole('button', { name: /Model/ }).textContent).toContain('Old Wan Workflow')
+  })
+
+  it('offers the renamed model for selection', () => {
+    const handleSelect = vi.fn()
+    const newId = 'custom.cu1.renamed-pick'
+
+    useEntries([entry({ preset: customPreset(newId, 'New Wan Workflow') })])
+
+    render(<ModelPicker onSelect={handleSelect} />)
+
+    fireEvent.click(within(openPicker()).getByRole('button', { name: /New Wan Workflow/ }))
+
+    expect(handleSelect).toHaveBeenCalledWith(newId)
   })
 
   it('refetches the catalog on open and forces it from the refresh button', async () => {

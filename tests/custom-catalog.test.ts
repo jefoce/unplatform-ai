@@ -220,6 +220,31 @@ function jsonResponse(body: unknown): Response {
   })
 }
 
+/** Same id with new caps, labels and description, as a workflow edit rewrites them. */
+function changedVideoModel(base: UpaiModel): UpaiModel {
+  return {
+    ...base,
+    description: 'Updated local workflow',
+    capabilities: {
+      ...base.capabilities,
+      prompt: {
+        required: true,
+        max_chars: 1234,
+        reference_label: '<Ref {n}>',
+      },
+      references: {
+        image: { max: 0, required: 0 },
+        video: { max: 0, required: 0 },
+        audio: { max: 0, required: 0 },
+      },
+      resolutions: ['720p'],
+      default_resolution: '720p',
+      aspect_ratios: ['9:16'],
+      default_aspect_ratio: '9:16',
+    },
+  }
+}
+
 function customEntries(entries: readonly CatalogEntry[]): CatalogEntry[] {
   return entries.filter((entry) => {
     return entry.source.kind === 'custom'
@@ -694,6 +719,128 @@ describe('custom catalog', () => {
 
     expect(idsOf(customEntries(data.entries))).toContain(second.id)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns the changed capabilities of the same model after the minimum gap', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const changed = changedVideoModel(first)
+    const endpoint = customEndpoint('cat-auto-caps', 'CUC')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    mockListFetch({ video: [first] })
+    await ensureCustomCatalog({ isRefresh: false })
+
+    vi.setSystemTime(new Date(Date.now() + CUSTOM_CATALOG_MIN_REFRESH_MS + 1))
+    mockListFetch({ video: [changed] })
+
+    const data = await ensureCustomCatalog({ isRefresh: true })
+    const preset = entryFor(customEntries(data.entries), changed.id).preset
+
+    expect(preset).toMatchObject({
+      description: 'Updated local workflow',
+      resolutions: ['720p'],
+      defaultResolution: '720p',
+      aspectRatios: ['9:16'],
+      defaultAspectRatio: '9:16',
+      refLabel: '<Ref {n}>',
+      refLabels: { image: '<Ref {n}>', video: '<Ref {n}>', audio: '<Ref {n}>' },
+    })
+
+    if (isNil(preset) || !isVideoPreset(preset)) {
+      throw new Error('Expected a video preset')
+    }
+
+    expect(preset.references.image).toBe(0)
+  })
+
+  it('returns the changed capabilities on a forced refresh while young', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const changed = changedVideoModel(first)
+    const endpoint = customEndpoint('cat-force-caps', 'CUF')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [first] })
+    clearModelCatalog()
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    mockListFetch({ video: [first] })
+    await ensureCustomCatalog({ isRefresh: false })
+
+    mockListFetch({ video: [changed] })
+
+    const data = await ensureCustomCatalog({ isRefresh: true, isForce: true })
+    const preset = entryFor(customEntries(data.entries), changed.id).preset
+
+    if (isNil(preset) || !isVideoPreset(preset)) {
+      throw new Error('Expected a video preset')
+    }
+
+    expect(preset.references.image).toBe(0)
+    expect(preset.resolutions).toEqual(['720p'])
+    expect(preset.aspectRatios).toEqual(['9:16'])
+    expect(preset.description).toBe('Updated local workflow')
+  })
+
+  it('clears the stale reason when the same model turns ready', async () => {
+    const ready = modelAt(VIDEO_MODELS, 0)
+    const stale: UpaiModel = { ...ready, status: 'stale', status_reason: 'workflow is newer' }
+    const endpoint = customEndpoint('cat-stale-ready', 'CUS')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [stale] })
+    clearModelCatalog()
+
+    const before = entryFor(customEntries((await getLoadedCatalog()).entries), ready.id)
+
+    expect(before.status).toBe('available')
+    expect(before.reason).toBe(CUSTOM_STALE_REASON)
+
+    mockListFetch({ video: [ready] })
+
+    const after = entryFor(
+      customEntries((await ensureCustomCatalog({ isRefresh: true, isForce: true })).entries),
+      ready.id,
+    )
+
+    expect(after.status).toBe('available')
+    expect(after.reason).toBeNull()
+  })
+
+  it('drops a renamed workflow and lists the new id after a refresh', async () => {
+    const old = modelAt(VIDEO_MODELS, 0)
+
+    const fresh: UpaiModel = {
+      ...modelAt(VIDEO_MODELS, 1),
+      id: 'wan30-i2v',
+      name: 'Wan 3.0 I2V (local)',
+    }
+
+    const endpoint = customEndpoint('cat-renamed', 'CUR')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [old] })
+    clearModelCatalog()
+
+    expect(idsOf(customEntries((await getLoadedCatalog()).entries))).toContain(old.id)
+
+    mockListFetch({ video: [fresh] })
+
+    const after = customEntries(
+      (await ensureCustomCatalog({ isRefresh: true, isForce: true })).entries,
+    )
+
+    expect(entryFor(after, old.id)).toMatchObject({
+      status: 'missing',
+      reason: 'This workflow is gone from ComfyUI.',
+    })
+
+    expect(entryFor(after, fresh.id).status).toBe('available')
   })
 
   it('forces a refresh even while the custom cache is young', async () => {

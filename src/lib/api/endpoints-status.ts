@@ -20,6 +20,7 @@ import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { fetcher } from '@/lib/fetcher'
 
+import { refreshCatalog } from './catalog'
 import { ENDPOINTS_KEY, MODELS_KEY } from './swr-keys'
 
 const ENDPOINTS_TEST_PATH = `${ENDPOINTS_KEY}/test`
@@ -171,6 +172,8 @@ function timeoutReason(signal: AbortSignal): Promise<string> {
 }
 
 async function checkPreset(presetId: string): Promise<string | null> {
+  await refreshCatalog()
+
   const catalog = await fetcher<ModelCatalog>(CATALOG_PATH)
 
   const entry = catalog.entries.find((item) => {

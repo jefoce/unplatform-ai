@@ -195,6 +195,22 @@ describe('ready gate', () => {
     expect(result.current.reason).toBe(STALE_REASON)
   })
 
+  it('clears the stale reason when the same model turns ready', () => {
+    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
+
+    setCatalog([customEntry({ reason: 'Workflow changed in ComfyUI since the last save' })])
+
+    const { result, rerender } = renderReady('custom.cu1.wan22', 'video')
+
+    expect(result.current.reason).toBe(STALE_REASON)
+
+    setCatalog([customEntry()])
+    rerender()
+
+    expect(result.current.isReady).toBe(true)
+    expect(result.current.reason).toBeNull()
+  })
+
   it('reports a custom preset gone from the catalog and closes Generate', () => {
     mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
     setCatalog([])

@@ -46,7 +46,7 @@ function stubFetch(routes: FetchRoutes): ReturnType<typeof vi.fn> {
   const mock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input)
 
-    if (url === '/api/models') {
+    if (url.startsWith('/api/models')) {
       return Promise.resolve(json(routes.catalog))
     }
 
@@ -155,6 +155,23 @@ describe('fresh generate check', () => {
     })
 
     expect(urls).not.toContain('/api/endpoints/test')
+  })
+
+  it('refreshes a custom catalog automatically before reading the model', async () => {
+    const fetchMock = stubFetch({ catalog: catalog([entry()]) })
+
+    expect(await freshPresetReason(PRESET_ID)).toBeNull()
+
+    const urls = fetchMock.mock.calls.map(([input]) => {
+      return String(input)
+    })
+
+    const refreshIndex = urls.indexOf('/api/models?refresh=1')
+    const readIndex = urls.lastIndexOf('/api/models')
+
+    expect(refreshIndex).toBeGreaterThanOrEqual(0)
+    expect(readIndex).toBeGreaterThan(refreshIndex)
+    expect(urls).not.toContain('/api/models?refresh=1&force=1')
   })
 
   it('ignores OpenRouter presets', async () => {

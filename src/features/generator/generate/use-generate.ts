@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { isNil } from 'lodash-es'
+import { isNil, omit } from 'lodash-es'
 import { toast } from 'sonner'
 
-import { inputForSubmit } from '@/core/normalize-input'
-import { getPreset } from '@/core/presets'
+import { CATALOG_MISSING_REASON } from '@/core/catalog'
+import { inputForSubmit, normalizeForPreset } from '@/core/normalize-input'
+import { findPreset, getPreset } from '@/core/presets'
 import { friendlyError } from '@/core/provider-errors'
 import { providerDescriptor } from '@/core/providers/registry'
 import type { ProviderKindId } from '@/core/providers/types'
@@ -85,9 +86,29 @@ export function useGenerate(options: GenerateOptions = {}) {
         return
       }
 
+      const preset = findPreset(state.presetId)
+
+      if (isNil(preset)) {
+        setError(CATALOG_MISSING_REASON)
+        toast.error(CATALOG_MISSING_REASON)
+
+        return
+      }
+
+      const normalized = normalizeForPreset({
+        input: inputFromState(state),
+        preset,
+        uploads: state.uploadsById,
+      })
+
+      if (normalized.notes.length > 0) {
+        toast(normalized.notes.join(' \u00b7 '))
+      }
+
+      useGeneratorStore.setState(omit(normalized.input, 'prompt'))
       requestNotifications()
 
-      const input = inputForSubmit(inputFromState(state))
+      const input = inputForSubmit(normalized.input)
       const record = await createGeneration(input)
 
       resultId.current = record.id

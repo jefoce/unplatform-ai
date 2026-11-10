@@ -318,6 +318,20 @@ describe('custom preset estimates', () => {
     expect(customCalls).toHaveLength(0)
   })
 
+  it('validates a stale video draft against the current preset', async () => {
+    const preset = videoPreset(modelAt(VIDEO_MODELS, 1), 0)
+
+    registerPreset(preset)
+
+    await expect(loadDraft({ ...videoInput(preset), resolution: '1080p' })).rejects.toThrow(
+      ValidationError,
+    )
+
+    await expect(loadDraft({ ...videoInput(preset), aspectRatio: '21:9' })).rejects.toThrow(
+      ValidationError,
+    )
+  })
+
   it('returns the flat price for a custom image estimate', async () => {
     const preset = imagePreset(modelAt(IMAGE_MODELS, 0), 2.5)
 
