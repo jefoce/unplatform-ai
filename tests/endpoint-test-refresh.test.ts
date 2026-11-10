@@ -7,6 +7,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
 import { ENDPOINT_TEST_CACHE_LIMIT, MAX_JSON_BODY_BYTES } from '../src/core/constants'
+import type { GenerationRecord } from '../src/core/schemas/generation-record'
+import { storedRecord } from './helpers/stored-record'
 
 const ROOT = vi.hoisted(() => {
   const os = process.getBuiltinModule('node:os')
@@ -51,6 +53,8 @@ const HEALTH = {
 
 const { testEndpoint } = await import('@/server/services/endpoint-test')
 
+const { saveGeneration } = await import('@/server/repos/generations')
+
 const { clearEndpointModelCache, readEndpointModels } =
   await import('@/server/services/endpoint-model-cache')
 
@@ -78,6 +82,30 @@ function jsonResponse(body: unknown): Response {
 
 function deferred<T>() {
   return Promise.withResolvers<T>()
+}
+
+function activeRecord(id: string): GenerationRecord {
+  return storedRecord(id, {
+    status: 'in_progress',
+    source: {
+      kind: 'custom',
+      instanceId: SAVED_ID,
+      badge: 'CU1',
+      presetTitle: 'Wan',
+      workflowName: null,
+      endpointLabel: 'Studio',
+      local: true,
+    },
+  })
+}
+
+function stubFailedFetch(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new TypeError('fetch failed')
+    }),
+  )
 }
 
 function mockFetch(): string[] {
@@ -291,6 +319,28 @@ describe('server-owned test health', () => {
     expect(lastTestFor({ baseUrl: SAVED_URL, token: null })).toBeNull()
   })
 
+  it('keeps the previous health after one failed test', async () => {
+    mockFetch()
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)?.state).toBe('ok')
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const error = new Error('Test timed out')
+
+        error.name = 'TimeoutError'
+
+        throw error
+      }),
+    )
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)?.state).toBe('ok')
+  })
+
   it('drops one cached test on demand', async () => {
     mockFetch()
     await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
@@ -318,6 +368,34 @@ describe('server-owned test health', () => {
     for (const baseUrl of kept) {
       expect(lastTestFor({ baseUrl, token: null })).not.toBeNull()
     }
+  })
+})
+
+describe('test failure threshold', () => {
+  it('needs two failed tests to close an idle endpoint', async () => {
+    stubFailedFetch()
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)).toBeNull()
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)?.state).toBe('unreachable')
+  })
+
+  it('needs three failed tests while a job runs', async () => {
+    await saveGeneration(activeRecord('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'))
+    stubFailedFetch()
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)).toBeNull()
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)?.state).toBe('unreachable')
   })
 })
 
@@ -419,6 +497,9 @@ describe('overlapping endpoint tests', () => {
     await olderStarted.promise
 
     const newerResult = await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
     const healthAfterNewer = getHealth(SAVED_ID)
 
     expect(newerResult.ok).toBe(false)

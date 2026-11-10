@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+/* eslint-disable max-lines -- health cases share one fixture setup */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { UpaiJobSchema } from '@/core/protocol/upai'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
@@ -31,8 +32,12 @@ vi.mock('@/server/providers/custom/endpoint-source', () => {
     getEndpointsSync: () => {
       return endpoints
     },
-    getEndpointSync: () => {
-      return null
+    getEndpointSync: (id: string) => {
+      return (
+        endpoints.find((item) => {
+          return item.id === id
+        }) ?? null
+      )
     },
     getEndpointToken: () => {
       return null
@@ -50,6 +55,7 @@ const {
   getHealth,
   getMaxRunning,
   isHealthFresh,
+  recordHealthFailure,
   recordHealthFromError,
   recordHealthOk,
   registerEndpointHealthListener,
@@ -71,9 +77,26 @@ function providerError(status: number, code: string): ProviderErrorType {
   })
 }
 
+interface FailParams {
+  endpointId: string
+  error: unknown
+  source?: 'job' | 'catalog'
+  isJobRunning?: boolean
+}
+
+function fail(params: FailParams): boolean {
+  const { endpointId, error, source = 'catalog', isJobRunning = false } = params
+
+  return recordHealthFromError({ endpointId, error, source, isJobRunning })
+}
+
 beforeEach(() => {
   resetHealth()
   registerEndpointHealthListener()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('endpoint health', () => {
@@ -83,26 +106,52 @@ describe('endpoint health', () => {
     expect(result).toEqual({ ok: false, error: 'Endpoint removed' })
   })
 
-  it('maps 401, 403 and a wrong protocol', () => {
-    recordHealthFromError('ep1', providerError(401, 'unauthorized'))
-    expect(getHealth('ep1')?.state).toBe('unauthorized')
+  it('maps 401, 403, a wrong protocol and a network failure after two tries', () => {
+    const cases = [
+      { error: providerError(401, 'unauthorized'), state: 'unauthorized' },
+      { error: providerError(403, 'forbidden'), state: 'forbidden' },
+      { error: providerError(0, 'protocol'), state: 'protocol' },
+      { error: new TypeError('fetch failed'), state: 'unreachable' },
+    ]
 
-    recordHealthFromError('ep1', providerError(403, 'forbidden'))
-    expect(getHealth('ep1')?.state).toBe('forbidden')
+    for (const item of cases) {
+      recordHealthOk('ep1')
+      fail({ endpointId: 'ep1', error: item.error })
+      expect(getHealth('ep1')?.state).toBe('ok')
 
-    recordHealthFromError('ep1', providerError(0, 'protocol'))
-    expect(getHealth('ep1')?.state).toBe('protocol')
+      fail({ endpointId: 'ep1', error: item.error })
+      expect(getHealth('ep1')?.state).toBe(item.state)
+    }
+  })
 
-    recordHealthFromError('ep1', new TypeError('fetch failed'))
+  it('keeps no entry below the threshold', () => {
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
+
+    expect(getHealth('ep1')).toBeNull()
+  })
+
+  it('counts a failed probe before closing the endpoint', () => {
+    const outcome = {
+      state: 'unreachable' as const,
+      message: 'Health check failed',
+      maxRunning: null,
+    }
+
+    emitCustomHealth('ep1', outcome)
+
+    expect(getHealth('ep1')).toBeNull()
+
+    emitCustomHealth('ep1', outcome)
+
     expect(getHealth('ep1')?.state).toBe('unreachable')
   })
 
   it('keeps an ok endpoint open after a 400 input error', () => {
     recordHealthOk('ep1')
 
-    recordHealthFromError(
-      'ep1',
-      new ProviderError({
+    fail({
+      endpointId: 'ep1',
+      error: new ProviderError({
         providerId: 'custom',
         kind: 'input',
         message: 'bad request',
@@ -110,51 +159,135 @@ describe('endpoint health', () => {
         status: 400,
         code: 'invalid',
       }),
-    )
+    })
 
     expect(getHealth('ep1')?.state).toBe('ok')
   })
 
-  it('keeps an ok endpoint open after a job failure or timeout', () => {
+  it('keeps an ok endpoint open after a job failure or a catalog timeout', () => {
     recordHealthOk('ep1')
 
-    recordHealthFromError('ep1', jobFailureError(UpaiJobSchema.parse(jobFailedFixture)))
-
-    expect(getHealth('ep1')?.state).toBe('ok')
-
-    recordHealthFromError('ep1', timeoutError())
+    fail({ endpointId: 'ep1', error: jobFailureError(UpaiJobSchema.parse(jobFailedFixture)) })
+    fail({ endpointId: 'ep1', error: timeoutError() })
 
     expect(getHealth('ep1')?.state).toBe('ok')
   })
 
-  it('closes an ok endpoint on a network, unavailable or auth failure', () => {
+  it('closes an ok endpoint after two network, unavailable or auth failures', () => {
+    const cases = [
+      { error: new TypeError('fetch failed'), state: 'unreachable' },
+      { error: providerError(0, 'comfy_unavailable'), state: 'unreachable' },
+      { error: providerError(401, 'unauthorized'), state: 'unauthorized' },
+      { error: providerError(403, 'forbidden'), state: 'forbidden' },
+    ]
+
+    for (const item of cases) {
+      recordHealthOk('ep1')
+      fail({ endpointId: 'ep1', error: item.error })
+      fail({ endpointId: 'ep1', error: item.error })
+
+      expect(getHealth('ep1')?.state).toBe(item.state)
+    }
+  })
+})
+
+describe('endpoint health counts', () => {
+  it('needs a third failure while a job runs', () => {
     recordHealthOk('ep1')
-    recordHealthFromError('ep1', new TypeError('fetch failed'))
+
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed'), isJobRunning: true })
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed'), isJobRunning: true })
+
+    expect(getHealth('ep1')?.state).toBe('ok')
+
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed'), isJobRunning: true })
 
     expect(getHealth('ep1')?.state).toBe('unreachable')
+  })
 
+  it('resets the count after a success', () => {
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
     recordHealthOk('ep1')
-    recordHealthFromError('ep1', providerError(0, 'comfy_unavailable'))
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
 
-    expect(getHealth('ep1')?.state).toBe('unreachable')
+    expect(getHealth('ep1')?.state).toBe('ok')
+  })
+})
 
+describe('endpoint health timeouts', () => {
+  it('counts a timeout for a job poll but never for a catalog fetch', () => {
     recordHealthOk('ep1')
-    recordHealthFromError('ep1', providerError(401, 'unauthorized'))
+    fail({ endpointId: 'ep1', error: timeoutError() })
+    fail({ endpointId: 'ep1', error: timeoutError() })
+
+    expect(getHealth('ep1')?.state).toBe('ok')
+
+    recordHealthOk('ep2')
+    fail({ endpointId: 'ep2', error: timeoutError(), source: 'job' })
+    fail({ endpointId: 'ep2', error: timeoutError(), source: 'job' })
+
+    expect(getHealth('ep2')?.state).toBe('unreachable')
+  })
+})
+
+describe('endpoint health reports', () => {
+  it('logs once at the transition and hides the URL and token', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const error = new ProviderError({
+      providerId: 'custom',
+      kind: 'server',
+      message: 'failed',
+      storedMessage:
+        'upai:comfy_unavailable: fetch https://127.0.0.1:8188/jobs?token=SECRET failed Bearer SECRET',
+      status: 0,
+      code: 'comfy_unavailable',
+    })
+
+    fail({ endpointId: 'ep1', error })
+    fail({ endpointId: 'ep1', error })
+    fail({ endpointId: 'ep1', error })
+
+    expect(warn).toHaveBeenCalledTimes(1)
+
+    const line = String(warn.mock.calls[0]?.[0])
+
+    expect(line).toBe('[unplatform-ai] endpoint CU1 unreachable (network): fetch failed')
+    expect(line).not.toContain('https')
+    expect(line).not.toContain('SECRET')
+  })
+
+  it('applies the same threshold to a ready failure status', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    recordHealthFailure({ endpointId: 'ep1', status: 'unauthorized', message: 'Token rejected' })
+
+    expect(getHealth('ep1')).toBeNull()
+
+    recordHealthFailure({ endpointId: 'ep1', status: 'unauthorized', message: 'Token rejected' })
 
     expect(getHealth('ep1')?.state).toBe('unauthorized')
 
-    recordHealthOk('ep1')
-    recordHealthFromError('ep1', providerError(403, 'forbidden'))
-
-    expect(getHealth('ep1')?.state).toBe('forbidden')
+    expect(String(warn.mock.calls[0]?.[0])).toBe(
+      '[unplatform-ai] endpoint CU1 unreachable (http 401): Token rejected',
+    )
   })
 
   it('clears a failure on a successful poll and keeps the limit', () => {
-    recordHealthFromError('ep1', providerError(401, 'unauthorized'))
-    recordHealthOk('ep1')
+    fail({ endpointId: 'ep1', error: providerError(401, 'unauthorized') })
+    fail({ endpointId: 'ep1', error: providerError(401, 'unauthorized') })
+    recordHealthOk('ep1', 4)
 
     expect(getHealth('ep1')?.state).toBe('ok')
     expect(getHealth('ep1')?.message).toBeNull()
+    expect(getMaxRunning('pack-1')).toBe(4)
+  })
+
+  it('keeps the last limit through an ok without one', () => {
+    setEndpointHealth({ endpointId: 'ep1', status: 'ok', message: null, maxRunning: 3 })
+    recordHealthOk('ep1')
+
+    expect(getMaxRunning('pack-1')).toBe(3)
   })
 
   it('treats a state older than the max age as stale', () => {

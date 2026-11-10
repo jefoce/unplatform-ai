@@ -99,6 +99,15 @@ export function endpointProtocolError(): ProviderError {
   })
 }
 
+/** Custom endpoints store the same text twice, so keep it single. */
+export function errorTextOf(error: ProviderError): string {
+  if (error.message === '' || error.storedMessage === error.message) {
+    return error.storedMessage
+  }
+
+  return `${error.storedMessage}: ${error.message}`
+}
+
 export function endpointResponseError(params: ResponseErrorParams): ProviderError {
   const { status, error, isMissingToken } = params
 

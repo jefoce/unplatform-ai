@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- poll cases share one fixture setup */
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => {
     endpoints: new Set<string>(['ep1']),
     recordHealthOk: vi.fn(),
     recordHealthFromError: vi.fn(),
+    isOffline: false,
     queueDownload: vi.fn(),
   }
 })
@@ -44,7 +46,14 @@ vi.mock('@/server/providers/custom/endpoint-source', () => {
 vi.mock('@/server/services/endpoint-health', () => {
   return {
     recordHealthOk: mocks.recordHealthOk,
-    recordHealthFromError: mocks.recordHealthFromError,
+    recordHealthFromError: (params: unknown) => {
+      mocks.recordHealthFromError(params)
+
+      return mocks.isOffline
+    },
+    shortErrorText: () => {
+      return 'Endpoint unreachable'
+    },
   }
 })
 
@@ -84,6 +93,7 @@ beforeEach(() => {
   mocks.recordHealthOk.mockReset()
   mocks.recordHealthFromError.mockReset()
   mocks.queueDownload.mockReset()
+  mocks.isOffline = false
   mocks.endpoints.clear()
   mocks.endpoints.add('ep1')
 })
@@ -208,7 +218,66 @@ describe('custom record completion cost', () => {
     await repo.saveGeneration(record)
     await processRecord(record)
 
-    expect(mocks.recordHealthFromError).toHaveBeenCalledWith('ep1', expect.anything())
+    expect(mocks.recordHealthFromError).toHaveBeenCalledWith({
+      endpointId: 'ep1',
+      error: expect.anything(),
+      source: 'job',
+      isJobRunning: true,
+    })
+  })
+})
+
+describe('transient offline poll errors', () => {
+  it('leaves the record unchanged after one failed poll', async () => {
+    const id = '88888888-8888-4888-8888-888888888888'
+    const record = customRecord(id, 0)
+
+    mocks.getJob.mockRejectedValue(new TypeError('fetch failed'))
+    mocks.isOffline = false
+
+    await repo.saveGeneration(record)
+    await expect(processRecord(record)).rejects.toThrow('fetch failed')
+
+    const saved = await repo.getGeneration(id)
+
+    expect(saved?.status).toBe('in_progress')
+    expect(saved?.error).toBeUndefined()
+  })
+
+  it('writes the transient offline error once the helper reports offline', async () => {
+    const id = '99999999-9999-4999-8999-999999999999'
+    const record = customRecord(id, 0)
+
+    mocks.getJob.mockRejectedValue(new TypeError('fetch failed'))
+    mocks.isOffline = true
+
+    await repo.saveGeneration(record)
+    await expect(processRecord(record)).rejects.toThrow('fetch failed')
+
+    const saved = await repo.getGeneration(id)
+
+    expect(saved?.status).toBe('in_progress')
+    expect(saved?.error).toBe('upai:comfy_unavailable: Endpoint unreachable')
+  })
+
+  it('clears the transient offline error on the next good poll', async () => {
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
+    const record = {
+      ...customRecord(id, 0),
+      createdAt: new Date().toISOString(),
+      error: 'upai:comfy_unavailable: Endpoint unreachable',
+    }
+
+    mocks.getJob.mockResolvedValue(snapshot({ status: 'in_progress', error: null }))
+
+    await repo.saveGeneration(record)
+    await processRecord(record)
+
+    const saved = await repo.getGeneration(id)
+
+    expect(saved?.status).toBe('in_progress')
+    expect(saved?.error).toBeUndefined()
   })
 })
 

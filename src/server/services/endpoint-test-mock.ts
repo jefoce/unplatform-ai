@@ -9,7 +9,7 @@ import {
 
 import { customMockFixtures } from '../providers/mock/custom-fixtures'
 import { customMockCatalogForInstance } from '../providers/mock/custom-mock'
-import { setEndpointHealth } from './endpoint-health'
+import { recordHealthFailure, recordHealthOk } from './endpoint-health'
 
 const OFFLINE_TEXT = 'Start ComfyUI, then test again'
 
@@ -33,7 +33,7 @@ export function mockTestResult(endpointId: string): EndpointTestResult {
   const checkedAt = new Date().toISOString()
 
   if (!catalog.isReachable) {
-    setEndpointHealth({ endpointId, status: 'unreachable', message: OFFLINE_TEXT })
+    recordHealthFailure({ endpointId, status: 'unreachable', message: OFFLINE_TEXT })
 
     return {
       ok: false,
@@ -49,7 +49,7 @@ export function mockTestResult(endpointId: string): EndpointTestResult {
     }
   }
 
-  setEndpointHealth({ endpointId, status: 'ok', message: null, maxRunning: health.max_running })
+  recordHealthOk(endpointId, health.max_running)
 
   return {
     ok: true,

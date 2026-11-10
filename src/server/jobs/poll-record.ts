@@ -19,7 +19,9 @@ import { getVideoProvider } from '../providers/registry'
 import type { JobProgress, JobSnapshot } from '../providers/types'
 import { updateGeneration } from '../repos/generations'
 import { recordHealthFromError, recordHealthOk } from '../services/endpoint-health'
+import { errorTextOf } from './custom-endpoint-errors'
 import { queueDownload } from './download-queue'
+import { writeTransientOffline } from './transient-offline'
 
 const RETRY_KINDS: readonly ProviderErrorKind[] = ['timeout', 'rate_limit', 'server']
 
@@ -102,7 +104,16 @@ async function pollJob(params: PollJobParams): Promise<JobSnapshot | null> {
     return snapshot
   } catch (error) {
     if (record.provider === 'custom') {
-      recordHealthFromError(instanceId, error)
+      const isOffline = recordHealthFromError({
+        endpointId: instanceId,
+        error,
+        source: 'job',
+        isJobRunning: true,
+      })
+
+      if (isOffline) {
+        await writeTransientOffline(record.id, error)
+      }
     }
 
     if (await handleJobError(record, error)) {
@@ -309,15 +320,6 @@ async function handleJobError(record: GenerationRecord, error: unknown): Promise
   }
 
   return RETRY_KINDS.includes(error.kind)
-}
-
-/** Custom endpoints store the same text twice, so keep it single. */
-function errorTextOf(error: ProviderError): string {
-  if (error.message === '' || error.storedMessage === error.message) {
-    return error.storedMessage
-  }
-
-  return `${error.storedMessage}: ${error.message}`
 }
 
 function isAgedOut(record: GenerationRecord, status: JobStatus): boolean {

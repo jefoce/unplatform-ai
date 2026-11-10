@@ -15,6 +15,7 @@ import {
   type ModelCatalog,
 } from '@/core/catalog'
 import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
+import { isOfflineHealthStatus } from '@/core/endpoints'
 import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { fetcher } from '@/lib/fetcher'
@@ -97,7 +98,7 @@ export function hasReadyEndpoint(
   })
 }
 
-/** Endpoint status not `ok`, used for the offline pill. */
+/** Only a closed endpoint shows the offline pill, never an unchecked one. */
 export function isEndpointOffline(
   endpoints: readonly EndpointOverviewEntry[],
   instanceId: string | null,
@@ -108,7 +109,7 @@ export function isEndpointOffline(
     return false
   }
 
-  return endpoint.status !== 'ok'
+  return isOfflineHealthStatus(endpoint.status)
 }
 
 async function testEndpointHealth(

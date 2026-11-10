@@ -82,6 +82,7 @@ vi.mock('@/core/providers/registry', () => {
 
 const {
   clearEndpointModelCache,
+  isEndpointUnreachable,
   markEndpointUnreachable,
   readEndpointModels,
   writeEndpointModels,
@@ -557,7 +558,7 @@ describe('custom catalog', () => {
     expect(getHealth(endpoint.id)?.state).toBe('ok')
   })
 
-  it('keeps the cached list when a tested endpoint fetch fails', async () => {
+  it('keeps the cached list available after one failed fetch', async () => {
     const video = modelAt(VIDEO_MODELS, 0)
     const endpoint = healthEndpoint('cat-net-fail', 'CUG', 1000)
 
@@ -578,8 +579,39 @@ describe('custom catalog', () => {
 
     const entries = customEntries((await getLoadedCatalog()).entries)
 
-    expect(entryFor(entries, video.id).status).toBe('unverified')
-    expect(getHealth(endpoint.id)?.state).toBe('unreachable')
+    expect(entryFor(entries, video.id).status).toBe('available')
+    expect(getHealth(endpoint.id)).toBeNull()
+    expect(isEndpointUnreachable(endpoint.id)).toBe(false)
+  })
+
+  it('keeps cached models available when the model list times out once', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-timeout', 'CUT')
+
+    await writeEndpoints([endpoint])
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    vi.setSystemTime(new Date(Date.now() + MODEL_CATALOG_TTL_MS + 1))
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const error = new Error('Request timed out')
+
+        error.name = 'TimeoutError'
+
+        throw error
+      }),
+    )
+
+    const entries = customEntries((await getLoadedCatalog()).entries)
+
+    expect(entryFor(entries, video.id).status).toBe('available')
+    expect(getHealth(endpoint.id)).toBeNull()
+    expect(isEndpointUnreachable(endpoint.id)).toBe(false)
   })
 
   it('fetches both lists for an untested endpoint with a stale cache', async () => {
@@ -794,6 +826,8 @@ describe('GET /api/models', () => {
     })
 
     vi.stubGlobal('fetch', fetchMock)
+
+    await GET(catalogRequest('?refresh=1&force=1'))
 
     const response = await GET(catalogRequest('?refresh=1&force=1'))
     const body = RouteBodySchema.parse(await response.json())

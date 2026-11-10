@@ -136,7 +136,12 @@ export async function submitCall(params: SubmitCallParams): Promise<CallOutcome>
     }
   } catch (error) {
     if (record.provider === 'custom') {
-      recordHealthFromError(instanceId, error)
+      recordHealthFromError({
+        endpointId: instanceId,
+        error,
+        source: 'job',
+        isJobRunning: true,
+      })
     }
 
     return failedOutcome(call, error)

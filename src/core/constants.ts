@@ -209,6 +209,12 @@ export const CUSTOM_MISSING_KEEP_DAYS = 30
 /** A health state older than this is refreshed on the next use. */
 export const ENDPOINT_HEALTH_MAX_AGE_MS = 30_000
 
+/** Consecutive failures before an idle endpoint is reported offline. */
+export const ENDPOINT_FAILURE_THRESHOLD = 2
+
+/** Consecutive failures before an endpoint with a running job is reported offline. */
+export const ENDPOINT_JOB_FAILURE_THRESHOLD = 3
+
 /** Cached server tests kept in memory, oldest insertion evicted first. */
 export const ENDPOINT_TEST_CACHE_LIMIT = 32
 

@@ -366,6 +366,7 @@ describe('health freshness', () => {
     )
 
     await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: id })
+    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: id })
 
     const next = await service.saveEndpoints({ endpoints: [{ ...endpoint('Studio'), id }] })
     const health = await import('@/server/services/endpoint-health')

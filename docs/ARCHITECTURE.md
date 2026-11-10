@@ -321,7 +321,9 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `DOCKED_PANEL_EDGE_GAP` | 16 | Gap between a docked panel and the viewport edges |
 | `DOCKED_PANEL_WIDTH` | 560 | Default docked panel width, the video picker size |
 | `DOWNLOAD_STAGGER_MS` | 300 | Delay between batch download starts |
+| `ENDPOINT_FAILURE_THRESHOLD` | 2 | Consecutive failures before an idle endpoint is reported offline |
 | `ENDPOINT_HEALTH_MAX_AGE_MS` | 30000 | A health state older than this is refreshed on the next use |
+| `ENDPOINT_JOB_FAILURE_THRESHOLD` | 3 | Consecutive failures before an endpoint with a running job is reported offline |
 | `ENDPOINT_TEST_CACHE_LIMIT` | 32 | Cached server tests kept in memory, oldest insertion evicted first |
 | `EXPORT_TOKEN_TTL_MS` | 600000 | Window to use a save-dialog path |
 | `FETCH_TIMEOUTS.submit` | 300000 | Submit request timeout |

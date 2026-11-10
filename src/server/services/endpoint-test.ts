@@ -20,7 +20,8 @@ import { getEndpointSync } from '../providers/custom/endpoint-source'
 import { resetCustomProviders } from '../providers/registry'
 import { normalizeBaseUrl } from '../repos/endpoints'
 import { secretsReady } from '../secrets'
-import { setEndpointHealth } from './endpoint-health'
+import { countActiveJobs } from './endpoint-active-jobs'
+import { recordHealthFailure, recordHealthOk } from './endpoint-health'
 import { writeEndpointModels } from './endpoint-model-cache'
 import { fetchJson, type TestFailure, testFailure } from './endpoint-test-http'
 import { lastHealthOf, mockTestResult } from './endpoint-test-mock'
@@ -135,12 +136,7 @@ async function saveTestSuccess(params: SaveTestSuccessParams): Promise<void> {
   }
 
   if (isSavedEndpoint && !isNil(endpointId)) {
-    setEndpointHealth({
-      endpointId,
-      status: 'ok',
-      message: null,
-      maxRunning: health.max_running,
-    })
+    recordHealthOk(endpointId, health.max_running)
 
     await writeEndpointModels({ endpointId, kind: 'video', models: video })
 
@@ -172,7 +168,7 @@ interface SaveTestFailureParams extends TestRunParams {
 }
 
 /** Persists a failure only while this run is the newest for its key. */
-function saveTestFailure(params: SaveTestFailureParams): void {
+async function saveTestFailure(params: SaveTestFailureParams): Promise<void> {
   const { key, run, endpointId, isSavedEndpoint, failure } = params
 
   if (!isNewestTestRun({ key, run })) {
@@ -182,10 +178,17 @@ function saveTestFailure(params: SaveTestFailureParams): void {
   setTestCacheEntry({ key, entry: { lastHealth: null, checkedAt: new Date().toISOString() } })
 
   if (isSavedEndpoint && !isNil(endpointId)) {
-    setEndpointHealth({
+    const isJobRunning = (await countActiveJobs(endpointId)) > 0
+
+    if (!isNewestTestRun({ key, run })) {
+      return
+    }
+
+    recordHealthFailure({
       endpointId,
       status: failure.status,
       message: failure.message,
+      isJobRunning,
     })
   }
 }
@@ -267,7 +270,7 @@ export async function testEndpoint(params: EndpointTestBody): Promise<EndpointTe
   } catch (error) {
     const failure = testFailure(error)
 
-    saveTestFailure({
+    await saveTestFailure({
       key,
       run,
       endpointId: params.endpointId,

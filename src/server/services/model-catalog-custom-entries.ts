@@ -21,6 +21,7 @@ import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import { fallbackPricing } from '../pricing/live'
 import { requestHeaders, requestJson } from '../providers/custom/http'
 import { customRunPriceFromUsd } from '../providers/custom/pricing'
+import { countActiveJobs } from './endpoint-active-jobs'
 import { recordHealthFromError, recordHealthOk } from './endpoint-health'
 import {
   isEndpointUnreachable,
@@ -131,8 +132,16 @@ async function endpointModels(
 
     return await readEndpointModels(endpoint.id)
   } catch (error) {
-    markEndpointUnreachable(endpoint.id)
-    recordHealthFromError(endpoint.id, error)
+    const isOffline = recordHealthFromError({
+      endpointId: endpoint.id,
+      error,
+      source: 'catalog',
+      isJobRunning: (await countActiveJobs(endpoint.id)) > 0,
+    })
+
+    if (isOffline) {
+      markEndpointUnreachable(endpoint.id)
+    }
 
     return cached
   }
