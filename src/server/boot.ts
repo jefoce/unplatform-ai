@@ -3,6 +3,7 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import { isMockMode } from './config/mock-mode'
+import { flushCleanupQueue } from './fs/cleanup-queue'
 import { acquireInstanceLock } from './instance-lock'
 import { reconcileImages } from './jobs/image-reconcile'
 import { runImageSubmit } from './jobs/image-run'
@@ -78,6 +79,7 @@ export async function bootServer(): Promise<void> {
   configureSubmitQueue({ run: runSubmit })
   onJobSent(startPoller)
 
+  await flushCleanupQueue()
   startPoller()
   startParentWatch()
   await reconcileImages()

@@ -5,7 +5,8 @@ import { isNil } from 'lodash-es'
 import { type GenerationRecord, GenerationRecordSchema } from '@/core/schemas/generation-record'
 import { ACTIVE_STATUSES } from '@/core/types'
 
-import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
+import { removeOwnedOrQueue } from '../fs/cleanup-queue'
+import { writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { downloadPaths, DOWNLOADS_DIR } from '../paths'
 import { withLock } from '../sync/lock'
@@ -56,11 +57,11 @@ export async function deleteGenerationFiles(id: string): Promise<void> {
   const paths = downloadPaths(id)
 
   await Promise.all([
-    removeOwnedFile(paths.json),
-    removeOwnedFile(paths.video),
-    removeOwnedFile(paths.preview),
-    removeOwnedFile(paths.preview.replace(/\.webp$/, '.png')),
-    removeOwnedFile(paths.part),
+    removeOwnedOrQueue(paths.json),
+    removeOwnedOrQueue(paths.video),
+    removeOwnedOrQueue(paths.preview),
+    removeOwnedOrQueue(paths.preview.replace(/\.webp$/, '.png')),
+    removeOwnedOrQueue(paths.part),
   ])
 
   await store.forget(id)

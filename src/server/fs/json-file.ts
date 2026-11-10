@@ -135,7 +135,9 @@ export async function writeJsonAtomic(params: WriteJsonAtomicParams): Promise<vo
 
 export async function removeFile(file: string): Promise<void> {
   try {
-    await fs.unlink(file)
+    await retryOnWindowsLock(() => {
+      return fs.unlink(file)
+    })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw error

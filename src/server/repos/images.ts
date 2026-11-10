@@ -6,7 +6,8 @@ import { isNil } from 'lodash-es'
 
 import { type ImageOutput, type ImageRecord, ImageRecordSchema } from '@/core/schemas/image-record'
 
-import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
+import { removeOwnedOrQueue } from '../fs/cleanup-queue'
+import { writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { imageRecordPath, IMAGES_DIR } from '../paths'
 import { type JsonDirChange, jsonDirStore } from './json-dir-store'
@@ -60,10 +61,10 @@ export async function removeImageOutputFile(output: ImageOutput): Promise<void> 
     return
   }
 
-  await removeOwnedFile(file)
+  await removeOwnedOrQueue(file)
 }
 
-/** Removes the record json, then every output file, then forgets the index entry. */
+/** Removes the record json and every output file, then forgets the index entry. */
 export async function deleteImageFiles(id: string): Promise<void> {
   if (!isUuid(id)) {
     return
@@ -75,10 +76,9 @@ export async function deleteImageFiles(id: string): Promise<void> {
     return !isNil(file)
   })
 
-  await removeOwnedFile(imageRecordPath(id))
-
   try {
-    await Promise.all(files.map(removeOwnedFile))
+    await removeOwnedOrQueue(imageRecordPath(id))
+    await Promise.all(files.map(removeOwnedOrQueue))
   } finally {
     await store.forget(id)
   }
