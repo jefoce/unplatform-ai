@@ -96,6 +96,9 @@ vi.mock('@/server/media/image-data-url', () => {
 const { createGeneration } = await import('@/server/services/create-generation')
 const { createImage } = await import('@/server/services/image-create')
 
+const { setEndpointHealth, __resetEndpointHealthForTests: resetEndpointHealth } =
+  await import('@/server/services/endpoint-health')
+
 const VIDEO_PRESET: VideoPreset = {
   ...getPreset('wan-3.0'),
   id: `custom.${ENDPOINT.id}.wan`,
@@ -146,6 +149,7 @@ function imageInput(preset: ImagePreset): ImageGenerationInput {
 }
 
 beforeEach(() => {
+  resetEndpointHealth()
   mocks.loadDraft.mockReset()
   mocks.getEndpoint.mockReset()
   mocks.saveGeneration.mockReset()
@@ -195,6 +199,38 @@ describe('custom record preset snapshot', () => {
     })
 
     expect(Object.keys(record.presetSnapshot ?? {}).sort()).toEqual(['family', 'id', 'title'])
+  })
+})
+
+describe('custom create endpoint health', () => {
+  it('rejects a video job while the endpoint is unreachable', async () => {
+    const input = videoInput()
+
+    mocks.loadDraft.mockResolvedValue({ preset: VIDEO_PRESET, input, uploads: {} })
+    setEndpointHealth({ endpointId: ENDPOINT.id, status: 'unreachable', message: 'Down' })
+
+    await expect(createGeneration(input)).rejects.toMatchObject({
+      status: 400,
+      message: 'ComfyUI is not reachable.',
+    })
+
+    expect(mocks.saveGeneration).not.toHaveBeenCalled()
+  })
+
+  it('rejects an image job while the endpoint is unreachable', async () => {
+    const preset = imagePreset()
+
+    setEndpointHealth({ endpointId: ENDPOINT.id, status: 'unreachable', message: 'Down' })
+
+    await expect(
+      createImage({
+        preset,
+        input: imageInput(preset),
+        price: { estimatedUsd: 0, priceSource: 'fallback' },
+      }),
+    ).rejects.toMatchObject({ status: 400, message: 'ComfyUI is not reachable.' })
+
+    expect(mocks.saveImage).not.toHaveBeenCalled()
   })
 })
 

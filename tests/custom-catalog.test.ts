@@ -494,6 +494,30 @@ describe('custom catalog', () => {
     expect(entry.reason).toBe('ComfyUI is not reachable.')
   })
 
+  it('marks the cached model available again after the endpoint recovers', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-recover', 'CU8')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+    markEndpointUnreachable(endpoint.id)
+
+    const before = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
+
+    expect(before.status).toBe('unverified')
+
+    mockListFetch({ video: [video] })
+
+    const after = entryFor(
+      customEntries((await ensureCustomCatalog({ isRefresh: true, isForce: true })).entries),
+      video.id,
+    )
+
+    expect(after.status).toBe('available')
+    expect(getHealth(endpoint.id)?.state).toBe('ok')
+  })
+
   it('hides the presets of a disabled endpoint', async () => {
     const video = modelAt(VIDEO_MODELS, 0)
     const endpoint = customEndpoint('cat-disabled', 'CU7')

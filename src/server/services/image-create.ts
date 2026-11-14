@@ -4,7 +4,9 @@ import { randomInt, randomUUID } from 'node:crypto'
 
 import { isNil } from 'lodash-es'
 
+import { CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
 import { SEED_MAX, SUBMIT_GRACE_MS } from '@/core/constants'
+import { isOfflineHealthStatus } from '@/core/endpoints'
 import { planImageCalls } from '@/core/plan-image-calls'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import { endpointIdFromPresetId } from '@/core/presets/custom'
@@ -24,6 +26,7 @@ import { resolveCustomRunPrice } from '../providers/custom/pricing'
 import { customRecordSource } from '../providers/custom/record-source'
 import { saveImage } from '../repos/images'
 import { getUpload } from '../repos/uploads'
+import { getHealth } from './endpoint-health'
 import { uploadsSnapshot } from './upload-snapshot'
 
 interface ImagePriceParams {
@@ -159,6 +162,10 @@ export async function createImage(params: CreateImageParams): Promise<ImageRecor
 
   const uploads = await referenceUploads(input)
   const endpoint = await customEndpointOrNull(preset.id)
+
+  if (!isNil(endpoint) && isOfflineHealthStatus(getHealth(endpoint.id)?.state)) {
+    throw new HttpError(400, CATALOG_UNREACHABLE_REASON)
+  }
 
   const binding = primaryBinding(preset)
   const now = new Date().toISOString()

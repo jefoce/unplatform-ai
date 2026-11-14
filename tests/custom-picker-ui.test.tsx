@@ -5,6 +5,8 @@ import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
+import { IMAGE_PRESETS } from '@/core/presets/image'
+import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { rememberPresetTitle } from '@/features/generator/model/preset-title'
@@ -32,6 +34,7 @@ class Observer {
 function handleNoop(): void {}
 
 const BASE = getPreset('wan-3.0')
+const IMAGE_BASE = IMAGE_PRESETS[0]
 
 function customPreset(id: string, title: string): VideoPreset {
   return {
@@ -51,8 +54,22 @@ function customPreset(id: string, title: string): VideoPreset {
   }
 }
 
+function customImagePreset(id: string, title: string): ImagePreset {
+  if (isNil(IMAGE_BASE)) {
+    throw new Error('Missing image preset')
+  }
+
+  return {
+    ...IMAGE_BASE,
+    id,
+    title,
+    family: 'custom',
+    description: `${title} local model`,
+  }
+}
+
 function entry(params: {
-  preset: VideoPreset
+  preset: VideoPreset | ImagePreset
   status?: CatalogEntry['status']
   reason?: string | null
   badge?: string
@@ -223,6 +240,27 @@ describe('custom model picker', () => {
     expect((unreachable as HTMLButtonElement).disabled).toBe(true)
     expect(unreachable.textContent).toContain('(unreachable)')
     expect(within(dialog).queryByText('Gone Workflow')).toBeNull()
+  })
+
+  it('disables an unreachable row in the image picker', () => {
+    const preset = customImagePreset('custom.cu2.image', 'SDXL Image')
+
+    const unreachable = entry({
+      preset,
+      status: 'unverified',
+      reason: 'ComfyUI is not reachable.',
+      badge: 'CU2',
+    })
+
+    useEntries([unreachable])
+
+    render(<ModelPicker kind="image" models={[]} />)
+    const dialog = openPicker()
+    const row = within(dialog).getByRole('button', { name: /SDXL Image/ })
+
+    expect((row as HTMLButtonElement).disabled).toBe(true)
+    expect(row.textContent).toContain('(unreachable)')
+    expect(within(row).getByText(unreachable.reason ?? '')).toBeTruthy()
   })
 
   it('uses the endpoint perRun override and hides a local zero price', () => {
