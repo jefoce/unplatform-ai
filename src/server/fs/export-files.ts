@@ -54,8 +54,28 @@ export async function exportDir(dir: string): Promise<string | null> {
   return resolved
 }
 
+/** Removes temps a previous attempt left for this exact target. Touches nothing else. */
+async function removeTargetTemps(target: string): Promise<void> {
+  const dir = path.dirname(target)
+  const prefix = `${path.basename(target)}.tmp-`
+
+  const names: string[] = await fs.readdir(dir).catch(() => {
+    return []
+  })
+
+  for (const name of names) {
+    if (!name.startsWith(prefix)) {
+      continue
+    }
+
+    await fs.unlink(path.join(dir, name)).catch(() => {})
+  }
+}
+
 /** Copies through a fsynced temp file, so a crash never leaves a partial export. */
 export async function copyAtomic(source: string, target: string): Promise<void> {
+  await removeTargetTemps(target)
+
   const temp = `${target}.tmp-${randomUUID()}`
 
   try {
@@ -82,6 +102,8 @@ export async function copyExclusive(source: string, target: string): Promise<boo
   if (isTargetPresent) {
     return false
   }
+
+  await removeTargetTemps(target)
 
   const temp = `${target}.tmp-${randomUUID()}`
 

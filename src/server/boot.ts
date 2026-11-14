@@ -4,6 +4,7 @@ import { isNil } from 'lodash-es'
 
 import { isMockMode } from './config/mock-mode'
 import { flushCleanupQueue } from './fs/cleanup-queue'
+import { sweepInterruptedTemps } from './fs/temp-sweep'
 import { acquireInstanceLock } from './instance-lock'
 import { reconcileImages } from './jobs/image-reconcile'
 import { runImageSubmit } from './jobs/image-run'
@@ -79,6 +80,7 @@ export async function bootServer(): Promise<void> {
   configureSubmitQueue({ run: runSubmit })
   onJobSent(startPoller)
 
+  await sweepInterruptedTemps()
   await flushCleanupQueue()
   startPoller()
   startParentWatch()

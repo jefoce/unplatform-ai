@@ -140,16 +140,19 @@ describe('POST /api/generations/export-batch', () => {
 
   it('leaves no temp files in the export folder', async () => {
     const dir = await grantedDir()
+    const saved = `a-cat-${item.id.slice(0, 6)}.mp4`
+    const leftover = `${saved}.tmp-00000000-0000-4000-8000-000000000000`
+    const notes = path.join(dir, 'notes.txt')
 
-    await POST(exportRequest({ ids: [item.id], dir }))
+    await writeFile(path.join(dir, leftover), 'stale')
+    await writeFile(notes, 'keep')
+
+    expect((await POST(exportRequest({ ids: [item.id], dir }))).status).toBe(200)
 
     const names = await readdir(dir)
 
-    expect(
-      names.filter((name) => {
-        return name.includes('.tmp-')
-      }),
-    ).toEqual([])
+    expect(names).not.toContain(leftover)
+    expect(await readFile(notes, 'utf8')).toBe('keep')
   })
 
   it('adds (2) on a name collision and never overwrites', async () => {
