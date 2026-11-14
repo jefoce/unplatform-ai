@@ -1,9 +1,19 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readdir, readFile, stat, symlink, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { rememberExportFolder } from '@/server/services/export-tokens'
 
@@ -34,6 +44,7 @@ vi.mock('@/server/session', () => {
 })
 
 const { POST } = await import('@/app/api/generations/export-batch/route')
+const { exportDir } = await import('@/server/fs/export-files')
 
 const downloads = path.join(root, 'downloads')
 const videoBytes = Buffer.from('fake-mp4-bytes')
@@ -157,15 +168,18 @@ describe('POST /api/generations/export-batch', () => {
     expect((await stat(saved)).isFile()).toBe(true)
   })
 
-  it('rejects a symlinked target dir', async () => {
+  it('accepts a symlinked target dir and writes to the real folder', async () => {
     const real = await mkdtemp(path.join(root, 'real-'))
     const link = path.join(root, `link-${randomUUID()}`)
 
     await symlink(real, link)
+    rememberExportFolder(link, 1)
 
     const response = await POST(exportRequest({ ids: [item.id], dir: link }))
+    const body = (await response.json()) as { saved: string[] }
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(200)
+    expect(path.dirname(required(body.saved[0], 'saved file'))).toBe(await realpath(real))
   })
 
   it('rejects relative targets and missing records', async () => {
@@ -203,5 +217,50 @@ describe('POST /api/generations/export-batch', () => {
     const response = await POST(exportRequest({ ids: [item.id], dir }))
 
     expect(response.status).toBe(404)
+  })
+})
+
+describe('exportDir', () => {
+  let dirRoot = ''
+
+  beforeAll(async () => {
+    dirRoot = await mkdtemp(path.join(os.tmpdir(), 'cf-export-dir-'))
+  })
+
+  afterAll(async () => {
+    await rm(dirRoot, { recursive: true, force: true })
+  })
+
+  it('returns the real path of an absolute directory', async () => {
+    const dir = await mkdtemp(path.join(dirRoot, 'dir-'))
+
+    expect(await exportDir(dir)).toBe(await realpath(dir))
+  })
+
+  describe.skipIf(process.platform === 'win32')('a symlink to a directory', () => {
+    it('returns the real target, not the link path', async () => {
+      const target = await mkdtemp(path.join(dirRoot, 'target-'))
+      const link = path.join(dirRoot, `link-${randomUUID()}`)
+
+      await symlink(target, link)
+
+      expect(await exportDir(link)).toBe(await realpath(target))
+    })
+  })
+
+  it('returns null for a regular file', async () => {
+    const file = path.join(dirRoot, `file-${randomUUID()}`)
+
+    await writeFile(file, 'bytes')
+
+    expect(await exportDir(file)).toBeNull()
+  })
+
+  it('returns null for a relative path', async () => {
+    expect(await exportDir('downloads')).toBeNull()
+  })
+
+  it('returns null for a missing path', async () => {
+    expect(await exportDir(path.join(dirRoot, randomUUID()))).toBeNull()
   })
 })

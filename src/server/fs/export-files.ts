@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { isNil } from 'lodash-es'
+
 import { commitFile } from '@/server/fs/atomic-file'
 import { downloadPaths } from '@/server/paths'
 
@@ -27,21 +29,29 @@ export async function videoSource(id: string): Promise<string | null> {
   return null
 }
 
-/** Existing absolute folder that is not a symlink, or null. */
+/** Real directory behind an absolute folder path, or null. Resolves symlinks. */
 export async function exportDir(dir: string): Promise<string | null> {
   if (!path.isAbsolute(dir)) {
     return null
   }
 
-  const folder = await fs.lstat(dir).catch(() => {
+  const resolved = await fs.realpath(dir).catch(() => {
     return null
   })
 
-  if (!folder || folder.isSymbolicLink() || !folder.isDirectory()) {
+  if (isNil(resolved)) {
     return null
   }
 
-  return dir
+  const folder = await fs.stat(resolved).catch(() => {
+    return null
+  })
+
+  if (isNil(folder) || !folder.isDirectory()) {
+    return null
+  }
+
+  return resolved
 }
 
 /** Copies through a fsynced temp file, so a crash never leaves a partial export. */
