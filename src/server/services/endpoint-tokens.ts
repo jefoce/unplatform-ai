@@ -3,12 +3,12 @@ import 'server-only'
 import { isNil, isUndefined } from 'lodash-es'
 import { z } from 'zod'
 
+import { SECRET_VALUE_MAX_CHARS } from '@/core/secret-names'
+
 import { HttpError } from '../errors'
 import { getSecret, secretsReady, setSecrets } from '../secrets'
 
-const TOKEN_VALUE_MAX_CHARS = 4096
-
-const TokenMapSchema = z.record(z.string(), z.string().max(4096))
+const TokenMapSchema = z.record(z.string(), z.string().max(SECRET_VALUE_MAX_CHARS))
 
 export interface EndpointTokenChange {
   id: string
@@ -113,7 +113,7 @@ export async function planEndpointTokens(
   const next = nextTokenValues({ ...params, current: readTokenMap() })
   const serialized = JSON.stringify(next)
 
-  if (serialized.length > TOKEN_VALUE_MAX_CHARS) {
+  if (serialized.length > SECRET_VALUE_MAX_CHARS) {
     throw new HttpError(400, 'Too many endpoint tokens')
   }
 
