@@ -10,6 +10,7 @@ import {
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { chunk, isNil } from 'lodash-es'
 
+import type { ExportResult } from '@/core/api/export'
 import { HISTORY_BATCH_MAX } from '@/core/constants'
 import { promptSlug } from '@/core/media/file-names'
 import { extensionsForKinds } from '@/core/media/media-kinds'
@@ -20,6 +21,7 @@ import { createFolder } from '@/lib/api/folders'
 import { exportBatch, exportRecord } from '@/lib/api/generations'
 import { exportImageBatch } from '@/lib/api/images'
 
+import { friendlyText } from './desktop-errors'
 import { linkPaths } from './link-paths'
 import type { ImageSaveRef, Platform, UpdateListener } from './types'
 import {
@@ -35,7 +37,7 @@ async function invokeChecked<T>(command: string, args?: InvokeArgs): Promise<T> 
   try {
     return await invoke<T>(command, args)
   } catch (error) {
-    throw asError(error)
+    throw await translateFailure(command, asError(error))
   }
 }
 
@@ -47,18 +49,27 @@ function asError(error: unknown): Error {
   return new Error(String(error))
 }
 
-/** Opens a bundled resource, logs only the error name so the path stays out, then rethrows. */
+/** Writes the raw failure to desktop.log and returns the text the UI may show. */
+async function translateFailure(subject: string, failure: Error): Promise<Error> {
+  const text = friendlyText(failure.message)
+
+  if (isNil(text)) {
+    return failure
+  }
+
+  await invoke('log_client_error', { resource: subject, message: failure.message }).catch(() => {})
+
+  return new Error(text)
+}
+
+/** Opens a bundled resource and turns a failure into short user text. */
 async function openResource(name: string): Promise<void> {
   try {
     const path = await resolveResource(name)
 
     await openPath(path)
   } catch (error) {
-    const failure = asError(error)
-
-    await invoke('log_client_error', { resource: name, message: failure.name }).catch(() => {})
-
-    throw failure
+    throw await translateFailure(name, asError(error))
   }
 }
 
@@ -115,7 +126,11 @@ export const desktopPlatform: Platform = {
   },
 
   openExternal: async (url: string) => {
-    await openUrl(url)
+    try {
+      await openUrl(url)
+    } catch (error) {
+      throw await translateFailure('open link', asError(error))
+    }
   },
 
   openNotices: async () => {
@@ -139,7 +154,11 @@ export const desktopPlatform: Platform = {
       return false
     }
 
-    await exportRecord({ id: record.id, path: target })
+    try {
+      await exportRecord({ id: record.id, path: target })
+    } catch (error) {
+      throw await translateFailure('save video', asError(error))
+    }
 
     return true
   },
@@ -159,12 +178,18 @@ export const desktopPlatform: Platform = {
     let skipped = 0
 
     for (const part of parts) {
-      const result = await exportBatch({
-        ids: part.map((record) => {
-          return record.id
-        }),
-        dir,
-      })
+      let result: ExportResult
+
+      try {
+        result = await exportBatch({
+          ids: part.map((record) => {
+            return record.id
+          }),
+          dir,
+        })
+      } catch (error) {
+        throw await translateFailure('export videos', asError(error))
+      }
 
       saved += result.saved.length
       skipped += result.skipped.length
@@ -188,12 +213,18 @@ export const desktopPlatform: Platform = {
     let skipped = 0
 
     for (const part of parts) {
-      const result = await exportImageBatch({
-        outputs: part.map((ref) => {
-          return { recordId: ref.recordId, outputId: ref.outputId }
-        }),
-        dir,
-      })
+      let result: ExportResult
+
+      try {
+        result = await exportImageBatch({
+          outputs: part.map((ref) => {
+            return { recordId: ref.recordId, outputId: ref.outputId }
+          }),
+          dir,
+        })
+      } catch (error) {
+        throw await translateFailure('export images', asError(error))
+      }
 
       saved += result.saved.length
       skipped += result.skipped.length

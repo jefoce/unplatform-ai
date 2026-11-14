@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { desktopPlatform } from '@/lib/platform/desktop'
 
@@ -9,11 +9,16 @@ const mocks = vi.hoisted(() => {
   return {
     exportBatch: vi.fn(),
     exportImageBatch: vi.fn(),
+    exportRecord: vi.fn(),
     invoke: vi.fn(),
     open: vi.fn(),
     openPath: vi.fn(),
     resolveResource: vi.fn(),
   }
+})
+
+beforeEach(() => {
+  vi.clearAllMocks()
 })
 
 vi.mock('@tauri-apps/api/core', () => {
@@ -49,7 +54,7 @@ vi.mock('@/lib/api/folders', () => {
 })
 
 vi.mock('@/lib/api/generations', () => {
-  return { exportBatch: mocks.exportBatch, exportRecord: vi.fn() }
+  return { exportBatch: mocks.exportBatch, exportRecord: mocks.exportRecord }
 })
 
 vi.mock('@/lib/api/images', () => {
@@ -70,7 +75,7 @@ describe('desktop bundled links', () => {
     expect(mocks.openPath).toHaveBeenCalledWith(path)
   })
 
-  it('logs only the error name and rethrows when opening fails', async () => {
+  it('shows friendly text and logs the raw failure when opening fails', async () => {
     const path = '/Applications/Unplatform AI.app/Contents/Resources/LICENSE'
 
     mocks.resolveResource.mockResolvedValue(path)
@@ -81,23 +86,23 @@ describe('desktop bundled links', () => {
       return caught
     })
 
-    expect(messageOf(error)).toBe(`no handler for ${path}`)
+    expect(messageOf(error)).toBe('The app could not open that file.')
 
     expect(mocks.invoke).toHaveBeenCalledWith('log_client_error', {
       resource: 'LICENSE',
-      message: 'Error',
+      message: `no handler for ${path}`,
     })
 
     const logged = mocks.invoke.mock.calls.find((call) => {
       return call[0] === 'log_client_error'
     })
 
-    expect(String(logged?.[1].message)).not.toContain(path)
+    expect(String(logged?.[1].message)).toContain(path)
   })
 })
 
 describe('desktop update install', () => {
-  it('keeps the string reason from a rejected invoke', async () => {
+  it('translates a rejected invoke and logs the raw reason', async () => {
     mocks.invoke.mockRejectedValue('signature verification failed')
 
     const error = await desktopPlatform
@@ -107,7 +112,40 @@ describe('desktop update install', () => {
       })
 
     expect(error).toBeInstanceOf(Error)
-    expect(messageOf(error)).toBe('signature verification failed')
+
+    expect(messageOf(error)).toBe(
+      'The update could not be verified. Download it from the release page.',
+    )
+
+    const logged = mocks.invoke.mock.calls.find((call) => {
+      return call[0] === 'log_client_error'
+    })
+
+    expect(logged?.[1].message).toBe('signature verification failed')
+  })
+
+  it('falls back to generic text for an unknown error', async () => {
+    mocks.invoke.mockRejectedValue('UnknownError')
+
+    const error = await desktopPlatform
+      .installUpdate(() => {})
+      .catch((caught: unknown) => {
+        return caught
+      })
+
+    expect(messageOf(error)).toBe('The app could not complete that action.')
+  })
+})
+
+describe('desktop app info', () => {
+  it('reports an action that the build does not allow', async () => {
+    mocks.invoke.mockRejectedValue('Command update_info not allowed by ACL')
+
+    const error = await desktopPlatform.appInfo().catch((caught: unknown) => {
+      return caught
+    })
+
+    expect(messageOf(error)).toBe('This action is not available in this build. Update the app.')
   })
 })
 
@@ -138,6 +176,34 @@ describe('desktop batch export', () => {
 
     expect(result).toEqual({ saved: 0, skipped: 0 })
     expect(mocks.exportBatch).not.toHaveBeenCalled()
+  })
+
+  it('translates a forbidden export into short user text', async () => {
+    mocks.invoke.mockResolvedValue('/tmp/videos')
+    mocks.exportBatch.mockRejectedValue(new Error('Forbidden'))
+
+    const error = await desktopPlatform
+      .saveVideos([record('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')])
+      .catch((caught: unknown) => {
+        return caught
+      })
+
+    expect(messageOf(error)).toBe('The app cannot write to that location. Pick it again.')
+  })
+})
+
+describe('desktop single export', () => {
+  it('translates a missing video into short user text', async () => {
+    mocks.invoke.mockResolvedValue('/tmp/video.mp4')
+    mocks.exportRecord.mockRejectedValue(new Error('Video not found'))
+
+    const error = await desktopPlatform
+      .saveVideo(record('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'))
+      .catch((caught: unknown) => {
+        return caught
+      })
+
+    expect(messageOf(error)).toBe('The file is no longer on disk.')
   })
 })
 
