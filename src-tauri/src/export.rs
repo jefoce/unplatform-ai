@@ -1,5 +1,6 @@
 use crate::server::State;
 use serde_json::{json, Value};
+use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_dialog::DialogExt;
@@ -7,6 +8,8 @@ use tauri_plugin_dialog::DialogExt;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 const SESSION_COOKIE: &str = "upai_session";
 const PARENT_HEADER: &str = "X-Unplatform-AI-Parent";
+const UNUSABLE_PATH: &str =
+    "The chosen path contains characters the app cannot use. Pick another name.";
 
 /// Values the sidecar route expects from the desktop parent.
 #[derive(Debug, PartialEq)]
@@ -26,6 +29,13 @@ fn export_handshake(port: u16, token: &str, secret: &str) -> ExportHandshake {
         cookie: format!("{SESSION_COOKIE}={token}"),
         parent: secret.to_string(),
     }
+}
+
+/// Absolute UTF-8 path, or the plain message shown when the sidecar cannot use it.
+fn usable_path(path: &Path) -> Result<String, String> {
+    path.to_str()
+        .map(str::to_string)
+        .ok_or_else(|| UNUSABLE_PATH.to_string())
 }
 
 /// Registers a dialog choice with the sidecar before the webview may write there.
@@ -68,7 +78,10 @@ pub async fn choose_export_path(
         return Ok(None);
     };
 
-    let target = file.to_string();
+    let Some(path) = file.as_path() else {
+        return Err(UNUSABLE_PATH.to_string());
+    };
+    let target = usable_path(path)?;
 
     register_export(&app, json!({ "path": target }))?;
 
@@ -87,7 +100,10 @@ pub async fn choose_export_folder(
         return Ok(None);
     };
 
-    let target = dir.to_string();
+    let Some(path) = dir.as_path() else {
+        return Err(UNUSABLE_PATH.to_string());
+    };
+    let target = usable_path(path)?;
 
     register_export(&app, json!({ "folder": target, "uses": uses }))?;
 
@@ -96,7 +112,11 @@ pub async fn choose_export_folder(
 
 #[cfg(test)]
 mod tests {
-    use super::{export_handshake, ExportHandshake, PARENT_HEADER, SESSION_COOKIE};
+    use super::{
+        export_handshake, usable_path, ExportHandshake, PARENT_HEADER, SESSION_COOKIE,
+        UNUSABLE_PATH,
+    };
+    use std::path::Path;
 
     #[test]
     fn builds_the_names_the_sidecar_route_reads() {
@@ -111,5 +131,22 @@ mod tests {
         );
         assert_eq!(SESSION_COOKIE, "upai_session");
         assert_eq!(PARENT_HEADER, "X-Unplatform-AI-Parent");
+    }
+
+    #[test]
+    fn keeps_a_normal_utf8_path() {
+        assert_eq!(
+            usable_path(Path::new("/tmp/export.mp4")),
+            Ok("/tmp/export.mp4".to_string())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_path_that_is_not_utf8() {
+        use std::os::unix::ffi::OsStrExt;
+        let path = Path::new(std::ffi::OsStr::from_bytes(b"/tmp/bad\xff.mp4"));
+
+        assert_eq!(usable_path(path), Err(UNUSABLE_PATH.to_string()));
     }
 }
