@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { HISTORY_BATCH_MAX } from '@/core/constants'
 import { desktopPlatform } from '@/lib/platform/desktop'
 
 import { messageOf } from '../src/core/errors'
@@ -189,6 +190,39 @@ describe('desktop batch export', () => {
       })
 
     expect(messageOf(error)).toBe('The app cannot write to that location. Pick it again.')
+  })
+
+  it('reports the files saved before a later chunk fails', async () => {
+    const records = Array.from({ length: HISTORY_BATCH_MAX + 1 }, () => {
+      return record(crypto.randomUUID())
+    })
+
+    mocks.invoke.mockResolvedValue('/tmp/videos')
+
+    mocks.exportBatch
+      .mockResolvedValueOnce({
+        saved: records.slice(0, HISTORY_BATCH_MAX).map((entry) => {
+          return entry.id
+        }),
+        skipped: [],
+      })
+      .mockRejectedValueOnce(new Error('Forbidden'))
+
+    const error = await desktopPlatform.saveVideos(records).catch((caught: unknown) => {
+      return caught
+    })
+
+    expect(mocks.invoke).toHaveBeenCalledWith('choose_export_folder', { uses: 2 })
+
+    expect(messageOf(error)).toBe(
+      'Saved 200 of 201 files before the error. The app cannot write to that location. Pick it again.',
+    )
+
+    const logged = mocks.invoke.mock.calls.find((call) => {
+      return call[0] === 'log_client_error'
+    })
+
+    expect(logged?.[1].message).toBe('Forbidden')
   })
 })
 

@@ -62,6 +62,43 @@ async function translateFailure(subject: string, failure: Error): Promise<Error>
   return new Error(text)
 }
 
+interface PartTotals {
+  saved: number
+  skipped: number
+}
+
+interface RunPartsParams<T> {
+  parts: T[][]
+  total: number
+  run: (part: T[]) => Promise<ExportResult>
+}
+
+/** Runs every chunk, keeps the counts, and reports the first failure with the progress. */
+async function runExportParts<T>(params: RunPartsParams<T>): Promise<PartTotals> {
+  const { parts, total, run } = params
+  let saved = 0
+  let skipped = 0
+
+  for (const part of parts) {
+    try {
+      const result = await run(part)
+
+      saved += result.saved.length
+      skipped += result.skipped.length
+    } catch (error) {
+      const failure = await translateFailure('export', asError(error))
+
+      if (saved > 0) {
+        throw new Error(`Saved ${saved} of ${total} files before the error. ${failure.message}`)
+      }
+
+      throw failure
+    }
+  }
+
+  return { saved, skipped }
+}
+
 /** Opens a bundled resource and turns a failure into short user text. */
 async function openResource(name: string): Promise<void> {
   try {
@@ -174,28 +211,20 @@ export const desktopPlatform: Platform = {
       return { saved: 0, skipped: 0 }
     }
 
-    let saved = 0
-    let skipped = 0
-
-    for (const part of parts) {
-      let result: ExportResult
-
-      try {
-        result = await exportBatch({
+    const totals = await runExportParts({
+      parts,
+      total: records.length,
+      run: (part) => {
+        return exportBatch({
           ids: part.map((record) => {
             return record.id
           }),
           dir,
         })
-      } catch (error) {
-        throw await translateFailure('export videos', asError(error))
-      }
+      },
+    })
 
-      saved += result.saved.length
-      skipped += result.skipped.length
-    }
-
-    return { saved, skipped, folder: dir }
+    return { ...totals, folder: dir }
   },
 
   saveImages: async (refs: ImageSaveRef[]) => {
@@ -209,28 +238,20 @@ export const desktopPlatform: Platform = {
       return { saved: 0, skipped: 0 }
     }
 
-    let saved = 0
-    let skipped = 0
-
-    for (const part of parts) {
-      let result: ExportResult
-
-      try {
-        result = await exportImageBatch({
+    const totals = await runExportParts({
+      parts,
+      total: refs.length,
+      run: (part) => {
+        return exportImageBatch({
           outputs: part.map((ref) => {
             return { recordId: ref.recordId, outputId: ref.outputId }
           }),
           dir,
         })
-      } catch (error) {
-        throw await translateFailure('export images', asError(error))
-      }
+      },
+    })
 
-      saved += result.saved.length
-      skipped += result.skipped.length
-    }
-
-    return { saved, skipped, folder: dir }
+    return { ...totals, folder: dir }
   },
 
   onFileDrop: async (handler) => {
