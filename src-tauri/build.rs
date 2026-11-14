@@ -10,6 +10,8 @@ fn main() {
             "update_set_auto",
             "update_open_release",
             "log_client_error",
+            "choose_export_path",
+            "choose_export_folder",
         ]));
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
 }

@@ -555,6 +555,18 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the choose_export_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-choose-export-folder",
+          "markdownDescription": "Enables the choose_export_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the choose_export_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-choose-export-path",
+          "markdownDescription": "Enables the choose_export_path command without any pre-configured scope."
+        },
+        {
           "description": "Enables the log_client_error command without any pre-configured scope.",
           "type": "string",
           "const": "allow-log-client-error",
@@ -589,6 +601,18 @@
           "type": "string",
           "const": "allow-update-set-auto",
           "markdownDescription": "Enables the update_set_auto command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the choose_export_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-choose-export-folder",
+          "markdownDescription": "Denies the choose_export_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the choose_export_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-choose-export-path",
+          "markdownDescription": "Denies the choose_export_path command without any pre-configured scope."
         },
         {
           "description": "Denies the log_client_error command without any pre-configured scope.",
