@@ -2,6 +2,19 @@
 
 ## 0.5.1 - unreleased
 
+### Fixed
+
+- Saving a video or a batch of images to a folder works again on desktop.
+- A failed save or update explains what happened in plain words, without a file path or an internal name.
+- A failed update no longer restarts the app, and the release page stays one click away.
+- Keys and endpoint tokens are stored as separate keychain items, so a long list of tokens no longer fails to save on Windows.
+- The window reopens on a connected display after a monitor is unplugged.
+- A folder chosen through a symlink saves files into the real folder.
+- Temporary files left by an interrupted save are removed on the next start.
+- A batch save that fails partway reports how many files were already saved.
+- The price appears right after a key is added, without switching tabs.
+- The app no longer exits when its port is already in use by another program.
+
 ## 0.5.0 - 2026-11-10
 
 Local image and video models from ComfyUI, with several endpoints and a badge for each.
