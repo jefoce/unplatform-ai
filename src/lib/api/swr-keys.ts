@@ -25,3 +25,12 @@ export function generationEstimateKey(json: string): GenerationEstimateKey {
 export function imageEstimateKey(json: string): ImageEstimateKey {
   return [IMAGE_ESTIMATE_URL, json]
 }
+
+/** True for both estimate keys, so a saved key can refresh every price. */
+export function isEstimateKey(key: unknown): boolean {
+  if (!Array.isArray(key)) {
+    return false
+  }
+
+  return key[0] === GENERATION_ESTIMATE_URL || key[0] === IMAGE_ESTIMATE_URL
+}

@@ -2,7 +2,7 @@ import 'server-only'
 
 import { isEmpty, isNil } from 'lodash-es'
 
-import { PRICING_FALLBACK_TTL_MS, PRICING_LIVE_TTL_MS } from '@/core/constants'
+import { PRICING_LIVE_TTL_MS } from '@/core/constants'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import type { VideoPreset } from '@/core/presets/video/types'
 import { type PricingInfo, type SkuTable } from '@/core/pricing/types'
@@ -25,10 +25,10 @@ import { warnFallback } from './warn'
 const cache = createTtlCache<PricingInfo>({
   key: 'pricing',
   okTtlMs: PRICING_LIVE_TTL_MS,
-  failTtlMs: PRICING_FALLBACK_TTL_MS,
+  failTtlMs: 0,
 })
 
-/** List and discounted rates. Live results cache for an hour, fallback for five minutes. */
+/** List and discounted rates. Live results cache for an hour, a failed load is not cached. */
 export async function getPricing(preset: VideoPreset, isForce = false): Promise<PricingInfo> {
   return cache.get(
     preset.id,
