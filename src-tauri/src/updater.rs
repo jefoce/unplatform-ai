@@ -8,6 +8,8 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 const RELEASE_URL: &str = "https://github.com/jefoce/unplatform-ai/releases/latest";
+const INSTALL_FAILED: &str =
+    "The update could not be installed. Try again or download it from the release page.";
 
 /// Bytes kept for the session so a retry after cancel skips the download.
 #[derive(Default)]
@@ -75,6 +77,13 @@ pub(crate) async fn update_check(app: AppHandle<Wry>) -> Result<Option<Available
     Ok(update.map(available_update))
 }
 
+/// Logs the raw installer error, returns the line the UI may show. Never restarts.
+fn install_failure(error: &str, log: impl FnOnce(String)) -> String {
+    log(format!("[unplatform-ai] update install failed: {error}"));
+
+    INSTALL_FAILED.to_string()
+}
+
 #[tauri::command]
 pub(crate) async fn update_install(
     app: AppHandle<Wry>,
@@ -139,12 +148,9 @@ pub(crate) async fn update_install(
         .await
         .map_err(|error| format!("Update install task failed: {error}"))?;
     if let Err(error) = installed {
-        append_desktop_log(
-            format!("[unplatform-ai] update install failed: {error}").as_bytes(),
-        );
-        app.request_restart();
-
-        return Err(format!("Update install failed: {error}"));
+        return Err(install_failure(&error.to_string(), |line| {
+            append_desktop_log(line.as_bytes());
+        }));
     }
 
     #[cfg(target_os = "macos")]
@@ -285,4 +291,35 @@ fn current_bundle() -> Option<std::path::PathBuf> {
     exe.ancestors()
         .find(|path| path.extension().is_some_and(|extension| extension == "app"))
         .map(std::path::Path::to_path_buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{install_failure, INSTALL_FAILED};
+
+    /// The UI gets the friendly line, never the raw installer reason.
+    #[test]
+    fn install_failure_hides_the_raw_error() {
+        let shown = install_failure("mount failed: bad dmg", |_line| {});
+
+        assert_eq!(shown, INSTALL_FAILED);
+        assert!(!shown.contains("mount failed"));
+    }
+
+    /// The raw reason reaches the log once, with the prefix the log greps for.
+    #[test]
+    fn install_failure_logs_the_raw_error_once() {
+        let mut lines: Vec<String> = Vec::new();
+        let _ = install_failure("mount failed: bad dmg", |line| lines.push(line));
+
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("update install failed"));
+        assert!(lines[0].contains("mount failed: bad dmg"));
+    }
+
+    /// A failed install points the user at the release page.
+    #[test]
+    fn install_failure_points_at_the_release_page() {
+        assert!(INSTALL_FAILED.contains("release page"));
+    }
 }
