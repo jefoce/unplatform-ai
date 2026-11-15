@@ -8,8 +8,8 @@ use tauri::{AppHandle, Manager, Wry};
 
 pub(crate) const PREFIX: &str = "@@upai-secrets ";
 const SERVICE: &str = "unplatform-ai";
-/// The old single item that held every key as one JSON object.
-const LEGACY_ACCOUNT: &str = "secrets";
+/// The single JSON item. Current on macOS and Linux, legacy on Windows.
+const SINGLE_ACCOUNT: &str = "secrets";
 const MAX_VALUE: usize = 2048;
 const TOO_LONG: &str = "This value is too long. The limit is 2048 bytes.";
 const ALLOWED: [&str; 7] = [
@@ -55,6 +55,228 @@ pub(crate) struct Request {
     pub value: Option<String>,
 }
 
+/// One keychain account: get, set and delete.
+trait Keychain {
+    fn get(&self, account: &str) -> Result<Option<String>, KeyError>;
+    fn set(&self, account: &str, value: &str) -> Result<(), KeyError>;
+    fn delete(&self, account: &str) -> Result<(), KeyError>;
+}
+
+/// Values for every allowed secret name.
+trait SecretStore {
+    fn read_all(&self) -> Result<BTreeMap<String, String>, KeyError>;
+    fn write(&self, name: &str, value: &str) -> Result<(), KeyError>;
+    fn remove(&self, name: &str) -> Result<(), KeyError>;
+}
+
+struct OsKeychain;
+
+impl Keychain for OsKeychain {
+    fn get(&self, account: &str) -> Result<Option<String>, KeyError> {
+        let entry = keyring::Entry::new(SERVICE, account).map_err(KeyError::from)?;
+        match entry.get_password() {
+            Ok(value) if is_valid_value(&value) => Ok(Some(value)),
+            Ok(_) => Ok(None),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    fn set(&self, account: &str, value: &str) -> Result<(), KeyError> {
+        if !is_valid_value(value) {
+            return Err(KeyError::Failed(TOO_LONG.to_string()));
+        }
+        let entry = keyring::Entry::new(SERVICE, account).map_err(KeyError::from)?;
+        entry.set_password(value).map_err(KeyError::from)
+    }
+
+    fn delete(&self, account: &str) -> Result<(), KeyError> {
+        let entry = keyring::Entry::new(SERVICE, account).map_err(KeyError::from)?;
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    }
+}
+
+/// Every secret in one JSON item. Used on macOS and Linux, where an item is not size capped.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+struct SingleItemStore<K: Keychain> {
+    keychain: K,
+}
+
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+impl<K: Keychain> SingleItemStore<K> {
+    fn new(keychain: K) -> Self {
+        Self { keychain }
+    }
+
+    fn write_item(&self, values: &BTreeMap<String, String>) -> Result<(), KeyError> {
+        let json =
+            serde_json::to_string(values).map_err(|error| KeyError::Failed(error.to_string()))?;
+        self.keychain.set(SINGLE_ACCOUNT, &json)
+    }
+
+    /// Merges per-name items into the single item, then drops them only after a verified read-back.
+    fn migrate_per_name(&self) -> Result<BTreeMap<String, String>, KeyError> {
+        let mut values = BTreeMap::new();
+        for name in ALLOWED {
+            if let Some(value) = self.keychain.get(name)? {
+                values.insert(name.to_string(), value);
+            }
+        }
+        if values.is_empty() {
+            return Ok(values);
+        }
+        self.write_item(&values)?;
+        let raw = self
+            .keychain
+            .get(SINGLE_ACCOUNT)?
+            .ok_or_else(|| KeyError::Failed("merged secrets item is missing".to_string()))?;
+        let written = parse_object(&raw);
+        let is_complete = values
+            .iter()
+            .all(|(name, value)| written.get(name) == Some(value));
+        if !is_complete {
+            return Err(KeyError::Failed(
+                "merged secrets item does not match".to_string(),
+            ));
+        }
+        for name in ALLOWED {
+            self.keychain.delete(name)?;
+        }
+        Ok(values)
+    }
+}
+
+impl<K: Keychain> SecretStore for SingleItemStore<K> {
+    fn read_all(&self) -> Result<BTreeMap<String, String>, KeyError> {
+        match self.keychain.get(SINGLE_ACCOUNT)? {
+            Some(raw) => Ok(parse_object(&raw)),
+            None => self.migrate_per_name(),
+        }
+    }
+
+    fn write(&self, name: &str, value: &str) -> Result<(), KeyError> {
+        let mut values = self.read_all()?;
+        values.insert(name.to_string(), value.to_string());
+        self.write_item(&values)
+    }
+
+    fn remove(&self, name: &str) -> Result<(), KeyError> {
+        let mut values = self.read_all()?;
+        values.remove(name);
+        self.write_item(&values)
+    }
+}
+
+/// One item per name. Used on Windows, whose Credential Manager caps an item near 2560 bytes.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+struct PerNameStore<K: Keychain> {
+    keychain: K,
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+impl<K: Keychain> PerNameStore<K> {
+    fn new(keychain: K) -> Self {
+        Self { keychain }
+    }
+
+    fn read_legacy(&self) -> Result<Option<BTreeMap<String, String>>, KeyError> {
+        match self.keychain.get(SINGLE_ACCOUNT)? {
+            Some(raw) => Ok(Some(parse_object(&raw))),
+            None => Ok(None),
+        }
+    }
+
+    /// Copies the old JSON item into one item per name, then drops it when all writes worked.
+    fn migrate(&self) -> Result<(), KeyError> {
+        let Some(legacy) = self.read_legacy()? else {
+            return Ok(());
+        };
+        let mut current = BTreeMap::new();
+        for name in ALLOWED {
+            if let Some(value) = self.keychain.get(name)? {
+                current.insert(name.to_string(), value);
+            }
+        }
+        let plan = migration_plan(&current, &legacy);
+        let wrote_all = apply_plan(&plan, |name, value| self.keychain.set(name, value));
+        if wrote_all {
+            let _ = self.keychain.delete(SINGLE_ACCOUNT);
+        }
+        Ok(())
+    }
+
+    /// Drops one name from the old JSON item on remove, so a later migration cannot revive it.
+    fn remove_from_legacy(&self, name: &str) -> Result<(), KeyError> {
+        let Some(mut legacy) = self.read_legacy()? else {
+            return Ok(());
+        };
+        legacy.remove(name);
+        if legacy.is_empty() {
+            let _ = self.keychain.delete(SINGLE_ACCOUNT);
+            return Ok(());
+        }
+        let json =
+            serde_json::to_string(&legacy).map_err(|error| KeyError::Failed(error.to_string()))?;
+        self.keychain.set(SINGLE_ACCOUNT, &json)
+    }
+}
+
+impl<K: Keychain> SecretStore for PerNameStore<K> {
+    fn read_all(&self) -> Result<BTreeMap<String, String>, KeyError> {
+        self.migrate()?;
+        let mut values = BTreeMap::new();
+        let mut first_error: Option<KeyError> = None;
+        let mut read_count = 0;
+        for name in ALLOWED {
+            match self.keychain.get(name) {
+                Ok(Some(value)) => {
+                    values.insert(name.to_string(), value);
+                    read_count += 1;
+                }
+                Ok(None) => {
+                    read_count += 1;
+                }
+                Err(error) => {
+                    if first_error.is_none() {
+                        first_error = Some(error);
+                    }
+                }
+            }
+        }
+        if read_count == 0 {
+            return Err(first_error.unwrap_or_else(|| KeyError::Failed("no secrets".to_string())));
+        }
+        Ok(values)
+    }
+
+    fn write(&self, name: &str, value: &str) -> Result<(), KeyError> {
+        self.keychain.set(name, value)
+    }
+
+    fn remove(&self, name: &str) -> Result<(), KeyError> {
+        self.keychain.delete(name)?;
+        self.remove_from_legacy(name)
+    }
+}
+
+/// The one place that picks the backend for the running OS.
+fn store() -> Result<Box<dyn SecretStore>, KeyError> {
+    let keychain = OsKeychain;
+
+    #[cfg(target_os = "windows")]
+    {
+        return Ok(Box::new(PerNameStore::new(keychain)));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(Box::new(SingleItemStore::new(keychain)))
+    }
+}
+
 /// Parses and validates one `@@upai-secrets` payload. Never logs values.
 pub(crate) fn parse(payload: &str) -> Result<Request, String> {
     let request: Request = serde_json::from_str(payload).map_err(|_| "invalid JSON".to_string())?;
@@ -83,54 +305,26 @@ pub(crate) fn execute(request: &Request) -> Result<Option<String>, KeyError> {
     let _guard = LOCK
         .lock()
         .map_err(|_| KeyError::Failed("keychain lock poisoned".to_string()))?;
-    migrate()?;
+    let store = store()?;
 
     match request.op.as_str() {
         "getAll" => {
-            let mut values = BTreeMap::new();
-            let mut first_error: Option<KeyError> = None;
-            let mut read_count = 0;
-            for name in ALLOWED {
-                match entry_for(name).and_then(|entry| read_entry(&entry)) {
-                    Ok(Some(value)) => {
-                        values.insert(name.to_string(), value);
-                        read_count += 1;
-                    }
-                    Ok(None) => {
-                        read_count += 1;
-                    }
-                    Err(error) => {
-                        if first_error.is_none() {
-                            first_error = Some(error);
-                        }
-                    }
-                }
-            }
-            if read_count == 0 {
-                return Err(
-                    first_error.unwrap_or_else(|| KeyError::Failed("no secrets".to_string()))
-                );
-            }
+            let values = store.read_all()?;
             let json = serde_json::to_string(&values)
                 .map_err(|error| KeyError::Failed(error.to_string()))?;
             Ok(Some(json))
         }
-        "get" => read_entry(&entry_for(&request.name)?),
+        "get" => Ok(store.read_all()?.remove(&request.name)),
         "set" => {
             let value = request
                 .value
                 .as_deref()
                 .ok_or_else(|| KeyError::Failed("missing value".to_string()))?;
-            write_entry(&entry_for(&request.name)?, value)?;
+            store.write(&request.name, value)?;
             Ok(None)
         }
         "remove" => {
-            let entry = entry_for(&request.name)?;
-            match entry.delete_credential() {
-                Ok(()) | Err(keyring::Error::NoEntry) => {}
-                Err(error) => return Err(error.into()),
-            }
-            remove_from_legacy(&request.name)?;
+            store.remove(&request.name)?;
             Ok(None)
         }
         _ => Err(KeyError::Failed("unknown op".to_string())),
@@ -139,26 +333,6 @@ pub(crate) fn execute(request: &Request) -> Result<Option<String>, KeyError> {
 
 fn is_valid_value(value: &str) -> bool {
     !value.is_empty() && value.len() <= MAX_VALUE
-}
-
-fn entry_for(name: &str) -> Result<keyring::Entry, KeyError> {
-    keyring::Entry::new(SERVICE, name).map_err(KeyError::from)
-}
-
-fn read_entry(entry: &keyring::Entry) -> Result<Option<String>, KeyError> {
-    match entry.get_password() {
-        Ok(value) if is_valid_value(&value) => Ok(Some(value)),
-        Ok(_) => Ok(None),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(error) => Err(error.into()),
-    }
-}
-
-fn write_entry(entry: &keyring::Entry, value: &str) -> Result<(), KeyError> {
-    if !is_valid_value(value) {
-        return Err(KeyError::Failed(TOO_LONG.to_string()));
-    }
-    entry.set_password(value).map_err(KeyError::from)
 }
 
 /// Parses the old JSON item and keeps only allowed names with valid values.
@@ -170,16 +344,8 @@ fn parse_object(raw: &str) -> BTreeMap<String, String> {
         .collect()
 }
 
-fn read_legacy() -> Result<Option<BTreeMap<String, String>>, KeyError> {
-    let entry = keyring::Entry::new(SERVICE, LEGACY_ACCOUNT).map_err(KeyError::from)?;
-    match entry.get_password() {
-        Ok(raw) => Ok(Some(parse_object(&raw))),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(error) => Err(error.into()),
-    }
-}
-
 /// Allowed names in order that exist in the legacy item and not as their own item.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 fn migration_plan(
     current: &BTreeMap<String, String>,
     legacy: &BTreeMap<String, String>,
@@ -200,6 +366,7 @@ fn migration_plan(
 }
 
 /// Writes every entry, never stops early, and reports whether all writes worked.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 fn apply_plan(
     plan: &[(String, String)],
     mut write: impl FnMut(&str, &str) -> Result<(), KeyError>,
@@ -211,45 +378,6 @@ fn apply_plan(
         }
     }
     is_ok
-}
-
-/// Copies the old JSON item into one item per name, then drops it when all writes worked.
-fn migrate() -> Result<(), KeyError> {
-    let Some(legacy) = read_legacy()? else {
-        return Ok(());
-    };
-    let mut current = BTreeMap::new();
-    for name in ALLOWED {
-        if let Some(value) = read_entry(&entry_for(name)?)? {
-            current.insert(name.to_string(), value);
-        }
-    }
-    let plan = migration_plan(&current, &legacy);
-    let wrote_all = apply_plan(&plan, |name, value| {
-        let entry = entry_for(name)?;
-        write_entry(&entry, value)
-    });
-    if wrote_all {
-        let legacy_entry = keyring::Entry::new(SERVICE, LEGACY_ACCOUNT).map_err(KeyError::from)?;
-        let _ = legacy_entry.delete_credential();
-    }
-    Ok(())
-}
-
-/// Drops one name from the old JSON item on remove, so a later migration cannot revive it.
-fn remove_from_legacy(name: &str) -> Result<(), KeyError> {
-    let Some(mut legacy) = read_legacy()? else {
-        return Ok(());
-    };
-    legacy.remove(name);
-    let entry = keyring::Entry::new(SERVICE, LEGACY_ACCOUNT).map_err(KeyError::from)?;
-    if legacy.is_empty() {
-        let _ = entry.delete_credential();
-        return Ok(());
-    }
-    let json =
-        serde_json::to_string(&legacy).map_err(|error| KeyError::Failed(error.to_string()))?;
-    entry.set_password(&json).map_err(KeyError::from)
 }
 
 /// Numeric id from a payload that failed validation, when one is present.
@@ -303,6 +431,62 @@ pub(crate) fn send(app: &AppHandle<Wry>, line: &str, spawn: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
+
+    #[derive(Clone, Default)]
+    struct FakeKeychain {
+        inner: Rc<FakeKeychainInner>,
+    }
+
+    #[derive(Default)]
+    struct FakeKeychainInner {
+        values: RefCell<BTreeMap<String, String>>,
+        failing: RefCell<BTreeSet<String>>,
+    }
+
+    impl FakeKeychain {
+        fn with(entries: &[(&str, &str)]) -> Self {
+            let keychain = Self::default();
+            for (account, value) in entries {
+                keychain
+                    .inner
+                    .values
+                    .borrow_mut()
+                    .insert((*account).to_string(), (*value).to_string());
+            }
+            keychain
+        }
+
+        fn fail_set(&self, account: &str) {
+            self.inner.failing.borrow_mut().insert(account.to_string());
+        }
+
+        fn has(&self, account: &str) -> bool {
+            self.inner.values.borrow().contains_key(account)
+        }
+    }
+
+    impl Keychain for FakeKeychain {
+        fn get(&self, account: &str) -> Result<Option<String>, KeyError> {
+            Ok(self.inner.values.borrow().get(account).cloned())
+        }
+
+        fn set(&self, account: &str, value: &str) -> Result<(), KeyError> {
+            if self.inner.failing.borrow().contains(account) {
+                return Err(KeyError::Failed("write failed".to_string()));
+            }
+            self.inner
+                .values
+                .borrow_mut()
+                .insert(account.to_string(), value.to_string());
+            Ok(())
+        }
+
+        fn delete(&self, account: &str) -> Result<(), KeyError> {
+            self.inner.values.borrow_mut().remove(account);
+            Ok(())
+        }
+    }
 
     #[test]
     fn parses_valid_request() {
@@ -360,6 +544,106 @@ mod tests {
             "x".repeat(MAX_VALUE + 1)
         );
         assert_eq!(parse(&payload).unwrap_err(), TOO_LONG);
+    }
+
+    #[test]
+    fn single_item_store_merges_per_name_entries() {
+        let keychain = FakeKeychain::with(&[
+            ("OPENROUTER_API_KEY", "sk-or-v1-key"),
+            ("R2_BUCKET", "media"),
+        ]);
+        let store = SingleItemStore::new(keychain.clone());
+
+        let values = store.read_all().expect("read all");
+
+        assert_eq!(
+            values.get("OPENROUTER_API_KEY").map(String::as_str),
+            Some("sk-or-v1-key")
+        );
+        assert_eq!(values.get("R2_BUCKET").map(String::as_str), Some("media"));
+        assert!(keychain.has(SINGLE_ACCOUNT));
+        assert!(!keychain.has("OPENROUTER_API_KEY"));
+        assert!(!keychain.has("R2_BUCKET"));
+    }
+
+    #[test]
+    fn single_item_store_keeps_per_name_entries_when_write_fails() {
+        let keychain = FakeKeychain::with(&[
+            ("OPENROUTER_API_KEY", "sk-or-v1-key"),
+            ("R2_BUCKET", "media"),
+        ]);
+        keychain.fail_set(SINGLE_ACCOUNT);
+        let store = SingleItemStore::new(keychain.clone());
+
+        assert!(store.read_all().is_err());
+
+        assert!(keychain.has("OPENROUTER_API_KEY"));
+        assert!(keychain.has("R2_BUCKET"));
+        assert!(!keychain.has(SINGLE_ACCOUNT));
+    }
+
+    #[test]
+    fn single_item_store_round_trips_custom_endpoint_tokens() {
+        let keychain = FakeKeychain::default();
+        let store = SingleItemStore::new(keychain.clone());
+        let tokens = serde_json::json!({
+            "custom-1": "a".repeat(40),
+            "custom-2": "b".repeat(40),
+            "custom-3": "c".repeat(40),
+            "custom-4": "d".repeat(40),
+            "custom-5": "e".repeat(40),
+        })
+        .to_string();
+
+        store
+            .write("CUSTOM_ENDPOINT_TOKENS", &tokens)
+            .expect("write");
+        let values = store.read_all().expect("read all");
+
+        assert_eq!(values.get("CUSTOM_ENDPOINT_TOKENS"), Some(&tokens));
+        let raw = keychain.get(SINGLE_ACCOUNT).expect("get").expect("item");
+        let parsed: BTreeMap<String, String> = serde_json::from_str(&raw).expect("valid json");
+        assert_eq!(parsed.get("CUSTOM_ENDPOINT_TOKENS"), Some(&tokens));
+    }
+
+    #[test]
+    fn per_name_store_migrates_the_single_item() {
+        let raw = serde_json::json!({
+            "OPENROUTER_API_KEY": "sk-or-v1-key",
+            "R2_BUCKET": "media",
+        })
+        .to_string();
+        let keychain = FakeKeychain::with(&[(SINGLE_ACCOUNT, &raw)]);
+        let store = PerNameStore::new(keychain.clone());
+
+        let values = store.read_all().expect("read all");
+
+        assert_eq!(
+            values.get("OPENROUTER_API_KEY").map(String::as_str),
+            Some("sk-or-v1-key")
+        );
+        assert_eq!(values.get("R2_BUCKET").map(String::as_str), Some("media"));
+        assert!(keychain.has("OPENROUTER_API_KEY"));
+        assert!(keychain.has("R2_BUCKET"));
+        assert!(!keychain.has(SINGLE_ACCOUNT));
+    }
+
+    #[test]
+    fn per_name_store_keeps_other_entries_when_a_write_fails() {
+        let raw = serde_json::json!({
+            "OPENROUTER_API_KEY": "sk-or-v1-key",
+            "R2_BUCKET": "media",
+        })
+        .to_string();
+        let keychain = FakeKeychain::with(&[(SINGLE_ACCOUNT, &raw)]);
+        keychain.fail_set("R2_BUCKET");
+        let store = PerNameStore::new(keychain.clone());
+
+        store.read_all().expect("read all");
+
+        assert!(keychain.has(SINGLE_ACCOUNT));
+        assert!(keychain.has("OPENROUTER_API_KEY"));
+        assert!(!keychain.has("R2_BUCKET"));
     }
 
     #[test]

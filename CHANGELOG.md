@@ -7,7 +7,7 @@
 - Saving a video or a batch of images to a folder works again on desktop.
 - A failed save or update explains what happened in plain words, without a file path or an internal name.
 - A failed update no longer restarts the app, and the release page stays one click away.
-- Keys and endpoint tokens are stored as separate keychain items, so a long list of tokens no longer fails to save on Windows.
+- On Windows, each key and endpoint token is stored in Credential Manager separately, so a long token list no longer fails to save.
 - The window reopens on a connected display after a monitor is unplugged.
 - A folder chosen through a symlink saves files into the real folder.
 - Temporary files left by an interrupted save are removed on the next start.
