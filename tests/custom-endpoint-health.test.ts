@@ -54,6 +54,7 @@ const {
   forgetEndpointHealth,
   getHealth,
   getMaxRunning,
+  isEndpointVerified,
   isHealthFresh,
   recordHealthFailure,
   recordHealthFromError,
@@ -124,22 +125,18 @@ describe('endpoint health', () => {
     }
   })
 
-  it('keeps no entry below the threshold', () => {
+  it('closes an unverified endpoint on the first failure', () => {
     fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
 
-    expect(getHealth('ep1')).toBeNull()
+    expect(getHealth('ep1')?.state).toBe('unreachable')
   })
 
-  it('counts a failed probe before closing the endpoint', () => {
+  it('writes a failed probe at once before any success', () => {
     const outcome = {
       state: 'unreachable' as const,
       message: 'Health check failed',
       maxRunning: null,
     }
-
-    emitCustomHealth('ep1', outcome)
-
-    expect(getHealth('ep1')).toBeNull()
 
     emitCustomHealth('ep1', outcome)
 
@@ -192,6 +189,18 @@ describe('endpoint health', () => {
 })
 
 describe('endpoint health counts', () => {
+  it('keeps a verified endpoint open after one failure and closes it after two', () => {
+    recordHealthOk('ep1')
+
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
+
+    expect(getHealth('ep1')?.state).toBe('ok')
+
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
+
+    expect(getHealth('ep1')?.state).toBe('unreachable')
+  })
+
   it('needs a third failure while a job runs', () => {
     recordHealthOk('ep1')
 
@@ -257,12 +266,8 @@ describe('endpoint health reports', () => {
     expect(line).not.toContain('SECRET')
   })
 
-  it('applies the same threshold to a ready failure status', () => {
+  it('applies a ready failure status at once before verification', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    recordHealthFailure({ endpointId: 'ep1', status: 'unauthorized', message: 'Token rejected' })
-
-    expect(getHealth('ep1')).toBeNull()
 
     recordHealthFailure({ endpointId: 'ep1', status: 'unauthorized', message: 'Token rejected' })
 
@@ -296,6 +301,16 @@ describe('endpoint health reports', () => {
 
     expect(isHealthFresh(fresh)).toBe(true)
     expect(isHealthFresh(stale)).toBe(false)
+  })
+
+  it('clears verification when the endpoint health is forgotten', () => {
+    recordHealthOk('ep1')
+
+    expect(isEndpointVerified('ep1')).toBe(true)
+
+    forgetEndpointHealth('ep1')
+
+    expect(isEndpointVerified('ep1')).toBe(false)
   })
 
   it('sets a manual entry with its limit and forgets it', () => {

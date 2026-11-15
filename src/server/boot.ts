@@ -28,7 +28,7 @@ import {
 import { registerVideoModelsSecretsListener } from './providers/openrouter/video-models'
 import { registerImageProvider } from './providers/registry'
 import { secretsReady } from './secrets'
-import { registerEndpointHealthListener } from './services/endpoint-health'
+import { probeEnabledEndpoints, registerEndpointHealthListener } from './services/endpoint-health'
 import { registerModelCatalogSecretsListener } from './services/model-catalog'
 import { browserSessionUrl } from './session'
 import { registerShutdownSignals } from './shutdown'
@@ -66,6 +66,7 @@ export async function bootServer(): Promise<void> {
   registerModelCatalogSecretsListener()
   registerObjectStoreSecretsListener()
   registerEndpointHealthListener()
+  void secretsReady().then(probeEnabledEndpoints)
   registerCustomImageShutdown()
 
   registerImageProvider('openrouter', () => {

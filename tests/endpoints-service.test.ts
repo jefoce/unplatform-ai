@@ -6,7 +6,6 @@ import path from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { EndpointInput } from '@/core/api/endpoints'
-import { ENDPOINT_HEALTH_MAX_AGE_MS } from '@/core/constants'
 import type { JobStatus } from '@/core/schemas/generation-record'
 import type * as EndpointsRepo from '@/server/repos/endpoints'
 import type * as EndpointOverviewService from '@/server/services/endpoint-overview'
@@ -263,7 +262,7 @@ describe('running jobs', () => {
     const overview = await overviewService.getEndpointOverview()
 
     expect(overview.endpoints[0]?.runningJobs).toBe(1)
-    expect(overview.endpoints[0]?.status).toBe('unknown')
+    expect(overview.endpoints[0]?.status).toBe('checking')
 
     const health = await import('@/server/services/endpoint-health')
 
@@ -328,27 +327,27 @@ describe('running jobs', () => {
 })
 
 describe('health freshness', () => {
-  it('ignores a stale entry and keeps the saved last health', async () => {
-    mockHealthyFetch()
-    await testService.testEndpoint({ baseUrl: endpoint('Studio').baseUrl, endpointId: null })
+  it('shows checking for a persisted last health with no probe result', async () => {
+    const stored = await repo.applyEndpoints({
+      entries: [
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          label: 'Studio',
+          baseUrl: endpoint('Studio').baseUrl,
+          enabled: true,
+          pricing: { mode: 'model', usd: 0 },
+          instanceId: null,
+          lastHealth: LAST_HEALTH,
+        },
+      ],
+    })
 
-    const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio')] })
-    const id = saved.endpoints[0]?.id ?? ''
-    const health = await import('@/server/services/endpoint-health')
-    const now = Date.now()
+    const overview = await overviewService.getEndpointOverview()
+    const { hasReadyEndpoint } = await import('@/lib/api/endpoints-status')
 
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(now)
-    health.setEndpointHealth({ endpointId: id, status: 'unreachable', message: null })
-    vi.setSystemTime(now + ENDPOINT_HEALTH_MAX_AGE_MS + 1000)
-
-    try {
-      const overview = await overviewService.getEndpointOverview()
-
-      expect(overview.endpoints[0]?.status).toBe('ok')
-    } finally {
-      vi.useRealTimers()
-    }
+    expect(stored.file.endpoints[0]?.lastHealth).toEqual(LAST_HEALTH)
+    expect(overview.endpoints[0]?.status).toBe('checking')
+    expect(hasReadyEndpoint(overview.endpoints, 'video')).toBe(false)
   })
 
   it('lets a newer failed test clear the stored last health on an unchanged save', async () => {
@@ -466,7 +465,7 @@ describe('endpoint edits', () => {
     })
 
     expect(next.endpoints[0]?.lastHealth).toBeNull()
-    expect(next.endpoints[0]?.status).toBe('unknown')
+    expect(next.endpoints[0]?.status).toBe('checking')
     expect(health.getHealth(id)).toBeNull()
     await expect(fs.stat(cacheFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
@@ -483,7 +482,7 @@ describe('endpoint edits', () => {
     })
 
     expect(next.endpoints[0]?.lastHealth).toBeNull()
-    expect(next.endpoints[0]?.status).toBe('unknown')
+    expect(next.endpoints[0]?.status).toBe('checking')
   })
 })
 
@@ -659,7 +658,7 @@ describe('fresh test keeps state', () => {
     const saved = await service.saveEndpoints({ endpoints: [endpoint('Studio', 'other-token')] })
 
     expect(saved.endpoints[0]?.lastHealth).toBeNull()
-    expect(saved.endpoints[0]?.status).toBe('unknown')
+    expect(saved.endpoints[0]?.status).toBe('checking')
   })
 })
 

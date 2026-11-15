@@ -15,6 +15,7 @@ const STATUS_LABELS = {
   forbidden: 'Blocked',
   protocol: 'Wrong protocol',
   unknown: 'Not tested',
+  checking: 'Checking…',
 } satisfies Record<EndpointHealthView, string>
 
 const STATUS_CLASSES = {
@@ -24,6 +25,7 @@ const STATUS_CLASSES = {
   forbidden: 'text-warn',
   protocol: 'text-warn',
   unknown: 'text-fg-3',
+  checking: 'text-fg-3',
 } satisfies Record<EndpointHealthView, string>
 
 interface EndpointRowProps {

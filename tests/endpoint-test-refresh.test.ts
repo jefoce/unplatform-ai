@@ -372,26 +372,40 @@ describe('server-owned test health', () => {
 })
 
 describe('test failure threshold', () => {
-  it('needs two failed tests to close an idle endpoint', async () => {
+  it('closes an unverified endpoint on the first failed test', async () => {
     stubFailedFetch()
-
-    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
-
-    expect(getHealth(SAVED_ID)).toBeNull()
 
     await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
 
     expect(getHealth(SAVED_ID)?.state).toBe('unreachable')
   })
 
-  it('needs three failed tests while a job runs', async () => {
+  it('needs two failed tests to close a verified idle endpoint', async () => {
+    mockFetch()
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    stubFailedFetch()
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)?.state).toBe('ok')
+
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
+    expect(getHealth(SAVED_ID)?.state).toBe('unreachable')
+  })
+
+  it('needs three failed tests while a job runs after verification', async () => {
+    mockFetch()
+    await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
+
     await saveGeneration(activeRecord('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'))
     stubFailedFetch()
 
     await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
     await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
 
-    expect(getHealth(SAVED_ID)).toBeNull()
+    expect(getHealth(SAVED_ID)?.state).toBe('ok')
 
     await testEndpoint({ baseUrl: SAVED_URL, endpointId: SAVED_ID })
 

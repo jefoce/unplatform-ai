@@ -24,7 +24,7 @@ import {
 import { secretsReady } from '../secrets'
 import { withLock } from '../sync/lock'
 import { pruneEndpointCaches } from './endpoint-cache-prune'
-import { forgetEndpointHealth, setEndpointHealth } from './endpoint-health'
+import { forgetEndpointHealth, probeEnabledEndpoints, setEndpointHealth } from './endpoint-health'
 import { getEndpointOverview } from './endpoint-overview'
 import { clearEndpointTests, lastTestAt, lastTestFor } from './endpoint-test'
 import {
@@ -56,6 +56,7 @@ interface ResolveLastHealthParams {
 interface ResolvedLastHealth {
   lastHealth: CustomEndpointLastHealth | null
   keepHealth: boolean
+  isSessionTest: boolean
 }
 
 interface SavedHealth {
@@ -138,7 +139,11 @@ async function saveLocked(prepared: PreparedEndpoint[]): Promise<EndpointOvervie
   clearModelCatalog()
   resetCustomProviders()
 
-  return getEndpointOverview()
+  const overview = await getEndpointOverview()
+
+  void probeEnabledEndpoints()
+
+  return overview
 }
 
 /** The saved health comes from the last server test, never from the client body. */
@@ -159,18 +164,21 @@ function resolveSavedHealth(params: SettleSavedHealthParams): ResolvedLastHealth
 /** Runs only after the endpoint file is safely written. */
 function applySavedHealth(healths: SavedHealth[]): void {
   for (const health of healths) {
-    if (!isNil(health.resolved.lastHealth)) {
+    const { resolved } = health
+
+    if (resolved.isSessionTest && !isNil(resolved.lastHealth)) {
       setEndpointHealth({
         endpointId: health.id,
         status: 'ok',
         message: null,
-        maxRunning: health.resolved.lastHealth.maxRunning,
+        maxRunning: resolved.lastHealth.maxRunning,
+        verified: true,
       })
 
       continue
     }
 
-    if (!health.resolved.keepHealth) {
+    if (!resolved.keepHealth) {
       forgetEndpointHealth(health.id)
     }
   }
@@ -182,24 +190,24 @@ function resolveLastHealth(params: ResolveLastHealthParams): ResolvedLastHealth 
   const tested = lastTestFor({ baseUrl, token })
 
   if (!isNil(tested)) {
-    return { lastHealth: tested, keepHealth: true }
+    return { lastHealth: tested, keepHealth: true, isSessionTest: true }
   }
 
   const testedAt = lastTestAt({ baseUrl, token })
 
   if (!isNil(testedAt) && beatsStoredHealth(testedAt, previous?.lastHealth?.checkedAt ?? null)) {
-    return { lastHealth: null, keepHealth: true }
+    return { lastHealth: null, keepHealth: true, isSessionTest: false }
   }
 
   if (isNil(previous)) {
-    return { lastHealth: null, keepHealth: false }
+    return { lastHealth: null, keepHealth: false, isSessionTest: false }
   }
 
   if (previous.baseUrl !== baseUrl || token !== storedToken) {
-    return { lastHealth: null, keepHealth: false }
+    return { lastHealth: null, keepHealth: false, isSessionTest: false }
   }
 
-  return { lastHealth: previous.lastHealth, keepHealth: true }
+  return { lastHealth: previous.lastHealth, keepHealth: true, isSessionTest: false }
 }
 
 /** Same-millisecond failure counts, the in-memory entry already shows it. */

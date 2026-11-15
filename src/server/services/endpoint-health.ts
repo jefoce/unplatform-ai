@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one health store owns probe, status and failure writes */
 import 'server-only'
 
 import { isNil } from 'lodash-es'
@@ -14,6 +15,7 @@ import {
 } from '@/core/endpoints'
 import type { TestResult } from '@/core/types'
 
+import { isCustomEndpointMockMode } from '../config/mock-mode'
 import { globalState } from '../global-state'
 import {
   endpointQueueKey,
@@ -39,6 +41,7 @@ import {
 
 interface HealthEntry extends EndpointHealthState {
   maxRunning: number | null
+  verified: boolean
 }
 
 type HealthFailureSource = 'job' | 'catalog'
@@ -48,6 +51,7 @@ export interface SetEndpointHealthParams {
   status: EndpointHealthStatus
   message: string | null
   maxRunning?: number | null
+  verified?: boolean
 }
 
 export interface RecordHealthFromErrorParams {
@@ -70,6 +74,16 @@ interface HealthFailureParams {
   message: string
   kind: string
   isJobRunning: boolean
+}
+
+interface WriteFailureEntryParams {
+  endpointId: string
+  status: EndpointHealthStatus
+  message: string
+  kind: string
+  maxRunning: number | null
+  isVerified: boolean
+  previousState: EndpointHealthStatus | undefined
 }
 
 interface EndpointHealthStore {
@@ -120,6 +134,7 @@ export function recordHealthOk(endpointId: string, maxRunning?: number | null): 
     checkedAt: now(),
     message: null,
     maxRunning: maxRunning ?? previous?.maxRunning ?? null,
+    verified: true,
   })
 
   if (!isNil(previous) && isOfflineHealthStatus(previous.state)) {
@@ -161,32 +176,61 @@ function isOffline(endpointId: string): boolean {
   return isOfflineHealthStatus(store.entries.get(endpointId)?.state)
 }
 
-/** Counts every failure and only exposes an offline state at the threshold. */
-function applyFailure(params: HealthFailureParams): boolean {
-  const { endpointId, status, message, kind, isJobRunning } = params
-  const failures = (store.failures.get(endpointId) ?? 0) + 1
-
-  store.failures.set(endpointId, failures)
-
-  const threshold = isJobRunning ? ENDPOINT_JOB_FAILURE_THRESHOLD : ENDPOINT_FAILURE_THRESHOLD
-  const previous = store.entries.get(endpointId)
-
-  if (failures < threshold) {
-    return isOfflineHealthStatus(previous?.state)
-  }
-
+function writeFailureEntry(params: WriteFailureEntryParams): void {
+  const { endpointId, status, message, kind, maxRunning, isVerified, previousState } = params
   const entryMessage = message === '' ? null : message
 
   store.entries.set(endpointId, {
     state: status,
     checkedAt: now(),
     message: entryMessage,
-    maxRunning: previous?.maxRunning ?? null,
+    maxRunning,
+    verified: isVerified,
   })
 
-  if (isNil(previous) || previous.state === 'ok') {
+  if (isNil(previousState) || previousState === 'ok') {
     logOffline({ endpointId, kind, message: shortHealthText(message) })
   }
+}
+
+/** Counts failures, and closes an unverified endpoint on the first one. */
+function applyFailure(params: HealthFailureParams): boolean {
+  const { endpointId, status, message, kind, isJobRunning } = params
+  const previous = store.entries.get(endpointId)
+
+  if (isNil(previous) || !previous.verified) {
+    writeFailureEntry({
+      endpointId,
+      status,
+      message,
+      kind,
+      maxRunning: previous?.maxRunning ?? null,
+      isVerified: false,
+      previousState: previous?.state,
+    })
+
+    return isOfflineHealthStatus(status)
+  }
+
+  const failures = (store.failures.get(endpointId) ?? 0) + 1
+
+  store.failures.set(endpointId, failures)
+
+  const threshold = isJobRunning ? ENDPOINT_JOB_FAILURE_THRESHOLD : ENDPOINT_FAILURE_THRESHOLD
+
+  if (failures < threshold) {
+    return isOfflineHealthStatus(previous.state)
+  }
+
+  writeFailureEntry({
+    endpointId,
+    status,
+    message,
+    kind,
+    maxRunning: previous.maxRunning,
+    isVerified: true,
+    previousState: previous.state,
+  })
 
   return isOfflineHealthStatus(status)
 }
@@ -223,19 +267,43 @@ export function recordHealthFailure(params: RecordHealthFailureParams): boolean 
 
 /** Manual health entry from Settings or an explicit state write. */
 export function setEndpointHealth(params: SetEndpointHealthParams): void {
-  const previous = store.entries.get(params.endpointId)
+  const { endpointId, status, message, maxRunning, verified: isVerified = true } = params
+  const previous = store.entries.get(endpointId)
 
-  store.entries.set(params.endpointId, {
-    state: params.status,
+  store.entries.set(endpointId, {
+    state: status,
     checkedAt: now(),
-    message: params.message,
-    maxRunning: params.maxRunning ?? previous?.maxRunning ?? null,
+    message,
+    maxRunning: maxRunning ?? previous?.maxRunning ?? null,
+    verified: isVerified,
   })
 }
 
 export function forgetEndpointHealth(endpointId: string): void {
   store.entries.delete(endpointId)
   store.failures.delete(endpointId)
+}
+
+/** True only after a health check succeeded in this session. */
+export function isEndpointVerified(endpointId: string): boolean {
+  return store.entries.get(endpointId)?.verified ?? false
+}
+
+/** Probes every enabled endpoint once, in parallel. The demo mock needs no probe. */
+export async function probeEnabledEndpoints(): Promise<void> {
+  if (isCustomEndpointMockMode()) {
+    return
+  }
+
+  const endpoints = getEndpointsSync().filter((endpoint) => {
+    return endpoint.enabled
+  })
+
+  await Promise.all(
+    endpoints.map((endpoint) => {
+      return checkEndpoint(endpoint.id)
+    }),
+  )
 }
 
 export function getHealth(endpointId: string): EndpointHealthState | null {
