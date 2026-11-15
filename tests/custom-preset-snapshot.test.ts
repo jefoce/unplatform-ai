@@ -1,6 +1,8 @@
 import { isNil } from 'lodash-es'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CATALOG_CHECKING_REASON } from '@/core/catalog'
+import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
 import { getPreset } from '@/core/presets'
 import { IMAGE_PRESETS } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
@@ -96,8 +98,11 @@ vi.mock('@/server/media/image-data-url', () => {
 const { createGeneration } = await import('@/server/services/create-generation')
 const { createImage } = await import('@/server/services/image-create')
 
-const { setEndpointHealth, __resetEndpointHealthForTests: resetEndpointHealth } =
-  await import('@/server/services/endpoint-health')
+const {
+  recordHealthOk,
+  setEndpointHealth,
+  __resetEndpointHealthForTests: resetEndpointHealth,
+} = await import('@/server/services/endpoint-health')
 
 const VIDEO_PRESET: VideoPreset = {
   ...getPreset('wan-3.0'),
@@ -150,6 +155,7 @@ function imageInput(preset: ImagePreset): ImageGenerationInput {
 
 beforeEach(() => {
   resetEndpointHealth()
+  recordHealthOk(ENDPOINT.id)
   mocks.loadDraft.mockReset()
   mocks.getEndpoint.mockReset()
   mocks.saveGeneration.mockReset()
@@ -164,6 +170,10 @@ beforeEach(() => {
   mocks.saveImage.mockImplementation(async (record: ImageRecord) => {
     return record
   })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('custom record preset snapshot', () => {
@@ -213,6 +223,24 @@ describe('custom create endpoint health', () => {
       status: 400,
       message: 'ComfyUI is not reachable.',
     })
+
+    expect(mocks.saveGeneration).not.toHaveBeenCalled()
+  })
+
+  it('rejects a video job while the boot probe is still checking', async () => {
+    const input = videoInput()
+
+    mocks.loadDraft.mockResolvedValue({ preset: VIDEO_PRESET, input, uploads: {} })
+    resetEndpointHealth()
+    vi.useFakeTimers()
+
+    const pending = expect(createGeneration(input)).rejects.toMatchObject({
+      status: 400,
+      message: CATALOG_CHECKING_REASON,
+    })
+
+    await vi.advanceTimersByTimeAsync(CUSTOM_CHECK_TIMEOUT_MS)
+    await pending
 
     expect(mocks.saveGeneration).not.toHaveBeenCalled()
   })

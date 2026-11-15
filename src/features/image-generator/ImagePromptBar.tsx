@@ -113,7 +113,7 @@ export function ImagePromptBar(props: ImagePromptBarProps) {
     limitMessage,
   })
 
-  const estimate = useImageEstimate(isSettingsValid)
+  const estimate = useImageEstimate(isSettingsValid && !provider.isEndpointChecking)
   const priceUsd = estimate.usd ?? 0
   const isPriceVisible = isPriceVisibleFor(entry, priceUsd)
 

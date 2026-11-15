@@ -4,9 +4,8 @@ import { randomInt, randomUUID } from 'node:crypto'
 
 import { isNil } from 'lodash-es'
 
-import { CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
+import { CATALOG_CHECKING_REASON, CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
 import { SEED_MAX, SUBMIT_GRACE_MS } from '@/core/constants'
-import { isOfflineHealthStatus } from '@/core/endpoints'
 import { planImageCalls } from '@/core/plan-image-calls'
 import { primaryBinding } from '@/core/presets/common/bindings'
 import { endpointIdFromPresetId } from '@/core/presets/custom'
@@ -26,7 +25,7 @@ import { resolveCustomRunPrice } from '../providers/custom/pricing'
 import { customRecordSource } from '../providers/custom/record-source'
 import { saveImage } from '../repos/images'
 import { getUpload } from '../repos/uploads'
-import { getHealth } from './endpoint-health'
+import { awaitEndpointUsable, isEndpointVerified } from './endpoint-health'
 import { uploadsSnapshot } from './upload-snapshot'
 
 interface ImagePriceParams {
@@ -163,8 +162,11 @@ export async function createImage(params: CreateImageParams): Promise<ImageRecor
   const uploads = await referenceUploads(input)
   const endpoint = await customEndpointOrNull(preset.id)
 
-  if (!isNil(endpoint) && isOfflineHealthStatus(getHealth(endpoint.id)?.state)) {
-    throw new HttpError(400, CATALOG_UNREACHABLE_REASON)
+  if (!isNil(endpoint) && !(await awaitEndpointUsable(endpoint.id))) {
+    const isVerified = isEndpointVerified(endpoint.id)
+    const reason = isVerified ? CATALOG_UNREACHABLE_REASON : CATALOG_CHECKING_REASON
+
+    throw new HttpError(400, reason)
   }
 
   const binding = primaryBinding(preset)

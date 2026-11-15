@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- cases stay in one suite */
+/* eslint-disable max-lines, max-lines-per-function -- cases stay in one suite */
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -19,6 +19,7 @@ import { getPreset } from '../src/core/presets'
 import { required } from './helpers/required'
 
 interface DraftProviderState {
+  isEndpointChecking: boolean
   isKeyMissing: boolean
   isReady: boolean
   reason: string | null
@@ -26,6 +27,7 @@ interface DraftProviderState {
 
 const mocks = vi.hoisted(() => {
   const provider: DraftProviderState = {
+    isEndpointChecking: false,
     isKeyMissing: true,
     isReady: false,
     reason: 'Add your OpenRouter key in Settings.',
@@ -192,6 +194,7 @@ beforeEach(() => {
   mocks.draft.isSecretsFailed = false
 
   mocks.draft.provider = {
+    isEndpointChecking: false,
     isKeyMissing: true,
     isReady: false,
     reason: 'Add your OpenRouter key in Settings.',
@@ -273,6 +276,28 @@ describe('Generate button without a key', () => {
     expect(mocks.fetchEstimate).not.toHaveBeenCalled()
   })
 
+  it('does not request a custom price while the endpoint is checking', async () => {
+    mockUseModelEntry.mockReturnValue(catalogEntry('missing'))
+    mocks.draft.settingsValidation = { ok: true, errors: [], warnings: [] }
+
+    mocks.draft.provider = {
+      isEndpointChecking: true,
+      isKeyMissing: false,
+      isReady: false,
+      reason: null,
+    }
+
+    render(<GeneratorPanel />)
+
+    const button = screen.getByRole('button', { name: /Generate/ })
+
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+
+    await settle(700)
+
+    expect(mocks.fetchEstimate).not.toHaveBeenCalled()
+  })
+
   it('shows the price while the prompt is the only missing field', async () => {
     const estimate: GenerationEstimate = {
       estimatedUsd: 0.51,
@@ -320,7 +345,14 @@ describe('Generate button without a key', () => {
     mocks.draft.validation = { ok: true, errors: [], warnings: [] }
     mocks.draft.settingsValidation = { ok: true, errors: [], warnings: [] }
     mocks.draft.isKeyMissing = false
-    mocks.draft.provider = { isKeyMissing: false, isReady: true, reason: null }
+
+    mocks.draft.provider = {
+      isEndpointChecking: false,
+      isKeyMissing: false,
+      isReady: true,
+      reason: null,
+    }
+
     mocks.fetchEstimate.mockResolvedValue(estimate)
 
     render(

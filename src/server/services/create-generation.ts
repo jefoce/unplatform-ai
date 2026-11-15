@@ -5,7 +5,7 @@ import { randomInt, randomUUID } from 'node:crypto'
 import { isNil } from 'lodash-es'
 
 import type { UploadsById } from '@/core/api/uploads'
-import { CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
+import { CATALOG_CHECKING_REASON, CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
 import {
   MAX_ACTIVE_JOBS,
   MAX_REQUEST_MB,
@@ -13,7 +13,6 @@ import {
   SEED_MAX,
   SUBMIT_GRACE_MS,
 } from '@/core/constants'
-import { isOfflineHealthStatus } from '@/core/endpoints'
 import type { ReferencePlan } from '@/core/media/media-types'
 import type { ProviderBinding } from '@/core/presets/common/binding'
 import { activeBinding, primaryBinding } from '@/core/presets/common/bindings'
@@ -38,7 +37,7 @@ import { customRecordSource } from '../providers/custom/record-source'
 import { getVideoProvider } from '../providers/registry'
 import { getActiveCount, saveGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
-import { getHealth } from './endpoint-health'
+import { awaitEndpointUsable, isEndpointVerified } from './endpoint-health'
 import { estimateGeneration, loadDraft } from './estimate-generation'
 import { snapshotItem } from './upload-snapshot'
 
@@ -55,8 +54,11 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
       throw new HttpError(409, 'Endpoint removed')
     }
 
-    if (isOfflineHealthStatus(getHealth(endpoint.id)?.state)) {
-      throw new HttpError(400, CATALOG_UNREACHABLE_REASON)
+    if (!(await awaitEndpointUsable(endpoint.id))) {
+      const isVerified = isEndpointVerified(endpoint.id)
+      const reason = isVerified ? CATALOG_UNREACHABLE_REASON : CATALOG_CHECKING_REASON
+
+      throw new HttpError(400, reason)
     }
   }
 

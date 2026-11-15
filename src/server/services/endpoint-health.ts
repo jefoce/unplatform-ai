@@ -1,9 +1,12 @@
 /* eslint-disable max-lines -- one health store owns probe, status and failure writes */
 import 'server-only'
 
+import { setTimeout as delay } from 'node:timers/promises'
+
 import { isNil } from 'lodash-es'
 
 import {
+  CUSTOM_CHECK_TIMEOUT_MS,
   ENDPOINT_FAILURE_THRESHOLD,
   ENDPOINT_HEALTH_MAX_AGE_MS,
   ENDPOINT_JOB_FAILURE_THRESHOLD,
@@ -289,15 +292,52 @@ export function isEndpointVerified(endpointId: string): boolean {
   return store.entries.get(endpointId)?.verified ?? false
 }
 
-/** Probes every enabled endpoint once, in parallel. The demo mock needs no probe. */
-export async function probeEnabledEndpoints(): Promise<void> {
-  if (isCustomEndpointMockMode()) {
-    return
+/** An endpoint may start work only after a successful check in this session and no offline state. */
+export function isEndpointUsable(endpointId: string): boolean {
+  const entry = store.entries.get(endpointId)
+
+  if (isNil(entry) || !entry.verified) {
+    return false
   }
 
+  return !isOfflineHealthStatus(entry.state)
+}
+
+/** Waits up to `timeoutMs` for the boot probe, then reports usability. */
+export async function awaitEndpointUsable(
+  endpointId: string,
+  timeoutMs: number = CUSTOM_CHECK_TIMEOUT_MS,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    if (isEndpointUsable(endpointId)) {
+      return true
+    }
+
+    if (isEndpointVerified(endpointId)) {
+      return false
+    }
+
+    await delay(100)
+  }
+
+  return isEndpointUsable(endpointId)
+}
+
+/** Probes every enabled endpoint once, in parallel. Demo endpoints are usable at boot. */
+export async function probeEnabledEndpoints(): Promise<void> {
   const endpoints = getEndpointsSync().filter((endpoint) => {
     return endpoint.enabled
   })
+
+  if (isCustomEndpointMockMode()) {
+    for (const endpoint of endpoints) {
+      recordHealthOk(endpoint.id)
+    }
+
+    return
+  }
 
   await Promise.all(
     endpoints.map((endpoint) => {
@@ -335,7 +375,7 @@ export function getMaxRunning(instanceKey: string): number {
   const values: number[] = []
 
   for (const endpoint of endpoints) {
-    const value = store.entries.get(endpoint.id)?.maxRunning ?? endpoint.lastHealth?.maxRunning
+    const value = store.entries.get(endpoint.id)?.maxRunning
 
     if (!isNil(value)) {
       values.push(value)

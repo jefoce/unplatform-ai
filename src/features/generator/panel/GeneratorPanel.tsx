@@ -71,7 +71,9 @@ export function GeneratorPanel() {
     listPrice,
     discount,
     isLoading: isPriceLoading,
-  } = usePanelPrice(draft.settingsValidation.ok && !draft.isSecretsFailed)
+  } = usePanelPrice(
+    draft.settingsValidation.ok && !draft.isSecretsFailed && !draft.provider.isEndpointChecking,
+  )
 
   const gate = useSubmitGate({
     isValid: draft.validation.ok,

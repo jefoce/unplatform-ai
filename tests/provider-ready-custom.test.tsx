@@ -125,6 +125,7 @@ afterEach(() => {
   cleanup()
 })
 
+/* eslint-disable-next-line max-lines-per-function -- cases stay in one suite */
 describe('ready gate', () => {
   it('stays closed without a key or a healthy endpoint', () => {
     const { result } = renderReady('wan-3.0', 'video')
@@ -142,6 +143,29 @@ describe('ready gate', () => {
     expect(hasReadyEndpoint([endpoint()], 'video')).toBe(true)
     expect(result.current.isReady).toBe(true)
     expect(result.current.reason).toBeNull()
+  })
+
+  it('reports the endpoint while the boot probe is checking', () => {
+    mockEndpoints.mockReturnValue({
+      endpoints: [endpoint({ status: 'checking' })],
+      isLoading: false,
+      error: null,
+    })
+
+    setCatalog([customEntry({ status: 'unverified' })])
+
+    const { result } = renderReady('custom.cu1.wan22', 'video')
+
+    expect(result.current.isEndpointChecking).toBe(true)
+  })
+
+  it('stops checking once the endpoint is ok', () => {
+    mockEndpoints.mockReturnValue({ endpoints: [endpoint()], isLoading: false, error: null })
+    setCatalog([customEntry()])
+
+    const { result } = renderReady('custom.cu1.wan22', 'video')
+
+    expect(result.current.isEndpointChecking).toBe(false)
   })
 
   it('requires an image model for the image tab', () => {
