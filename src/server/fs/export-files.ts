@@ -130,12 +130,12 @@ interface CopyUniqueParams {
   ext: string
 }
 
-/** First free `name.ext`, `name (2).ext`, ... using exclusive copies. */
+/** First free `name.ext`, `name-2.ext`, ... using exclusive copies. */
 export async function copyUnique(params: CopyUniqueParams): Promise<string> {
   const { source, dir, base, ext } = params
 
   for (let index = 1; index < 1000; index += 1) {
-    const name = index === 1 ? `${base}.${ext}` : `${base} (${index}).${ext}`
+    const name = index === 1 ? `${base}.${ext}` : `${base}-${index}.${ext}`
     const target = path.join(dir, name)
 
     if (await copyExclusive(source, target)) {

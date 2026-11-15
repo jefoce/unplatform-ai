@@ -138,9 +138,23 @@ describe('POST /api/images/export-batch', () => {
 
     const saved = required(body.saved[0], 'saved file')
 
-    expect(path.basename(saved)).toBe(`a-cat-${outputId.slice(0, 6)}.png`)
+    expect(path.basename(saved)).toBe('gemini.png')
     expect(await readFile(saved)).toEqual(imageBytes)
     expect(body.skipped).toEqual([])
+  })
+
+  it('adds -2 when the model name is already in the folder', async () => {
+    const dir = await grantedDir()
+
+    await writeFile(path.join(dir, 'gemini.png'), 'keep')
+
+    const response = await POST(exportRequest({ outputs: [{ recordId: item.id, outputId }], dir }))
+    const body = (await response.json()) as { saved: string[] }
+
+    const saved = required(body.saved[0], 'saved file')
+
+    expect(path.basename(saved)).toBe('gemini-2.png')
+    expect(await readFile(path.join(dir, 'gemini.png'), 'utf8')).toBe('keep')
   })
 
   it('reports a missing output with the same skipped shape', async () => {

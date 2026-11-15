@@ -44,7 +44,7 @@ vi.mock('@/server/session', () => {
 })
 
 const { POST } = await import('@/app/api/generations/export-batch/route')
-const { exportDir } = await import('@/server/fs/export-files')
+const { copyUnique, exportDir } = await import('@/server/fs/export-files')
 
 const downloads = path.join(root, 'downloads')
 const videoBytes = Buffer.from('fake-mp4-bytes')
@@ -133,14 +133,14 @@ describe('POST /api/generations/export-batch', () => {
 
     const saved = required(body.saved[0], 'saved file')
 
-    expect(path.basename(saved)).toBe(`a-cat-${item.id.slice(0, 6)}.mp4`)
+    expect(path.basename(saved)).toBe('seedance.mp4')
     expect(await readFile(saved)).toEqual(videoBytes)
     expect(body.skipped).toEqual([])
   })
 
   it('leaves no temp files in the export folder', async () => {
     const dir = await grantedDir()
-    const saved = `a-cat-${item.id.slice(0, 6)}.mp4`
+    const saved = 'seedance.mp4'
     const leftover = `${saved}.tmp-00000000-0000-4000-8000-000000000000`
     const notes = path.join(dir, 'notes.txt')
 
@@ -155,9 +155,9 @@ describe('POST /api/generations/export-batch', () => {
     expect(await readFile(notes, 'utf8')).toBe('keep')
   })
 
-  it('adds (2) on a name collision and never overwrites', async () => {
+  it('adds -2 on a name collision and never overwrites', async () => {
     const dir = await grantedDir()
-    const first = path.join(dir, `a-cat-${item.id.slice(0, 6)}.mp4`)
+    const first = path.join(dir, 'seedance.mp4')
 
     await writeFile(first, 'keep')
 
@@ -166,7 +166,7 @@ describe('POST /api/generations/export-batch', () => {
 
     const saved = required(body.saved[0], 'saved file')
 
-    expect(path.basename(saved)).toBe(`a-cat-${item.id.slice(0, 6)} (2).mp4`)
+    expect(path.basename(saved)).toBe('seedance-2.mp4')
     expect(await readFile(first, 'utf8')).toBe('keep')
     expect((await stat(saved)).isFile()).toBe(true)
   })
@@ -220,6 +220,25 @@ describe('POST /api/generations/export-batch', () => {
     const response = await POST(exportRequest({ ids: [item.id], dir }))
 
     expect(response.status).toBe(404)
+  })
+})
+
+describe('copyUnique', () => {
+  it('numbers three copies from one model', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+    await writeFile(source, videoBytes)
+
+    const names: string[] = []
+
+    for (let index = 0; index < 3; index += 1) {
+      const saved = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+      names.push(path.basename(saved))
+    }
+
+    expect(names).toEqual(['seedance.mp4', 'seedance-2.mp4', 'seedance-3.mp4'])
   })
 })
 

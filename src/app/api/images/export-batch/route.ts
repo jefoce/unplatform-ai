@@ -1,13 +1,13 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { isNil } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import type { ExportEntry } from '@/core/api/export'
 import { ImageOutputRefSchema } from '@/core/api/image'
 import { HISTORY_BATCH_MAX } from '@/core/constants'
-import { promptSlug } from '@/core/media/file-names'
+import { modelBase, promptSlug } from '@/core/media/file-names'
 import { copyUnique } from '@/server/fs/export-files'
 import { getImage, imageOutputFile } from '@/server/repos/images'
 import { assertLocalRequest } from '@/server/request-guard'
@@ -68,7 +68,12 @@ async function exportEntry(output: ExportRef, dir: string): Promise<ExportEntry>
     return { skip: { id: output.outputId, reason: 'not_ready' } }
   }
 
-  const base = `${promptSlug(record)}-${saved.id.slice(0, 6)}`
+  let base = modelBase(record)
+
+  if (isEmpty(base)) {
+    base = promptSlug(record)
+  }
+
   const ext = path.extname(source).slice(1)
   const target = await copyUnique({ source, dir, base, ext })
 

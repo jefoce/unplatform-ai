@@ -218,7 +218,7 @@ describe('desktop command contract', () => {
     const desktop = await read(DESKTOP)
 
     expect(exportSource).toContain('add_filter("Video", &["mp4"])')
-    expect(desktop).toContain('`${promptSlug(record)}.mp4`')
+    expect(desktop).toContain('`${base}.mp4`')
     expect(Array.from(desktop.matchAll(/choose_export_path/g))).toHaveLength(1)
   })
 })

@@ -93,7 +93,7 @@ describe('POST /api/generations/[id]/export', () => {
 
     expect(response.status).toBe(201)
     expect(await readFile(target, 'utf8')).toBe('keep')
-    expect(body.path).toBe(path.join(root, 'existing (2).mp4'))
+    expect(body.path).toBe(path.join(root, 'existing-2.mp4'))
   })
 
   it('copies the video to the target', async () => {

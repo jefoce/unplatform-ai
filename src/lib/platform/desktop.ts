@@ -8,11 +8,11 @@ import {
   sendNotification,
 } from '@tauri-apps/plugin-notification'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
-import { chunk, isNil } from 'lodash-es'
+import { chunk, isEmpty, isNil } from 'lodash-es'
 
 import type { ExportResult } from '@/core/api/export'
 import { HISTORY_BATCH_MAX } from '@/core/constants'
-import { promptSlug } from '@/core/media/file-names'
+import { modelBase, promptSlug } from '@/core/media/file-names'
 import { extensionsForKinds } from '@/core/media/media-kinds'
 import type { FolderItem } from '@/core/schemas/folder-item'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
@@ -183,8 +183,14 @@ export const desktopPlatform: Platform = {
   },
 
   saveVideo: async (record: GenerationRecord) => {
+    let base = modelBase(record)
+
+    if (isEmpty(base)) {
+      base = promptSlug(record)
+    }
+
     const target = await invokeChecked<string | null>('choose_export_path', {
-      defaultName: `${promptSlug(record)}.mp4`,
+      defaultName: `${base}.mp4`,
     })
 
     if (isNil(target)) {
