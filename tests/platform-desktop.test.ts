@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- save dialog cases stay in one suite */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HISTORY_BATCH_MAX } from '@/core/constants'
@@ -9,6 +10,7 @@ import { record } from './helpers/history'
 const mocks = vi.hoisted(() => {
   return {
     exportBatch: vi.fn(),
+    exportImage: vi.fn(),
     exportImageBatch: vi.fn(),
     exportRecord: vi.fn(),
     invoke: vi.fn(),
@@ -59,7 +61,7 @@ vi.mock('@/lib/api/generations', () => {
 })
 
 vi.mock('@/lib/api/images', () => {
-  return { exportImageBatch: mocks.exportImageBatch }
+  return { exportImage: mocks.exportImage, exportImageBatch: mocks.exportImageBatch }
 })
 
 describe('desktop bundled links', () => {
@@ -255,11 +257,13 @@ describe('desktop image export', () => {
         recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         file: 'a.png',
+        name: 'wan-3-0',
       },
       {
         recordId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         outputId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         file: 'b.png',
+        name: 'wan-3-1',
       },
     ])
 
@@ -280,5 +284,69 @@ describe('desktop image export', () => {
     })
 
     expect(result).toEqual({ saved: 1, skipped: 1, folder: '/tmp/images' })
+  })
+})
+
+describe('desktop single image export', () => {
+  it('opens the save dialog with the model name and real extension', async () => {
+    mocks.invoke.mockResolvedValue('/tmp/wan-3-0.png')
+    mocks.exportImage.mockResolvedValue({ path: '/tmp/wan-3-0.png' })
+
+    const result = await desktopPlatform.saveImages([
+      {
+        recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        file: 'a.png',
+        name: 'wan-3-0',
+      },
+    ])
+
+    expect(mocks.invoke).toHaveBeenCalledWith('choose_export_path', {
+      defaultName: 'wan-3-0.png',
+      extension: 'png',
+    })
+
+    expect(mocks.exportImage).toHaveBeenCalledWith({
+      recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      path: '/tmp/wan-3-0.png',
+    })
+
+    expect(result).toEqual({ saved: 1, skipped: 0 })
+  })
+
+  it('does nothing when the save dialog is canceled', async () => {
+    mocks.invoke.mockResolvedValue(null)
+
+    const result = await desktopPlatform.saveImages([
+      {
+        recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        file: 'a.png',
+        name: 'wan-3-0',
+      },
+    ])
+
+    expect(result).toEqual({ saved: 0, skipped: 0 })
+    expect(mocks.exportImage).not.toHaveBeenCalled()
+  })
+
+  it('passes a jpg extension unchanged', async () => {
+    mocks.invoke.mockResolvedValue('/tmp/wan-3-0.jpg')
+    mocks.exportImage.mockResolvedValue({ path: '/tmp/wan-3-0.jpg' })
+
+    await desktopPlatform.saveImages([
+      {
+        recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        file: 'a.jpg',
+        name: 'wan-3-0',
+      },
+    ])
+
+    expect(mocks.invoke).toHaveBeenCalledWith('choose_export_path', {
+      defaultName: 'wan-3-0.jpg',
+      extension: 'jpg',
+    })
   })
 })

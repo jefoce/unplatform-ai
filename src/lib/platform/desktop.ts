@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- one Platform object owns every native bridge call */
 import { Channel, invoke, type InvokeArgs } from '@tauri-apps/api/core'
 import { resolveResource } from '@tauri-apps/api/path'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
@@ -19,11 +20,11 @@ import type { GenerationRecord } from '@/core/schemas/generation-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { createFolder } from '@/lib/api/folders'
 import { exportBatch, exportRecord } from '@/lib/api/generations'
-import { exportImageBatch } from '@/lib/api/images'
+import { exportImage, exportImageBatch } from '@/lib/api/images'
 
 import { friendlyText } from './desktop-errors'
 import { linkPaths } from './link-paths'
-import type { ImageSaveRef, Platform, UpdateListener } from './types'
+import type { ImageSaveRef, Platform, SaveResult, UpdateListener } from './types'
 import {
   AppInfoSchema,
   type InstallResult,
@@ -110,6 +111,28 @@ async function openResource(name: string): Promise<void> {
   }
 }
 
+/** Saves one image through the save dialog, so the model name and real extension show. */
+async function saveOneImage(ref: ImageSaveRef): Promise<SaveResult> {
+  const ext = ref.file.slice(ref.file.lastIndexOf('.') + 1).toLowerCase()
+
+  const target = await invokeChecked<string | null>('choose_export_path', {
+    defaultName: `${ref.name}.${ext}`,
+    extension: ext,
+  })
+
+  if (isNil(target)) {
+    return { saved: 0, skipped: 0 }
+  }
+
+  try {
+    await exportImage({ recordId: ref.recordId, outputId: ref.outputId, path: target })
+  } catch (error) {
+    throw await translateFailure('save image', asError(error))
+  }
+
+  return { saved: 1, skipped: 0 }
+}
+
 export const desktopPlatform: Platform = {
   kind: 'desktop',
 
@@ -191,6 +214,7 @@ export const desktopPlatform: Platform = {
 
     const target = await invokeChecked<string | null>('choose_export_path', {
       defaultName: `${base}.mp4`,
+      extension: 'mp4',
     })
 
     if (isNil(target)) {
@@ -234,6 +258,12 @@ export const desktopPlatform: Platform = {
   },
 
   saveImages: async (refs: ImageSaveRef[]) => {
+    const [only] = refs
+
+    if (refs.length === 1 && !isNil(only)) {
+      return saveOneImage(only)
+    }
+
     const parts = chunk(refs, HISTORY_BATCH_MAX)
 
     const dir = await invokeChecked<string | null>('choose_export_folder', {

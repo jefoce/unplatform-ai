@@ -3,12 +3,19 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HistoryGrid } from '@/features/history/list/HistoryGrid'
+import { imageSaveRefs } from '@/features/history/selection/selection-actions'
 import { useSelectionStore } from '@/features/history/selection/selection-store'
 import { SelectionBar } from '@/features/history/selection/SelectionBar'
 
 import { ZOOM_DEFAULT } from '../src/core/constants'
 import { handleNoop, Observer } from './helpers/history'
-import { IMAGE_RECORD_ID, mixedImageItems, PLACEHOLDER_RECORD_ID } from './helpers/image-history'
+import {
+  IMAGE_RECORD_ID,
+  imageItemsOf,
+  mixedImageItems,
+  PLACEHOLDER_RECORD_ID,
+} from './helpers/image-history'
+import { required } from './helpers/required'
 
 const apiPost = vi.hoisted(() => {
   return vi.fn()
@@ -107,12 +114,39 @@ describe('image selection rules', () => {
 
     await waitFor(() => {
       expect(platformMock.saveImages).toHaveBeenCalledWith([
-        { recordId: IMAGE_RECORD_ID, outputId: 'saved-id', file: 'saved-id.png' },
+        {
+          recordId: IMAGE_RECORD_ID,
+          outputId: 'saved-id',
+          file: 'saved-id.png',
+          name: 'nano-banana',
+        },
       ])
     })
 
     expect(platformMock.saveVideos).not.toHaveBeenCalled()
     expect(toastMock).toHaveBeenCalledWith('3 not finished, skipped')
+  })
+
+  it('names one saved image after the model, or the prompt when unnamed', () => {
+    const named = required(imageItemsOf(['saved-id'])[0], 'image item')
+    const unnamed = required(imageItemsOf(['saved-id'])[0], 'image item')
+
+    const unnamedItem = {
+      ...unnamed,
+      source: { ...unnamed.source, preset: { ...unnamed.source.preset, title: '' } },
+    }
+
+    expect(
+      imageSaveRefs([named]).map((ref) => {
+        return ref.name
+      }),
+    ).toEqual(['nano-banana'])
+
+    expect(
+      imageSaveRefs([unnamedItem]).map((ref) => {
+        return ref.name
+      }),
+    ).toEqual(['a-cat'])
   })
 
   it('deletes the placeholder by record id', async () => {

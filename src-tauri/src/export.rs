@@ -10,6 +10,7 @@ const SESSION_COOKIE: &str = "upai_session";
 const PARENT_HEADER: &str = "X-Unplatform-AI-Parent";
 const UNUSABLE_PATH: &str =
     "The chosen path contains characters the app cannot use. Pick another name.";
+const UNKNOWN_EXTENSION: &str = "This file type cannot be saved from the app.";
 
 /// Values the sidecar route expects from the desktop parent.
 #[derive(Debug, PartialEq)]
@@ -36,6 +37,18 @@ fn usable_path(path: &Path) -> Result<String, String> {
     path.to_str()
         .map(str::to_string)
         .ok_or_else(|| UNUSABLE_PATH.to_string())
+}
+
+/// Dialog filter for a known extension, or nothing when the app cannot save it.
+fn export_filter(extension: &str) -> Option<(&'static str, &'static str)> {
+    match extension {
+        "mp4" => Some(("Video", "mp4")),
+        "png" => Some(("Image", "png")),
+        "jpg" => Some(("Image", "jpg")),
+        "jpeg" => Some(("Image", "jpeg")),
+        "webp" => Some(("Image", "webp")),
+        _ => None,
+    }
 }
 
 /// Registers a dialog choice with the sidecar before the webview may write there.
@@ -66,12 +79,15 @@ fn register_export(app: &AppHandle<Wry>, body: Value) -> Result<(), String> {
 pub async fn choose_export_path(
     app: AppHandle<Wry>,
     default_name: String,
+    extension: String,
 ) -> Result<Option<String>, String> {
+    let (name, ext) = export_filter(&extension).ok_or_else(|| UNKNOWN_EXTENSION.to_string())?;
+
     let chosen = app
         .dialog()
         .file()
         .set_file_name(default_name)
-        .add_filter("Video", &["mp4"])
+        .add_filter(name, &[ext])
         .blocking_save_file();
 
     let Some(file) = chosen else {
@@ -113,10 +129,26 @@ pub async fn choose_export_folder(
 #[cfg(test)]
 mod tests {
     use super::{
-        export_handshake, usable_path, ExportHandshake, PARENT_HEADER, SESSION_COOKIE,
-        UNUSABLE_PATH,
+        export_filter, export_handshake, usable_path, ExportHandshake, PARENT_HEADER,
+        SESSION_COOKIE, UNUSABLE_PATH,
     };
     use std::path::Path;
+
+    #[test]
+    fn maps_known_extensions_to_a_filter() {
+        assert_eq!(export_filter("mp4"), Some(("Video", "mp4")));
+        assert_eq!(export_filter("png"), Some(("Image", "png")));
+        assert_eq!(export_filter("jpg"), Some(("Image", "jpg")));
+        assert_eq!(export_filter("jpeg"), Some(("Image", "jpeg")));
+        assert_eq!(export_filter("webp"), Some(("Image", "webp")));
+    }
+
+    #[test]
+    fn rejects_an_unknown_extension() {
+        assert_eq!(export_filter("gif"), None);
+        assert_eq!(export_filter(""), None);
+        assert_eq!(export_filter("PNG"), None);
+    }
 
     #[test]
     fn builds_the_names_the_sidecar_route_reads() {

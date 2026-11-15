@@ -5,6 +5,7 @@
 ### Fixed
 
 - Saving a video or a batch of images to a folder works again on desktop.
+- Saving one image opens the same Save dialog as video, with the model name filled in.
 - A failed save or update explains what happened in plain words, without a file path or an internal name.
 - A failed update no longer restarts the app, and the release page stays one click away.
 - On Windows, each key and endpoint token is stored in Credential Manager separately, so a long token list no longer fails to save.

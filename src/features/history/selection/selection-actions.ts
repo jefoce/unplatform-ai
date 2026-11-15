@@ -1,8 +1,9 @@
-import { isNil } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 import { toast } from 'sonner'
 
 import type { ImageOutputRef } from '@/core/api/image'
 import { isNonEmptyString } from '@/core/guards'
+import { modelBase, promptSlug } from '@/core/media/file-names'
 import {
   type HistoryItem,
   type ImageGridItem,
@@ -47,7 +48,14 @@ export function imageSaveRefs(items: ImageGridItem[]): ImageSaveRef[] {
       return []
     }
 
-    return [{ recordId: item.recordId, outputId: item.id, file: item.output.file }]
+    const base = modelBase(item.source)
+    let name = base
+
+    if (isEmpty(name)) {
+      name = promptSlug(item.source)
+    }
+
+    return [{ recordId: item.recordId, outputId: item.id, file: item.output.file, name }]
   })
 }
 

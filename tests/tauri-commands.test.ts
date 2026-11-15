@@ -213,12 +213,13 @@ describe('desktop command contract', () => {
     expect(missing).toEqual([])
   })
 
-  it('uses the mp4 filter for the video save dialog only', async () => {
+  it('uses one dialog filter per save kind', async () => {
     const exportSource = await read(path.join(SRC, 'export.rs'))
     const desktop = await read(DESKTOP)
 
-    expect(exportSource).toContain('add_filter("Video", &["mp4"])')
-    expect(desktop).toContain('`${base}.mp4`')
-    expect(Array.from(desktop.matchAll(/choose_export_path/g))).toHaveLength(1)
+    expect(exportSource).toContain('"mp4" => Some(("Video", "mp4"))')
+    expect(exportSource).toContain('"png" => Some(("Image", "png"))')
+    expect(exportSource).toContain('"webp" => Some(("Image", "webp"))')
+    expect(Array.from(desktop.matchAll(/choose_export_path/g))).toHaveLength(2)
   })
 })

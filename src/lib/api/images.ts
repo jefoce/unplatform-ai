@@ -79,6 +79,23 @@ export function revealImageOutput(params: OutputParams): Promise<void> {
   return apiPost<void>(`/api/images/${params.recordId}/outputs/${params.outputId}/reveal`)
 }
 
+interface ExportImageParams {
+  recordId: string
+  outputId: string
+  path: string
+}
+
+interface ExportImageResult {
+  path: string
+}
+
+/** Desktop: copies one saved image output to a path the save dialog returned. */
+export function exportImage(params: ExportImageParams): Promise<ExportImageResult> {
+  const { recordId, outputId, path } = params
+
+  return apiPost<ExportImageResult>(`/api/images/${recordId}/outputs/${outputId}/export`, { path })
+}
+
 export function batchImageOutputs(body: ImageBatchBody): Promise<BatchResult> {
   return apiPost<BatchResult>('/api/images/batch', body)
 }
