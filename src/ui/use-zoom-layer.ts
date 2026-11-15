@@ -100,6 +100,27 @@ function scheduleWheelCommit(params: CommitWheelParams): void {
   }, WHEEL_COMMIT_MS)
 }
 
+/** True when a measured view equals the current one, so the observer can skip a render. */
+export function isSameView(current: ZoomView, next: ZoomView): boolean {
+  return (
+    current.layerWidth === next.layerWidth &&
+    current.layerHeight === next.layerHeight &&
+    current.contentLeft === next.contentLeft &&
+    current.contentTop === next.contentTop &&
+    current.contentWidth === next.contentWidth &&
+    current.contentHeight === next.contentHeight
+  )
+}
+
+/** Next view, or the current reference when the measurement did not change. */
+export function nextView(current: ZoomView, next: ZoomView): ZoomView {
+  if (isSameView(current, next)) {
+    return current
+  }
+
+  return next
+}
+
 /** Layer refs plus the measured content box, refreshed when either side resizes. */
 export function useZoomView(resetKey: string) {
   const layerRef = useRef<HTMLDivElement>(null)
@@ -115,13 +136,17 @@ export function useZoomView(resetKey: string) {
     }
 
     const measure = () => {
-      setView({
+      const next: ZoomView = {
         layerWidth: layer.offsetWidth,
         layerHeight: layer.offsetHeight,
         contentLeft: content.offsetLeft,
         contentTop: content.offsetTop,
         contentWidth: content.offsetWidth,
         contentHeight: content.offsetHeight,
+      }
+
+      setView((current) => {
+        return nextView(current, next)
       })
     }
 
