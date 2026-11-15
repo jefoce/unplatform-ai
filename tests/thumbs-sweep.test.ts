@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import type { sweepThumbs as SweepThumbs } from '@/server/media/thumbs'
 
-import { THUMB_UNUSED_DAYS } from '../src/core/constants'
+import { THUMB_ENCODER_VERSION, THUMB_UNUSED_DAYS } from '../src/core/constants'
 
 vi.mock('server-only', () => {
   return {}
@@ -73,6 +73,22 @@ describe('sweepThumbs', () => {
 
     expect(await sweepThumbs({ dir })).toBe(1)
     expect(await names()).toEqual([thumbName('b')])
+  })
+
+  it('removes a thumb cached under the previous encoder version', async () => {
+    const { thumbCacheKey } = await import('@/server/media/thumbs')
+
+    const name = `${thumbCacheKey({
+      ref: 'images/a.png',
+      mtimeMs: 1,
+      width: 320,
+      encoderVersion: THUMB_ENCODER_VERSION - 1,
+    })}.webp`
+
+    await writeThumb(name, 10, (THUMB_UNUSED_DAYS + 1) * DAY_MS)
+
+    expect(await sweepThumbs({ dir })).toBe(1)
+    expect(await names()).toEqual([])
   })
 
   it('keeps everything under the size cap', async () => {

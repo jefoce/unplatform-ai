@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url'
 
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
+import { THUMB_MAX_BYTES } from '../src/server/media/webp-cap'
+
 const FIXTURE_PNG = fileURLToPath(new URL('./fixtures/media/sample.png', import.meta.url))
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cf-thumbs-old-preview-'))
@@ -53,5 +55,6 @@ describe('GET /api/thumbs for an old record preview', () => {
     expect(bytes.byteLength).toBeGreaterThan(0)
     expect(header.startsWith('RIFF')).toBe(true)
     expect(header.endsWith('WEBP')).toBe(true)
+    expect(bytes.byteLength).toBeLessThanOrEqual(THUMB_MAX_BYTES)
   })
 })

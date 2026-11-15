@@ -3,11 +3,11 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 
-import { PREVIEW_MAX_WIDTH, PREVIEW_QUALITY } from '@/core/constants'
+import { PREVIEW_MAX_WIDTH } from '@/core/constants'
 
 import { probeMedia } from './ffmpeg'
 import { extractPosterFrame } from './poster-frame'
-import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
+import { encodeWebpUnderCap } from './webp-cap'
 
 interface MakePreviewParams {
   id: string
@@ -29,7 +29,9 @@ export async function makePreview(params: MakePreviewParams): Promise<string | u
 
     await extractPosterFrame({ videoPath: video, width, outPath: frame })
 
-    await sharp(frame, SHARP_INPUT_OPTIONS).webp({ quality: PREVIEW_QUALITY }).toFile(out)
+    const capped = await encodeWebpUnderCap({ input: frame, width })
+
+    await fs.writeFile(out, capped.buffer)
 
     return `${id}.preview.webp`
   } catch (error) {

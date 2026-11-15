@@ -383,7 +383,6 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `PREVIEW_AT_SEC` | 0.5 | Preview frame time |
 | `PREVIEW_GRACE_MS` | 30000 | How long a finished video may keep polling for its poster |
 | `PREVIEW_MAX_WIDTH` | 1920 | Preview frame max width |
-| `PREVIEW_QUALITY` | 90 | Preview WebP quality |
 | `PREVIEW_WIDTH` | 640 | Default poster request width |
 | `PRICE_DEBOUNCE_MS` | 500 | Price and estimate debounce |
 | `PRICING_FALLBACK_TTL_MS` | 300000 | Fallback price cache lifetime |
@@ -407,7 +406,7 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `SUBMIT_YIELD_MS` | 50 | Yield between submit queue steps |
 | `THUMBS_MAX_BYTES` | 1073741824 | Thumb cache cap |
 | `THUMBS_TARGET_BYTES` | 838860800 | Thumb cache trim target |
-| `THUMB_ENCODER_VERSION` | 1 | Thumb encoder version in the cache key |
+| `THUMB_ENCODER_VERSION` | 2 | Thumb encoder version in the cache key |
 | `THUMB_TOUCH_MS` | 86400000 | Thumb mtime refresh interval |
 | `THUMB_UNUSED_DAYS` | 30 | Thumb cache retention |
 | `THUMB_WIDTH` | 320 | Thumbnail width |
