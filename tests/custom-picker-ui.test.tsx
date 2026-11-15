@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CatalogEntry, ModelCatalog } from '@/core/catalog'
+import { CATALOG_CHECKING_REASON, type CatalogEntry, type ModelCatalog } from '@/core/catalog'
 import { IMAGE_PRESETS } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
@@ -123,6 +123,13 @@ const UNREACHABLE = entry({
   badge: 'CU2',
 })
 
+const CHECKING = entry({
+  preset: customPreset('custom.cu4.checking', 'Checking Model'),
+  status: 'unverified',
+  reason: CATALOG_CHECKING_REASON,
+  badge: 'CU4',
+})
+
 const MISSING = entry({
   preset: customPreset('custom.cu1.gone', 'Gone Workflow'),
   status: 'missing',
@@ -239,7 +246,20 @@ describe('custom model picker', () => {
 
     expect((unreachable as HTMLButtonElement).disabled).toBe(true)
     expect(unreachable.textContent).toContain('(unreachable)')
+    expect(within(unreachable).getByText(UNREACHABLE.reason ?? '')).toBeTruthy()
     expect(within(dialog).queryByText('Gone Workflow')).toBeNull()
+  })
+
+  it('disables a checking row without a reason line or note', () => {
+    useEntries([CHECKING])
+
+    render(<ModelPicker />)
+    const dialog = openPicker()
+    const checking = within(dialog).getByRole('button', { name: /Checking Model/ })
+
+    expect(checking.matches(':disabled')).toBe(true)
+    expect(checking.textContent).not.toContain('Checking ComfyUI')
+    expect(checking.textContent).not.toContain('(unreachable)')
   })
 
   it('disables an unreachable row in the image picker', () => {

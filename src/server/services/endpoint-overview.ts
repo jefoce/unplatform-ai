@@ -60,12 +60,11 @@ export async function getEndpointOverview(): Promise<EndpointOverview> {
 function mockOverview(): EndpointOverview {
   const endpoints = customMockInstances().map((instance): EndpointOverviewEntry => {
     const catalog = customMockCatalogForInstance(instance.id)
-    const status: EndpointHealthView = catalog.isReachable ? 'ok' : 'unreachable'
 
     return {
       ...customMockEndpoint(instance),
       runningJobs: 0,
-      status,
+      status: healthView(instance.id),
       videoCount: catalog.video.length,
       imageCount: catalog.image.length,
       tokenHint: null,

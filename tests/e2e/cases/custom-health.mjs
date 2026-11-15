@@ -1,12 +1,12 @@
-import { gotoTab, openApp, resetLocal, setPrompt } from '../lib/dom.mjs'
+import { clickLabelPrefix, gotoTab, openApp, resetLocal, setPrompt } from '../lib/dom.mjs'
 
 const WAIT_MS = 30_000
 const ROW_WAIT_MS = 3_000
 const UNREACHABLE_ID = 'mock-unreachable'
 const CU4_TITLE = 'Wan 2.2 I2V (local)'
+const CU4_LABEL = 'Mock offline endpoint'
 const CU1_TITLE = 'Wan 2.2 T2V (local)'
 const UNREACHABLE_REASON = 'ComfyUI is not reachable.'
-const CHECKING_REASON = 'Checking ComfyUI'
 const CU4_PRESET_ID = 'custom.mock-unreachable.wan22-i2v'
 const DRAFT_KEY = 'unplatform-ai:draft'
 
@@ -194,20 +194,18 @@ async function customHealthChecking(context) {
 
   await setReachable(server, UNREACHABLE_ID, false)
   await openApp(context)
-  await gotoTab(driver, 'Video')
-  await openModelPicker(driver)
-
+  await clickLabelPrefix(driver, 'Settings')
   await driver.waitFor(
-    `(() => {
-      const row = ${rowExpression('CU4', CU4_TITLE)}
-      if (row === undefined) return false
-      return row.innerText.includes(${JSON.stringify(CHECKING_REASON)}) || row.innerText.includes(${JSON.stringify(UNREACHABLE_REASON)})
-    })()`,
+    `window.__e2e.all('[data-endpoint-row]').some((row) => row.innerText.includes(${JSON.stringify(CU4_LABEL)}) && row.innerText.includes('Checking…'))`,
     ROW_WAIT_MS,
-    'the CU4 row with the checking or unreachable reason',
+    'the CU4 settings row checking',
   )
+  await driver.pressKey('Escape')
+  await driver.waitFor(`!window.__e2e.exists('[data-endpoint-row]')`, WAIT_MS, 'Settings to close')
 
+  await gotoTab(driver, 'Video')
   await setReachable(server, UNREACHABLE_ID, true)
+  await openModelPicker(driver)
   await driver.click('[aria-label="Refresh models"]')
   await driver.waitFor(
     `(() => {
