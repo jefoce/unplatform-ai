@@ -14,6 +14,8 @@
 - A batch save that fails partway reports how many files were already saved.
 - The price appears right after a key is added, without switching tabs.
 - The app no longer exits when its port is already in use by another program.
+- Custom endpoints show Checking until the connection is confirmed after startup, and can't be used before that.
+- Thumbnails are smaller, 50 KB or less each, so the library uses less disk space and loads faster.
 
 ## 0.5.0 - 2026-11-10
 
