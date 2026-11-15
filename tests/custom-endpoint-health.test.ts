@@ -318,6 +318,40 @@ describe('endpoint health reports', () => {
   })
 })
 
+describe('endpoint health recovery', () => {
+  it('logs one recovery line and hides the token', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const error = new ProviderError({
+      providerId: 'custom',
+      kind: 'auth',
+      message: 'failed',
+      storedMessage: 'upai:unauthorized: Bearer SECRET rejected',
+      status: 401,
+      code: 'unauthorized',
+    })
+
+    fail({ endpointId: 'ep1', error })
+    fail({ endpointId: 'ep1', error })
+
+    expect(getHealth('ep1')?.state).toBe('unauthorized')
+
+    recordHealthOk('ep1')
+    recordHealthOk('ep1')
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(info).toHaveBeenCalledTimes(1)
+
+    const line = String(info.mock.calls[0]?.[0])
+
+    expect(line).toContain('ep1')
+    expect(line).toContain('ok')
+    expect(line).not.toContain('SECRET')
+    expect(line).not.toContain('http')
+  })
+})
+
 function emit(endpointId: string, maxRunning: number): void {
   emitCustomHealth(endpointId, { state: 'ok', message: null, maxRunning })
 }

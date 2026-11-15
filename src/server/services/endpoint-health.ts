@@ -33,6 +33,7 @@ import {
   kindOfError,
   kindOfStatus,
   logOffline,
+  logOnline,
   shortHealthText,
 } from './endpoint-health-report'
 
@@ -120,6 +121,10 @@ export function recordHealthOk(endpointId: string, maxRunning?: number | null): 
     message: null,
     maxRunning: maxRunning ?? previous?.maxRunning ?? null,
   })
+
+  if (!isNil(previous) && isOfflineHealthStatus(previous.state)) {
+    logOnline(endpointId)
+  }
 }
 
 /** A timeout only closes an endpoint while a job poll keeps failing. */

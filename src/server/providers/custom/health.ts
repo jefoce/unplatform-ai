@@ -12,7 +12,13 @@ import type { TestResult } from '@/core/types'
 import { ProviderError } from '../provider-error'
 import { healthStateOf, protocolError } from './errors'
 import { emitCustomHealth } from './health-events'
-import { customRequest, providerErrorFromResponse, readCustomJson, requestHeaders } from './http'
+import {
+  customRequest,
+  endpointOrigin,
+  providerErrorFromResponse,
+  readCustomJson,
+  requestHeaders,
+} from './http'
 
 interface HealthProbeOk {
   ok: true
@@ -27,8 +33,44 @@ interface HealthProbeFailure {
 
 export type HealthProbe = HealthProbeOk | HealthProbeFailure
 
-/** One health call. Every outcome feeds the endpoint health store. */
+const pendingProbes = new Map<string, Promise<HealthProbe>>()
+
+/** Null for an invalid base URL, so the probe reports it like any network failure. */
+function probeOrigin(endpoint: CustomEndpoint): string | null {
+  try {
+    return endpointOrigin(endpoint)
+  } catch {
+    return null
+  }
+}
+
+/** One health call, shared by concurrent callers on the same origin. */
 export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthProbe> {
+  const origin = probeOrigin(endpoint)
+
+  if (isNil(origin)) {
+    return probeEndpoint(endpoint)
+  }
+
+  const pending = pendingProbes.get(origin)
+
+  if (!isNil(pending)) {
+    return pending
+  }
+
+  const probe = probeEndpoint(endpoint)
+
+  pendingProbes.set(origin, probe)
+
+  try {
+    return await probe
+  } finally {
+    pendingProbes.delete(origin)
+  }
+}
+
+/** One health call. Every outcome feeds the endpoint health store. */
+async function probeEndpoint(endpoint: CustomEndpoint): Promise<HealthProbe> {
   try {
     const res = await customRequest({
       endpoint,
