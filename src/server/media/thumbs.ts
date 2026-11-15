@@ -51,7 +51,8 @@ export interface ThumbResult {
   contentType: 'image/webp'
 }
 
-const MAX_CONCURRENT = 4
+// FIFO, so visible-first ordering is not implemented. Requests run in arrival order.
+const MAX_CONCURRENT = 2
 const MAX_WIDTH = Math.max(...POSTER_WIDTHS)
 const limiter = createLimiter('thumbQueue', MAX_CONCURRENT)
 const inFlight = new Map<string, Promise<ThumbResult>>()

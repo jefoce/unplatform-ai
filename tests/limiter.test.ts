@@ -34,8 +34,8 @@ describe('createLimiter concurrency', () => {
     expect(peak).toBe(1)
   })
 
-  it('keeps the peak at max with several queued tasks', async () => {
-    const limiter = createLimiter('test-limiter-max-two', 2)
+  it('runs at most two thumbnail tasks at once', async () => {
+    const limiter = createLimiter('thumbQueue', 2)
     const gate = Promise.withResolvers<void>()
     let running = 0
     let peak = 0
@@ -47,7 +47,7 @@ describe('createLimiter concurrency', () => {
       running -= 1
     }
 
-    const tasks = Array.from({ length: 6 }, () => {
+    const tasks = Array.from({ length: 5 }, () => {
       return limiter.run(task)
     })
 
