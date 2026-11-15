@@ -8,14 +8,21 @@ import { isNil } from 'lodash-es'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
+import healthFixture from '../docs/protocol/upai-1/fixtures/health.json'
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
-import { CATALOG_CHECKING_REASON, type CatalogEntry, type ModelCatalog } from '../src/core/catalog'
+import {
+  CATALOG_CHECKING_REASON,
+  CATALOG_UNREACHABLE_REASON,
+  type CatalogEntry,
+  type ModelCatalog,
+} from '../src/core/catalog'
 import { CUSTOM_CATALOG_MIN_REFRESH_MS, MODEL_CATALOG_TTL_MS } from '../src/core/constants'
 import { isVideoPreset } from '../src/core/presets/common/preset-kind'
 import { CUSTOM_STALE_REASON } from '../src/core/presets/custom/shared'
 import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
+import { CUSTOM_TOKEN_MESSAGE } from '../src/core/providers/custom-messages'
 import {
   type CustomEndpoint,
   type CustomEndpointPricing,
@@ -101,6 +108,7 @@ const { clearCustomCatalog, ensureCustomCatalog, refreshCustomCatalog } =
 
 const {
   getHealth,
+  probeEnabledEndpoints,
   recordHealthOk,
   __resetEndpointHealthForTests: resetHealth,
 } = await import('@/server/services/endpoint-health')
@@ -1145,5 +1153,85 @@ describe('find preset by kind', () => {
     expect((await findImagePresetAny(imageId))?.id).toBe(imageId)
     expect(await findVideoPresetAny(imageId)).toBeNull()
     expect(await findImagePresetAny(videoId)).toBeNull()
+  })
+})
+
+describe('catalog probe outcomes', () => {
+  it('marks cached entries unverified when the boot probe fails', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-probe-down', 'CUP')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      }),
+    )
+
+    await probeEnabledEndpoints()
+
+    const entry = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
+
+    expect(entry.status).toBe('unverified')
+    expect(entry.reason).toBe(CATALOG_UNREACHABLE_REASON)
+  })
+
+  it('marks cached entries unverified with the token message on 401', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-probe-auth', 'CUV')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return new Response(null, { status: 401 })
+      }),
+    )
+
+    await probeEnabledEndpoints()
+
+    const entry = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
+
+    expect(entry.status).toBe('unverified')
+    expect(entry.reason).toBe(CUSTOM_TOKEN_MESSAGE)
+  })
+
+  it('marks entries available after a successful boot probe', async () => {
+    const endpoint = customEndpoint('cat-probe-ok', 'CUW')
+
+    await writeEndpoints([endpoint])
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+
+        if (url.endsWith('/health')) {
+          return jsonResponse(healthFixture)
+        }
+
+        return jsonResponse(url.endsWith('/videos/models') ? videoFixture : imageFixture)
+      }),
+    )
+
+    await probeEnabledEndpoints()
+
+    const entries = customEntries((await getLoadedCatalog()).entries)
+
+    expect(entries.length).toBeGreaterThan(0)
+
+    expect(
+      entries.every((entry) => {
+        return entry.status === 'available'
+      }),
+    ).toBe(true)
   })
 })

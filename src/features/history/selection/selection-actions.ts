@@ -88,8 +88,14 @@ const plural = (count: number, noun: 'image' | 'video'): string => {
   return `${count} ${word}`
 }
 
-/** Reports what was saved and what the batch route skipped. */
+/** Reports what was saved, what the target folder already held and what the route skipped. */
 function reportSaveResult(result: SaveResult, noun: 'image' | 'video'): void {
+  if (result.saved === 0 && result.duplicates > 0 && result.skipped === 0) {
+    toast.success('All files are already in the folder.')
+
+    return
+  }
+
   if (result.saved === 0 && result.skipped === 0) {
     return
   }
@@ -104,6 +110,12 @@ function reportSaveResult(result: SaveResult, noun: 'image' | 'video'): void {
 }
 
 function reportSaved(result: SaveResult, noun: 'image' | 'video'): void {
+  if (result.duplicates > 0) {
+    toast.success(`Saved ${result.saved}, ${result.duplicates} already in the folder`)
+
+    return
+  }
+
   if (isNonEmptyString(result.folder)) {
     toast.success(`${plural(result.saved, noun)} saved to ${result.folder}`)
 

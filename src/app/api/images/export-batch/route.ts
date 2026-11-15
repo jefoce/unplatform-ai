@@ -75,7 +75,11 @@ async function exportEntry(output: ExportRef, dir: string): Promise<ExportEntry>
   }
 
   const ext = path.extname(source).slice(1)
-  const target = await copyUnique({ source, dir, base, ext })
+  const result = await copyUnique({ source, dir, base, ext })
 
-  return { saved: target }
+  if (result.isDuplicate) {
+    return { duplicate: result.path }
+  }
+
+  return { saved: result.path }
 }

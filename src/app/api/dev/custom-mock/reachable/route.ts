@@ -7,7 +7,11 @@ import { setMockEndpointReachable } from '@/server/services/custom-mock-control'
 
 export const dynamic = 'force-dynamic'
 
-const BodySchema = z.object({ id: z.string().min(1), isReachable: z.boolean() })
+const BodySchema = z.object({
+  id: z.string().min(1),
+  isReachable: z.boolean().default(false),
+  isChecking: z.boolean().default(false),
+})
 
 /** Switches one demo endpoint between ready and unreachable. Dev and e2e only. */
 export async function POST(request: Request): Promise<Response> {
@@ -23,9 +27,9 @@ export async function POST(request: Request): Promise<Response> {
       return zodError(body.error)
     }
 
-    const { id, isReachable } = body.data
+    const { id, isReachable, isChecking } = body.data
 
-    setMockEndpointReachable({ id, isReachable })
+    setMockEndpointReachable({ id, isReachable, isChecking })
 
     return new Response(null, { status: 204 })
   } catch (error) {

@@ -159,6 +159,7 @@ describe('desktop batch export', () => {
     mocks.exportBatch.mockResolvedValue({
       saved: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
       skipped: [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', reason: 'not_ready' }],
+      duplicates: [],
     })
 
     const result = await desktopPlatform.saveVideos([
@@ -167,7 +168,7 @@ describe('desktop batch export', () => {
     ])
 
     expect(mocks.invoke).toHaveBeenCalledWith('choose_export_folder', { uses: 1 })
-    expect(result).toEqual({ saved: 1, skipped: 1, folder: '/tmp/videos' })
+    expect(result).toEqual({ saved: 1, skipped: 1, duplicates: 0, folder: '/tmp/videos' })
   })
 
   it('stops when the folder dialog is canceled', async () => {
@@ -177,7 +178,7 @@ describe('desktop batch export', () => {
       record('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     ])
 
-    expect(result).toEqual({ saved: 0, skipped: 0 })
+    expect(result).toEqual({ saved: 0, skipped: 0, duplicates: 0 })
     expect(mocks.exportBatch).not.toHaveBeenCalled()
   })
 
@@ -207,6 +208,7 @@ describe('desktop batch export', () => {
           return entry.id
         }),
         skipped: [],
+        duplicates: [],
       })
       .mockRejectedValueOnce(new Error('Forbidden'))
 
@@ -225,6 +227,62 @@ describe('desktop batch export', () => {
     })
 
     expect(logged?.[1].message).toBe('Forbidden')
+  })
+})
+
+describe('desktop batch duplicates', () => {
+  it('sums the duplicates across chunks', async () => {
+    const records = Array.from({ length: HISTORY_BATCH_MAX + 1 }, () => {
+      return record(crypto.randomUUID())
+    })
+
+    mocks.invoke.mockResolvedValue('/tmp/videos')
+
+    mocks.exportBatch
+      .mockResolvedValueOnce({
+        saved: [records[0]?.id ?? ''],
+        skipped: [],
+        duplicates: [
+          'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        ],
+      })
+      .mockResolvedValueOnce({
+        saved: [],
+        skipped: [],
+        duplicates: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
+      })
+
+    const result = await desktopPlatform.saveVideos(records)
+
+    expect(result).toEqual({ saved: 1, skipped: 0, duplicates: 3, folder: '/tmp/videos' })
+  })
+
+  it('reports the duplicates saved before a later chunk fails', async () => {
+    const records = Array.from({ length: HISTORY_BATCH_MAX + 1 }, () => {
+      return record(crypto.randomUUID())
+    })
+
+    mocks.invoke.mockResolvedValue('/tmp/videos')
+
+    mocks.exportBatch
+      .mockResolvedValueOnce({
+        saved: [records[0]?.id ?? ''],
+        skipped: [],
+        duplicates: [
+          'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        ],
+      })
+      .mockRejectedValueOnce(new Error('Forbidden'))
+
+    const error = await desktopPlatform.saveVideos(records).catch((caught: unknown) => {
+      return caught
+    })
+
+    expect(messageOf(error)).toBe(
+      'Saved 1 of 201 files (2 already in the folder) before the error. The app cannot write to that location. Pick it again.',
+    )
   })
 })
 
@@ -250,6 +308,7 @@ describe('desktop image export', () => {
     mocks.exportImageBatch.mockResolvedValue({
       saved: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
       skipped: [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', reason: 'not_ready' }],
+      duplicates: [],
     })
 
     const result = await desktopPlatform.saveImages([
@@ -283,7 +342,7 @@ describe('desktop image export', () => {
       dir: '/tmp/images',
     })
 
-    expect(result).toEqual({ saved: 1, skipped: 1, folder: '/tmp/images' })
+    expect(result).toEqual({ saved: 1, skipped: 1, duplicates: 0, folder: '/tmp/images' })
   })
 })
 
@@ -312,7 +371,7 @@ describe('desktop single image export', () => {
       path: '/tmp/wan-3-0.png',
     })
 
-    expect(result).toEqual({ saved: 1, skipped: 0 })
+    expect(result).toEqual({ saved: 1, skipped: 0, duplicates: 0 })
   })
 
   it('does nothing when the save dialog is canceled', async () => {
@@ -327,7 +386,7 @@ describe('desktop single image export', () => {
       },
     ])
 
-    expect(result).toEqual({ saved: 0, skipped: 0 })
+    expect(result).toEqual({ saved: 0, skipped: 0, duplicates: 0 })
     expect(mocks.exportImage).not.toHaveBeenCalled()
   })
 

@@ -2,6 +2,7 @@ import { clickLabelPrefix, gotoTab, openApp, resetLocal, setPrompt } from '../li
 
 const WAIT_MS = 30_000
 const ROW_WAIT_MS = 3_000
+const SETTINGS_WAIT_MS = 5_000
 const UNREACHABLE_ID = 'mock-unreachable'
 const CU4_TITLE = 'Wan 2.2 I2V (local)'
 const CU4_LABEL = 'Mock offline endpoint'
@@ -36,6 +37,39 @@ async function setReachable(server, id, isReachable) {
   if (response.status !== 204) {
     throw new Error(`Reachable switch answered ${String(response.status)}`)
   }
+}
+
+async function setChecking(server, id) {
+  const response = await fetch(`${server.baseUrl}/api/dev/custom-mock/reachable`, {
+    method: 'POST',
+    headers: { cookie: `upai_session=${server.token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ id, isChecking: true }),
+  })
+
+  if (response.status !== 204) {
+    throw new Error(`Checking switch answered ${String(response.status)}`)
+  }
+}
+
+async function openSettings(driver) {
+  await clickLabelPrefix(driver, 'Settings')
+  await driver.waitFor(
+    `window.__e2e.all('[data-endpoint-row]').some((row) => row.innerText.includes(${JSON.stringify(CU4_LABEL)}))`,
+    WAIT_MS,
+    'the CU4 settings row',
+  )
+}
+
+async function settingsRowText(driver) {
+  return driver.evaluate(`(() => {
+    const row = window.__e2e.all('[data-endpoint-row]').find((node) => node.innerText.includes(${JSON.stringify(CU4_LABEL)}))
+    return row === undefined ? null : row.innerText
+  })()`)
+}
+
+async function closeSettings(driver) {
+  await driver.pressKey('Escape')
+  await driver.waitFor(`!window.__e2e.exists('[data-endpoint-row]')`, WAIT_MS, 'Settings to close')
 }
 
 async function openModelPicker(driver) {
@@ -110,6 +144,24 @@ async function customHealthDown(context) {
 
   await setReachable(server, UNREACHABLE_ID, false)
   await openApp(context)
+  await openSettings(driver)
+  await driver.waitFor(
+    `(() => {
+      const row = window.__e2e.all('[data-endpoint-row]').find((node) => node.innerText.includes(${JSON.stringify(CU4_LABEL)}))
+      return row !== undefined && row.innerText.includes('Unreachable')
+    })()`,
+    SETTINGS_WAIT_MS,
+    'the CU4 settings row unreachable',
+  )
+
+  const settingsText = await settingsRowText(driver)
+
+  if (settingsText === null || settingsText.includes('Checking…')) {
+    throw new Error('The CU4 settings row shows Checking… after the probe failed')
+  }
+
+  await closeSettings(driver)
+
   await seedUnreachableDraft(driver)
   await gotoTab(driver, 'Video')
   await openModelPicker(driver)
@@ -192,16 +244,15 @@ async function customHealthUp(context) {
 async function customHealthChecking(context) {
   const { driver, server } = context
 
-  await setReachable(server, UNREACHABLE_ID, false)
+  await setChecking(server, UNREACHABLE_ID)
   await openApp(context)
-  await clickLabelPrefix(driver, 'Settings')
+  await openSettings(driver)
   await driver.waitFor(
     `window.__e2e.all('[data-endpoint-row]').some((row) => row.innerText.includes(${JSON.stringify(CU4_LABEL)}) && row.innerText.includes('Checking…'))`,
     ROW_WAIT_MS,
     'the CU4 settings row checking',
   )
-  await driver.pressKey('Escape')
-  await driver.waitFor(`!window.__e2e.exists('[data-endpoint-row]')`, WAIT_MS, 'Settings to close')
+  await closeSettings(driver)
 
   await gotoTab(driver, 'Video')
   await setReachable(server, UNREACHABLE_ID, true)

@@ -75,7 +75,7 @@ describe('browser saveImages', () => {
       },
     ])
 
-    expect(result).toEqual({ saved: 1, skipped: 0 })
+    expect(result).toEqual({ saved: 1, skipped: 0, duplicates: 0 })
     expect(click).toHaveBeenCalledTimes(1)
   })
 })

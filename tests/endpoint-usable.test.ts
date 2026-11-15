@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CATALOG_CHECKING_REASON, CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
+import { CUSTOM_FORBIDDEN_MESSAGE, CUSTOM_TOKEN_MESSAGE } from '@/core/providers/custom-messages'
+
 const ENDPOINT_ID = 'ep1'
 
 const endpoints = vi.hoisted(() => {
@@ -50,6 +53,7 @@ vi.mock('@/server/providers/custom/endpoint-source', () => {
 const {
   __resetEndpointHealthForTests: resetHealth,
   awaitEndpointUsable,
+  endpointBlockReason,
   getMaxRunning,
   isEndpointUsable,
   probeEnabledEndpoints,
@@ -106,6 +110,24 @@ describe('mock boot probe', () => {
     } finally {
       delete process.env.CUSTOM_ENDPOINT_MOCK
     }
+  })
+})
+
+describe('endpoint block reason', () => {
+  it('names the reason for each recorded phase', () => {
+    expect(endpointBlockReason(ENDPOINT_ID)).toBe(CATALOG_CHECKING_REASON)
+
+    setEndpointHealth({ endpointId: ENDPOINT_ID, status: 'ok', message: null })
+    expect(endpointBlockReason(ENDPOINT_ID)).toBeNull()
+
+    setEndpointHealth({ endpointId: ENDPOINT_ID, status: 'unauthorized', message: null })
+    expect(endpointBlockReason(ENDPOINT_ID)).toBe(CUSTOM_TOKEN_MESSAGE)
+
+    setEndpointHealth({ endpointId: ENDPOINT_ID, status: 'forbidden', message: null })
+    expect(endpointBlockReason(ENDPOINT_ID)).toBe(CUSTOM_FORBIDDEN_MESSAGE)
+
+    setEndpointHealth({ endpointId: ENDPOINT_ID, status: 'protocol', message: null })
+    expect(endpointBlockReason(ENDPOINT_ID)).toBe(CATALOG_UNREACHABLE_REASON)
   })
 })
 

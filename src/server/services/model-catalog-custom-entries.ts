@@ -17,14 +17,14 @@ import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
 import { type UpaiModel, UpaiModelListSchema } from '@/core/protocol/upai'
+import { CUSTOM_FORBIDDEN_MESSAGE, CUSTOM_TOKEN_MESSAGE } from '@/core/providers/custom-messages'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
-import { isCustomEndpointMockMode } from '../config/mock-mode'
 import { fallbackPricing } from '../pricing/live'
 import { requestHeaders, requestJson } from '../providers/custom/http'
 import { customRunPriceFromUsd } from '../providers/custom/pricing'
 import { countActiveJobs } from './endpoint-active-jobs'
-import { isEndpointVerified, recordHealthFromError, recordHealthOk } from './endpoint-health'
+import { endpointPhase, recordHealthFromError, recordHealthOk } from './endpoint-health'
 import {
   isEndpointUnreachable,
   markEndpointReachable,
@@ -224,12 +224,21 @@ function buildKindCatalog(params: KindCatalogParams): KindCatalog {
 
 function availabilityFor(params: AvailabilityParams): ModelAvailability {
   const { endpointId, fallback, isMissing, isUnreachable } = params
+  const phase = endpointPhase(endpointId)
 
-  if (!isCustomEndpointMockMode() && !isEndpointVerified(endpointId)) {
+  if (phase === 'checking') {
     return { status: 'unverified', reason: CATALOG_CHECKING_REASON }
   }
 
-  if (isUnreachable) {
+  if (phase === 'unauthorized') {
+    return { status: 'unverified', reason: CUSTOM_TOKEN_MESSAGE }
+  }
+
+  if (phase === 'forbidden') {
+    return { status: 'unverified', reason: CUSTOM_FORBIDDEN_MESSAGE }
+  }
+
+  if (phase === 'unreachable' || phase === 'protocol' || isUnreachable) {
     return { status: 'unverified', reason: CATALOG_UNREACHABLE_REASON }
   }
 

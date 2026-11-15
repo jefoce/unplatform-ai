@@ -106,7 +106,7 @@ describe('image selection rules', () => {
   })
 
   it('downloads only saved images and reports the skip count', async () => {
-    platformMock.saveImages.mockResolvedValue({ saved: 1, skipped: 0 })
+    platformMock.saveImages.mockResolvedValue({ saved: 1, skipped: 0, duplicates: 0 })
     select(ALL_IDS)
     render(<SelectionBar items={items} />)
 
@@ -125,6 +125,18 @@ describe('image selection rules', () => {
 
     expect(platformMock.saveVideos).not.toHaveBeenCalled()
     expect(toastMock).toHaveBeenCalledWith('3 not finished, skipped')
+  })
+
+  it('says when the only saved images are already in the folder', async () => {
+    platformMock.saveImages.mockResolvedValue({ saved: 0, skipped: 0, duplicates: 1 })
+    select(ALL_IDS)
+    render(<SelectionBar items={items} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download 1' }))
+
+    await waitFor(() => {
+      expect(toastMock.success).toHaveBeenCalledWith('All files are already in the folder.')
+    })
   })
 
   it('names one saved image after the model, or the prompt when unnamed', () => {

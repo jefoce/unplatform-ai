@@ -15,6 +15,7 @@ export interface ChooseFilesParams {
 export interface SaveResult {
   saved: number
   skipped: number
+  duplicates: number
   folder?: string
 }
 

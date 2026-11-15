@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import { isNil } from 'lodash-es'
 
+import { CATALOG_CHECKING_REASON, CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
 import {
   CUSTOM_CHECK_TIMEOUT_MS,
   ENDPOINT_FAILURE_THRESHOLD,
@@ -16,6 +17,7 @@ import {
   type EndpointHealthStatus,
   isOfflineHealthStatus,
 } from '@/core/endpoints'
+import { CUSTOM_FORBIDDEN_MESSAGE, CUSTOM_TOKEN_MESSAGE } from '@/core/providers/custom-messages'
 import type { TestResult } from '@/core/types'
 
 import { isCustomEndpointMockMode } from '../config/mock-mode'
@@ -31,6 +33,7 @@ import {
   type CustomHealthOutcome,
   registerCustomHealthListener,
 } from '../providers/custom/health-events'
+import { customMockCatalogForInstance } from '../providers/mock/custom-mock'
 import { ProviderError } from '../providers/provider-error'
 import {
   errorMessageOf,
@@ -292,48 +295,74 @@ export function isEndpointVerified(endpointId: string): boolean {
   return store.entries.get(endpointId)?.verified ?? false
 }
 
-/** An endpoint may start work only after a successful check in this session and no offline state. */
-export function isEndpointUsable(endpointId: string): boolean {
-  const entry = store.entries.get(endpointId)
+export type EndpointPhase = 'checking' | EndpointHealthStatus
 
-  if (isNil(entry) || !entry.verified) {
-    return false
-  }
-
-  return !isOfflineHealthStatus(entry.state)
+/** No recorded result reads as checking, never as a failure. */
+export function endpointPhase(endpointId: string): EndpointPhase {
+  return store.entries.get(endpointId)?.state ?? 'checking'
 }
 
-/** Waits up to `timeoutMs` for the boot probe, then reports usability. */
+/** An endpoint may start work only on a current ok result. */
+export function isEndpointUsable(endpointId: string): boolean {
+  return endpointPhase(endpointId) === 'ok'
+}
+
+/** Text for the Generate gate and the catalog row, null when the endpoint is ok. */
+export function endpointBlockReason(endpointId: string): string | null {
+  const phase = endpointPhase(endpointId)
+
+  if (phase === 'ok') {
+    return null
+  }
+
+  if (phase === 'checking') {
+    return CATALOG_CHECKING_REASON
+  }
+
+  if (phase === 'unauthorized') {
+    return CUSTOM_TOKEN_MESSAGE
+  }
+
+  if (phase === 'forbidden') {
+    return CUSTOM_FORBIDDEN_MESSAGE
+  }
+
+  return CATALOG_UNREACHABLE_REASON
+}
+
+/** Waits up to `timeoutMs` only while the boot probe has no result yet. */
 export async function awaitEndpointUsable(
   endpointId: string,
   timeoutMs: number = CUSTOM_CHECK_TIMEOUT_MS,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
 
-  while (Date.now() < deadline) {
-    if (isEndpointUsable(endpointId)) {
-      return true
-    }
-
-    if (isEndpointVerified(endpointId)) {
-      return false
-    }
-
+  while (endpointPhase(endpointId) === 'checking' && Date.now() < deadline) {
     await delay(100)
   }
 
   return isEndpointUsable(endpointId)
 }
 
-/** Probes every enabled endpoint once, in parallel. Demo endpoints are usable at boot. */
+/** Probes every enabled endpoint once, in parallel. */
 export async function probeEnabledEndpoints(): Promise<void> {
+  registerEndpointHealthListener()
+
   const endpoints = getEndpointsSync().filter((endpoint) => {
     return endpoint.enabled
   })
 
   if (isCustomEndpointMockMode()) {
     for (const endpoint of endpoints) {
-      recordHealthOk(endpoint.id)
+      if (customMockCatalogForInstance(endpoint.id).isReachable) {
+        recordHealthOk(endpoint.id)
+      } else {
+        recordHealthFailure({
+          endpointId: endpoint.id,
+          status: 'unreachable',
+          message: CATALOG_UNREACHABLE_REASON,
+        })
+      }
     }
 
     return

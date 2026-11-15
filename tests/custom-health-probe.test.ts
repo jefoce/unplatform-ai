@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { FETCH_TIMEOUTS } from '@/core/constants'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
 import healthFixture from '../docs/protocol/upai-1/fixtures/health.json'
@@ -20,6 +21,8 @@ vi.mock('@/server/providers/custom/endpoint-source', () => {
 
 const { runHealthProbe } = await import('@/server/providers/custom/health')
 
+const { registerCustomHealthListener } = await import('@/server/providers/custom/health-events')
+
 const ENDPOINT: CustomEndpoint = {
   id: 'ep1',
   label: 'ep1',
@@ -39,6 +42,7 @@ function healthResponse(): Response {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   tokenState.value = null
 })
@@ -98,5 +102,42 @@ describe('custom health probe', () => {
 
     expect(String(url)).toBe('http://127.0.0.1:8188/upai/api/v1/health')
     expect(headers.get('authorization')).toBe('Bearer secret-token')
+  })
+
+  it('records one unreachable result when the probe never settles', async () => {
+    const states: string[] = []
+
+    registerCustomHealthListener((_endpointId, outcome) => {
+      states.push(outcome.state)
+    })
+
+    const hung = Promise.withResolvers<Response>()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(() => {
+        return hung.promise
+      }),
+    )
+
+    vi.useFakeTimers()
+
+    const pending = runHealthProbe(ENDPOINT)
+
+    await vi.advanceTimersByTimeAsync(FETCH_TIMEOUTS.meta + 2_000)
+
+    const probe = await pending
+
+    if (probe.ok) {
+      throw new Error('Expected a failed probe')
+    }
+
+    expect(probe.state).toBe('unreachable')
+    expect(states).toEqual(['unreachable'])
+
+    hung.resolve(healthResponse())
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(states).toEqual(['unreachable'])
   })
 })

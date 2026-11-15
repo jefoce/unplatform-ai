@@ -106,12 +106,12 @@ async function copyVideo(params: CopyVideoParams): Promise<Response> {
     return jsonResponse({ path: target }, { status: 201 })
   }
 
-  const saved = await copyUnique({
+  const result = await copyUnique({
     source,
     dir,
     base: path.basename(target, path.extname(target)),
     ext: path.extname(target).slice(1),
   })
 
-  return jsonResponse({ path: saved }, { status: 201 })
+  return jsonResponse({ path: result.path }, { status: 201 })
 }

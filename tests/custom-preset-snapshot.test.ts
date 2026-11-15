@@ -219,11 +219,14 @@ describe('custom create endpoint health', () => {
     mocks.loadDraft.mockResolvedValue({ preset: VIDEO_PRESET, input, uploads: {} })
     setEndpointHealth({ endpointId: ENDPOINT.id, status: 'unreachable', message: 'Down' })
 
+    const started = Date.now()
+
     await expect(createGeneration(input)).rejects.toMatchObject({
       status: 400,
       message: 'ComfyUI is not reachable.',
     })
 
+    expect(Date.now() - started).toBeLessThan(100)
     expect(mocks.saveGeneration).not.toHaveBeenCalled()
   })
 

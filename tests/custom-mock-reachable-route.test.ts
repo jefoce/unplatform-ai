@@ -19,8 +19,12 @@ const {
   setMockReachable,
 } = await import('@/server/providers/mock/custom-mock-state')
 
-const { __resetEndpointHealthForTests: resetHealth, isEndpointVerified } =
-  await import('@/server/services/endpoint-health')
+const {
+  __resetEndpointHealthForTests: resetHealth,
+  endpointPhase,
+  isEndpointVerified,
+  recordHealthOk,
+} = await import('@/server/services/endpoint-health')
 
 function reachableRequest(body: unknown): Request {
   return new Request('http://127.0.0.1:3000/api/dev/custom-mock/reachable', {
@@ -74,6 +78,7 @@ describe('custom mock reachable route', () => {
     expect(down.status).toBe(204)
     expect(mockReachable('mock-unreachable')).toBe(false)
     expect(customMockCatalogForInstance('mock-unreachable').isReachable).toBe(false)
+    expect(endpointPhase('mock-unreachable')).toBe('unreachable')
 
     const up = await POST(reachableRequest({ id: 'mock-unreachable', isReachable: true }))
 
@@ -81,6 +86,17 @@ describe('custom mock reachable route', () => {
     expect(mockReachable('mock-unreachable')).toBe(true)
     expect(customMockCatalogForInstance('mock-unreachable').isReachable).toBe(true)
     expect(isEndpointVerified('mock-unreachable')).toBe(true)
+  })
+
+  it('forgets the health result while the mock reports checking', async () => {
+    process.env.CUSTOM_ENDPOINT_MOCK = '1'
+
+    recordHealthOk('mock-unreachable')
+
+    const response = await POST(reachableRequest({ id: 'mock-unreachable', isChecking: true }))
+
+    expect(response.status).toBe(204)
+    expect(endpointPhase('mock-unreachable')).toBe('checking')
   })
 })
 

@@ -66,6 +66,7 @@ async function translateFailure(subject: string, failure: Error): Promise<Error>
 interface PartTotals {
   saved: number
   skipped: number
+  duplicates: number
 }
 
 interface RunPartsParams<T> {
@@ -79,6 +80,7 @@ async function runExportParts<T>(params: RunPartsParams<T>): Promise<PartTotals>
   const { parts, total, run } = params
   let saved = 0
   let skipped = 0
+  let duplicates = 0
 
   for (const part of parts) {
     try {
@@ -86,8 +88,15 @@ async function runExportParts<T>(params: RunPartsParams<T>): Promise<PartTotals>
 
       saved += result.saved.length
       skipped += result.skipped.length
+      duplicates += result.duplicates.length
     } catch (error) {
       const failure = await translateFailure('export', asError(error))
+
+      if (duplicates > 0) {
+        throw new Error(
+          `Saved ${saved} of ${total} files (${duplicates} already in the folder) before the error. ${failure.message}`,
+        )
+      }
 
       if (saved > 0) {
         throw new Error(`Saved ${saved} of ${total} files before the error. ${failure.message}`)
@@ -97,7 +106,7 @@ async function runExportParts<T>(params: RunPartsParams<T>): Promise<PartTotals>
     }
   }
 
-  return { saved, skipped }
+  return { saved, skipped, duplicates }
 }
 
 /** Opens a bundled resource and turns a failure into short user text. */
@@ -121,7 +130,7 @@ async function saveOneImage(ref: ImageSaveRef): Promise<SaveResult> {
   })
 
   if (isNil(target)) {
-    return { saved: 0, skipped: 0 }
+    return { saved: 0, skipped: 0, duplicates: 0 }
   }
 
   try {
@@ -130,7 +139,7 @@ async function saveOneImage(ref: ImageSaveRef): Promise<SaveResult> {
     throw await translateFailure('save image', asError(error))
   }
 
-  return { saved: 1, skipped: 0 }
+  return { saved: 1, skipped: 0, duplicates: 0 }
 }
 
 export const desktopPlatform: Platform = {
@@ -238,7 +247,7 @@ export const desktopPlatform: Platform = {
     })
 
     if (isNil(dir)) {
-      return { saved: 0, skipped: 0 }
+      return { saved: 0, skipped: 0, duplicates: 0 }
     }
 
     const totals = await runExportParts({
@@ -271,7 +280,7 @@ export const desktopPlatform: Platform = {
     })
 
     if (isNil(dir)) {
-      return { saved: 0, skipped: 0 }
+      return { saved: 0, skipped: 0, duplicates: 0 }
     }
 
     const totals = await runExportParts({

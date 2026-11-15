@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -155,6 +155,21 @@ describe('POST /api/images/export-batch', () => {
 
     expect(path.basename(saved)).toBe('gemini-2.png')
     expect(await readFile(path.join(dir, 'gemini.png'), 'utf8')).toBe('keep')
+  })
+
+  it('skips an identical file and counts it as a duplicate', async () => {
+    const dir = await grantedDir()
+
+    await writeFile(path.join(dir, 'gemini.png'), imageBytes)
+
+    const response = await POST(exportRequest({ outputs: [{ recordId: item.id, outputId }], dir }))
+    const body = (await response.json()) as { saved: unknown[]; duplicates: string[] }
+
+    expect(response.status).toBe(200)
+    expect(body.saved).toEqual([])
+    expect(body.duplicates).toEqual([await realpath(path.join(dir, 'gemini.png'))])
+    expect(await readdir(dir)).toEqual(['gemini.png'])
+    expect(await readFile(path.join(dir, 'gemini.png'))).toEqual(imageBytes)
   })
 
   it('reports a missing output with the same skipped shape', async () => {

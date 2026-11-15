@@ -54,18 +54,21 @@ export async function runExportBatch<Body extends ExportBody, Item>(
 
     const saved: string[] = []
     const skipped: BatchSkip[] = []
+    const duplicates: string[] = []
 
     for (const item of items(body.data)) {
       const entry = await exportEntry(item, folder)
 
       if ('saved' in entry) {
         saved.push(entry.saved)
+      } else if ('duplicate' in entry) {
+        duplicates.push(entry.duplicate)
       } else {
         skipped.push(entry.skip)
       }
     }
 
-    return jsonResponse({ saved, skipped })
+    return jsonResponse({ saved, skipped, duplicates })
   } catch (error) {
     return errorResponse(error)
   }

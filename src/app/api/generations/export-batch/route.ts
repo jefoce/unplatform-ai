@@ -54,5 +54,11 @@ async function exportEntry(id: string, dir: string): Promise<ExportEntry> {
     base = promptSlug(record)
   }
 
-  return { saved: await copyUnique({ source, dir, base, ext: 'mp4' }) }
+  const result = await copyUnique({ source, dir, base, ext: 'mp4' })
+
+  if (result.isDuplicate) {
+    return { duplicate: result.path }
+  }
+
+  return { saved: result.path }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- export cases stay in one suite */
 import { randomUUID } from 'node:crypto'
 import {
   mkdir,
@@ -223,22 +224,114 @@ describe('POST /api/generations/export-batch', () => {
   })
 })
 
+describe('POST /api/generations/export-batch duplicates', () => {
+  beforeEach(() => {
+    session.required = true
+    session.desktop = true
+  })
+
+  it('skips an identical file and counts it as a duplicate', async () => {
+    const dir = await grantedDir()
+    const first = path.join(dir, 'seedance.mp4')
+
+    await writeFile(first, videoBytes)
+
+    const response = await POST(exportRequest({ ids: [item.id], dir }))
+    const body = (await response.json()) as { saved: unknown[]; duplicates: string[] }
+
+    expect(response.status).toBe(200)
+    expect(body.saved).toEqual([])
+    expect(body.duplicates).toEqual([await realpath(first)])
+    expect(await readdir(dir)).toEqual(['seedance.mp4'])
+    expect(await readFile(first)).toEqual(videoBytes)
+  })
+
+  it('writes one file and one duplicate from two identical items', async () => {
+    const dir = await grantedDir()
+    const twin = record(randomUUID(), 'A cat!')
+
+    await write(twin)
+
+    const response = await POST(exportRequest({ ids: [item.id, twin.id], dir }))
+    const body = (await response.json()) as { saved: string[]; duplicates: string[] }
+
+    expect(body.saved).toHaveLength(1)
+    expect(body.duplicates).toHaveLength(1)
+    expect(await readdir(dir)).toEqual(['seedance.mp4'])
+  })
+})
+
 describe('copyUnique', () => {
   it('numbers three copies from one model', async () => {
+    const dir = await grantedDir()
+    const names: string[] = []
+
+    for (let index = 0; index < 3; index += 1) {
+      const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+      await writeFile(source, `bytes-${index}`)
+
+      const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+      names.push(path.basename(result.path))
+    }
+
+    expect(names).toEqual(['seedance.mp4', 'seedance-2.mp4', 'seedance-3.mp4'])
+  })
+
+  it('returns the identical file without copying it again', async () => {
     const dir = await grantedDir()
     const source = path.join(root, `source-${randomUUID()}.mp4`)
 
     await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'seedance.mp4'), videoBytes)
 
-    const names: string[] = []
+    const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
 
-    for (let index = 0; index < 3; index += 1) {
-      const saved = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+    expect(result.isDuplicate).toBe(true)
+    expect(result.path).toBe(path.join(dir, 'seedance.mp4'))
+    expect(await readdir(dir)).toEqual(['seedance.mp4'])
+  })
 
-      names.push(path.basename(saved))
-    }
+  it('adds -2 when the same size holds different bytes', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
 
-    expect(names).toEqual(['seedance.mp4', 'seedance-2.mp4', 'seedance-3.mp4'])
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'seedance.mp4'), Buffer.alloc(videoBytes.length, 1))
+
+    const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(false)
+    expect(path.basename(result.path)).toBe('seedance-2.mp4')
+  })
+
+  it('adds -2 when the bytes differ in size', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'seedance.mp4'), 'other')
+
+    const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(false)
+    expect(path.basename(result.path)).toBe('seedance-2.mp4')
+  })
+
+  describe.skipIf(process.platform === 'win32')('a symlink at the target name', () => {
+    it('is not hashed and gets the next free name', async () => {
+      const dir = await grantedDir()
+      const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+      await writeFile(source, videoBytes)
+      await symlink(source, path.join(dir, 'seedance.mp4'))
+
+      const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+      expect(result.isDuplicate).toBe(false)
+      expect(path.basename(result.path)).toBe('seedance-2.mp4')
+    })
   })
 })
 

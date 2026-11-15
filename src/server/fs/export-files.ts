@@ -1,8 +1,10 @@
 import 'server-only'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { pipeline } from 'node:stream/promises'
 
 import { isNil } from 'lodash-es'
 
@@ -123,6 +125,38 @@ export async function copyExclusive(source: string, target: string): Promise<boo
   }
 }
 
+/** SHA-256 of the file, streamed so a long video never sits in memory. */
+async function hashFile(file: string): Promise<string> {
+  const hash = createHash('sha256')
+
+  await pipeline(createReadStream(file), hash)
+
+  return hash.digest('hex')
+}
+
+/** True when both paths are regular files with the same size and bytes. */
+async function isSameFile(existing: string, source: string): Promise<boolean> {
+  const target = await fs.lstat(existing).catch(() => {
+    return null
+  })
+
+  if (isNil(target) || !target.isFile()) {
+    return false
+  }
+
+  const origin = await fs.stat(source).catch(() => {
+    return null
+  })
+
+  if (isNil(origin) || origin.size !== target.size) {
+    return false
+  }
+
+  const [targetHash, sourceHash] = await Promise.all([hashFile(existing), hashFile(source)])
+
+  return targetHash === sourceHash
+}
+
 interface CopyUniqueParams {
   source: string
   dir: string
@@ -130,16 +164,26 @@ interface CopyUniqueParams {
   ext: string
 }
 
-/** First free `name.ext`, `name-2.ext`, ... using exclusive copies. */
-export async function copyUnique(params: CopyUniqueParams): Promise<string> {
+interface CopyUniqueResult {
+  path: string
+  isDuplicate: boolean
+}
+
+/** First free `name.ext`, `name-2.ext`, ..., or the identical file already there. */
+export async function copyUnique(params: CopyUniqueParams): Promise<CopyUniqueResult> {
   const { source, dir, base, ext } = params
+  const existing = path.join(dir, `${base}.${ext}`)
+
+  if (await isSameFile(existing, source)) {
+    return { path: existing, isDuplicate: true }
+  }
 
   for (let index = 1; index < 1000; index += 1) {
     const name = index === 1 ? `${base}.${ext}` : `${base}-${index}.${ext}`
     const target = path.join(dir, name)
 
     if (await copyExclusive(source, target)) {
-      return target
+      return { path: target, isDuplicate: false }
     }
   }
 

@@ -23,7 +23,7 @@ import { readEndpointFile } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
 import { secretsReady } from '../secrets'
-import { getHealth, isEndpointVerified } from './endpoint-health'
+import { endpointPhase } from './endpoint-health'
 import { readEndpointModels } from './endpoint-model-cache'
 import { readTokenMap } from './endpoint-tokens'
 
@@ -90,13 +90,9 @@ async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry
   }
 }
 
-/** Never reads the stored last health, so a restart starts from checking. */
+/** Reads the probe result only. No stored last health, so a restart starts from checking. */
 function healthView(endpointId: string): EndpointHealthView {
-  if (!isEndpointVerified(endpointId)) {
-    return 'checking'
-  }
-
-  return getHealth(endpointId)?.state ?? 'unknown'
+  return endpointPhase(endpointId)
 }
 
 /** One pass over both record lists, keyed by endpoint id. */
