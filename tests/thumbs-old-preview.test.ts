@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-import { THUMB_MAX_BYTES } from '../src/server/media/webp-cap'
+import { THUMB_MAX_BYTES } from '../src/core/constants'
 
 const FIXTURE_PNG = fileURLToPath(new URL('./fixtures/media/sample.png', import.meta.url))
 

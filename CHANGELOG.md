@@ -16,6 +16,12 @@
 - The price appears right after a key is added, without switching tabs.
 - The app no longer exits when its port is already in use by another program.
 - Custom endpoints show Checking until the connection is confirmed after startup, and can't be used before that.
+- Batch export skips files that are already in the folder with the same name and content.
+- The model name shows while models load, never an internal id.
+- An endpoint that can't be reached at startup shows that right away instead of Checking.
+
+### Changed
+
 - Thumbnails are smaller, 50 KB or less each, so the library uses less disk space and loads faster.
 - Downloads are named after the model, or the prompt when the model has no name, with -2, -3 and so on when a name is already in the folder.
 

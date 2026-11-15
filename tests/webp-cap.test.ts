@@ -1,7 +1,8 @@
 import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { encodeWebpUnderCap, THUMB_MAX_BYTES } from '../src/server/media/webp-cap'
+import { THUMB_MAX_BYTES } from '../src/core/constants'
+import { encodeWebpUnderCap } from '../src/server/media/webp-cap'
 
 const SOURCE_WIDTH = 1600
 const SOURCE_HEIGHT = 900

@@ -1,8 +1,8 @@
 import 'server-only'
 
-import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
+import { THUMB_MAX_BYTES } from '@/core/constants'
 
-export const THUMB_MAX_BYTES = 51_200
+import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
 
 const START_QUALITY = 86
 const SEARCH_LOW = 49

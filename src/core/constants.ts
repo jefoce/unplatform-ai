@@ -119,6 +119,9 @@ export const ZOOM_DEFAULT = 5
 
 export const THUMB_WIDTH = 320
 
+/** Largest generated WebP thumbnail, bytes. */
+export const THUMB_MAX_BYTES = 51_200
+
 /** Stage backdrop: 96 px wide, blurred on the server so Linux needs no filter. */
 export const BLUR_WIDTH = 96
 export const BLUR_SIGMA = 8

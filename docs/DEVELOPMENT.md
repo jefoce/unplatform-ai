@@ -98,6 +98,13 @@ The protocol copy at `docs/protocol/upai-1` is pinned in `SOURCE` to `unplatform
 
 No test uses a real key. The adapter suites use the mock server or the in-process fixtures.
 
+#### Mock dev routes
+
+Both are 404 unless `CUSTOM_ENDPOINT_MOCK=1` and only answer local requests.
+
+- `POST /api/dev/custom-mock/reachable` sets one mock endpoint up, down or checking.
+- `POST /api/dev/model-catalog-delay` delays the model catalog, in ms from 0 to 5000.
+
 ## 5. Adding a model
 
 1. Find the provider docs and the OpenRouter model id. Check `/api/v1/videos/models` for `supported_*` fields and `pricing_skus`.
