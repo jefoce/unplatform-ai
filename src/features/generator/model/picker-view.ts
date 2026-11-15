@@ -1,6 +1,9 @@
-import { isNil } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 
 import type { CatalogEntry } from '@/core/catalog'
+import type { PresetIcon } from '@/core/presets/common/icon'
+import type { ImagePreset } from '@/core/presets/image/types'
+import type { VideoPreset } from '@/core/presets/video/types'
 
 import { type PickerGroup, type PickerKind, type PickerRow, selectedTitle } from './picker-groups'
 import { presetTitleOf } from './preset-title'
@@ -8,6 +11,15 @@ import { presetTitleOf } from './preset-title'
 interface FallbackRowParams {
   selectedId: string
   entry: CatalogEntry | null
+  savedTitle: string | null
+  savedBadge: string | null
+  savedIcon: PresetIcon
+}
+
+export interface FallbackTitleParams {
+  selectedId: string
+  entry: CatalogEntry | null
+  savedTitle: string | null
 }
 
 interface PopoverSideParams {
@@ -15,39 +27,63 @@ interface PopoverSideParams {
   isWide: boolean
 }
 
+function fallbackMediaKind(preset: VideoPreset | ImagePreset | undefined): PickerKind {
+  if (isNil(preset)) {
+    return 'video'
+  }
+
+  if ('duration' in preset) {
+    return 'video'
+  }
+
+  return 'image'
+}
+
+// eslint-disable-next-line complexity -- the row carries every fallback default
 export function fallbackRow(params: FallbackRowParams): PickerRow {
-  const { selectedId, entry } = params
+  const { selectedId, entry, savedTitle, savedBadge, savedIcon } = params
   const source = entry?.source
-  const preset = entry?.preset
-  const isImage = !isNil(preset) && !('duration' in preset)
-  const mediaKind: PickerKind = isImage ? 'image' : 'video'
+  const title = fallbackTitle({ selectedId, entry, savedTitle })
+  const badge = savedBadge ?? source?.badge ?? null
 
   return {
     id: selectedId,
-    title: fallbackTitle(selectedId, entry),
-    icon: 'sparkles',
+    title: title ?? selectedTitle(selectedId) ?? '',
+    icon: savedIcon,
     description: '',
     priceText: '',
     kind: source?.kind,
-    badge: source?.badge,
+    badge,
     status: entry?.status,
     reason: entry?.reason,
     isCustom: source?.kind === 'custom',
     resolutionText: null,
     durationText: null,
     hasAudio: false,
-    mediaKind,
+    mediaKind: fallbackMediaKind(entry?.preset),
   }
 }
 
-function fallbackTitle(selectedId: string, entry: CatalogEntry | null): string {
+/** Catalog title, snapshot title, or the saved draft title. Never the raw id. */
+export function fallbackTitle(params: FallbackTitleParams): string | null {
+  const { selectedId, entry, savedTitle } = params
   const presetTitle = entry?.preset?.title
 
-  if (!isNil(presetTitle)) {
+  if (!isNil(presetTitle) && !isEmpty(presetTitle)) {
     return presetTitle
   }
 
-  return presetTitleOf(selectedId) ?? selectedTitle(selectedId)
+  const remembered = presetTitleOf(selectedId)
+
+  if (!isNil(remembered) && !isEmpty(remembered)) {
+    return remembered
+  }
+
+  if (!isNil(savedTitle) && !isEmpty(savedTitle)) {
+    return savedTitle
+  }
+
+  return null
 }
 
 export function currentRow(groups: readonly PickerGroup[], selectedId: string): PickerRow | null {

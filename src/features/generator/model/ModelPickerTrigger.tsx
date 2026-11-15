@@ -13,16 +13,9 @@ export type ModelPickerVariant = 'panel' | 'bar'
 
 interface ModelPickerTriggerProps {
   model: PickerRow
+  title: string
   discount: number
   variant?: ModelPickerVariant
-}
-
-function triggerTitle(model: PickerRow): string {
-  if (isNil(model.badge)) {
-    return model.title
-  }
-
-  return `[${model.badge}] ${model.title}`
 }
 
 function isWarning(model: PickerRow): boolean {
@@ -31,9 +24,8 @@ function isWarning(model: PickerRow): boolean {
 
 /** Button that opens the model picker, with the custom endpoint badge. */
 export function ModelPickerTrigger(props: ModelPickerTriggerProps) {
-  const { model, discount, variant = 'panel' } = props
+  const { model, title, discount, variant = 'panel' } = props
   const label = discountLabel(discount)
-  const title = triggerTitle(model)
   const hasWarning = isWarning(model)
 
   if (variant === 'bar') {

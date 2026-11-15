@@ -13,11 +13,12 @@ import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-re
 
 import { inputFromState } from './store-draft'
 import { clampReferenceDuration } from './store-helpers'
-import type { GeneratorSetState, GeneratorState } from './store-state'
+import type { GeneratorSetState, GeneratorState, RememberModelParams } from './store-state'
 
 type DraftActions = Pick<
   GeneratorState,
   | 'setPreset'
+  | 'rememberModel'
   | 'setTab'
   | 'setPrompt'
   | 'setAudio'
@@ -90,6 +91,17 @@ export function createDraftActions(set: GeneratorSetState): DraftActions {
         }
 
         return normalizedDraft({ state, preset })
+      })
+    },
+    rememberModel: (params: RememberModelParams) => {
+      const { id, title, badge, icon } = params
+
+      set((state) => {
+        if (state.presetId !== id) {
+          return {}
+        }
+
+        return { modelTitle: title, modelBadge: badge, modelIcon: icon }
       })
     },
     setTab: (tab) => {

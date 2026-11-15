@@ -45,7 +45,12 @@ describe('custom draft hydration', () => {
 
     await waitForRehydrate()
 
-    expect(useGeneratorStore.getState().presetId).toBe(CUSTOM_ID)
+    const state = useGeneratorStore.getState()
+
+    expect(state.presetId).toBe(CUSTOM_ID)
+    expect(state.modelTitle).toBeNull()
+    expect(state.modelBadge).toBeNull()
+    expect(state.modelIcon).toBe('sparkles')
   })
 
   it('keeps a custom preset when a loaded draft is normalized', async () => {

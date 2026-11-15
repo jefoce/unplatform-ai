@@ -3,22 +3,34 @@
 import { arrayMove } from '@dnd-kit/sortable'
 import { isNil, keyBy, uniqBy } from 'lodash-es'
 import { toast } from 'sonner'
+import { z } from 'zod'
 
 import type { UploadsById } from '@/core/api/uploads'
+import { PRESET_ICONS } from '@/core/presets/common/icon'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { findImagePreset } from '@/core/presets/image'
 import type { ImageAspectChoice, ImageBackground, ImageQuality } from '@/core/presets/image/types'
-import { type ImageGenerationInput, ImageInputSchema } from '@/core/schemas/image-record'
+import { ImageInputSchema } from '@/core/schemas/image-record'
 import type { UploadItem } from '@/core/schemas/upload-item'
 import { referenceBlockReason } from '@/features/generator/reference-rules'
+import type { RememberModelParams } from '@/features/generator/store/store-state'
 import { createDraftStore } from '@/lib/create-draft-store'
 
 import { clampImageCount, imageDefaults, imageDraftForPreset } from './image-draft'
 import { currentImagePreset, imageReferenceMax } from './preset'
 
-interface ImageGeneratorState extends ImageGenerationInput {
+const ImageDraftSchema = ImageInputSchema.extend({
+  modelTitle: z.string().nullable().default(null),
+  modelBadge: z.string().nullable().default(null),
+  modelIcon: z.enum(PRESET_ICONS).default('sparkles'),
+})
+
+type ImageDraft = z.infer<typeof ImageDraftSchema>
+
+interface ImageGeneratorState extends ImageDraft {
   uploadsById: UploadsById
   setPreset: (id: string) => void
+  rememberModel: (params: RememberModelParams) => void
   setPrompt: (prompt: string) => void
   setCount: (count: number) => void
   setAspectRatio: (aspectRatio: ImageAspectChoice) => void
@@ -37,12 +49,14 @@ interface ImageGeneratorState extends ImageGenerationInput {
 
 const INITIAL_PRESET = currentImagePreset('')
 
-const INITIAL = {
+const INITIAL: ImageDraft = {
   presetId: INITIAL_PRESET.id,
   prompt: '',
   ...imageDefaults(INITIAL_PRESET),
   references: [],
-  uploadsById: {},
+  modelTitle: null,
+  modelBadge: null,
+  modelIcon: 'sparkles',
 }
 
 interface ClampedReferences {
@@ -89,13 +103,14 @@ function clampReferences(params: ClampReferencesParams): ClampedReferences {
 
 /** Draft shared by the floating image prompt bar. */
 /* eslint-disable max-lines-per-function -- one draft store owns every image action */
-export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, ImageGenerationInput>({
+export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, ImageDraft>({
   name: 'unplatform-ai:image-draft',
   version: 1,
-  schema: ImageInputSchema,
+  schema: ImageDraftSchema,
   create: (set, get) => {
     return {
       ...INITIAL,
+      uploadsById: {},
       setPreset: (id) => {
         const preset = findImagePreset(id)
 
@@ -115,6 +130,17 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
         if (draft.references.length < previous.references.length) {
           toast(`Kept the first ${draft.references.length} references`)
         }
+      },
+      rememberModel: (params) => {
+        const { id, title, badge, icon } = params
+
+        set((state) => {
+          if (state.presetId !== id) {
+            return {}
+          }
+
+          return { modelTitle: title, modelBadge: badge, modelIcon: icon }
+        })
       },
       setPrompt: (prompt) => {
         set({ prompt })
@@ -248,6 +274,9 @@ export const useImageGeneratorStore = createDraftStore<ImageGeneratorState, Imag
       background: state.background,
       references: state.references,
       seed: state.seed,
+      modelTitle: state.modelTitle,
+      modelBadge: state.modelBadge,
+      modelIcon: state.modelIcon,
     }
   },
   normalize: (state) => {

@@ -1,6 +1,7 @@
 import type { StoreApi } from 'zustand'
 
 import type { UploadsById } from '@/core/api/uploads'
+import type { PresetIcon } from '@/core/presets/common/icon'
 import type { AspectChoice } from '@/core/presets/video/types'
 import type { RefSlot } from '@/core/prompt-tokens'
 import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-record'
@@ -12,11 +13,19 @@ type MentionInserter = (slot: RefSlot) => void
 
 type SlotFocuser = (slot: RefSlot, occurrence: number) => void
 
+export interface RememberModelParams {
+  id: string
+  title: string
+  badge: string | null
+  icon: PresetIcon
+}
+
 export interface GeneratorState extends GeneratorDraft {
   uploadsById: UploadsById
   activeCount: number
   setActiveCount: (count: number) => void
   setPreset: (id: string) => void
+  rememberModel: (params: RememberModelParams) => void
   setTab: (tab: GeneratorTab) => void
   setPrompt: (text: string) => void
   setAudio: (audio: boolean) => void

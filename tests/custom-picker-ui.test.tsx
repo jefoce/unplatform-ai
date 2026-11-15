@@ -11,6 +11,7 @@ import type { VideoPreset } from '@/core/presets/video/types'
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { rememberPresetTitle } from '@/features/generator/model/preset-title'
 import { useGeneratorStore } from '@/features/generator/store/store'
+import { useImageGeneratorStore } from '@/features/image-generator/store'
 import { refreshCatalog, useCatalog } from '@/lib/api/catalog'
 
 import { getPreset } from '../src/core/presets'
@@ -159,7 +160,13 @@ beforeEach(() => {
 
   mockRefresh.mockReset()
   mockRefresh.mockResolvedValue(undefined)
-  useGeneratorStore.setState({ presetId: 'wan-3.0' })
+
+  useGeneratorStore.setState({
+    presetId: 'wan-3.0',
+    modelTitle: null,
+    modelBadge: null,
+    modelIcon: 'sparkles',
+  })
 })
 
 afterEach(() => {
@@ -307,6 +314,65 @@ describe('custom model picker', () => {
     )
   })
 
+  it('shows the saved title and badge while the catalog loads', () => {
+    mockCatalog.mockReturnValue({
+      catalog: undefined,
+      isLoading: true,
+      isValidating: false,
+    })
+
+    useGeneratorStore.setState({
+      presetId: 'custom.cu1.minimax',
+      modelTitle: 'MiniMax H3',
+      modelBadge: 'CU1',
+    })
+
+    render(<ModelPicker />)
+
+    const trigger = screen.getByRole('button', { name: /Model/ })
+
+    expect(trigger.textContent).toContain('[CU1] MiniMax H3')
+    expect(trigger.textContent).not.toContain('custom.cu1.minimax')
+  })
+
+  it('shows a loading label when no title is saved', () => {
+    mockCatalog.mockReturnValue({
+      catalog: undefined,
+      isLoading: true,
+      isValidating: false,
+    })
+
+    useGeneratorStore.setState({
+      presetId: 'custom.cu1.minimax',
+      modelTitle: null,
+      modelBadge: null,
+    })
+
+    render(<ModelPicker />)
+
+    const trigger = screen.getByRole('button', { name: /Model/ })
+
+    expect(trigger.textContent).toContain('Loading model…')
+    expect(trigger.textContent).not.toContain('custom.cu1.minimax')
+  })
+
+  it('shows an unavailable label for a missing model after the catalog loads', () => {
+    useEntries([])
+
+    useGeneratorStore.setState({
+      presetId: 'custom.cu1.gone',
+      modelTitle: null,
+      modelBadge: null,
+    })
+
+    render(<ModelPicker />)
+
+    const trigger = screen.getByRole('button', { name: /Model/ })
+
+    expect(trigger.textContent).toContain('Model unavailable')
+    expect(trigger.textContent).not.toContain('custom.cu1.gone')
+  })
+
   it('keeps a renamed selected model in the trigger with its remembered title', () => {
     const oldId = 'custom.cu1.renamed-old'
     const newId = 'custom.cu1.renamed-new'
@@ -330,6 +396,27 @@ describe('custom model picker', () => {
     fireEvent.click(within(openPicker()).getByRole('button', { name: /New Wan Workflow/ }))
 
     expect(handleSelect).toHaveBeenCalledWith(newId)
+  })
+
+  it('shows the saved image title while the image catalog loads', () => {
+    mockCatalog.mockReturnValue({
+      catalog: undefined,
+      isLoading: true,
+      isValidating: false,
+    })
+
+    useImageGeneratorStore.setState({
+      presetId: 'custom.cu1.image',
+      modelTitle: 'SDXL Image',
+      modelBadge: 'CU1',
+    })
+
+    render(<ModelPicker kind="image" models={[]} />)
+
+    const trigger = screen.getByRole('button', { name: /SDXL Image/ })
+
+    expect(trigger.textContent).toContain('[CU1] SDXL Image')
+    expect(trigger.textContent).not.toContain('custom.cu1.image')
   })
 
   it('refetches the catalog on open and forces it from the refresh button', async () => {

@@ -1,10 +1,14 @@
 import { DEFAULT_VIDEO_PRESET_ID, getPreset } from '@/core/presets'
+import type { PresetIcon } from '@/core/presets/common/icon'
 import type { GenerationInput, GeneratorTab } from '@/core/schemas/generation-record'
 
 type PromptMap = Record<GeneratorTab, string>
 
 export interface GeneratorDraft extends Omit<GenerationInput, 'prompt'> {
   prompts: PromptMap
+  modelTitle: string | null
+  modelBadge: string | null
+  modelIcon: PresetIcon
 }
 
 /** Plain GenerationInput snapshot of the draft, without actions or upload cache. */
@@ -38,5 +42,8 @@ export function defaults(): GeneratorDraft {
     frames: { start: null, end: null },
     references: [],
     seed: null,
+    modelTitle: null,
+    modelBadge: null,
+    modelIcon: 'sparkles',
   }
 }
