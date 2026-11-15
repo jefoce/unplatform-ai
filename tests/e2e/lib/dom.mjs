@@ -38,12 +38,94 @@ export async function setView(driver, label) {
   )
 }
 
+const PROMPT_SELECTOR = '[aria-label="Prompt"]'
+const PROMPT_POLL_MS = 3000
+const PROMPT_ATTEMPTS = 3
+const PROMPT_HOLD_MS = 300
+
+// Meta on macOS, Control elsewhere. The keyboard select-all updates Lexical's
+// own selection, which a DOM Range does not.
+const SELECT_ALL_MODIFIERS = process.platform === 'darwin' ? 4 : 2
+const KEY_A = { key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 }
+
+/** Focuses the prompt and selects its content, so the next insert replaces it. */
+async function focusPrompt(driver) {
+  const isFocused = await driver.evaluate(`(() => {
+    const editor = document.querySelector(${JSON.stringify(PROMPT_SELECTOR)})
+    if (editor === null) return false
+    editor.focus()
+    if (document.activeElement !== editor) editor.focus()
+    return document.activeElement === editor
+  })()`)
+
+  if (!isFocused) {
+    return false
+  }
+
+  await driver.send('Input.dispatchKeyEvent', {
+    ...KEY_A,
+    type: 'keyDown',
+    modifiers: SELECT_ALL_MODIFIERS,
+  })
+  await driver.send('Input.dispatchKeyEvent', {
+    ...KEY_A,
+    type: 'keyUp',
+    modifiers: SELECT_ALL_MODIFIERS,
+  })
+
+  return true
+}
+
+/**
+ * Types into the prompt editor, surviving the rebuild that follows reference
+ * uploads. The first attempt is a plain focus and insert. Retries select all
+ * first so they replace instead of appending.
+ */
 export async function setPrompt(driver, text) {
-  await driver.typeInto('[aria-label="Prompt"]', text)
+  const hasText = `(window.__e2e.promptText(${JSON.stringify(PROMPT_SELECTOR)}) ?? '').includes(${JSON.stringify(text)})`
+
   await driver.waitFor(
-    `(window.__e2e.promptText('[aria-label="Prompt"]') ?? '').includes(${JSON.stringify(text)})`,
+    `window.__e2e.exists(${JSON.stringify(PROMPT_SELECTOR)})`,
     10_000,
-    'the prompt text',
+    'the prompt editor',
+  )
+
+  for (let attempt = 1; attempt <= PROMPT_ATTEMPTS; attempt += 1) {
+    if (attempt === 1) {
+      await driver.typeInto(PROMPT_SELECTOR, text)
+    } else {
+      const isFocused = await focusPrompt(driver)
+
+      if (!isFocused) {
+        continue
+      }
+
+      await driver.type(text)
+    }
+
+    const hasAppeared = await driver
+      .waitFor(hasText, PROMPT_POLL_MS, 'the prompt text')
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasAppeared) {
+      continue
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, PROMPT_HOLD_MS))
+
+    if (await driver.evaluate(hasText)) {
+      return
+    }
+  }
+
+  const observed = await driver.evaluate(`({
+    promptText: window.__e2e.promptText(${JSON.stringify(PROMPT_SELECTOR)}),
+    innerText: document.querySelector(${JSON.stringify(PROMPT_SELECTOR)})?.innerText ?? '',
+  })`)
+
+  throw new Error(
+    `The prompt text never stuck. expected=${JSON.stringify(text)} promptText=${JSON.stringify(observed.promptText)} innerText=${JSON.stringify(observed.innerText)}`,
   )
 }
 
