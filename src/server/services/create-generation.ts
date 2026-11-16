@@ -5,6 +5,7 @@ import { randomInt, randomUUID } from 'node:crypto'
 import { isNil } from 'lodash-es'
 
 import type { UploadsById } from '@/core/api/uploads'
+import { CATALOG_UNREACHABLE_REASON } from '@/core/catalog'
 import {
   MAX_ACTIVE_JOBS,
   MAX_REQUEST_MB,
@@ -36,6 +37,7 @@ import { customRecordSource } from '../providers/custom/record-source'
 import { getVideoProvider } from '../providers/registry'
 import { getActiveCount, saveGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
+import { awaitEndpointUsable, endpointBlockReason } from './endpoint-health'
 import { estimateGeneration, loadDraft } from './estimate-generation'
 import { snapshotItem } from './upload-snapshot'
 
@@ -50,6 +52,10 @@ export async function createGeneration(raw: GenerationInput): Promise<Generation
 
     if (isNil(endpoint)) {
       throw new HttpError(409, 'Endpoint removed')
+    }
+
+    if (!(await awaitEndpointUsable(endpoint.id))) {
+      throw new HttpError(400, endpointBlockReason(endpoint.id) ?? CATALOG_UNREACHABLE_REASON)
     }
   }
 

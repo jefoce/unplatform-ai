@@ -25,6 +25,8 @@ const ACTION_RUNTIMES: Record<string, ActionRuntime> = {
   ea17c68df8912ef543352723c149a84f56e3d413: 'node24',
   cf430e030ddbb5b0abf93d22962f4752f3646cd9: 'node24',
   '9000827ccba6bdab643e8b6fd33ac0654aef8333': 'node24',
+  // browser-actions/setup-chrome v2.2.0
+  '48ad923757ca74d66703209fe939badbdf80f2f4': 'node24',
 }
 
 function workflowFiles(): string[] {

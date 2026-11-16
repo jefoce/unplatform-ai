@@ -1,6 +1,8 @@
 import { isNil } from 'lodash-es'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CATALOG_CHECKING_REASON } from '@/core/catalog'
+import { CUSTOM_CHECK_TIMEOUT_MS } from '@/core/constants'
 import { getPreset } from '@/core/presets'
 import { IMAGE_PRESETS } from '@/core/presets/image'
 import type { ImagePreset } from '@/core/presets/image/types'
@@ -96,6 +98,12 @@ vi.mock('@/server/media/image-data-url', () => {
 const { createGeneration } = await import('@/server/services/create-generation')
 const { createImage } = await import('@/server/services/image-create')
 
+const {
+  recordHealthOk,
+  setEndpointHealth,
+  __resetEndpointHealthForTests: resetEndpointHealth,
+} = await import('@/server/services/endpoint-health')
+
 const VIDEO_PRESET: VideoPreset = {
   ...getPreset('wan-3.0'),
   id: `custom.${ENDPOINT.id}.wan`,
@@ -146,6 +154,8 @@ function imageInput(preset: ImagePreset): ImageGenerationInput {
 }
 
 beforeEach(() => {
+  resetEndpointHealth()
+  recordHealthOk(ENDPOINT.id)
   mocks.loadDraft.mockReset()
   mocks.getEndpoint.mockReset()
   mocks.saveGeneration.mockReset()
@@ -160,6 +170,10 @@ beforeEach(() => {
   mocks.saveImage.mockImplementation(async (record: ImageRecord) => {
     return record
   })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('custom record preset snapshot', () => {
@@ -195,6 +209,59 @@ describe('custom record preset snapshot', () => {
     })
 
     expect(Object.keys(record.presetSnapshot ?? {}).sort()).toEqual(['family', 'id', 'title'])
+  })
+})
+
+describe('custom create endpoint health', () => {
+  it('rejects a video job while the endpoint is unreachable', async () => {
+    const input = videoInput()
+
+    mocks.loadDraft.mockResolvedValue({ preset: VIDEO_PRESET, input, uploads: {} })
+    setEndpointHealth({ endpointId: ENDPOINT.id, status: 'unreachable', message: 'Down' })
+
+    const started = Date.now()
+
+    await expect(createGeneration(input)).rejects.toMatchObject({
+      status: 400,
+      message: 'ComfyUI is not reachable.',
+    })
+
+    expect(Date.now() - started).toBeLessThan(100)
+    expect(mocks.saveGeneration).not.toHaveBeenCalled()
+  })
+
+  it('rejects a video job while the boot probe is still checking', async () => {
+    const input = videoInput()
+
+    mocks.loadDraft.mockResolvedValue({ preset: VIDEO_PRESET, input, uploads: {} })
+    resetEndpointHealth()
+    vi.useFakeTimers()
+
+    const pending = expect(createGeneration(input)).rejects.toMatchObject({
+      status: 400,
+      message: CATALOG_CHECKING_REASON,
+    })
+
+    await vi.advanceTimersByTimeAsync(CUSTOM_CHECK_TIMEOUT_MS)
+    await pending
+
+    expect(mocks.saveGeneration).not.toHaveBeenCalled()
+  })
+
+  it('rejects an image job while the endpoint is unreachable', async () => {
+    const preset = imagePreset()
+
+    setEndpointHealth({ endpointId: ENDPOINT.id, status: 'unreachable', message: 'Down' })
+
+    await expect(
+      createImage({
+        preset,
+        input: imageInput(preset),
+        price: { estimatedUsd: 0, priceSource: 'fallback' },
+      }),
+    ).rejects.toMatchObject({ status: 400, message: 'ComfyUI is not reachable.' })
+
+    expect(mocks.saveImage).not.toHaveBeenCalled()
   })
 })
 

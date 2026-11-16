@@ -105,3 +105,8 @@ export function logOffline(params: LogOfflineParams): void {
 
   console.warn(`[unplatform-ai] endpoint ${badge} unreachable (${kind}): ${message}`)
 }
+
+/** One line on recovery. The id is the only detail, so no URL or token can leak. */
+export function logOnline(endpointId: string): void {
+  console.info(`[unplatform-ai] endpoint ${endpointId} ok`)
+}

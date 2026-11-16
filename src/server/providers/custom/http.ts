@@ -59,7 +59,7 @@ function codeForStatus(status: number): string {
 }
 
 /** Scheme, host and port only. A pasted `/upai` is dropped by rebuilding the URL. */
-function endpointOrigin(endpoint: CustomEndpoint): string {
+export function endpointOrigin(endpoint: CustomEndpoint): string {
   return new URL(endpoint.baseUrl).origin
 }
 

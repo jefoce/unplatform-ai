@@ -209,17 +209,70 @@ pub async fn boot(app: &AppHandle<Wry>) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy)]
+struct MonitorRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+fn monitor_rect(monitor: &tauri::Monitor) -> MonitorRect {
+    let scale = monitor.scale_factor();
+    let position = monitor.position();
+    let size = monitor.size();
+
+    MonitorRect {
+        x: position.x as f64 / scale,
+        y: position.y as f64 / scale,
+        width: size.width as f64 / scale,
+        height: size.height as f64 / scale,
+    }
+}
+
+/// Keeps a restored window on a connected display. Unchanged when it already fits.
+fn clamp_bounds(
+    bounds: settings::WindowBounds,
+    monitors: &[MonitorRect],
+) -> settings::WindowBounds {
+    let (Some(x), Some(y)) = (bounds.x, bounds.y) else {
+        return bounds;
+    };
+    let inside = monitors.iter().find(|rect| {
+        x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
+    });
+    let Some(monitor) = inside.or_else(|| monitors.first()) else {
+        return bounds;
+    };
+    let max_x = (monitor.x + monitor.width - bounds.width).max(monitor.x);
+    let max_y = (monitor.y + monitor.height - bounds.height).max(monitor.y);
+
+    settings::WindowBounds {
+        x: Some(x.clamp(monitor.x, max_x)),
+        y: Some(y.clamp(monitor.y, max_y)),
+        width: bounds.width,
+        height: bounds.height,
+    }
+}
+
 fn create_window(
     app: &AppHandle<Wry>,
     url: WebviewUrl,
     settings: &settings::DesktopSettings,
     allowed_port: Arc<AtomicU16>,
 ) -> Result<WebviewWindow<Wry>, String> {
+    let monitors: Vec<MonitorRect> = app
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(monitor_rect)
+        .collect();
+    let bounds = clamp_bounds(settings.window.clone(), &monitors);
     let mut builder = WebviewWindowBuilder::new(app, "main", url)
         .title("Unplatform AI")
         .inner_size(
-            settings.window.width.max(settings::MIN_WIDTH),
-            settings.window.height.max(settings::MIN_HEIGHT),
+            bounds.width.max(settings::MIN_WIDTH),
+            bounds.height.max(settings::MIN_HEIGHT),
         )
         .min_inner_size(settings::MIN_WIDTH, settings::MIN_HEIGHT)
         // WebKit throttles an app it considers inactive, which drops the UI to a few fps.
@@ -234,7 +287,7 @@ fn create_window(
             }
             ok
         });
-    if let (Some(x), Some(y)) = (settings.window.x, settings.window.y) {
+    if let (Some(x), Some(y)) = (bounds.x, bounds.y) {
         builder = builder.position(x, y);
     }
 
@@ -789,15 +842,74 @@ pub(crate) fn health(port: u16) -> Option<Health> {
 #[cfg(test)]
 mod tests {
     use super::{
-        extract_failure, free_port, is_ours, next_port, session_url, stage_runtime, Health,
-        LockInfo,
+        clamp_bounds, extract_failure, free_port, is_ours, next_port, session_url, stage_runtime,
+        Health, LockInfo, MonitorRect,
     };
+    use crate::settings::WindowBounds;
     use std::{
         fs,
         io::{self, ErrorKind},
         path::Path,
     };
     use tar::{Builder, Header};
+
+    fn saved_window() -> WindowBounds {
+        WindowBounds {
+            x: Some(100.0),
+            y: Some(100.0),
+            width: 800.0,
+            height: 600.0,
+        }
+    }
+
+    fn display() -> MonitorRect {
+        MonitorRect {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        }
+    }
+
+    #[test]
+    fn keeps_a_restored_window_inside_its_display() {
+        let bounds = clamp_bounds(saved_window(), &[display()]);
+
+        assert_eq!(bounds.x, Some(100.0));
+        assert_eq!(bounds.y, Some(100.0));
+    }
+
+    #[test]
+    fn moves_a_restored_window_from_a_missing_display() {
+        let mut saved = saved_window();
+        saved.x = Some(5000.0);
+        saved.y = Some(5000.0);
+
+        let bounds = clamp_bounds(saved, &[display()]);
+
+        assert_eq!(bounds.x, Some(1120.0));
+        assert_eq!(bounds.y, Some(480.0));
+    }
+
+    #[test]
+    fn keeps_a_restored_window_without_displays() {
+        let bounds = clamp_bounds(saved_window(), &[]);
+
+        assert_eq!(bounds.x, Some(100.0));
+        assert_eq!(bounds.y, Some(100.0));
+    }
+
+    #[test]
+    fn keeps_a_restored_window_without_a_position() {
+        let mut saved = saved_window();
+        saved.x = None;
+        saved.y = None;
+
+        let bounds = clamp_bounds(saved, &[display()]);
+
+        assert!(bounds.x.is_none());
+        assert!(bounds.y.is_none());
+    }
 
     #[test]
     fn next_port_advances_and_recovers_from_zero() {

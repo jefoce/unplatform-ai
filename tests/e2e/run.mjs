@@ -5,6 +5,7 @@ import { cardActionsCases } from './cases/card-actions.mjs'
 import { cspCases } from './cases/csp.mjs'
 import { creditsCases } from './cases/credits.mjs'
 import { customCases } from './cases/custom.mjs'
+import { customHealthCases } from './cases/custom-health.mjs'
 import { detailsCases } from './cases/details.mjs'
 import { failureCases } from './cases/failure.mjs'
 import { feedCases } from './cases/feed.mjs'
@@ -44,6 +45,7 @@ const CASES = [
   ...cspCases,
   ...creditsCases,
   ...customCases,
+  ...customHealthCases,
   ...detailsCases,
   ...feedCases,
   ...likeCases,

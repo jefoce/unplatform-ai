@@ -186,9 +186,9 @@ export function pickerGroups(params: PickerGroupsParams): PickerGroup[] {
   ]
 }
 
-/** Static or runtime title for a preset id, used when the row is not listed. */
-export function selectedTitle(selectedId: string): string {
+/** Static or runtime title for a preset id, or null when the preset is unknown. */
+export function selectedTitle(selectedId: string): string | null {
   const preset = findPreset(selectedId) ?? findImagePreset(selectedId)
 
-  return preset?.title ?? selectedId
+  return preset?.title ?? null
 }

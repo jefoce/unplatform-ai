@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url'
 
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
+import { THUMB_MAX_BYTES } from '../src/core/constants'
+
 const FIXTURE_PNG = fileURLToPath(new URL('./fixtures/media/sample.png', import.meta.url))
 
 const state = vi.hoisted(() => {
@@ -65,6 +67,8 @@ describe('GET /api/thumbs/[...ref] while the thumb is not ready', () => {
 
     expect(retried.status).toBe(200)
 
-    await retried.arrayBuffer()
+    const body = Buffer.from(await retried.arrayBuffer())
+
+    expect(body.byteLength).toBeLessThanOrEqual(THUMB_MAX_BYTES)
   })
 })

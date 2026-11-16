@@ -54,6 +54,7 @@ const {
   forgetEndpointHealth,
   getHealth,
   getMaxRunning,
+  isEndpointVerified,
   isHealthFresh,
   recordHealthFailure,
   recordHealthFromError,
@@ -124,22 +125,18 @@ describe('endpoint health', () => {
     }
   })
 
-  it('keeps no entry below the threshold', () => {
+  it('closes an unverified endpoint on the first failure', () => {
     fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
 
-    expect(getHealth('ep1')).toBeNull()
+    expect(getHealth('ep1')?.state).toBe('unreachable')
   })
 
-  it('counts a failed probe before closing the endpoint', () => {
+  it('writes a failed probe at once before any success', () => {
     const outcome = {
       state: 'unreachable' as const,
       message: 'Health check failed',
       maxRunning: null,
     }
-
-    emitCustomHealth('ep1', outcome)
-
-    expect(getHealth('ep1')).toBeNull()
 
     emitCustomHealth('ep1', outcome)
 
@@ -192,6 +189,18 @@ describe('endpoint health', () => {
 })
 
 describe('endpoint health counts', () => {
+  it('keeps a verified endpoint open after one failure and closes it after two', () => {
+    recordHealthOk('ep1')
+
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
+
+    expect(getHealth('ep1')?.state).toBe('ok')
+
+    fail({ endpointId: 'ep1', error: new TypeError('fetch failed') })
+
+    expect(getHealth('ep1')?.state).toBe('unreachable')
+  })
+
   it('needs a third failure while a job runs', () => {
     recordHealthOk('ep1')
 
@@ -257,12 +266,8 @@ describe('endpoint health reports', () => {
     expect(line).not.toContain('SECRET')
   })
 
-  it('applies the same threshold to a ready failure status', () => {
+  it('applies a ready failure status at once before verification', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    recordHealthFailure({ endpointId: 'ep1', status: 'unauthorized', message: 'Token rejected' })
-
-    expect(getHealth('ep1')).toBeNull()
 
     recordHealthFailure({ endpointId: 'ep1', status: 'unauthorized', message: 'Token rejected' })
 
@@ -298,6 +303,16 @@ describe('endpoint health reports', () => {
     expect(isHealthFresh(stale)).toBe(false)
   })
 
+  it('clears verification when the endpoint health is forgotten', () => {
+    recordHealthOk('ep1')
+
+    expect(isEndpointVerified('ep1')).toBe(true)
+
+    forgetEndpointHealth('ep1')
+
+    expect(isEndpointVerified('ep1')).toBe(false)
+  })
+
   it('sets a manual entry with its limit and forgets it', () => {
     setEndpointHealth({ endpointId: 'ep1', status: 'ok', message: 'ready', maxRunning: 3 })
 
@@ -315,6 +330,40 @@ describe('endpoint health reports', () => {
 
     expect(getMaxRunning('pack-1')).toBe(2)
     expect(getMaxRunning('pack-2')).toBe(1)
+  })
+})
+
+describe('endpoint health recovery', () => {
+  it('logs one recovery line and hides the token', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const error = new ProviderError({
+      providerId: 'custom',
+      kind: 'auth',
+      message: 'failed',
+      storedMessage: 'upai:unauthorized: Bearer SECRET rejected',
+      status: 401,
+      code: 'unauthorized',
+    })
+
+    fail({ endpointId: 'ep1', error })
+    fail({ endpointId: 'ep1', error })
+
+    expect(getHealth('ep1')?.state).toBe('unauthorized')
+
+    recordHealthOk('ep1')
+    recordHealthOk('ep1')
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(info).toHaveBeenCalledTimes(1)
+
+    const line = String(info.mock.calls[0]?.[0])
+
+    expect(line).toContain('ep1')
+    expect(line).toContain('ok')
+    expect(line).not.toContain('SECRET')
+    expect(line).not.toContain('http')
   })
 })
 

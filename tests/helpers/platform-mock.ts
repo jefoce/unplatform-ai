@@ -76,11 +76,11 @@ export const mockPlatform: Platform = {
   }),
 
   saveVideos: vi.fn(async () => {
-    return { saved: 0, skipped: 0 }
+    return { saved: 0, skipped: 0, duplicates: 0 }
   }),
 
   saveImages: vi.fn(async () => {
-    return { saved: 0, skipped: 0 }
+    return { saved: 0, skipped: 0, duplicates: 0 }
   }),
 
   onFileDrop: vi.fn(registerFileDrop),

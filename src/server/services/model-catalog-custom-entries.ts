@@ -3,6 +3,7 @@ import 'server-only'
 import { isNil } from 'lodash-es'
 
 import {
+  CATALOG_CHECKING_REASON,
   CATALOG_MISSING_REASON,
   CATALOG_UNREACHABLE_REASON,
   type CatalogEntry,
@@ -16,13 +17,14 @@ import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
 import { type UpaiModel, UpaiModelListSchema } from '@/core/protocol/upai'
+import { CUSTOM_FORBIDDEN_MESSAGE, CUSTOM_TOKEN_MESSAGE } from '@/core/providers/custom-messages'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
 import { fallbackPricing } from '../pricing/live'
 import { requestHeaders, requestJson } from '../providers/custom/http'
 import { customRunPriceFromUsd } from '../providers/custom/pricing'
 import { countActiveJobs } from './endpoint-active-jobs'
-import { recordHealthFromError, recordHealthOk } from './endpoint-health'
+import { endpointPhase, recordHealthFromError, recordHealthOk } from './endpoint-health'
 import {
   isEndpointUnreachable,
   markEndpointReachable,
@@ -63,6 +65,7 @@ export interface CatalogFromModelsParams {
 }
 
 interface AvailabilityParams {
+  endpointId: string
   fallback: ModelAvailability
   isMissing: boolean
   isUnreachable: boolean
@@ -206,6 +209,7 @@ function buildKindCatalog(params: KindCatalogParams): KindCatalog {
     }
 
     const availability = availabilityFor({
+      endpointId: endpoint.id,
       fallback: mapped.availability,
       isMissing,
       isUnreachable,
@@ -219,9 +223,22 @@ function buildKindCatalog(params: KindCatalogParams): KindCatalog {
 }
 
 function availabilityFor(params: AvailabilityParams): ModelAvailability {
-  const { fallback, isMissing, isUnreachable } = params
+  const { endpointId, fallback, isMissing, isUnreachable } = params
+  const phase = endpointPhase(endpointId)
 
-  if (isUnreachable) {
+  if (phase === 'checking') {
+    return { status: 'unverified', reason: CATALOG_CHECKING_REASON }
+  }
+
+  if (phase === 'unauthorized') {
+    return { status: 'unverified', reason: CUSTOM_TOKEN_MESSAGE }
+  }
+
+  if (phase === 'forbidden') {
+    return { status: 'unverified', reason: CUSTOM_FORBIDDEN_MESSAGE }
+  }
+
+  if (phase === 'unreachable' || phase === 'protocol' || isUnreachable) {
     return { status: 'unverified', reason: CATALOG_UNREACHABLE_REASON }
   }
 

@@ -1,4 +1,6 @@
-import type { GenerationRecord, RecordPreset } from '../schemas/generation-record'
+import { snapshotTitle } from '../record-source'
+import type { RecordPreset } from '../schemas/generation-record'
+import type { PresetSnapshot } from '../schemas/preset-snapshot'
 
 interface PromptInput {
   prompt: string
@@ -7,6 +9,11 @@ interface PromptInput {
 interface PromptSlugRecord {
   input: PromptInput
   preset: RecordPreset
+}
+
+interface ModelNameRecord {
+  preset: RecordPreset
+  presetSnapshot?: PresetSnapshot
 }
 
 /** File-safe name from the prompt, falling back to the preset. */
@@ -27,7 +34,21 @@ export function promptSlug(record: PromptSlugRecord): string {
   return slug
 }
 
-/** Batch export name: prompt slug plus 6 id characters. */
-export function exportName(record: GenerationRecord): string {
-  return `${promptSlug(record)}-${record.id.slice(0, 6)}`
+/** Kebab-case slug of the model title, at most 64 characters. */
+export function modelSlug(title: string): string {
+  const slug = title
+    .normalize('NFKD')
+    .replaceAll(/\p{M}+/gu, '')
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replaceAll(/-+$/g, '')
+
+  return slug
+}
+
+/** Model name for a download, or an empty string so callers fall back. */
+export function modelBase(record: ModelNameRecord): string {
+  return modelSlug(snapshotTitle(record))
 }

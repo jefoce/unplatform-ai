@@ -24,9 +24,9 @@ import {
   type ThumbResult,
   ThumbUnavailableError,
 } from './thumbs'
+import { encodeWebpUnderCap } from './webp-cap'
 
 const MAX_WIDTH = Math.max(...POSTER_WIDTHS)
-const WEBP_OPTIONS = { quality: 84, smartSubsample: true, effort: 5 } as const
 const inFlight = new Map<string, Promise<ThumbResult>>()
 
 export interface BlurInput {
@@ -99,13 +99,17 @@ async function createBlurredThumb(params: CreateBlurredThumbParams): Promise<Thu
     const source = await smallestCachedThumb(input)
     const sourcePath = source ?? (await getThumbnail({ ...input, width: THUMB_WIDTH })).filePath
 
-    const buffer = await sharpQueue.run(() => {
-      return sharp(sourcePath, SHARP_INPUT_OPTIONS)
+    const buffer = await sharpQueue.run(async () => {
+      const processed = await sharp(sourcePath, SHARP_INPUT_OPTIONS)
         .resize({ width: BLUR_WIDTH })
         .blur(BLUR_SIGMA)
         .modulate({ saturation: BLUR_SATURATION })
-        .webp(WEBP_OPTIONS)
+        .png()
         .toBuffer()
+
+      const capped = await encodeWebpUnderCap({ input: processed, width: BLUR_WIDTH })
+
+      return capped.buffer
     })
 
     await writeFileAtomic(filePath, buffer)

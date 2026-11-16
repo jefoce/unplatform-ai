@@ -26,6 +26,9 @@ export function DurationPopover() {
         frames: state.frames,
         references: state.references,
         seed: state.seed,
+        modelTitle: state.modelTitle,
+        modelBadge: state.modelBadge,
+        modelIcon: state.modelIcon,
       }
     }),
   )

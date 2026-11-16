@@ -18,6 +18,33 @@ use std::{
 use tauri::{async_runtime::Receiver, AppHandle, Manager, Wry};
 use tauri_plugin_shell::process::CommandEvent;
 
+/// Stderr kept for one spawn, capped so a chatty server cannot grow it forever.
+const STDERR_LIMIT: usize = 64 * 1024;
+
+/// Collects every stderr chunk of one spawn so a marker split across writes is still found.
+#[derive(Default)]
+struct StderrBuffer {
+    text: String,
+}
+
+impl StderrBuffer {
+    fn push(&mut self, chunk: &[u8]) {
+        if self.text.len() >= STDERR_LIMIT {
+            return;
+        }
+
+        self.text.push_str(&String::from_utf8_lossy(chunk));
+    }
+
+    fn text(&self) -> &str {
+        &self.text
+    }
+
+    fn addr_in_use(&self) -> bool {
+        self.text.contains("EADDRINUSE")
+    }
+}
+
 /// Keeps the sidecar alive with one restart, switching port on EADDRINUSE.
 pub(crate) async fn supervise(
     app: AppHandle<Wry>,
@@ -27,7 +54,7 @@ pub(crate) async fn supervise(
 ) {
     let mut restarts = 0;
     loop {
-        let mut last_error = String::new();
+        let mut stderr = StderrBuffer::default();
         let mut code = None;
         let mut stdout = Vec::new();
 
@@ -35,11 +62,11 @@ pub(crate) async fn supervise(
             match event {
                 CommandEvent::Stdout(bytes) => feed_stdout(&app, &mut stdout, &bytes),
                 CommandEvent::Stderr(bytes) => {
-                    last_error = String::from_utf8_lossy(&bytes).into_owned();
+                    stderr.push(&bytes);
                     append_log(&bytes);
                 }
                 CommandEvent::Error(error) => {
-                    last_error = error.clone();
+                    stderr.push(error.as_bytes());
                     append_log(format!("[unplatform-ai] sidecar error: {error}").as_bytes());
                 }
                 CommandEvent::Terminated(payload) => {
@@ -56,10 +83,11 @@ pub(crate) async fn supervise(
             return;
         }
         if code == Some(75) {
-            let detail = if last_error.is_empty() {
+            let text = stderr.text().trim();
+            let detail = if text.is_empty() {
                 "The server lock is held by another instance."
             } else {
-                &last_error
+                text
             };
             fatal(&app, detail);
             return;
@@ -70,7 +98,7 @@ pub(crate) async fn supervise(
         }
 
         restarts += 1;
-        let addr_in_use = last_error.contains("EADDRINUSE");
+        let addr_in_use = stderr.addr_in_use();
         append_log(b"[unplatform-ai] server stopped, restarting");
         let _ = tauri::async_runtime::spawn_blocking(|| {
             thread::sleep(Duration::from_millis(500));
@@ -200,4 +228,37 @@ fn switch_port(app: &AppHandle<Wry>, launch: &mut Launch, allowed_port: &AtomicU
         append_log(format!("[unplatform-ai] could not save port {port}: {error}").as_bytes());
     }
     append_log(format!("[unplatform-ai] port {port} selected after EADDRINUSE").as_bytes());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StderrBuffer, STDERR_LIMIT};
+
+    #[test]
+    fn finds_the_marker_split_across_three_chunks() {
+        let mut stderr = StderrBuffer::default();
+        stderr.push(b"listen failed: EADD");
+        stderr.push(b"RIN");
+        stderr.push(b"USE 127.0.0.1");
+
+        assert!(stderr.addr_in_use());
+    }
+
+    #[test]
+    fn ignores_a_restart_message_without_the_marker() {
+        let mut stderr = StderrBuffer::default();
+        stderr.push(b"server stopped, restarting");
+
+        assert!(!stderr.addr_in_use());
+    }
+
+    #[test]
+    fn stops_collecting_once_the_limit_is_reached() {
+        let mut stderr = StderrBuffer::default();
+        stderr.push(&vec![b'a'; STDERR_LIMIT]);
+        stderr.push(b"ignored");
+
+        assert_eq!(stderr.text().len(), STDERR_LIMIT);
+        assert!(!stderr.text().contains("ignored"));
+    }
 }

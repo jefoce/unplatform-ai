@@ -112,6 +112,40 @@ describe('model list fallbacks', () => {
     expect(warn).toHaveBeenCalledTimes(1)
     expect(String(warn.mock.calls[0]?.[0])).toContain('HTTP 503')
   })
+
+  it('reloads a live price after a fallback without force', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const base = Date.now()
+    let now = base
+
+    vi.spyOn(Date, 'now').mockImplementation(() => {
+      return now
+    })
+
+    stubModels({ modelsStatus: 503 })
+
+    const fallback = await getPricing(WAN, true)
+
+    expect(fallback).toMatchObject({ source: 'fallback', discount: 0 })
+
+    now = base + 300_001
+
+    stubModels({
+      body: { data: [{ id: 'alibaba/wan-3.0', pricing_skus: WAN_SKUS }] },
+      discount: 0.15,
+    })
+
+    const live = await getPricing(WAN)
+
+    expect(live).toMatchObject({ source: 'live', discount: 0.15 })
+
+    expect(live.skus).toEqual({
+      duration_seconds_480p: 0.0425,
+      duration_seconds_720p: 0.085,
+      duration_seconds_1080p: 0.17,
+    })
+  })
 })
 
 describe('null fields', () => {

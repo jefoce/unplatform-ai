@@ -71,10 +71,11 @@ describe('browser saveImages', () => {
         recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         outputId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         file: 'a.png',
+        name: 'wan-3-0',
       },
     ])
 
-    expect(result).toEqual({ saved: 1, skipped: 0 })
+    expect(result).toEqual({ saved: 1, skipped: 0, duplicates: 0 })
     expect(click).toHaveBeenCalledTimes(1)
   })
 })

@@ -7,6 +7,7 @@ import { CUSTOM_MISSING_MESSAGE, CUSTOM_STALE_MESSAGE } from './providers/custom
 import type { ProviderKindId } from './providers/types'
 
 export const CATALOG_UNREACHABLE_REASON = 'ComfyUI is not reachable.'
+export const CATALOG_CHECKING_REASON = 'Checking ComfyUI…'
 export const CATALOG_MISSING_REASON = CUSTOM_MISSING_MESSAGE
 export const CATALOG_STALE_REASON = CUSTOM_STALE_MESSAGE
 

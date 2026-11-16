@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { chromeStartError } from './chrome-start-error.mjs'
 import { checkChromeMajor } from './chrome-version.mjs'
 
 const POLL_MS = 100
@@ -535,11 +536,23 @@ export async function startBrowser(width, height, options = {}) {
     stderr += String(chunk)
   })
 
-  const version = await waitForJson(
-    `http://127.0.0.1:${String(port)}/json/version`,
-    20_000,
-    `Chrome did not start: ${stderr}`,
-  )
+  // Reject as soon as the browser exits, instead of waiting out the poll.
+  const exited = new Promise((_, reject) => {
+    child.once('exit', () => {
+      reject(new Error(chromeStartError({ exitCode: child.exitCode, stderr })))
+    })
+  })
+
+  let version
+
+  try {
+    version = await Promise.race([
+      waitForJson(`http://127.0.0.1:${String(port)}/json/version`, 20_000, 'Chrome did not start'),
+      exited,
+    ])
+  } catch (error) {
+    throw new Error(chromeStartError({ exitCode: child.exitCode, stderr }), { cause: error })
+  }
 
   checkChromeMajor(version.Browser)
 

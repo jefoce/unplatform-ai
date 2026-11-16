@@ -49,6 +49,9 @@ describe('image draft persistence', () => {
     expect(state.resolution).toBe('2K')
     expect(state.references).toEqual(['first', 'second'])
     expect(state.seed).toBe(42)
+    expect(state.modelTitle).toBeNull()
+    expect(state.modelBadge).toBeNull()
+    expect(state.modelIcon).toBe('sparkles')
   })
 
   it('applies the stored preset cap and clears its unsupported seed', async () => {

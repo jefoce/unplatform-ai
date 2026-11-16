@@ -8,14 +8,21 @@ import { isNil } from 'lodash-es'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
+import healthFixture from '../docs/protocol/upai-1/fixtures/health.json'
 import imageFixture from '../docs/protocol/upai-1/fixtures/models-image.json'
 import invalidFixture from '../docs/protocol/upai-1/fixtures/models-invalid.json'
 import videoFixture from '../docs/protocol/upai-1/fixtures/models-video.json'
-import type { CatalogEntry, ModelCatalog } from '../src/core/catalog'
+import {
+  CATALOG_CHECKING_REASON,
+  CATALOG_UNREACHABLE_REASON,
+  type CatalogEntry,
+  type ModelCatalog,
+} from '../src/core/catalog'
 import { CUSTOM_CATALOG_MIN_REFRESH_MS, MODEL_CATALOG_TTL_MS } from '../src/core/constants'
 import { isVideoPreset } from '../src/core/presets/common/preset-kind'
 import { CUSTOM_STALE_REASON } from '../src/core/presets/custom/shared'
 import { type UpaiModel, UpaiModelListSchema } from '../src/core/protocol/upai'
+import { CUSTOM_TOKEN_MESSAGE } from '../src/core/providers/custom-messages'
 import {
   type CustomEndpoint,
   type CustomEndpointPricing,
@@ -99,7 +106,14 @@ const {
 const { clearCustomCatalog, ensureCustomCatalog, refreshCustomCatalog } =
   await import('@/server/services/model-catalog-custom')
 
-const { getHealth } = await import('@/server/services/endpoint-health')
+const {
+  getHealth,
+  probeEnabledEndpoints,
+  recordHealthOk,
+  __resetEndpointHealthForTests: resetHealth,
+} = await import('@/server/services/endpoint-health')
+
+const { catalogFromModels } = await import('@/server/services/model-catalog-custom-entries')
 
 const { GET } = await import('@/app/api/models/route')
 
@@ -285,6 +299,7 @@ function entryFor(entries: readonly CatalogEntry[], modelId: string): CatalogEnt
 beforeEach(() => {
   clearModelCatalog()
   clearEndpointModelCache()
+  resetHealth()
   providerMocks.getPricing.mockClear()
 })
 
@@ -479,6 +494,28 @@ describe('custom catalog', () => {
     expect(entry.reason).toBe('This workflow is gone from ComfyUI.')
   })
 
+  it('marks entries unverified until the endpoint is verified', () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-checking', 'CUY')
+
+    const before = entryFor(
+      catalogFromModels({ endpoint, video: [video], image: [], isUnreachable: false }).entries,
+      video.id,
+    )
+
+    expect(before.status).toBe('unverified')
+    expect(before.reason).toBe(CATALOG_CHECKING_REASON)
+
+    recordHealthOk(endpoint.id)
+
+    const after = entryFor(
+      catalogFromModels({ endpoint, video: [video], image: [], isUnreachable: false }).entries,
+      video.id,
+    )
+
+    expect(after.status).toBe('available')
+  })
+
   it('marks every cached model unverified while the endpoint is unreachable', async () => {
     const video = modelAt(VIDEO_MODELS, 0)
     const endpoint = customEndpoint('cat-offline', 'CU6')
@@ -486,12 +523,37 @@ describe('custom catalog', () => {
     await writeEndpoints([endpoint])
     await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
     clearModelCatalog()
+    recordHealthOk(endpoint.id)
     markEndpointUnreachable(endpoint.id)
 
     const entry = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
 
     expect(entry.status).toBe('unverified')
     expect(entry.reason).toBe('ComfyUI is not reachable.')
+  })
+
+  it('marks the cached model available again after the endpoint recovers', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-recover', 'CU8')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+    markEndpointUnreachable(endpoint.id)
+
+    const before = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
+
+    expect(before.status).toBe('unverified')
+
+    mockListFetch({ video: [video] })
+
+    const after = entryFor(
+      customEntries((await ensureCustomCatalog({ isRefresh: true, isForce: true })).entries),
+      video.id,
+    )
+
+    expect(after.status).toBe('available')
+    expect(getHealth(endpoint.id)?.state).toBe('ok')
   })
 
   it('hides the presets of a disabled endpoint', async () => {
@@ -588,6 +650,7 @@ describe('custom catalog', () => {
     const endpoint = healthEndpoint('cat-net-fail', 'CUG', 1000)
 
     await writeEndpoints([endpoint])
+    recordHealthOk(endpoint.id)
 
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
@@ -605,7 +668,7 @@ describe('custom catalog', () => {
     const entries = customEntries((await getLoadedCatalog()).entries)
 
     expect(entryFor(entries, video.id).status).toBe('available')
-    expect(getHealth(endpoint.id)).toBeNull()
+    expect(getHealth(endpoint.id)?.state).toBe('ok')
     expect(isEndpointUnreachable(endpoint.id)).toBe(false)
   })
 
@@ -614,6 +677,7 @@ describe('custom catalog', () => {
     const endpoint = customEndpoint('cat-timeout', 'CUT')
 
     await writeEndpoints([endpoint])
+    recordHealthOk(endpoint.id)
 
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
@@ -635,7 +699,7 @@ describe('custom catalog', () => {
     const entries = customEntries((await getLoadedCatalog()).entries)
 
     expect(entryFor(entries, video.id).status).toBe('available')
-    expect(getHealth(endpoint.id)).toBeNull()
+    expect(getHealth(endpoint.id)?.state).toBe('ok')
     expect(isEndpointUnreachable(endpoint.id)).toBe(false)
   })
 
@@ -794,6 +858,7 @@ describe('custom catalog', () => {
 
     await writeEndpoints([endpoint])
     await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [stale] })
+    recordHealthOk(endpoint.id)
     clearModelCatalog()
 
     const before = entryFor(customEntries((await getLoadedCatalog()).entries), ready.id)
@@ -1088,5 +1153,85 @@ describe('find preset by kind', () => {
     expect((await findImagePresetAny(imageId))?.id).toBe(imageId)
     expect(await findVideoPresetAny(imageId)).toBeNull()
     expect(await findImagePresetAny(videoId)).toBeNull()
+  })
+})
+
+describe('catalog probe outcomes', () => {
+  it('marks cached entries unverified when the boot probe fails', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-probe-down', 'CUP')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      }),
+    )
+
+    await probeEnabledEndpoints()
+
+    const entry = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
+
+    expect(entry.status).toBe('unverified')
+    expect(entry.reason).toBe(CATALOG_UNREACHABLE_REASON)
+  })
+
+  it('marks cached entries unverified with the token message on 401', async () => {
+    const video = modelAt(VIDEO_MODELS, 0)
+    const endpoint = customEndpoint('cat-probe-auth', 'CUV')
+
+    await writeEndpoints([endpoint])
+    await writeEndpointModels({ endpointId: endpoint.id, kind: 'video', models: [video] })
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return new Response(null, { status: 401 })
+      }),
+    )
+
+    await probeEnabledEndpoints()
+
+    const entry = entryFor(customEntries((await getLoadedCatalog()).entries), video.id)
+
+    expect(entry.status).toBe('unverified')
+    expect(entry.reason).toBe(CUSTOM_TOKEN_MESSAGE)
+  })
+
+  it('marks entries available after a successful boot probe', async () => {
+    const endpoint = customEndpoint('cat-probe-ok', 'CUW')
+
+    await writeEndpoints([endpoint])
+    clearModelCatalog()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input)
+
+        if (url.endsWith('/health')) {
+          return jsonResponse(healthFixture)
+        }
+
+        return jsonResponse(url.endsWith('/videos/models') ? videoFixture : imageFixture)
+      }),
+    )
+
+    await probeEnabledEndpoints()
+
+    const entries = customEntries((await getLoadedCatalog()).entries)
+
+    expect(entries.length).toBeGreaterThan(0)
+
+    expect(
+      entries.every((entry) => {
+        return entry.status === 'available'
+      }),
+    ).toBe(true)
   })
 })

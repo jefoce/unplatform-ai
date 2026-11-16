@@ -137,8 +137,8 @@ jobs:
       matrix:
         width: [1280, 1728, 2560]
     env:
-      # Tracks the Chrome major shipped by the ubuntu-24.04 runner image.
-      E2E_CHROME_MAJOR: '156'
+      # Pinned Chrome for Testing 157, installed by browser-actions/setup-chrome.
+      E2E_CHROME_MAJOR: '157'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -149,19 +149,22 @@ jobs:
           FFMPEG_PATH="$(node -p "require('ffmpeg-static')")"
           echo "FFMPEG_PATH=$FFMPEG_PATH" >> "$GITHUB_ENV"
           chmod +x "$FFMPEG_PATH"
-      - name: Resolve Chrome
-        run: |
-          CHROME_PATH="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)"
-          if [ -z "$CHROME_PATH" ]; then
-            echo "No Chrome or Chromium binary on PATH" >&2
-            exit 1
-          fi
-          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+      - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        id: chrome
+        with:
+          chrome-version: '157.0.8103.78'
+          install-dependencies: true
+      - name: Use the pinned Chrome
+        run: echo "CHROME_PATH=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
       - name: Build
         env:
           OPENROUTER_MOCK: '1'
           REMOTE_MOCK: '1'
         run: pnpm build
+      - name: Allow user namespaces for the pinned Chrome
+        # Ubuntu 24.04 blocks the Chrome sandbox for binaries without an AppArmor
+        # profile. The runner is ephemeral.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: End-to-end flows
         shell: bash
         env:
@@ -186,8 +189,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 15
     env:
-      # Tracks the Chrome major shipped by the windows-2025 runner image.
-      E2E_CHROME_MAJOR: '156'
+      # Pinned Chrome for Testing 157, installed by browser-actions/setup-chrome.
+      E2E_CHROME_MAJOR: '157'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -198,20 +201,14 @@ jobs:
         run: |
           $ffmpeg = node -p "require('ffmpeg-static')"
           "FFMPEG_PATH=$ffmpeg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Use the runner image Chrome
+      - uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        id: chrome
+        with:
+          chrome-version: '157.0.8103.78'
+      - name: Use the pinned Chrome
         shell: pwsh
         run: |
-          # The windows-2025 image pins Chrome; installing another copy would drift.
-          $candidates = @(
-            "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
-            "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
-            "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
-          )
-          $chrome = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not (Test-Path $chrome)) {
-            throw "The runner image has no Chrome at $($candidates -join ', ')"
-          }
-          "CHROME_PATH=$chrome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CHROME_PATH=${{ steps.chrome.outputs.chrome-path }}" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Build
         env:
           OPENROUTER_MOCK: '1'

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.5.1 - 2026-11-16
+
+### Fixed
+
+- Saving a video or a batch of images to a folder works again on desktop.
+- Saving one image opens the same Save dialog as video, with the model name filled in.
+- A failed save or update explains what happened in plain words, without a file path or an internal name.
+- A failed update no longer restarts the app, and the release page stays one click away.
+- On Windows, each key and endpoint token is stored in Credential Manager separately, so a long token list no longer fails to save.
+- The window reopens on a connected display after a monitor is unplugged.
+- A folder chosen through a symlink saves files into the real folder.
+- Temporary files left by an interrupted save are removed on the next start.
+- A batch save that fails partway reports how many files were already saved.
+- The price appears right after a key is added, without switching tabs.
+- The app no longer exits when its port is already in use by another program.
+- Custom endpoints show Checking until the connection is confirmed after startup, and can't be used before that.
+- Batch export skips files that are already in the folder with the same name and content.
+- The model name shows while models load, never an internal id.
+- An endpoint that can't be reached at startup shows that right away instead of Checking.
+
+### Changed
+
+- Thumbnails are smaller, 50 KB or less each, so the library uses less disk space and loads faster.
+- Downloads are named after the model, or the prompt when the model has no name, with -2, -3 and so on when a name is already in the folder.
+
 ## 0.5.0 - 2026-11-10
 
 Local image and video models from ComfyUI, with several endpoints and a badge for each.

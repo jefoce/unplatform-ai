@@ -7,7 +7,7 @@ import {
   CustomEndpointPricingSchema,
 } from '../schemas/custom-endpoint'
 
-export type EndpointHealthView = EndpointHealthStatus | 'unknown'
+export type EndpointHealthView = EndpointHealthStatus | 'unknown' | 'checking'
 
 interface EndpointRuntime {
   runningJobs: number

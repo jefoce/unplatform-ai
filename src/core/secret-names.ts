@@ -12,6 +12,8 @@ export const SECRET_NAMES = [
 
 export type SecretName = (typeof SECRET_NAMES)[number]
 
+export const SECRET_VALUE_MAX_CHARS = 2048
+
 /** All set or all empty. */
 export const R2_NAMES: readonly SecretName[] = [
   'R2_ACCOUNT_ID',
@@ -24,7 +26,7 @@ const SecretValueSchema = z
   .string()
   .trim()
   .min(1)
-  .max(4096)
+  .max(SECRET_VALUE_MAX_CHARS, 'This value is too long. The limit is 2048 characters.')
   .regex(/^[^\s]+$/, 'No spaces or line breaks')
 
 /** One schema per key, also used to validate values read from disk. */

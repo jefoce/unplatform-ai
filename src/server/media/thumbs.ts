@@ -23,7 +23,7 @@ import { isOwnedName, removeOwnedFile } from '../fs/json-file'
 import { THUMBS_DIR } from '../paths'
 import { createLimiter } from '../sync/limiter'
 import { extractPosterFrame } from './poster-frame'
-import sharp, { SHARP_INPUT_OPTIONS } from './sharp'
+import { encodeWebpUnderCap } from './webp-cap'
 
 export class ThumbUnavailableError extends HttpError {
   constructor() {
@@ -51,9 +51,9 @@ export interface ThumbResult {
   contentType: 'image/webp'
 }
 
-const MAX_CONCURRENT = 4
+// FIFO, so visible-first ordering is not implemented. Requests run in arrival order.
+const MAX_CONCURRENT = 2
 const MAX_WIDTH = Math.max(...POSTER_WIDTHS)
-const WEBP_OPTIONS = { quality: 84, smartSubsample: true, effort: 5 } as const
 const limiter = createLimiter('thumbQueue', MAX_CONCURRENT)
 const inFlight = new Map<string, Promise<ThumbResult>>()
 
@@ -143,11 +143,9 @@ async function createThumb(params: CreateThumbParams): Promise<ThumbResult> {
 }
 
 async function renderImage(absPath: string, width: number): Promise<Buffer> {
-  return sharp(absPath, SHARP_INPUT_OPTIONS)
-    .rotate()
-    .resize({ width, withoutEnlargement: true })
-    .webp(WEBP_OPTIONS)
-    .toBuffer()
+  const capped = await encodeWebpUnderCap({ input: absPath, width })
+
+  return capped.buffer
 }
 
 interface RenderVideoParams {
@@ -163,7 +161,9 @@ async function renderVideo(params: RenderVideoParams): Promise<Buffer> {
   try {
     await extractPosterFrame({ videoPath: absPath, width, outPath: frame })
 
-    return await sharp(frame, SHARP_INPUT_OPTIONS).webp(WEBP_OPTIONS).toBuffer()
+    const capped = await encodeWebpUnderCap({ input: frame, width })
+
+    return capped.buffer
   } finally {
     await fs.unlink(frame).catch(() => {})
   }

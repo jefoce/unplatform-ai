@@ -11,6 +11,8 @@
     "allow-update-set-auto",
     "allow-update-open-release",
     "allow-log-client-error",
+    "allow-choose-export-path",
+    "allow-choose-export-folder",
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",

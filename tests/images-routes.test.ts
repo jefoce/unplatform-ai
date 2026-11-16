@@ -488,6 +488,10 @@ async function addCustomImagePreset(isPromptOptional: boolean): Promise<string> 
   })
 
   const endpointId = file.endpoints[0]?.id ?? ''
+  const { recordHealthOk } = await import('@/server/services/endpoint-health')
+
+  recordHealthOk(endpointId)
+
   const base = presets.findImagePreset(presets.DEFAULT_IMAGE_PRESET_ID)
 
   if (base === null) {

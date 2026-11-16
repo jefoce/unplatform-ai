@@ -11,8 +11,14 @@ import type { TestResult } from '@/core/types'
 
 import { ProviderError } from '../provider-error'
 import { healthStateOf, protocolError } from './errors'
-import { emitCustomHealth } from './health-events'
-import { customRequest, providerErrorFromResponse, readCustomJson, requestHeaders } from './http'
+import { type CustomHealthOutcome, emitCustomHealth } from './health-events'
+import {
+  customRequest,
+  endpointOrigin,
+  providerErrorFromResponse,
+  readCustomJson,
+  requestHeaders,
+} from './http'
 
 interface HealthProbeOk {
   ok: true
@@ -27,8 +33,91 @@ interface HealthProbeFailure {
 
 export type HealthProbe = HealthProbeOk | HealthProbeFailure
 
-/** One health call. Every outcome feeds the endpoint health store. */
+type TimerId = ReturnType<typeof setTimeout>
+
+const pendingProbes = new Map<string, Promise<HealthProbe>>()
+
+/** The request timeout plus a margin, so a probe that ignores abort still settles. */
+const HEALTH_PROBE_DEADLINE_MS = FETCH_TIMEOUTS.meta + 2_000
+
+/** Null for an invalid base URL, so the probe reports it like any network failure. */
+function probeOrigin(endpoint: CustomEndpoint): string | null {
+  try {
+    return endpointOrigin(endpoint)
+  } catch {
+    return null
+  }
+}
+
+/** One health call, shared by concurrent callers on the same origin. */
 export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthProbe> {
+  const origin = probeOrigin(endpoint)
+
+  if (isNil(origin)) {
+    return probeEndpoint(endpoint)
+  }
+
+  const pending = pendingProbes.get(origin)
+
+  if (!isNil(pending)) {
+    return pending
+  }
+
+  const probe = probeEndpoint(endpoint)
+
+  pendingProbes.set(origin, probe)
+
+  try {
+    return await probe
+  } finally {
+    pendingProbes.delete(origin)
+  }
+}
+
+/** One health call, bounded by a deadline so a recorded result always lands. */
+async function probeEndpoint(endpoint: CustomEndpoint): Promise<HealthProbe> {
+  let isTimedOut = false
+
+  const emit = (outcome: CustomHealthOutcome): void => {
+    if (isTimedOut) {
+      return
+    }
+
+    emitCustomHealth(endpoint.id, outcome)
+  }
+
+  const probe = probeRequest(endpoint, emit)
+
+  let timer: TimerId | undefined
+
+  const deadline = new Promise<HealthProbe>((resolve) => {
+    timer = setTimeout(() => {
+      isTimedOut = true
+
+      const error = protocolError('Health check timed out')
+
+      emitCustomHealth(endpoint.id, {
+        state: 'unreachable',
+        message: error.storedMessage,
+        maxRunning: null,
+      })
+
+      resolve({ ok: false, error, state: 'unreachable' })
+    }, HEALTH_PROBE_DEADLINE_MS)
+  })
+
+  try {
+    return await Promise.race([probe, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** One request whose result is dropped when the deadline already fired. */
+async function probeRequest(
+  endpoint: CustomEndpoint,
+  emit: (outcome: CustomHealthOutcome) => void,
+): Promise<HealthProbe> {
   try {
     const res = await customRequest({
       endpoint,
@@ -53,7 +142,7 @@ export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthPr
       throw protocolError(CUSTOM_PROTOCOL_MESSAGE)
     }
 
-    emitCustomHealth(endpoint.id, {
+    emit({
       state: 'ok',
       message: null,
       maxRunning: parsed.data.max_running,
@@ -69,7 +158,7 @@ export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthPr
 
     const state = healthStateOf(providerError)
 
-    emitCustomHealth(endpoint.id, {
+    emit({
       state,
       message: providerError.storedMessage,
       maxRunning: null,

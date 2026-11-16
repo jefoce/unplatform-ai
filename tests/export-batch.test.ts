@@ -1,9 +1,20 @@
+/* eslint-disable max-lines -- export cases stay in one suite */
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readdir, readFile, stat, symlink, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { rememberExportFolder } from '@/server/services/export-tokens'
 
@@ -34,6 +45,7 @@ vi.mock('@/server/session', () => {
 })
 
 const { POST } = await import('@/app/api/generations/export-batch/route')
+const { copyUnique, exportDir } = await import('@/server/fs/export-files')
 
 const downloads = path.join(root, 'downloads')
 const videoBytes = Buffer.from('fake-mp4-bytes')
@@ -122,28 +134,31 @@ describe('POST /api/generations/export-batch', () => {
 
     const saved = required(body.saved[0], 'saved file')
 
-    expect(path.basename(saved)).toBe(`a-cat-${item.id.slice(0, 6)}.mp4`)
+    expect(path.basename(saved)).toBe('seedance.mp4')
     expect(await readFile(saved)).toEqual(videoBytes)
     expect(body.skipped).toEqual([])
   })
 
   it('leaves no temp files in the export folder', async () => {
     const dir = await grantedDir()
+    const saved = 'seedance.mp4'
+    const leftover = `${saved}.tmp-00000000-0000-4000-8000-000000000000`
+    const notes = path.join(dir, 'notes.txt')
 
-    await POST(exportRequest({ ids: [item.id], dir }))
+    await writeFile(path.join(dir, leftover), 'stale')
+    await writeFile(notes, 'keep')
+
+    expect((await POST(exportRequest({ ids: [item.id], dir }))).status).toBe(200)
 
     const names = await readdir(dir)
 
-    expect(
-      names.filter((name) => {
-        return name.includes('.tmp-')
-      }),
-    ).toEqual([])
+    expect(names).not.toContain(leftover)
+    expect(await readFile(notes, 'utf8')).toBe('keep')
   })
 
-  it('adds (2) on a name collision and never overwrites', async () => {
+  it('adds -2 on a name collision and never overwrites', async () => {
     const dir = await grantedDir()
-    const first = path.join(dir, `a-cat-${item.id.slice(0, 6)}.mp4`)
+    const first = path.join(dir, 'seedance.mp4')
 
     await writeFile(first, 'keep')
 
@@ -152,20 +167,23 @@ describe('POST /api/generations/export-batch', () => {
 
     const saved = required(body.saved[0], 'saved file')
 
-    expect(path.basename(saved)).toBe(`a-cat-${item.id.slice(0, 6)} (2).mp4`)
+    expect(path.basename(saved)).toBe('seedance-2.mp4')
     expect(await readFile(first, 'utf8')).toBe('keep')
     expect((await stat(saved)).isFile()).toBe(true)
   })
 
-  it('rejects a symlinked target dir', async () => {
+  it('accepts a symlinked target dir and writes to the real folder', async () => {
     const real = await mkdtemp(path.join(root, 'real-'))
     const link = path.join(root, `link-${randomUUID()}`)
 
     await symlink(real, link)
+    rememberExportFolder(link, 1)
 
     const response = await POST(exportRequest({ ids: [item.id], dir: link }))
+    const body = (await response.json()) as { saved: string[] }
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(200)
+    expect(path.dirname(required(body.saved[0], 'saved file'))).toBe(await realpath(real))
   })
 
   it('rejects relative targets and missing records', async () => {
@@ -203,5 +221,161 @@ describe('POST /api/generations/export-batch', () => {
     const response = await POST(exportRequest({ ids: [item.id], dir }))
 
     expect(response.status).toBe(404)
+  })
+})
+
+describe('POST /api/generations/export-batch duplicates', () => {
+  beforeEach(() => {
+    session.required = true
+    session.desktop = true
+  })
+
+  it('skips an identical file and counts it as a duplicate', async () => {
+    const dir = await grantedDir()
+    const first = path.join(dir, 'seedance.mp4')
+
+    await writeFile(first, videoBytes)
+
+    const response = await POST(exportRequest({ ids: [item.id], dir }))
+    const body = (await response.json()) as { saved: unknown[]; duplicates: string[] }
+
+    expect(response.status).toBe(200)
+    expect(body.saved).toEqual([])
+    expect(body.duplicates).toEqual([await realpath(first)])
+    expect(await readdir(dir)).toEqual(['seedance.mp4'])
+    expect(await readFile(first)).toEqual(videoBytes)
+  })
+
+  it('writes one file and one duplicate from two identical items', async () => {
+    const dir = await grantedDir()
+    const twin = record(randomUUID(), 'A cat!')
+
+    await write(twin)
+
+    const response = await POST(exportRequest({ ids: [item.id, twin.id], dir }))
+    const body = (await response.json()) as { saved: string[]; duplicates: string[] }
+
+    expect(body.saved).toHaveLength(1)
+    expect(body.duplicates).toHaveLength(1)
+    expect(await readdir(dir)).toEqual(['seedance.mp4'])
+  })
+})
+
+describe('copyUnique', () => {
+  it('numbers three copies from one model', async () => {
+    const dir = await grantedDir()
+    const names: string[] = []
+
+    for (let index = 0; index < 3; index += 1) {
+      const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+      await writeFile(source, `bytes-${index}`)
+
+      const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+      names.push(path.basename(result.path))
+    }
+
+    expect(names).toEqual(['seedance.mp4', 'seedance-2.mp4', 'seedance-3.mp4'])
+  })
+
+  it('returns the identical file without copying it again', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'seedance.mp4'), videoBytes)
+
+    const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(true)
+    expect(result.path).toBe(path.join(dir, 'seedance.mp4'))
+    expect(await readdir(dir)).toEqual(['seedance.mp4'])
+  })
+
+  it('adds -2 when the same size holds different bytes', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'seedance.mp4'), Buffer.alloc(videoBytes.length, 1))
+
+    const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(false)
+    expect(path.basename(result.path)).toBe('seedance-2.mp4')
+  })
+
+  it('adds -2 when the bytes differ in size', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'seedance.mp4'), 'other')
+
+    const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(false)
+    expect(path.basename(result.path)).toBe('seedance-2.mp4')
+  })
+
+  describe.skipIf(process.platform === 'win32')('a symlink at the target name', () => {
+    it('is not hashed and gets the next free name', async () => {
+      const dir = await grantedDir()
+      const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+      await writeFile(source, videoBytes)
+      await symlink(source, path.join(dir, 'seedance.mp4'))
+
+      const result = await copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+
+      expect(result.isDuplicate).toBe(false)
+      expect(path.basename(result.path)).toBe('seedance-2.mp4')
+    })
+  })
+})
+
+describe('exportDir', () => {
+  let dirRoot = ''
+
+  beforeAll(async () => {
+    dirRoot = await mkdtemp(path.join(os.tmpdir(), 'cf-export-dir-'))
+  })
+
+  afterAll(async () => {
+    await rm(dirRoot, { recursive: true, force: true })
+  })
+
+  it('returns the real path of an absolute directory', async () => {
+    const dir = await mkdtemp(path.join(dirRoot, 'dir-'))
+
+    expect(await exportDir(dir)).toBe(await realpath(dir))
+  })
+
+  describe.skipIf(process.platform === 'win32')('a symlink to a directory', () => {
+    it('returns the real target, not the link path', async () => {
+      const target = await mkdtemp(path.join(dirRoot, 'target-'))
+      const link = path.join(dirRoot, `link-${randomUUID()}`)
+
+      await symlink(target, link)
+
+      expect(await exportDir(link)).toBe(await realpath(target))
+    })
+  })
+
+  it('returns null for a regular file', async () => {
+    const file = path.join(dirRoot, `file-${randomUUID()}`)
+
+    await writeFile(file, 'bytes')
+
+    expect(await exportDir(file)).toBeNull()
+  })
+
+  it('returns null for a relative path', async () => {
+    expect(await exportDir('downloads')).toBeNull()
+  })
+
+  it('returns null for a missing path', async () => {
+    expect(await exportDir(path.join(dirRoot, randomUUID()))).toBeNull()
   })
 })

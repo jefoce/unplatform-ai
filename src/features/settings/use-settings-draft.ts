@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { isEmpty, isNull, isUndefined } from 'lodash-es'
 import { toast } from 'sonner'
+import { mutate } from 'swr'
 
 import { PROVIDERS, STORAGE_PROVIDERS } from '@/core/providers/registry'
 import type { StorageProviderId } from '@/core/providers/types'
@@ -13,6 +14,7 @@ import { refreshCredits } from '@/lib/api/credits'
 import { clearEndpointTests, refreshEndpoints } from '@/lib/api/endpoints'
 import { refreshRemoteStatus } from '@/lib/api/remote'
 import { saveSecrets } from '@/lib/api/settings'
+import { isEstimateKey } from '@/lib/api/swr-keys'
 import { toastError } from '@/lib/notify'
 import { platform } from '@/lib/platform'
 import { useAsyncAction } from '@/lib/use-async-action'
@@ -185,6 +187,11 @@ export function useSettingsDraft(params: UseSettingsDraftParams): SettingsDraft 
 
       await Promise.all([refreshCredits(), refreshRemoteStatus(), refreshCatalog()])
       await refreshEndpoints()
+
+      if (isSecretDirty || endpoints.isDirty) {
+        await mutate(isEstimateKey)
+      }
+
       endpoints.reset()
       setEdits({})
       resetResults()

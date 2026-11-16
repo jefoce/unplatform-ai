@@ -8,7 +8,7 @@ import type {
   EndpointOverviewEntry,
 } from '@/core/api/endpoints'
 import { endpointIdFromPresetId } from '@/core/presets/custom'
-import type { CustomEndpoint, CustomEndpointLastHealth } from '@/core/schemas/custom-endpoint'
+import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 import { type ImageRecord, isImageActive } from '@/core/schemas/image-record'
 import { ACTIVE_STATUSES } from '@/core/types'
@@ -23,7 +23,7 @@ import { readEndpointFile } from '../repos/endpoints'
 import { listGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
 import { secretsReady } from '../secrets'
-import { getHealth, isHealthFresh } from './endpoint-health'
+import { endpointPhase } from './endpoint-health'
 import { readEndpointModels } from './endpoint-model-cache'
 import { readTokenMap } from './endpoint-tokens'
 
@@ -60,12 +60,11 @@ export async function getEndpointOverview(): Promise<EndpointOverview> {
 function mockOverview(): EndpointOverview {
   const endpoints = customMockInstances().map((instance): EndpointOverviewEntry => {
     const catalog = customMockCatalogForInstance(instance.id)
-    const status: EndpointHealthView = catalog.isReachable ? 'ok' : 'unreachable'
 
     return {
       ...customMockEndpoint(instance),
       runningJobs: 0,
-      status,
+      status: healthView(instance.id),
       videoCount: catalog.video.length,
       imageCount: catalog.image.length,
       tokenHint: null,
@@ -80,19 +79,20 @@ async function toOverview(params: OverviewParams): Promise<EndpointOverviewEntry
   const { endpoint, tokenMap, runningJobs } = params
   const models = await readEndpointModels(endpoint.id)
 
-  const known = getHealth(endpoint.id)
-  const isFresh = !isNil(known) && isHealthFresh(known)
-  const fresh = isFresh ? known : null
-
   return {
     ...endpoint,
     videoCount: models?.video.length ?? 0,
     imageCount: models?.image.length ?? 0,
     runningJobs: runningJobs.get(endpoint.id) ?? 0,
-    status: fresh?.state ?? statusFromHealth(endpoint.lastHealth),
+    status: healthView(endpoint.id),
     tokenHint: hintFor(tokenMap[endpoint.id]),
     hasToken: !isNil(tokenMap[endpoint.id]),
   }
+}
+
+/** Reads the probe result only. No stored last health, so a restart starts from checking. */
+function healthView(endpointId: string): EndpointHealthView {
+  return endpointPhase(endpointId)
 }
 
 /** One pass over both record lists, keyed by endpoint id. */
@@ -125,14 +125,6 @@ function countRunningJobs(
   }
 
   return counts
-}
-
-function statusFromHealth(lastHealth: CustomEndpointLastHealth | null): EndpointHealthView {
-  if (isNil(lastHealth)) {
-    return 'unknown'
-  }
-
-  return 'ok'
 }
 
 function hintFor(token: string | undefined): string | null {

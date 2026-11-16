@@ -4,6 +4,7 @@ import type { ProviderInstance } from '@/core/providers/types'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
 import { customMockFixtures } from './custom-fixtures'
+import { mockReachable } from './custom-mock-state'
 import { type CustomMockCatalog, customMockCatalog, customMockScenario } from './custom-models'
 
 const MOCK_BASE_URL = 'http://mock'
@@ -18,8 +19,18 @@ export function customMockInstances(): readonly ProviderInstance[] {
   ]
 }
 
-/** Catalog for one demo instance, resolved from its id suffix. */
+/** Catalog for one demo instance. A dev override wins over the id suffix. */
 export function customMockCatalogForInstance(instanceId: string): CustomMockCatalog {
+  const isReachableOverride = mockReachable(instanceId)
+
+  if (isReachableOverride === false) {
+    return customMockCatalog({ scenario: 'unreachable' })
+  }
+
+  if (isReachableOverride === true) {
+    return customMockCatalog({ scenario: 'ready' })
+  }
+
   return customMockCatalog({ scenario: customMockScenario({ instanceId }) })
 }
 

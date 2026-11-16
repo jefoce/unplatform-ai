@@ -3,6 +3,7 @@
 import { isNil } from 'lodash-es'
 import { Check, Clock, Monitor, TriangleAlert, Volume2 } from 'lucide-react'
 
+import { CATALOG_CHECKING_REASON } from '@/core/catalog'
 import { cn } from '@/lib/cn'
 import { EndpointBadge } from '@/ui/EndpointBadge'
 import { Tooltip } from '@/ui/Tooltip'
@@ -16,11 +17,15 @@ interface ModelCustomRowProps extends ModelRowProps {
   model: PickerRow
 }
 
-type RowState = 'ok' | 'stale' | 'invalid' | 'unreachable'
+type RowState = 'ok' | 'stale' | 'invalid' | 'checking' | 'unreachable'
 
 function rowState(row: PickerRow): RowState {
   if (row.status === 'invalid') {
     return 'invalid'
+  }
+
+  if (row.status === 'unverified' && row.reason === CATALOG_CHECKING_REASON) {
+    return 'checking'
   }
 
   if (row.status === 'unverified') {
@@ -35,7 +40,7 @@ function rowState(row: PickerRow): RowState {
 }
 
 function rowPrice(row: PickerRow, state: RowState): string | null {
-  if (state === 'unreachable' || row.priceText === '') {
+  if (state === 'unreachable' || state === 'checking' || row.priceText === '') {
     return null
   }
 
@@ -47,15 +52,25 @@ function rowNote(state: RowState): string | null {
     return '(unreachable)'
   }
 
+  if (state === 'checking') {
+    return null
+  }
+
   return null
 }
 
 /** ComfyUI row: badge chip, title, state, and description or capability badges. */
-// eslint-disable-next-line complexity -- one row owns badge, state, price and tooltip
+// eslint-disable-next-line complexity -- one row owns badge, checking state, price and tooltip
 export function ModelCustomRow(props: ModelCustomRowProps) {
   const { model, selected: isSelected } = props
   const state = rowState(model)
-  const isBlocked = state === 'unreachable' || state === 'invalid' || model.status === 'missing'
+
+  const isBlocked =
+    state === 'unreachable' ||
+    state === 'checking' ||
+    state === 'invalid' ||
+    model.status === 'missing'
+
   const price = rowPrice(model, state)
   const note = rowNote(state)
   const reason = model.reason ?? ''
@@ -100,7 +115,7 @@ export function ModelCustomRow(props: ModelCustomRowProps) {
           )}
         </span>
         {model.mediaKind === 'image' && <ModelDescription description={model.description} />}
-        {state !== 'stale' && !isNil(model.reason) && (
+        {state !== 'stale' && state !== 'checking' && !isNil(model.reason) && (
           <span className="mt-1 block text-xs text-fg-2">{model.reason}</span>
         )}
         {model.mediaKind === 'video' && (

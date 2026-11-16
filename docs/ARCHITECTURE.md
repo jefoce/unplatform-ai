@@ -129,10 +129,12 @@ An image record carries the same `source` and `presetSnapshot` fields as a video
 
 | Field | Meaning | Writer |
 |---|---|---|
-| `endpoints` | id, label, badge, base URL, enabled, pricing, instance id and last health per endpoint | Settings save |
+| `endpoints` | id, label, badge, base URL, enabled, pricing, instance id and last health per endpoint. Last health is saved for history and logs only, never used as the current status | Settings save |
 | `badgeCounter` | Last badge number handed out, so a deleted number is never reused | endpoints repo |
 
 `data/endpoint-models/<id>.json` caches the upai/1 model lists for one endpoint: `fetchedAt`, `video`, `image` and `missingSince`. `CUSTOM_ENDPOINT_TOKENS` is one secret JSON map from endpoint id to bearer token. The raw token is never logged, and Settings shows only its last four characters.
+
+The status is `Checking` until the first health result in this session (`endpointPhase` in `src/server/services/endpoint-health.ts`), then `ok` or the failure state. The 2 and 3 failure thresholds apply only after a success in the session.
 
 ### Runtime files
 
@@ -264,7 +266,7 @@ Adding a model:
 | Submit queue | 2 active | Upload and send jobs |
 | Poller | 3 parallel | OpenRouter status reads |
 | Download queue | 2 active | Video downloads and previews |
-| `thumbQueue` | 4 active | Thumbnail renders |
+| `thumbQueue` | 2 active | Thumbnail renders |
 | `imageEncodeQueue` | 2 active | Image re-encode at upload |
 | `compatQueue` | 2 active | Webview-safe copies |
 
@@ -276,7 +278,7 @@ Update checks run 15 s after launch, then every 12 h while auto-check is on (`UP
 
 Lookup order per key: environment variable, then the OS keychain or desktop bridge, then `secrets.json`. Env values are read-only in Settings. `getSecret` reads memory only, and `onSecretsChange` clears dependent caches such as the R2 store.
 
-Desktop uses a bridge to the Rust shell over newline-delimited JSON on stdin/stdout. Node never calls the keychain in desktop mode. The webview never receives key values, only status with the last four characters.
+Desktop uses a bridge to the Rust shell over newline-delimited JSON on stdin/stdout. Node never calls the keychain in desktop mode. The webview never receives key values, only status with the last four characters. macOS and Linux keep one keychain item, Windows keeps one Credential Manager item per secret, and each value is capped at 2048 bytes.
 
 Desktop writes one 0600 JSON file with the session token, the parent secret and the boot nonce, passes its path in `APP_TOKEN_FILE`, and the server reads and deletes it at boot. Browser mode mints a token at boot and prints `http://127.0.0.1:<port>/session#t=<token>` once. Writes without a session return 401 in every mode. Only the parent secret can register a save-dialog path. The shell then opens `/session#t=<token>`. The fragment never reaches the server: the page POSTs the token to `/api/session`, gets an HttpOnly `SameSite=Strict` cookie, and replaces the URL with `/`. `assertLocalRequest` enforces host, origin, `sec-fetch-site`, JSON content type and the session. Health and session routes opt out of the session check.
 
@@ -383,7 +385,6 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `PREVIEW_AT_SEC` | 0.5 | Preview frame time |
 | `PREVIEW_GRACE_MS` | 30000 | How long a finished video may keep polling for its poster |
 | `PREVIEW_MAX_WIDTH` | 1920 | Preview frame max width |
-| `PREVIEW_QUALITY` | 90 | Preview WebP quality |
 | `PREVIEW_WIDTH` | 640 | Default poster request width |
 | `PRICE_DEBOUNCE_MS` | 500 | Price and estimate debounce |
 | `PRICING_FALLBACK_TTL_MS` | 300000 | Fallback price cache lifetime |
@@ -407,7 +408,8 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `SUBMIT_YIELD_MS` | 50 | Yield between submit queue steps |
 | `THUMBS_MAX_BYTES` | 1073741824 | Thumb cache cap |
 | `THUMBS_TARGET_BYTES` | 838860800 | Thumb cache trim target |
-| `THUMB_ENCODER_VERSION` | 1 | Thumb encoder version in the cache key |
+| `THUMB_ENCODER_VERSION` | 2 | Thumb encoder version in the cache key |
+| `THUMB_MAX_BYTES` | 51200 | Largest generated WebP thumbnail, bytes |
 | `THUMB_TOUCH_MS` | 86400000 | Thumb mtime refresh interval |
 | `THUMB_UNUSED_DAYS` | 30 | Thumb cache retention |
 | `THUMB_WIDTH` | 320 | Thumbnail width |
@@ -419,6 +421,10 @@ Only `src/lib/platform/desktop.ts` imports Tauri packages. Features call the `Pl
 | `ZOOM_MIN` | 0 | Minimum zoom step |
 | `ZOOM_STEPS` | 6 | Number of zoom steps |
 | `VIDEO_PRESETS` | see [presets/index.ts](../src/core/presets/index.ts) | Per-model duration, resolution, reference, prompt and size caps |
+
+The capped WebP encoder in `src/server/media/webp-cap.ts` encodes at quality 86, searches quality down to 50 at effort 4 with one final effort 6 encode, then scales the width by 15 percent up to three times, always at or under `THUMB_MAX_BYTES`.
+
+`EXPORT_TOKEN_TTL_MS` guards the save-dialog path for `POST /api/generations/[id]/export` and `POST /api/images/[id]/outputs/[output-id]/export`.
 
 ## 12. Edge cases
 

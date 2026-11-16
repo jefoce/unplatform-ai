@@ -10,6 +10,7 @@ import { providerDescriptor, PROVIDERS, STORAGE_PROVIDERS } from '../src/core/pr
 import type { ProviderLink } from '../src/core/providers/types'
 
 const CAPABILITIES_PATH = path.join(process.cwd(), 'src-tauri/capabilities/default.json')
+const REMOTE_CAPABILITIES_PATH = path.join(process.cwd(), 'src-tauri/capability-remote.json')
 const OPENER_PERMISSION = 'opener:allow-open-url'
 
 const RuleSchema = z.object({ url: z.string().optional(), path: z.string().optional() })
@@ -41,8 +42,8 @@ function isAllowed(patterns: RegExp[], url: string): boolean {
   })
 }
 
-async function openerGlobs(): Promise<string[]> {
-  const raw = await fs.readFile(CAPABILITIES_PATH, 'utf8')
+async function openerGlobs(file: string): Promise<string[]> {
+  const raw = await fs.readFile(file, 'utf8')
   const parsed = CapabilitiesSchema.parse(JSON.parse(raw))
 
   const permission = parsed.permissions.find((entry) => {
@@ -82,21 +83,24 @@ describe('provider links', () => {
     }
   })
 
-  it('allows every provider link in the Tauri opener capability', async () => {
-    const patterns = (await openerGlobs()).map(globToRegex)
-    const descriptors = [...PROVIDERS, ...STORAGE_PROVIDERS]
+  it.each([CAPABILITIES_PATH, REMOTE_CAPABILITIES_PATH])(
+    'allows every provider link in %s',
+    async (file) => {
+      const patterns = (await openerGlobs(file)).map(globToRegex)
+      const descriptors = [...PROVIDERS, ...STORAGE_PROVIDERS]
 
-    const urls = descriptors.flatMap((descriptor) => {
-      return linkUrls(descriptor.links)
-    })
+      const urls = descriptors.flatMap((descriptor) => {
+        return linkUrls(descriptor.links)
+      })
 
-    urls.push(OPENROUTER_CREDITS_URL)
+      urls.push(OPENROUTER_CREDITS_URL)
 
-    const unreachable = urls.filter((url) => {
-      return !isAllowed(patterns, url)
-    })
+      const unreachable = urls.filter((url) => {
+        return !isAllowed(patterns, url)
+      })
 
-    expect(patterns.length > 0).toBe(true)
-    expect(unreachable).toEqual([])
-  })
+      expect(patterns.length > 0).toBe(true)
+      expect(unreachable).toEqual([])
+    },
+  )
 })

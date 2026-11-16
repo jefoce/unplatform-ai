@@ -15,14 +15,16 @@ export interface ChooseFilesParams {
 export interface SaveResult {
   saved: number
   skipped: number
+  duplicates: number
   folder?: string
 }
 
-/** One saved image output, with the file ref the browser downloads by. */
+/** One saved image output, with the browser file ref and the base name for the save dialog. */
 export interface ImageSaveRef {
   recordId: string
   outputId: string
   file: string
+  name: string
 }
 
 export type UpdateListener = (progress: UpdateProgress) => void

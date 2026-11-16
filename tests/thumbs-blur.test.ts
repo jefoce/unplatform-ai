@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
+import { THUMB_MAX_BYTES } from '../src/core/constants'
+
 const FIXTURE_PNG = fileURLToPath(new URL('./fixtures/media/sample.png', import.meta.url))
 
 const state = vi.hoisted(() => {
@@ -64,6 +66,7 @@ describe('GET /api/thumbs with blur', () => {
 
     expect(metadata.format).toBe('webp')
     expect(metadata.width).toBe(96)
+    expect(buffer.byteLength).toBeLessThanOrEqual(THUMB_MAX_BYTES)
   })
 
   it('answers 404 when the source is gone', async () => {

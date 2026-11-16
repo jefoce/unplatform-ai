@@ -24,9 +24,9 @@ export interface EndpointHealthState {
 
 /** States that close the endpoint for the Generate gate and the offline pill. */
 export function isOfflineHealthStatus(
-  status: EndpointHealthStatus | 'unknown' | null | undefined,
+  status: EndpointHealthStatus | 'unknown' | 'checking' | null | undefined,
 ): boolean {
-  if (isNil(status) || status === 'unknown') {
+  if (isNil(status) || status === 'unknown' || status === 'checking') {
     return false
   }
 

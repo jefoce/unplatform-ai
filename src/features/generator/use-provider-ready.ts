@@ -2,6 +2,7 @@
 
 import { isNil } from 'lodash-es'
 
+import type { EndpointOverviewEntry } from '@/core/api/endpoints'
 import { CATALOG_MISSING_REASON, type CatalogEntry, catalogEntryReason } from '@/core/catalog'
 import type { HistoryFacetKind } from '@/core/history-facets'
 import { isCustomPresetId } from '@/core/presets/custom'
@@ -9,11 +10,12 @@ import { useSecrets } from '@/features/settings/use-secrets'
 import { useEndpointsSnapshot } from '@/features/shared/endpoints-status-context'
 import { useCatalog } from '@/lib/api/catalog'
 import { useCredits } from '@/lib/api/credits'
-import { hasReadyEndpoint } from '@/lib/api/endpoints-status'
+import { endpointById, hasReadyEndpoint } from '@/lib/api/endpoints-status'
 
 const PROVIDER_KEY_REASON = 'Add your OpenRouter key in Settings.'
 
 export interface ProviderReady {
+  isEndpointChecking: boolean
   isKeyMissing: boolean
   isReady: boolean
   reason: string | null
@@ -55,6 +57,18 @@ function readyReason(params: ReasonParams): string | null {
   return null
 }
 
+/** True while the selected custom endpoint is still in its boot probe. */
+function isSelectedEndpointChecking(
+  entry: CatalogEntry | null,
+  endpoints: readonly EndpointOverviewEntry[],
+): boolean {
+  if (isNil(entry)) {
+    return false
+  }
+
+  return endpointById(endpoints, entry.source.instanceId)?.status === 'checking'
+}
+
 /** Ready gate: an OpenRouter key or one healthy custom endpoint for the tab kind. */
 export function useProviderReady(
   presetId?: string,
@@ -74,13 +88,15 @@ export function useProviderReady(
   const isKeyMissing = !isNil(status) && !status.keys.OPENROUTER_API_KEY.set && !isMock
   const isCustomReady = hasReadyEndpoint(endpoints, kind)
   const isReady = !isKeyMissing || isCustomReady
+  const isCustomId = !isNil(presetId) && isCustomPresetId(presetId)
+  const isEndpointChecking = isSelectedEndpointChecking(entry, endpoints)
 
   const reason = readyReason({
     entry,
     isKeyMissing,
-    isCustomId: !isNil(presetId) && isCustomPresetId(presetId),
+    isCustomId,
     isCatalogLoading: isLoading,
   })
 
-  return { isKeyMissing, isReady: isReady && isNil(reason), reason }
+  return { isEndpointChecking, isKeyMissing, isReady: isReady && isNil(reason), reason }
 }

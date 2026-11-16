@@ -30,7 +30,7 @@ export const UPLOADS_DIR = path.join(STORAGE_ROOT, 'uploads')
 
 /** Scratch files for uploads and probes. Never served. */
 export const STORAGE_TMP_DIR = path.join(STORAGE_ROOT, 'tmp')
-const DATA_DIR = path.join(STORAGE_ROOT, 'data')
+export const DATA_DIR = path.join(STORAGE_ROOT, 'data')
 
 export const THUMBS_DIR = path.join(STORAGE_ROOT, '.cache', 'thumbs')
 export const COMPAT_DIR = path.join(STORAGE_ROOT, '.cache', 'compat')

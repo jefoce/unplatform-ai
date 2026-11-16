@@ -114,7 +114,7 @@ export const browserPlatform: Platform = {
       clickDownload(downloadUrl(record))
     }
 
-    return { saved: records.length, skipped: 0 }
+    return { saved: records.length, skipped: 0, duplicates: 0 }
   },
 
   saveImages: async (refs: ImageSaveRef[]) => {
@@ -126,7 +126,7 @@ export const browserPlatform: Platform = {
       clickDownload(downloadRefUrl(`images/${ref.file}`))
     }
 
-    return { saved: refs.length, skipped: 0 }
+    return { saved: refs.length, skipped: 0, duplicates: 0 }
   },
 
   onFileDrop: noFileDrop,

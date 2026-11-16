@@ -343,7 +343,7 @@ describe('video mixed selection', () => {
 
     setOrder(['done', 'bad'])
     setSelection(['done', 'bad'])
-    platformMock.saveVideos.mockResolvedValue({ saved: 1, skipped: 0 })
+    platformMock.saveVideos.mockResolvedValue({ saved: 1, skipped: 0, duplicates: 0 })
     render(<SelectionBar items={items(records)} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Download 1' }))
@@ -356,5 +356,31 @@ describe('video mixed selection', () => {
 
     expect(platformMock.saveVideo).not.toHaveBeenCalled()
     expect(toastMock).toHaveBeenCalledWith('1 not finished, skipped')
+  })
+
+  it('says when every file is already in the folder', async () => {
+    setOrder(['one', 'two'])
+    setSelection(['one', 'two'])
+    platformMock.saveVideos.mockResolvedValue({ saved: 0, skipped: 0, duplicates: 2 })
+    render(<SelectionBar items={items([record('one'), record('two')])} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download 2' }))
+
+    await waitFor(() => {
+      expect(toastMock.success).toHaveBeenCalledWith('All files are already in the folder.')
+    })
+  })
+
+  it('counts the files already in the folder next to the saved ones', async () => {
+    setOrder(['one', 'two'])
+    setSelection(['one', 'two'])
+    platformMock.saveVideos.mockResolvedValue({ saved: 1, skipped: 0, duplicates: 1 })
+    render(<SelectionBar items={items([record('one'), record('two')])} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download 2' }))
+
+    await waitFor(() => {
+      expect(toastMock.success).toHaveBeenCalledWith('Saved 1, 1 already in the folder')
+    })
   })
 })

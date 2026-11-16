@@ -119,6 +119,9 @@ export const ZOOM_DEFAULT = 5
 
 export const THUMB_WIDTH = 320
 
+/** Largest generated WebP thumbnail, bytes. */
+export const THUMB_MAX_BYTES = 51_200
+
 /** Stage backdrop: 96 px wide, blurred on the server so Linux needs no filter. */
 export const BLUR_WIDTH = 96
 export const BLUR_SIGMA = 8
@@ -126,14 +129,13 @@ export const BLUR_SATURATION = 1.5
 
 export const PREVIEW_WIDTH = 640
 export const PREVIEW_MAX_WIDTH = 1920
-export const PREVIEW_QUALITY = 90
 export const PREVIEW_AT_SEC = 0.5
 
 /** Poster widths. Requests round up to the next bucket, capped at the last. */
 export const POSTER_WIDTHS = [320, 640, 960, 1280, 1600, 1920] as const
 
 /** Bumped when the thumb encoder changes, so old files regenerate. */
-export const THUMB_ENCODER_VERSION = 1
+export const THUMB_ENCODER_VERSION = 2
 
 /** Thumb cache: 30 days unused, 1 GB cap trimmed to 800 MB. */
 export const THUMB_UNUSED_DAYS = 30

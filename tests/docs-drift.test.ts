@@ -161,6 +161,7 @@ describe('bounds table', () => {
       UPDATE_CHECK_DELAY_MS: bounds.UPDATE_CHECK_DELAY_MS,
       UPDATE_CHECK_INTERVAL_MS: bounds.UPDATE_CHECK_INTERVAL_MS,
       CREDITS_POLL_MS: bounds.CREDITS_POLL_MS,
+      THUMB_MAX_BYTES: bounds.THUMB_MAX_BYTES,
     }
 
     for (const [name, value] of Object.entries(expected)) {

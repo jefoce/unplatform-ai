@@ -171,6 +171,41 @@ describe('endpoint draft save and cancel', () => {
   })
 })
 
+describe('endpoint draft save verification', () => {
+  it('returns a token-changed row to checking on save until the next success', async () => {
+    mocks.save.mockResolvedValue({
+      endpoints: [{ ...VIEW, status: 'checking' }],
+      nextBadge: 'CU2',
+    })
+
+    const { result } = renderHook(() => {
+      return useEndpointsDraft({ isOpen: true })
+    })
+
+    const first = required(result.current.rows[0], 'first row')
+
+    act(() => {
+      result.current.onChange(first.key, { tokenValue: 'new-token' })
+    })
+
+    await act(async () => {
+      await result.current.onSave()
+    })
+
+    expect(result.current.rows[0]?.status).toBe('checking')
+
+    mocks.test.mockResolvedValue(TEST_RESULT)
+
+    await act(async () => {
+      result.current.onTest(required(result.current.rows[0], 'saved row').key)
+    })
+
+    await waitFor(() => {
+      expect(result.current.rows[0]?.status).toBe('ok')
+    })
+  })
+})
+
 describe('endpoint test results', () => {
   it.each<[string, EndpointRowPatch]>([
     ['enabled', { enabled: false }],

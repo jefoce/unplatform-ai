@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable max-lines -- picker cases share one trigger setup */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +7,7 @@ import { imagePickerModel } from '@/features/generator/model/image-picker-model'
 import { ModelPicker } from '@/features/generator/model/ModelPicker'
 import { ModelRow } from '@/features/generator/model/ModelRow'
 import { ModelVideoRow } from '@/features/generator/model/ModelVideoRow'
+import { fallbackTitle } from '@/features/generator/model/picker-view'
 import { videoPickerModel } from '@/features/generator/model/video-picker-model'
 
 import type { CatalogEntry } from '../src/core/catalog'
@@ -87,6 +89,32 @@ describe('videoPickerModel', () => {
     expect(model.icon).toBe(WAN.icon)
     expect(model.description).toContain('5-30s')
     expect(model.priceText).toBe('from $0.05/s')
+  })
+})
+
+describe('fallbackTitle', () => {
+  it('returns the saved title when nothing else resolves', () => {
+    expect(
+      fallbackTitle({
+        selectedId: 'custom.cu1.minimax',
+        entry: null,
+        savedTitle: 'MiniMax H3',
+      }),
+    ).toBe('MiniMax H3')
+  })
+
+  it('returns null when no title is saved', () => {
+    expect(
+      fallbackTitle({ selectedId: 'custom.cu1.minimax', entry: null, savedTitle: null }),
+    ).toBeNull()
+  })
+
+  it('never returns the raw preset id', () => {
+    const selectedId = 'custom.cu1.minimax'
+    const title = fallbackTitle({ selectedId, entry: null, savedTitle: null })
+
+    expect(title).not.toBe(selectedId)
+    expect(title ?? '').not.toContain('custom.')
   })
 })
 

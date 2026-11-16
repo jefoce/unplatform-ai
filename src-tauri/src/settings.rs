@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::PathBuf,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Mutex,
-    },
+    sync::{Condvar, Mutex, MutexGuard, Once},
     thread,
     time::Duration,
 };
@@ -17,7 +14,18 @@ pub const DEFAULT_HEIGHT: f64 = 900.0;
 pub const MIN_WIDTH: f64 = 1024.0;
 pub const MIN_HEIGHT: f64 = 700.0;
 
-static SAVE_GENERATION: AtomicU64 = AtomicU64::new(0);
+struct SaveQueue {
+    generation: u64,
+    window: Option<WebviewWindow<Wry>>,
+}
+
+static SAVE_QUEUE: Mutex<SaveQueue> = Mutex::new(SaveQueue {
+    generation: 0,
+    window: None,
+});
+static SAVE_WAKE: Condvar = Condvar::new();
+static SAVE_WORKER: Once = Once::new();
+const SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
 static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 #[cfg(test)]
@@ -139,16 +147,53 @@ fn save(settings: &DesktopSettings) -> Result<(), String> {
     fs::rename(&temp, &path).map_err(|error| format!("replace {}: {error}", path.display()))
 }
 
-/// Saves the current logical window bounds after a short debounce.
+/// Saves the newest logical bounds after 500 ms without another move or resize.
 pub fn schedule_window_save(window: WebviewWindow<Wry>) {
-    let generation = SAVE_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
-    thread::spawn(move || {
-        thread::sleep(Duration::from_millis(500));
-        if SAVE_GENERATION.load(Ordering::Relaxed) != generation {
-            return;
-        }
-        save_window_bounds(&window);
+    SAVE_WORKER.call_once(|| {
+        thread::spawn(save_worker);
     });
+
+    let mut queue = lock_queue();
+    queue.generation += 1;
+    queue.window = Some(window);
+    SAVE_WAKE.notify_one();
+}
+
+fn lock_queue() -> MutexGuard<'static, SaveQueue> {
+    SAVE_QUEUE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn save_worker() {
+    let mut handled = 0;
+
+    loop {
+        let mut queue = lock_queue();
+        while queue.generation == handled {
+            queue = SAVE_WAKE
+                .wait(queue)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+
+        loop {
+            let (next, wait) = SAVE_WAKE
+                .wait_timeout(queue, SAVE_DEBOUNCE)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            queue = next;
+            if wait.timed_out() {
+                break;
+            }
+        }
+
+        handled = queue.generation;
+        let window = queue.window.take();
+        drop(queue);
+
+        if let Some(window) = window {
+            save_window_bounds(&window);
+        }
+    }
 }
 
 pub fn save_window_bounds(window: &WebviewWindow<Wry>) {

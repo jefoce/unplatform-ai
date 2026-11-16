@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { normalizeForPreset } from '@/core/normalize-input'
 import { DEFAULT_VIDEO_PRESET_ID, findPreset, getPreset } from '@/core/presets'
+import { PRESET_ICONS } from '@/core/presets/common/icon'
 import { isCustomPresetId } from '@/core/presets/custom'
 import { FrameSlotsSchema, GENERATOR_TABS } from '@/core/schemas/generation-record'
 import { createDraftStore } from '@/lib/create-draft-store'
@@ -26,6 +27,9 @@ const DraftSchema = z.object({
   frames: FrameSlotsSchema,
   references: z.array(z.string()),
   seed: z.number().nullable(),
+  modelTitle: z.string().nullable().default(null),
+  modelBadge: z.string().nullable().default(null),
+  modelIcon: z.enum(PRESET_ICONS).default('sparkles'),
 })
 
 /** Reapplies the preset rules to a restored draft. */

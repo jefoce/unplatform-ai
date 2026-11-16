@@ -10,6 +10,75 @@ import {
 } from '../lib/dom.mjs'
 import { seedFailedVideo } from '../lib/server.mjs'
 
+const DRAFT_KEY = 'unplatform-ai:draft'
+const SLOW_PRESET_ID = 'custom.mock-ready.minimax-h3-scale'
+const SLOW_MODEL_TITLE = 'MiniMax H3'
+const SLOW_MODEL_CARD = '[CU1] MiniMax H3'
+const SLOW_DRAFT = {
+  state: {
+    presetId: SLOW_PRESET_ID,
+    tab: 'frames',
+    prompts: { frames: '', references: '' },
+    audio: false,
+    duration: 5,
+    aspectRatio: '16:9',
+    resolution: '720p',
+    frames: { start: null, end: null },
+    references: [],
+    seed: null,
+    modelTitle: SLOW_MODEL_TITLE,
+    modelBadge: 'CU1',
+    modelIcon: 'sparkles',
+  },
+  version: 3,
+}
+
+async function setCatalogDelay(server, ms) {
+  const response = await fetch(`${server.baseUrl}/api/dev/model-catalog-delay`, {
+    method: 'POST',
+    headers: { cookie: `upai_session=${server.token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ ms }),
+  })
+
+  if (response.status !== 204) {
+    throw new Error(`Catalog delay answered ${String(response.status)}`)
+  }
+}
+
+async function modelTitleWhileLoading(context) {
+  const { driver, server } = context
+
+  await openApp(context)
+  await resetLocal(driver, [DRAFT_KEY, 'unplatform-ai:view'])
+
+  try {
+    await setCatalogDelay(server, 2000)
+    await driver.evaluate(
+      `localStorage.setItem(${JSON.stringify(DRAFT_KEY)}, ${JSON.stringify(JSON.stringify(SLOW_DRAFT))})`,
+    )
+    await driver.reload()
+    await driver.waitFor(
+      `(() => {
+        const trigger = window.__e2e.all('button').find((node) => /^Model\\b/.test(node.innerText.trim()))
+        return trigger !== undefined && trigger.innerText.includes(${JSON.stringify(SLOW_MODEL_CARD)})
+      })()`,
+      500,
+      'the saved model title while the catalog loads',
+    )
+
+    const triggerText = await driver.evaluate(`(() => {
+      const trigger = window.__e2e.all('button').find((node) => /^Model\\b/.test(node.innerText.trim()))
+      return trigger === undefined ? '' : trigger.innerText
+    })()`)
+
+    if (triggerText.includes(SLOW_PRESET_ID)) {
+      throw new Error(`The trigger shows the raw preset id: ${triggerText}`)
+    }
+  } finally {
+    await setCatalogDelay(server, 0)
+  }
+}
+
 async function reusePrompt(driver) {
   await driver.waitFor(
     `window.__e2e.all('[aria-label="More actions"]').length > 0`,
@@ -153,5 +222,9 @@ export const persistenceCases = [
   {
     name: 'persistence/video-filter-reload',
     run: videoFilterSurvivesReload,
+  },
+  {
+    name: 'persistence/model-title-while-loading',
+    run: modelTitleWhileLoading,
   },
 ]

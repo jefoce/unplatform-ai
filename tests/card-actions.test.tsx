@@ -156,6 +156,7 @@ const SAVED_IMAGE_REF = {
   recordId: RECORD_ID,
   outputId: OUTPUT_ID,
   file: 'image-0.png',
+  name: 'gpt-image-2-5-sunburst',
 }
 
 beforeEach(() => {

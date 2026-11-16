@@ -98,6 +98,13 @@ The protocol copy at `docs/protocol/upai-1` is pinned in `SOURCE` to `unplatform
 
 No test uses a real key. The adapter suites use the mock server or the in-process fixtures.
 
+#### Mock dev routes
+
+Both are 404 unless `CUSTOM_ENDPOINT_MOCK=1` and only answer local requests.
+
+- `POST /api/dev/custom-mock/reachable` sets one mock endpoint up, down or checking.
+- `POST /api/dev/model-catalog-delay` delays the model catalog, in ms from 0 to 5000.
+
 ## 5. Adding a model
 
 1. Find the provider docs and the OpenRouter model id. Check `/api/v1/videos/models` for `supported_*` fields and `pricing_skus`.
@@ -230,7 +237,7 @@ pnpm vitest
 
 The `workflows` job runs actionlint through its pinned Docker image, shellcheck over `.github/scripts/*.sh`, `scripts/ffmpeg/*.sh`, `scripts/node/*.sh` and `scripts/generate-header.sh`, and zizmor 1.31.1 at `--min-severity medium --min-confidence high`. actionlint also shellchecks every `run:` block. `.github/workflows/catalog-drift.yml` runs the live catalog test weekly.
 
-`checks / e2e` runs three width shards named `e2e (1280)`, `e2e (1728)` and `e2e (2560)`, with `fail-fast: false` and a 25-minute timeout each. Every shard builds once, passes `--width` to `tests/e2e/run.mjs` and points `E2E_TMPDIR` at its own directory. On failure the shard uploads its temp dir and log as `e2e-<width>`. The Windows note still holds: `e2e-windows` runs the single image-first case on `windows-2025` against the runner image Chrome, with a 15-minute timeout.
+`checks / e2e` runs three width shards named `e2e (1280)`, `e2e (1728)` and `e2e (2560)`, with `fail-fast: false` and a 25-minute timeout each. Every shard builds once, passes `--width` to `tests/e2e/run.mjs` and points `E2E_TMPDIR` at its own directory. On failure the shard uploads its temp dir and log as `e2e-<width>`. Both the Linux width shards and `e2e-windows` install Chrome for Testing 157.0.8103.78 through `browser-actions/setup-chrome` (pinned by commit SHA, with system dependencies installed on Linux) and assert the major through `E2E_CHROME_MAJOR`. The Linux shards also turn off the AppArmor restriction on unprivileged user namespaces, because the pinned Chrome has no AppArmor profile and Ubuntu 24.04 blocks its sandbox otherwise. `e2e-windows` runs the single image-first case on `windows-2025`, with a 15-minute timeout.
 
 Dependabot opens one grouped monthly pull request for npm, cargo and GitHub Actions against `releases`, with `open-pull-requests-limit: 1` and the `dependencies` label. Semver-major updates are ignored. `pr-version` never merges those pull requests: it passes, adds the `apply-on-next` label, and keeps one reminder comment that says to apply the updates on the next version branch. Branch protection can optionally require the `apply-on-next` check so an unlabeled Dependabot pull request cannot merge. The notices check, e2e and audit skip a Dependabot pull request into `releases`. CodeQL default setup runs weekly on actions, JavaScript/TypeScript and Rust.
 

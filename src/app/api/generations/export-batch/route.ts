@@ -1,9 +1,9 @@
-import { isNil } from 'lodash-es'
+import { isEmpty, isNil } from 'lodash-es'
 import { z } from 'zod'
 
 import type { ExportEntry } from '@/core/api/export'
 import { HISTORY_BATCH_MAX } from '@/core/constants'
-import { exportName } from '@/core/media/file-names'
+import { modelBase, promptSlug } from '@/core/media/file-names'
 import { copyUnique, videoSource } from '@/server/fs/export-files'
 import { getGeneration } from '@/server/repos/generations'
 import { assertLocalRequest } from '@/server/request-guard'
@@ -48,5 +48,17 @@ async function exportEntry(id: string, dir: string): Promise<ExportEntry> {
     return { skip: { id, reason: 'not_ready' } }
   }
 
-  return { saved: await copyUnique({ source, dir, base: exportName(record), ext: 'mp4' }) }
+  let base = modelBase(record)
+
+  if (isEmpty(base)) {
+    base = promptSlug(record)
+  }
+
+  const result = await copyUnique({ source, dir, base, ext: 'mp4' })
+
+  if (result.isDuplicate) {
+    return { duplicate: result.path }
+  }
+
+  return { saved: result.path }
 }
