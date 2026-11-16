@@ -161,6 +161,10 @@ jobs:
           OPENROUTER_MOCK: '1'
           REMOTE_MOCK: '1'
         run: pnpm build
+      - name: Allow user namespaces for the pinned Chrome
+        # Ubuntu 24.04 blocks the Chrome sandbox for binaries without an AppArmor
+        # profile. The runner is ephemeral.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: End-to-end flows
         shell: bash
         env:
