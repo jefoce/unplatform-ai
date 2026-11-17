@@ -844,6 +844,31 @@ mod tests {
     }
 
     #[test]
+    fn per_name_store_migrates_an_oversized_legacy_item() {
+        let mut legacy = BTreeMap::new();
+        legacy.insert("OPENROUTER_API_KEY".to_string(), "a".repeat(805));
+        legacy.insert("OPENROUTER_MANAGEMENT_KEY".to_string(), "b".repeat(700));
+        legacy.insert("R2_ACCOUNT_ID".to_string(), "c".repeat(700));
+        legacy.insert("R2_BUCKET".to_string(), "media".to_string());
+        let raw = serde_json::to_string(&legacy).expect("json");
+        assert_eq!(raw.len(), 2300);
+
+        let keychain = FakeKeychain::default();
+        keychain
+            .set(SINGLE_ACCOUNT, &raw)
+            .expect("seed legacy item");
+        let store = PerNameStore::new(keychain.clone());
+
+        let values = store.read_all().expect("read all");
+
+        assert_eq!(values, legacy);
+        for name in legacy.keys() {
+            assert!(keychain.has(name));
+        }
+        assert!(!keychain.has(SINGLE_ACCOUNT));
+    }
+
+    #[test]
     fn per_name_store_keeps_other_entries_when_a_write_fails() {
         let raw = serde_json::json!({
             "OPENROUTER_API_KEY": "sk-or-v1-key",
