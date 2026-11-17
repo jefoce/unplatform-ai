@@ -1,6 +1,6 @@
 [package]
 name = "unplatform-ai"
-version = "0.5.1"
+version = "0.5.2"
 description = "Unplatform AI desktop shell"
 authors = ["jefoce"]
 license = "AGPL-3.0-only"
