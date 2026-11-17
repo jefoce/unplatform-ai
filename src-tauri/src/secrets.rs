@@ -10,6 +10,8 @@ pub(crate) const PREFIX: &str = "@@upai-secrets ";
 const SERVICE: &str = "unplatform-ai";
 /// The single JSON item. Current on macOS and Linux, legacy on Windows.
 const SINGLE_ACCOUNT: &str = "secrets";
+/// Per-name cap.
+/// The single JSON item that holds every value is never capped.
 const MAX_VALUE: usize = 2048;
 const TOO_LONG: &str = "This value is too long. The limit is 2048 bytes.";
 const ALLOWED: [&str; 7] = [
@@ -56,10 +58,26 @@ pub(crate) struct Request {
 }
 
 /// One keychain account: get, set and delete.
+/// Raw, no app cap on the value.
 trait Keychain {
     fn get(&self, account: &str) -> Result<Option<String>, KeyError>;
     fn set(&self, account: &str, value: &str) -> Result<(), KeyError>;
     fn delete(&self, account: &str) -> Result<(), KeyError>;
+}
+
+/// Reads one per-name item, where the app cap applies. An oversize item is an
+/// error, never a missing value that a later write could overwrite.
+fn read_name<K: Keychain>(keychain: &K, name: &str) -> Result<Option<String>, KeyError> {
+    let Some(value) = keychain.get(name)? else {
+        return Ok(None);
+    };
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if value.len() > MAX_VALUE {
+        return Err(KeyError::Failed(TOO_LONG.to_string()));
+    }
+    Ok(Some(value))
 }
 
 /// Values for every allowed secret name.
@@ -75,17 +93,13 @@ impl Keychain for OsKeychain {
     fn get(&self, account: &str) -> Result<Option<String>, KeyError> {
         let entry = keyring::Entry::new(SERVICE, account).map_err(KeyError::from)?;
         match entry.get_password() {
-            Ok(value) if is_valid_value(&value) => Ok(Some(value)),
-            Ok(_) => Ok(None),
+            Ok(value) => Ok(Some(value)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(error.into()),
         }
     }
 
     fn set(&self, account: &str, value: &str) -> Result<(), KeyError> {
-        if !is_valid_value(value) {
-            return Err(KeyError::Failed(TOO_LONG.to_string()));
-        }
         let entry = keyring::Entry::new(SERVICE, account).map_err(KeyError::from)?;
         entry.set_password(value).map_err(KeyError::from)
     }
@@ -121,7 +135,7 @@ impl<K: Keychain> SingleItemStore<K> {
     fn migrate_per_name(&self) -> Result<BTreeMap<String, String>, KeyError> {
         let mut values = BTreeMap::new();
         for name in ALLOWED {
-            if let Some(value) = self.keychain.get(name)? {
+            if let Some(value) = read_name(&self.keychain, name)? {
                 values.insert(name.to_string(), value);
             }
         }
@@ -158,6 +172,9 @@ impl<K: Keychain> SecretStore for SingleItemStore<K> {
     }
 
     fn write(&self, name: &str, value: &str) -> Result<(), KeyError> {
+        if !is_valid_value(value) {
+            return Err(KeyError::Failed(TOO_LONG.to_string()));
+        }
         let mut values = self.read_all()?;
         values.insert(name.to_string(), value.to_string());
         self.write_item(&values)
@@ -196,7 +213,7 @@ impl<K: Keychain> PerNameStore<K> {
         };
         let mut current = BTreeMap::new();
         for name in ALLOWED {
-            if let Some(value) = self.keychain.get(name)? {
+            if let Some(value) = read_name(&self.keychain, name)? {
                 current.insert(name.to_string(), value);
             }
         }
@@ -229,16 +246,12 @@ impl<K: Keychain> SecretStore for PerNameStore<K> {
         self.migrate()?;
         let mut values = BTreeMap::new();
         let mut first_error: Option<KeyError> = None;
-        let mut read_count = 0;
         for name in ALLOWED {
-            match self.keychain.get(name) {
+            match read_name(&self.keychain, name) {
                 Ok(Some(value)) => {
                     values.insert(name.to_string(), value);
-                    read_count += 1;
                 }
-                Ok(None) => {
-                    read_count += 1;
-                }
+                Ok(None) => {}
                 Err(error) => {
                     if first_error.is_none() {
                         first_error = Some(error);
@@ -246,13 +259,16 @@ impl<K: Keychain> SecretStore for PerNameStore<K> {
                 }
             }
         }
-        if read_count == 0 {
-            return Err(first_error.unwrap_or_else(|| KeyError::Failed("no secrets".to_string())));
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(values),
         }
-        Ok(values)
     }
 
     fn write(&self, name: &str, value: &str) -> Result<(), KeyError> {
+        if !is_valid_value(value) {
+            return Err(KeyError::Failed(TOO_LONG.to_string()));
+        }
         self.keychain.set(name, value)
     }
 
@@ -442,6 +458,7 @@ mod tests {
     struct FakeKeychainInner {
         values: RefCell<BTreeMap<String, String>>,
         failing: RefCell<BTreeSet<String>>,
+        failing_get: RefCell<BTreeSet<String>>,
     }
 
     impl FakeKeychain {
@@ -461,6 +478,13 @@ mod tests {
             self.inner.failing.borrow_mut().insert(account.to_string());
         }
 
+        fn fail_get(&self, account: &str) {
+            self.inner
+                .failing_get
+                .borrow_mut()
+                .insert(account.to_string());
+        }
+
         fn has(&self, account: &str) -> bool {
             self.inner.values.borrow().contains_key(account)
         }
@@ -468,12 +492,18 @@ mod tests {
 
     impl Keychain for FakeKeychain {
         fn get(&self, account: &str) -> Result<Option<String>, KeyError> {
+            if self.inner.failing_get.borrow().contains(account) {
+                return Err(KeyError::Failed("read failed".to_string()));
+            }
             Ok(self.inner.values.borrow().get(account).cloned())
         }
 
         fn set(&self, account: &str, value: &str) -> Result<(), KeyError> {
             if self.inner.failing.borrow().contains(account) {
                 return Err(KeyError::Failed("write failed".to_string()));
+            }
+            if value.len() > ITEM_LIMIT {
+                return Err(KeyError::Failed("keychain item too large".to_string()));
             }
             self.inner
                 .values
@@ -486,6 +516,60 @@ mod tests {
             self.inner.values.borrow_mut().remove(account);
             Ok(())
         }
+    }
+
+    /// Largest item the fake keychain accepts, in bytes of the stored value.
+    ///
+    /// Windows Credential Manager rejects a credential blob above
+    /// CRED_MAX_CREDENTIAL_BLOB_SIZE = 2560 bytes (wincred.h, Microsoft Learn).
+    /// macOS Keychain Services publishes no per-item byte limit and the keyring
+    /// apple-native backend forwards to SecItemAdd, so the fake keeps headroom
+    /// above the 2048 app cap and the 3000-byte legacy case in the tests.
+    /// Linux Secret Service stores the secret as an arbitrary byte array whose
+    /// size limit belongs to the running server, so the fake uses the same one.
+    #[cfg(target_os = "windows")]
+    const ITEM_LIMIT: usize = 2560;
+    #[cfg(not(target_os = "windows"))]
+    const ITEM_LIMIT: usize = 8192;
+
+    const SHORT_KEYS: [(&str, &str); 6] = [
+        (
+            "OPENROUTER_API_KEY",
+            "sk-or-v*-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ),
+        (
+            "OPENROUTER_MANAGEMENT_KEY",
+            "sk-or-v*-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ),
+        ("R2_ACCOUNT_ID", "0123456789abcdef0123456789abcdef"),
+        ("R2_ACCESS_KEY_ID", "fedcba9876543210fedcba9876543210"),
+        (
+            "R2_SECRET_ACCESS_KEY",
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        ),
+        ("R2_BUCKET", "upai-media-prod"),
+    ];
+
+    #[cfg(not(target_os = "windows"))]
+    const LEGACY_VALUE_BYTES: usize = 1000;
+    #[cfg(target_os = "windows")]
+    const LEGACY_VALUE_BYTES: usize = 800;
+
+    /// Five endpoint tokens, about 2000 bytes, plus six short keys.
+    fn full_secret_set() -> BTreeMap<String, String> {
+        let mut tokens = serde_json::Map::new();
+        for index in 1..=5 {
+            let value = "t".repeat(386);
+            tokens.insert(format!("custom-{index}"), serde_json::Value::String(value));
+        }
+        let mut values = BTreeMap::from([(
+            "CUSTOM_ENDPOINT_TOKENS".to_string(),
+            serde_json::Value::Object(tokens).to_string(),
+        )]);
+        for (name, value) in SHORT_KEYS {
+            values.insert(name.to_string(), value.to_string());
+        }
+        values
     }
 
     #[test]
@@ -604,6 +688,108 @@ mod tests {
         let raw = keychain.get(SINGLE_ACCOUNT).expect("get").expect("item");
         let parsed: BTreeMap<String, String> = serde_json::from_str(&raw).expect("valid json");
         assert_eq!(parsed.get("CUSTOM_ENDPOINT_TOKENS"), Some(&tokens));
+    }
+
+    #[test]
+    fn single_item_store_round_trips_all_names_past_the_item_cap() {
+        let keychain = FakeKeychain::default();
+        let store = SingleItemStore::new(keychain.clone());
+        let expected = full_secret_set();
+
+        for (name, value) in &expected {
+            store.write(name, value).expect("write");
+        }
+
+        let raw = keychain.get(SINGLE_ACCOUNT).expect("get").expect("item");
+        assert!(raw.len() > MAX_VALUE, "item is {} bytes", raw.len());
+
+        let values = store.read_all().expect("read all");
+        assert_eq!(values, expected);
+    }
+
+    #[test]
+    fn single_item_store_reads_an_oversized_legacy_item() {
+        let mut legacy = BTreeMap::new();
+        for (name, filler) in [
+            ("OPENROUTER_API_KEY", "a"),
+            ("OPENROUTER_MANAGEMENT_KEY", "b"),
+            ("R2_ACCOUNT_ID", "c"),
+        ] {
+            legacy.insert(name.to_string(), filler.repeat(LEGACY_VALUE_BYTES));
+        }
+        legacy.insert("R2_BUCKET".to_string(), "media".to_string());
+        let raw = serde_json::to_string(&legacy).expect("json");
+        assert!(raw.len() > MAX_VALUE, "item is {} bytes", raw.len());
+        assert!(raw.len() <= ITEM_LIMIT, "item is {} bytes", raw.len());
+
+        let keychain = FakeKeychain::with(&[(SINGLE_ACCOUNT, raw.as_str())]);
+        let store = SingleItemStore::new(keychain);
+
+        let values = store.read_all().expect("read all");
+
+        assert_eq!(values, legacy);
+    }
+
+    #[test]
+    fn single_item_store_rejects_an_oversize_per_name_item() {
+        let oversize = "x".repeat(MAX_VALUE + 1);
+        let keychain = FakeKeychain::with(&[("R2_BUCKET", oversize.as_str())]);
+        let store = SingleItemStore::new(keychain.clone());
+
+        let error = store
+            .read_all()
+            .expect_err("an oversize per-name item is not unset");
+
+        assert!(matches!(error, KeyError::Failed(ref message) if message == TOO_LONG));
+        assert!(!keychain.has(SINGLE_ACCOUNT));
+    }
+
+    #[test]
+    fn single_item_store_caps_each_value_but_not_the_item() {
+        let keychain = FakeKeychain::default();
+        let store = SingleItemStore::new(keychain.clone());
+        let oversize = "x".repeat(MAX_VALUE + 1);
+
+        let error = store
+            .write("R2_BUCKET", &oversize)
+            .expect_err("a value over the cap is rejected");
+
+        assert!(matches!(error, KeyError::Failed(ref message) if message == TOO_LONG));
+        assert!(!keychain.has(SINGLE_ACCOUNT));
+
+        let at_cap = "x".repeat(MAX_VALUE);
+        store.write("R2_BUCKET", &at_cap).expect("write at the cap");
+        let raw = keychain.get(SINGLE_ACCOUNT).expect("get").expect("item");
+        assert!(raw.len() > MAX_VALUE, "item is {} bytes", raw.len());
+        assert_eq!(
+            store.read_all().expect("read all").get("R2_BUCKET"),
+            Some(&at_cap)
+        );
+    }
+
+    #[test]
+    fn per_name_store_caps_one_value() {
+        let keychain = FakeKeychain::default();
+        let store = PerNameStore::new(keychain.clone());
+        let oversize = "x".repeat(MAX_VALUE + 1);
+
+        let error = store
+            .write("R2_BUCKET", &oversize)
+            .expect_err("a value over the cap is rejected");
+
+        assert!(matches!(error, KeyError::Failed(ref message) if message == TOO_LONG));
+        assert!(!keychain.has("R2_BUCKET"));
+    }
+
+    #[test]
+    fn per_name_store_reports_a_failed_name_read() {
+        let keychain = FakeKeychain::with(&[("R2_BUCKET", "media")]);
+        keychain.fail_get("R2_BUCKET");
+        let store = PerNameStore::new(keychain);
+
+        let error = store.read_all().expect_err("a failed read is not unset");
+
+        assert!(matches!(error, KeyError::Failed(ref message) if message == "read failed"));
     }
 
     #[test]

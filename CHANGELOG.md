@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- A saved key set larger than 2048 bytes is read again instead of appearing empty, so an update no longer loses every key.
+
 ## 0.5.1 - 2026-11-16
 
 ### Fixed
