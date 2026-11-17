@@ -14,6 +14,7 @@ const SINGLE_ACCOUNT: &str = "secrets";
 /// The single JSON item that holds every value is never capped.
 const MAX_VALUE: usize = 2048;
 const TOO_LONG: &str = "This value is too long. The limit is 2048 bytes.";
+const INVALID_ITEM: &str = "invalid secrets item";
 const ALLOWED: [&str; 7] = [
     "OPENROUTER_API_KEY",
     "OPENROUTER_MANAGEMENT_KEY",
@@ -147,7 +148,7 @@ impl<K: Keychain> SingleItemStore<K> {
             .keychain
             .get(SINGLE_ACCOUNT)?
             .ok_or_else(|| KeyError::Failed("merged secrets item is missing".to_string()))?;
-        let written = parse_object(&raw);
+        let written = parse_object(&raw)?;
         let is_complete = values
             .iter()
             .all(|(name, value)| written.get(name) == Some(value));
@@ -166,7 +167,7 @@ impl<K: Keychain> SingleItemStore<K> {
 impl<K: Keychain> SecretStore for SingleItemStore<K> {
     fn read_all(&self) -> Result<BTreeMap<String, String>, KeyError> {
         match self.keychain.get(SINGLE_ACCOUNT)? {
-            Some(raw) => Ok(parse_object(&raw)),
+            Some(raw) => parse_object(&raw),
             None => self.migrate_per_name(),
         }
     }
@@ -201,7 +202,7 @@ impl<K: Keychain> PerNameStore<K> {
 
     fn read_legacy(&self) -> Result<Option<BTreeMap<String, String>>, KeyError> {
         match self.keychain.get(SINGLE_ACCOUNT)? {
-            Some(raw) => Ok(Some(parse_object(&raw))),
+            Some(raw) => parse_object(&raw).map(Some),
             None => Ok(None),
         }
     }
@@ -352,12 +353,14 @@ fn is_valid_value(value: &str) -> bool {
 }
 
 /// Parses the old JSON item and keeps only allowed names with valid values.
-fn parse_object(raw: &str) -> BTreeMap<String, String> {
-    let parsed: BTreeMap<String, String> = serde_json::from_str(raw).unwrap_or_default();
-    parsed
+/// A corrupt item is an error, never an empty map a later write would replace.
+fn parse_object(raw: &str) -> Result<BTreeMap<String, String>, KeyError> {
+    let parsed: BTreeMap<String, String> =
+        serde_json::from_str(raw).map_err(|_| KeyError::Failed(INVALID_ITEM.to_string()))?;
+    Ok(parsed
         .into_iter()
         .filter(|(name, value)| ALLOWED.contains(&name.as_str()) && is_valid_value(value))
-        .collect()
+        .collect())
 }
 
 /// Allowed names in order that exist in the legacy item and not as their own item.
@@ -745,6 +748,32 @@ mod tests {
     }
 
     #[test]
+    fn single_item_store_reports_a_corrupt_item() {
+        let keychain = FakeKeychain::with(&[(SINGLE_ACCOUNT, "{bad")]);
+        let store = SingleItemStore::new(keychain);
+
+        let error = store.read_all().expect_err("a corrupt item is not empty");
+
+        assert!(matches!(error, KeyError::Failed(ref message) if message == INVALID_ITEM));
+    }
+
+    #[test]
+    fn single_item_store_keeps_a_corrupt_item_after_a_write() {
+        let keychain = FakeKeychain::with(&[(SINGLE_ACCOUNT, "{bad")]);
+        let store = SingleItemStore::new(keychain.clone());
+
+        let error = store
+            .write("R2_BUCKET", "media")
+            .expect_err("a write after a failed read is rejected");
+
+        assert!(matches!(error, KeyError::Failed(ref message) if message == INVALID_ITEM));
+        assert_eq!(
+            keychain.get(SINGLE_ACCOUNT).expect("get").as_deref(),
+            Some("{bad")
+        );
+    }
+
+    #[test]
     fn single_item_store_caps_each_value_but_not_the_item() {
         let keychain = FakeKeychain::default();
         let store = SingleItemStore::new(keychain.clone());
@@ -882,15 +911,17 @@ mod tests {
             r#"{{"R2_BUCKET":"ok","AWS_SECRET":"x","R2_ACCOUNT_ID":"","OPENROUTER_API_KEY":"{}"}}"#,
             "x".repeat(MAX_VALUE + 1)
         );
-        let values = parse_object(&raw);
+        let values = parse_object(&raw).expect("valid json");
 
         assert_eq!(values.len(), 1);
         assert_eq!(values.get("R2_BUCKET").map(String::as_str), Some("ok"));
     }
 
     #[test]
-    fn parse_object_is_empty_on_invalid_json() {
-        assert!(parse_object("not json").is_empty());
+    fn parse_object_rejects_invalid_json() {
+        let error = parse_object("not json").expect_err("invalid json is an error");
+
+        assert!(matches!(error, KeyError::Failed(ref message) if message == INVALID_ITEM));
     }
 
     #[test]
