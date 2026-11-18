@@ -471,6 +471,41 @@ describe('custom catalog', () => {
     expect(entry.reason).toBe('node class KSampler is not installed')
   })
 
+  it('skips malformed model entries and keeps the rest of the list', async () => {
+    const first = modelAt(VIDEO_MODELS, 0)
+    const second = modelAt(VIDEO_MODELS, 1)
+    const endpoint = customEndpoint('cat-malformed', 'CUM')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await writeEndpoints([endpoint])
+
+    const data: unknown[] = [
+      first,
+      null,
+      '',
+      42,
+      { ...first, id: 'bad-kind', kind: 'audio' },
+      { ...second, id: 'bad-status', status: 'deprecated' },
+      second,
+    ]
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const isVideo = String(input).endsWith('/videos/models')
+
+        return jsonResponse({ version: 1, data: isVideo ? data : [] })
+      }),
+    )
+
+    const entries = customEntries((await getLoadedCatalog()).entries)
+
+    expect(idsOf(entries)).toEqual([first.id, second.id])
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('skipped 5 malformed models'))
+
+    warn.mockRestore()
+  })
+
   it('marks a model missing after a successful fetch drops it', async () => {
     const first = modelAt(VIDEO_MODELS, 0)
     const second = modelAt(VIDEO_MODELS, 1)

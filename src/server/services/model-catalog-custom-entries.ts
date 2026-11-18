@@ -16,7 +16,7 @@ import { mapCustomModel } from '@/core/presets/custom/from-capabilities'
 import type { ImagePreset } from '@/core/presets/image/types'
 import type { VideoPreset } from '@/core/presets/video/types'
 import type { PricingInfo } from '@/core/pricing/types'
-import { type UpaiModel, UpaiModelListSchema } from '@/core/protocol/upai'
+import type { UpaiModel } from '@/core/protocol/upai'
 import { CUSTOM_FORBIDDEN_MESSAGE, CUSTOM_TOKEN_MESSAGE } from '@/core/providers/custom-messages'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 
@@ -37,6 +37,7 @@ import {
   type EndpointModelKind,
   isModelMissing,
 } from './endpoint-model-file'
+import { parseEndpointModels } from './endpoint-models'
 
 export interface PresetSource {
   preset: VideoPreset | ImagePreset
@@ -169,7 +170,7 @@ async function fetchModelList(
     timeoutMs: CUSTOM_CHECK_TIMEOUT_MS,
   })
 
-  return UpaiModelListSchema.parse(payload).data
+  return parseEndpointModels(payload, path)
 }
 
 function mergeCatalogs(catalogs: readonly KindCatalog[]): KindCatalog {
