@@ -3,6 +3,7 @@
 mod export;
 #[cfg(target_os = "macos")]
 mod fps;
+mod licenses;
 mod secrets;
 mod server;
 mod settings;
@@ -35,6 +36,7 @@ fn main() {
             updater::update_set_auto,
             updater::update_open_release,
             server::log_client_error,
+            licenses::open_third_party_licenses,
         ])
         .setup(|app| {
             // Bundle is LSUIElement so the sidecar stays out of the Dock.

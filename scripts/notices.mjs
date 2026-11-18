@@ -901,6 +901,17 @@ async function copyLicenseOriginals(dir) {
 }
 
 /**
+ * Copies the notices, license, license archive and originals into a resources dir.
+ */
+export async function stageResources(dir = RESOURCES) {
+  await fs.mkdir(dir, { recursive: true })
+  await fs.copyFile(NOTICES, path.join(dir, 'THIRD_PARTY_NOTICES.md'))
+  await fs.copyFile(LICENSE, path.join(dir, 'LICENSE'))
+  await fs.copyFile(ARCHIVE, path.join(dir, 'THIRD_PARTY_LICENSES.txt.gz'))
+  await copyLicenseOriginals(path.join(dir, 'licenses'))
+}
+
+/**
  * Replaces the text between two markers.
  */
 function replaceSection(text, startMark, endMark, section) {
@@ -942,16 +953,12 @@ async function main() {
   next = replaceSection(next, LIBVIPS_START, LIBVIPS_END, await libvipsSection())
   next = replaceSection(next, GSTREAMER_START, GSTREAMER_END, gstreamerSection())
   next = replaceSection(next, SOURCE_START, SOURCE_END, await sourceOfferSection())
-  const archive = await writeLicenseArchive()
+  await writeLicenseArchive()
   await checkBundled(next)
   await fs.writeFile(NOTICES, next)
   checkAppLicense(next, pkg.license)
 
-  await fs.mkdir(RESOURCES, { recursive: true })
-  await fs.copyFile(NOTICES, path.join(RESOURCES, 'THIRD_PARTY_NOTICES.md'))
-  await fs.copyFile(LICENSE, path.join(RESOURCES, 'LICENSE'))
-  await fs.writeFile(path.join(RESOURCES, 'THIRD_PARTY_LICENSES.txt.gz'), archive)
-  await copyLicenseOriginals(path.join(RESOURCES, 'licenses'))
+  await stageResources()
   console.log('[notices] notices and license archive copied to src-tauri/resources')
 }
 

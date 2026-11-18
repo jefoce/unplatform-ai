@@ -13,6 +13,7 @@
     "allow-log-client-error",
     "allow-choose-export-path",
     "allow-choose-export-folder",
+    "allow-open-third-party-licenses",
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",

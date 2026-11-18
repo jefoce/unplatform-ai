@@ -573,6 +573,12 @@
           "markdownDescription": "Enables the log_client_error command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_third_party_licenses command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-third-party-licenses",
+          "markdownDescription": "Enables the open_third_party_licenses command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_check command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-check",
@@ -619,6 +625,12 @@
           "type": "string",
           "const": "deny-log-client-error",
           "markdownDescription": "Denies the log_client_error command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_third_party_licenses command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-third-party-licenses",
+          "markdownDescription": "Denies the open_third_party_licenses command without any pre-configured scope."
         },
         {
           "description": "Denies the update_check command without any pre-configured scope.",

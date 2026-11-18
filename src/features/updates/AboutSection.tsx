@@ -27,11 +27,19 @@ function handleNotices(): void {
   })
 }
 
+function handleThirdPartyLicenses(): void {
+  void platform.openThirdPartyLicenses().catch((error: unknown) => {
+    toastError(error, 'Could not open the third-party licenses')
+  })
+}
+
 interface AboutSectionProps {
   version: string
 }
 
-/** License line and the license, source and notices links at the bottom of Settings. */
+/**
+ * License line and the license, source, notices and licenses links at the bottom of Settings.
+ */
 export function AboutSection(props: AboutSectionProps) {
   const shownVersion = appVersion() ?? props.version
 
@@ -47,6 +55,9 @@ export function AboutSection(props: AboutSectionProps) {
         </button>
         <button type="button" className={LINK_CLASSES} onClick={handleNotices}>
           Third-party notices
+        </button>
+        <button type="button" className={LINK_CLASSES} onClick={handleThirdPartyLicenses}>
+          Third-party licenses
         </button>
       </div>
     </div>

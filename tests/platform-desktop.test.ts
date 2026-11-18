@@ -104,6 +104,16 @@ describe('desktop bundled links', () => {
   })
 })
 
+describe('desktop third-party licenses', () => {
+  it('opens the bundled licenses through the shell command', async () => {
+    mocks.invoke.mockResolvedValue(undefined)
+
+    await desktopPlatform.openThirdPartyLicenses()
+
+    expect(mocks.invoke).toHaveBeenCalledWith('open_third_party_licenses', undefined)
+  })
+})
+
 describe('desktop update install', () => {
   it('translates a rejected invoke and logs the raw reason', async () => {
     mocks.invoke.mockRejectedValue('signature verification failed')

@@ -67,6 +67,8 @@ export const mockPlatform: Platform = {
 
   openLicense: vi.fn(async () => {}),
 
+  openThirdPartyLicenses: vi.fn(async () => {}),
+
   confirm: vi.fn(async () => {
     return true
   }),
