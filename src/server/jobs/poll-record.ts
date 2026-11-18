@@ -2,7 +2,6 @@ import 'server-only'
 
 import { isNil } from 'lodash-es'
 
-import { MAX_JOB_AGE_MIN } from '@/core/constants'
 import { isNonEmptyString } from '@/core/guards'
 import type {
   GenerationRecord,
@@ -21,6 +20,7 @@ import { updateGeneration } from '../repos/generations'
 import { recordHealthFromError, recordHealthOk } from '../services/endpoint-health'
 import { errorTextOf } from './custom-endpoint-errors'
 import { queueDownload } from './download-queue'
+import { expireRecord, isAgedOut } from './record-expiry'
 import { writeTransientOffline } from './transient-offline'
 
 const RETRY_KINDS: readonly ProviderErrorKind[] = ['timeout', 'rate_limit', 'server']
@@ -32,6 +32,13 @@ export async function processRecord(record: GenerationRecord): Promise<void> {
   const current = record.job
 
   if (isNil(current) || !isNonEmptyString(current.id)) {
+    return
+  }
+
+  // A provider that keeps failing never returns a job, so the age check runs on the stored record.
+  if (isAgedOut(record, record.status)) {
+    await expireRecord(record.id)
+
     return
   }
 
@@ -49,13 +56,7 @@ export async function processRecord(record: GenerationRecord): Promise<void> {
     }
 
     if (isAgedOut(record, job.status)) {
-      await updateGeneration(record.id, (latest) => {
-        if (!ACTIVE_STATUSES.includes(latest.status)) {
-          return null
-        }
-
-        return { ...latest, status: 'expired', error: 'Job expired' }
-      })
+      await expireRecord(record.id)
 
       return
     }
@@ -320,12 +321,4 @@ async function handleJobError(record: GenerationRecord, error: unknown): Promise
   }
 
   return RETRY_KINDS.includes(error.kind)
-}
-
-function isAgedOut(record: GenerationRecord, status: JobStatus): boolean {
-  if (status !== 'pending' && status !== 'in_progress') {
-    return false
-  }
-
-  return Date.now() - Date.parse(record.createdAt) > MAX_JOB_AGE_MIN * 60_000
 }
