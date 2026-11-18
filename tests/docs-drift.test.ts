@@ -36,6 +36,7 @@ const BUILD_ONLY = new Set([
   'TAURI_SIGNING_PRIVATE_KEY',
   'UPAI_BUILD_WORK_DIR',
   'CARGO_TARGET_DIR',
+  'CARGO_HOME',
 ])
 
 /** Framework, runtime and injected names that are not user-facing app config. */

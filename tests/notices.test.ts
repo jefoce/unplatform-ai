@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest'
 import {
   checkAppLicense,
   checkBundled,
+  checkCargoLicenseTexts,
   checkLicenseLinks,
+  checkNpmLicenseTexts,
   checkNpmSection,
   gstreamerSection,
   libvipsBundle,
@@ -145,6 +147,16 @@ describe('third-party notices', () => {
     } finally {
       fs.rmdirSync(dir)
     }
+  })
+
+  it('ships a license text for every npm production package', async () => {
+    await expect(checkNpmLicenseTexts()).resolves.toBeUndefined()
+  })
+
+  it('ships a license text for every registry crate in Cargo.lock', async () => {
+    const lock = fs.readFileSync(path.resolve('src-tauri/Cargo.lock'), 'utf8')
+
+    await expect(checkCargoLicenseTexts(lock)).resolves.toBeUndefined()
   })
 })
 

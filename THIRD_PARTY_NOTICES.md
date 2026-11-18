@@ -67,15 +67,30 @@ The bundled libvips 8.18.7 includes these libraries. Licenses come from the shar
 
 The AppImage bundles the GStreamer libraries that WebKitGTK needs to play video. Their license text is in [licenses/COPYING.LGPLv2.1](licenses/COPYING.LGPLv2.1).
 
-| Component        | Version      | License           | Source                                                    |
-| ---------------- | ------------ | ----------------- | --------------------------------------------------------- |
-| GStreamer        | Ubuntu 22.04 | LGPL-2.0-or-later | https://gitlab.freedesktop.org/gstreamer/gstreamer        |
-| gst-plugins-base | Ubuntu 22.04 | LGPL-2.0-or-later | https://gitlab.freedesktop.org/gstreamer/gst-plugins-base |
-| gst-plugins-good | Ubuntu 22.04 | LGPL-2.1-or-later | https://gitlab.freedesktop.org/gstreamer/gst-plugins-good |
-| gst-plugins-bad  | Ubuntu 22.04 | LGPL-2.0-or-later | https://gitlab.freedesktop.org/gstreamer/gst-plugins-bad  |
-| gst-libav        | Ubuntu 22.04 | LGPL-2.1-or-later | https://gitlab.freedesktop.org/gstreamer/gst-libav        |
+| Component        | Version | License           | Source                                                    |
+| ---------------- | ------- | ----------------- | --------------------------------------------------------- |
+| GStreamer        | 1.20.3  | LGPL-2.0-or-later | https://gitlab.freedesktop.org/gstreamer/gstreamer        |
+| gst-plugins-base | 1.20.3  | LGPL-2.0-or-later | https://gitlab.freedesktop.org/gstreamer/gst-plugins-base |
+| gst-plugins-good | 1.20.3  | LGPL-2.1-or-later | https://gitlab.freedesktop.org/gstreamer/gst-plugins-good |
+| gst-plugins-bad  | 1.20.3  | LGPL-2.0-or-later | https://gitlab.freedesktop.org/gstreamer/gst-plugins-bad  |
+| gst-libav        | 1.20.3  | LGPL-2.1-or-later | https://gitlab.freedesktop.org/gstreamer/gst-libav        |
 
 <!-- gstreamer-bundle:end -->
+
+<!-- source-offer:start -->
+
+### Source code offer
+
+The app bundles these libraries under the LGPL. Each source link is the exact version in the installers.
+
+For three years after you receive a build, we offer the same corresponding source on physical media or by download. Request it at https://github.com/jefoce/unplatform-ai/issues.
+
+| Library   | Version | License           | Source                                                                  |
+| --------- | ------- | ----------------- | ----------------------------------------------------------------------- |
+| libvips   | 8.18.7  | LGPL-3.0-or-later | https://github.com/libvips/libvips/archive/refs/tags/v8.18.7.tar.gz     |
+| GStreamer | 1.20.3  | LGPL-2.0-or-later | https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.20.3.tar.xz |
+
+<!-- source-offer:end -->
 
 The ffmpeg sidecar is built from the sources pinned in [`scripts/ffmpeg/versions.env`](scripts/ffmpeg/versions.env). macOS and Linux use [`scripts/ffmpeg/build-unix.sh`](scripts/ffmpeg/build-unix.sh), Windows uses [`scripts/ffmpeg/build-windows.sh`](scripts/ffmpeg/build-windows.sh) to cross-compile on Linux. The configure lines for the release targets are generated from `versions.env` and the profile file:
 
@@ -98,7 +113,9 @@ ffmpeg 9.0.2, profile `minimal`. The binary is copied, never installed.
 
 No component enables `--enable-nonfree`, so the bundled build is redistributable under GPL-2.0-or-later. License texts are in [`licenses/`](licenses): `COPYING.GPLv2` for FFmpeg and x264, `LICENSE.zlib` for zlib, and `LICENSE.mingw-w64.txt` for the static Windows runtime. The Windows build links winpthreads statically (MIT and ZPL-2.1); libgcc is covered by the GCC Runtime Library Exception and needs no row. The pinned source archives and their SHA-256 sums are listed in `versions.env`; release assets include the same archives for each version.
 
-Rust crates are pinned in `src-tauri/Cargo.lock`. Direct crates use MIT or Apache-2.0, except `keyring` (MIT) and `tauri` and its plugins (MIT OR Apache-2.0).
+Rust crates are pinned in `src-tauri/Cargo.lock`. The license text of every registry crate is in [`licenses/cargo/`](licenses/cargo), one file per crate and version. The text is generated from the crate sources in the Cargo registry. A crate that ships no license file uses the SPDX License List text from [`licenses/spdx/`](licenses/spdx). Direct crates use MIT or Apache-2.0, except `keyring` (MIT) and `tauri` and its plugins (MIT OR Apache-2.0).
+
+npm package license texts are in [`licenses/npm/`](licenses/npm), one file per package and version. A package that ships no license file uses the SPDX License List text.
 
 <!-- npm-licenses:start -->
 

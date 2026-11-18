@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -9,8 +10,12 @@ import sharp from 'sharp'
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const PACKAGE = path.join(ROOT, 'package.json')
 const NOTICES = path.join(ROOT, 'THIRD_PARTY_NOTICES.md')
+const LOCK = path.join(ROOT, 'src-tauri', 'Cargo.lock')
 const LICENSE = path.join(ROOT, 'LICENSE')
 const LICENSES = path.join(ROOT, 'licenses')
+const NPM_LICENSES = path.join(LICENSES, 'npm')
+const CARGO_LICENSES = path.join(LICENSES, 'cargo')
+const SPDX_LICENSES = path.join(LICENSES, 'spdx')
 const LGPL = path.join(LICENSES, 'LICENSE.lgpl3')
 const GPL = path.join(LICENSES, 'COPYING.GPLv3')
 const LGPL21 = path.join(LICENSES, 'COPYING.LGPLv2.1')
@@ -24,6 +29,14 @@ const LIBVIPS_START = '<!-- libvips-bundle:start -->'
 const LIBVIPS_END = '<!-- libvips-bundle:end -->'
 const GSTREAMER_START = '<!-- gstreamer-bundle:start -->'
 const GSTREAMER_END = '<!-- gstreamer-bundle:end -->'
+const SOURCE_START = '<!-- source-offer:start -->'
+const SOURCE_END = '<!-- source-offer:end -->'
+const GSTREAMER_VERSION = '1.20.3'
+const SOURCE_OFFER_URL = 'https://github.com/jefoce/unplatform-ai/issues'
+/**
+ * Top-level package files that carry license text.
+ */
+const LICENSE_FILE = /^(?:licen[cs]e|copying|notice|copyright)/i
 
 /** versions.json key to the library name in the sharp-libvips licensing table. */
 const LIBVIPS_NAMES = {
@@ -54,45 +67,58 @@ const LICENSE_NAMES = {
 const GSTREAMER_ROWS = [
   [
     'GStreamer',
-    'Ubuntu 22.04',
+    GSTREAMER_VERSION,
     'LGPL-2.0-or-later',
     'https://gitlab.freedesktop.org/gstreamer/gstreamer',
   ],
   [
     'gst-plugins-base',
-    'Ubuntu 22.04',
+    GSTREAMER_VERSION,
     'LGPL-2.0-or-later',
     'https://gitlab.freedesktop.org/gstreamer/gst-plugins-base',
   ],
   [
     'gst-plugins-good',
-    'Ubuntu 22.04',
+    GSTREAMER_VERSION,
     'LGPL-2.1-or-later',
     'https://gitlab.freedesktop.org/gstreamer/gst-plugins-good',
   ],
   [
     'gst-plugins-bad',
-    'Ubuntu 22.04',
+    GSTREAMER_VERSION,
     'LGPL-2.0-or-later',
     'https://gitlab.freedesktop.org/gstreamer/gst-plugins-bad',
   ],
   [
     'gst-libav',
-    'Ubuntu 22.04',
+    GSTREAMER_VERSION,
     'LGPL-2.1-or-later',
     'https://gitlab.freedesktop.org/gstreamer/gst-libav',
   ],
 ]
 
-/** npm production dependency list from pnpm, sorted by license and name. */
-function npmSection() {
+let npmGroupsCache
+
+/**
+ * npm production dependencies grouped by license.
+ */
+function npmGroups() {
+  if (npmGroupsCache) return npmGroupsCache
   const raw = execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], {
     cwd: ROOT,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     shell: process.platform === 'win32',
   })
-  const groups = JSON.parse(raw)
+  npmGroupsCache = JSON.parse(raw)
+  return npmGroupsCache
+}
+
+/**
+ * npm production dependency list from pnpm, sorted by license and name.
+ */
+function npmSection() {
+  const groups = npmGroups()
   const lines = ['## npm production dependencies', '']
 
   for (const license of Object.keys(groups).sort()) {
@@ -104,6 +130,238 @@ function npmSection() {
     lines.push('')
   }
   return lines.join('\n')
+}
+
+/**
+ * Normalized license text with one trailing newline.
+ */
+function normalizeLicense(text) {
+  return `${text.replace(/\r\n?/g, '\n').trimEnd()}\n`
+}
+
+/**
+ * Deterministic file name for one package version.
+ */
+function licenseFileName(name, version) {
+  const base = `${name}-${version}`.replace(/^@/, '').replace(/[/+]/g, '-')
+  return `${base}.txt`
+}
+
+/**
+ * License files shipped at the top of a package directory, sorted by name.
+ */
+async function licenseFiles(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true })
+  const names = entries
+    .filter((entry) => entry.isFile() && LICENSE_FILE.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+  const files = []
+  for (const name of names) {
+    files.push({ name, text: await fs.readFile(path.join(dir, name), 'utf8') })
+  }
+  return files
+}
+
+/**
+ * Real license file texts with one header per source file.
+ */
+function licenseText(files) {
+  return files
+    .map((file) => `===== ${file.name} =====\n\n${normalizeLicense(file.text)}`)
+    .join('\n')
+}
+
+/**
+ * License identifiers in an SPDX expression, exceptions dropped.
+ */
+function licenseIds(expression) {
+  const ids = expression
+    .replace(/\s+WITH\s+\S+/g, '')
+    .split(/\s+(?:OR|AND)\s+|\//)
+    .map((id) => id.replace(/[()]/g, '').trim())
+    .filter(Boolean)
+  return [...new Set(ids)]
+}
+
+/**
+ * SPDX text for a package that ships no license file.
+ */
+async function spdxLicenseText(pkg) {
+  const parts = []
+  for (const id of licenseIds(pkg.license)) {
+    const file = path.join(SPDX_LICENSES, `${id}.txt`)
+    const text = await fs.readFile(file, 'utf8').catch(() => {
+      throw new Error(`${pkg.name} ${pkg.version} needs licenses/spdx/${id}.txt`)
+    })
+    parts.push(`===== SPDX ${id} =====\n\n${normalizeLicense(text)}`)
+  }
+  const header = [
+    `${pkg.name} ${pkg.version}`,
+    `License: ${pkg.license}`,
+    '',
+    'The package ships no license file. The text below comes from the SPDX License List.',
+  ].join('\n')
+  return `${header}\n\n${parts.join('\n')}`
+}
+
+/**
+ * Committed npm license texts keyed by file name.
+ */
+async function npmLicenseEntries() {
+  const groups = npmGroups()
+  const entries = new Map()
+  for (const [license, packages] of Object.entries(groups)) {
+    for (const pkg of packages) {
+      for (const [index, version] of pkg.versions.entries()) {
+        const dir = pkg.paths[index] ?? pkg.paths[0]
+        const files = await licenseFiles(dir)
+        const text =
+          files.length > 0
+            ? licenseText(files)
+            : await spdxLicenseText({ name: pkg.name, version, license })
+        entries.set(licenseFileName(pkg.name, version), text)
+      }
+    }
+  }
+  return entries
+}
+
+/**
+ * Registry packages in Cargo.lock, sorted by name and version.
+ */
+export function cargoPackages(lockText) {
+  const packages = []
+  for (const block of lockText.split('[[package]]').slice(1)) {
+    const name = block.match(/^name = "(.+)"$/m)?.[1]
+    const version = block.match(/^version = "(.+)"$/m)?.[1]
+    const source = block.match(/^source = "(.+)"$/m)?.[1]
+    if (!name || !version || !source?.startsWith('registry+')) continue
+    packages.push({ name, version })
+  }
+
+  return packages.sort((a, b) => {
+    if (a.name !== b.name) return a.name < b.name ? -1 : 1
+    if (a.version !== b.version) return a.version < b.version ? -1 : 1
+    return 0
+  })
+}
+
+/**
+ * Registry source directories under CARGO_HOME.
+ */
+async function cargoRegistryRoots() {
+  const home = process.env.CARGO_HOME?.trim() || path.join(os.homedir(), '.cargo')
+  const dir = path.join(home, 'registry', 'src')
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => path.join(dir, entry.name))
+}
+
+/**
+ * Extracted crate directory in one of the registry roots.
+ */
+async function crateDir(roots, pkg) {
+  for (const root of roots) {
+    const dir = path.join(root, `${pkg.name}-${pkg.version}`)
+    const stat = await fs.stat(dir).catch(() => null)
+    if (stat?.isDirectory()) return dir
+  }
+  return null
+}
+
+/**
+ * Package section of a Cargo.toml.
+ */
+function cargoPackageSection(toml) {
+  const start = toml.search(/^\[package\]$/m)
+  if (start === -1) return ''
+  const rest = toml.slice(start + '[package]'.length)
+  const end = rest.search(/^\[/m)
+  return end === -1 ? rest : rest.slice(0, end)
+}
+
+/**
+ * Committed cargo license texts keyed by file name.
+ */
+async function cargoLicenseEntries() {
+  const lock = await fs.readFile(LOCK, 'utf8')
+  const roots = await cargoRegistryRoots()
+  const entries = new Map()
+  const missing = []
+  for (const pkg of cargoPackages(lock)) {
+    const dir = await crateDir(roots, pkg)
+    if (dir === null) {
+      missing.push(`${pkg.name} ${pkg.version}`)
+      continue
+    }
+
+    const toml = await fs.readFile(path.join(dir, 'Cargo.toml'), 'utf8')
+    const license = cargoPackageSection(toml).match(/^license\s*=\s*"([^"]+)"/m)?.[1]
+    if (!license) throw new Error(`Missing license field for ${pkg.name} ${pkg.version}`)
+
+    const files = await licenseFiles(dir)
+    const text = files.length > 0 ? licenseText(files) : await spdxLicenseText({ ...pkg, license })
+    entries.set(licenseFileName(pkg.name, pkg.version), text)
+  }
+  if (missing.length > 0) {
+    throw new Error(`Missing cargo registry sources for ${missing[0]}, run cargo fetch`)
+  }
+  return entries
+}
+
+/**
+ * Committed texts must match the generated set exactly.
+ */
+export async function checkLicenseTexts(entries, dir, label) {
+  const committed = await fs.readdir(dir).catch(() => [])
+  for (const file of [...entries.keys()].sort()) {
+    const current = await fs.readFile(path.join(dir, file), 'utf8').catch(() => null)
+    if (current === null) throw new Error(`${label}/${file} is missing, run pnpm notices`)
+    if (current !== entries.get(file)) {
+      throw new Error(`${label}/${file} is stale, run pnpm notices`)
+    }
+  }
+  const extra = committed.filter((file) => !entries.has(file)).sort()
+  if (extra.length > 0) throw new Error(`${label}/${extra[0]} is stale, run pnpm notices`)
+}
+
+/**
+ * npm license texts must match the installed packages.
+ */
+export async function checkNpmLicenseTexts() {
+  await checkLicenseTexts(await npmLicenseEntries(), NPM_LICENSES, 'licenses/npm')
+}
+
+/**
+ * Cargo license texts must cover every crate in Cargo.lock.
+ */
+export async function checkCargoLicenseTexts(lockText, dir = CARGO_LICENSES) {
+  const expected = cargoPackages(lockText).map((pkg) => {
+    return licenseFileName(pkg.name, pkg.version)
+  })
+  const committed = (await fs.readdir(dir).catch(() => [])).sort()
+  for (const file of expected) {
+    if (!committed.includes(file)) {
+      throw new Error(`licenses/cargo/${file} is missing, run pnpm notices`)
+    }
+  }
+  const extra = committed.filter((file) => !expected.includes(file))
+  if (extra.length > 0) throw new Error(`licenses/cargo/${extra[0]} is stale, run pnpm notices`)
+  for (const file of committed) {
+    const stat = await fs.stat(path.join(dir, file))
+    if (stat.size === 0) throw new Error(`licenses/cargo/${file} is empty, run pnpm notices`)
+  }
+}
+
+/**
+ * Replaces a licenses subdirectory with the generated texts.
+ */
+async function writeLicenseTexts(dir, entries) {
+  await fs.rm(dir, { recursive: true, force: true })
+  await fs.mkdir(dir, { recursive: true })
+  for (const file of [...entries.keys()].sort()) {
+    await fs.writeFile(path.join(dir, file), entries.get(file))
+  }
 }
 
 /** npm section in the notices must match the one generated from the lockfile. */
@@ -221,7 +479,40 @@ export function gstreamerSection() {
   ].join('\n')
 }
 
-/** Every `licenses/<name>` link in the notices must resolve to a file under root. */
+/**
+ * Written offer for the libvips and GStreamer source code.
+ */
+export async function sourceOfferSection() {
+  const { versions } = sharp
+  const rows = [
+    [
+      'libvips',
+      versions.vips,
+      'LGPL-3.0-or-later',
+      `https://github.com/libvips/libvips/archive/refs/tags/v${versions.vips}.tar.gz`,
+    ],
+    [
+      'GStreamer',
+      GSTREAMER_VERSION,
+      'LGPL-2.0-or-later',
+      `https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz`,
+    ],
+  ]
+
+  return [
+    '### Source code offer',
+    '',
+    'The app bundles these libraries under the LGPL. Each source link is the exact version in the installers.',
+    '',
+    `For three years after you receive a build, we offer the same corresponding source on physical media or by download. Request it at ${SOURCE_OFFER_URL}.`,
+    '',
+    markdownTable(['Library', 'Version', 'License', 'Source'], rows),
+  ].join('\n')
+}
+
+/**
+ * Every `licenses/<name>` link in the notices must resolve to a file under root.
+ */
 export async function checkLicenseLinks(text, root = ROOT) {
   const names = [...text.matchAll(/\]\((licenses\/[^)\s]+)\)/g)].map((match) => {
     return match[1]
@@ -265,6 +556,10 @@ export async function checkBundled(text) {
 
   if (sectionText(text, GSTREAMER_START, GSTREAMER_END) !== gstreamerSection()) {
     throw new Error('THIRD_PARTY_NOTICES.md GStreamer rows are stale, run pnpm notices')
+  }
+
+  if (sectionText(text, SOURCE_START, SOURCE_END) !== (await sourceOfferSection())) {
+    throw new Error('THIRD_PARTY_NOTICES.md source offer is stale, run pnpm notices')
   }
 
   await fs.access(LGPL)
@@ -338,7 +633,15 @@ async function main() {
     checkAppLicense(text, pkg.license)
     console.log('[notices] bundled versions, license texts and bundled-library rows match')
     checkNpmSection(text, checkedNpmSection())
-    console.log('[notices] npm production dependencies match')
+    await checkNpmLicenseTexts()
+    const lock = await fs.readFile(LOCK, 'utf8')
+    if ((await cargoRegistryRoots()).length === 0) {
+      await checkCargoLicenseTexts(lock)
+      console.log('[notices] cargo license files cover Cargo.lock, registry sources absent')
+    } else {
+      await checkLicenseTexts(await cargoLicenseEntries(), CARGO_LICENSES, 'licenses/cargo')
+      console.log('[notices] npm and cargo license texts match')
+    }
 
     return
   }
@@ -359,16 +662,18 @@ async function main() {
   next = replaceSection(next, FFMPEG_START, FFMPEG_END, await ffmpegSection())
   next = replaceSection(next, LIBVIPS_START, LIBVIPS_END, await libvipsSection())
   next = replaceSection(next, GSTREAMER_START, GSTREAMER_END, gstreamerSection())
+  next = replaceSection(next, SOURCE_START, SOURCE_END, await sourceOfferSection())
+  await writeLicenseTexts(NPM_LICENSES, await npmLicenseEntries())
+  await writeLicenseTexts(CARGO_LICENSES, await cargoLicenseEntries())
   await checkBundled(next)
   await fs.writeFile(NOTICES, next)
   checkAppLicense(next, pkg.license)
 
-  await fs.mkdir(path.join(RESOURCES, 'licenses'), { recursive: true })
+  await fs.mkdir(RESOURCES, { recursive: true })
+  await fs.rm(path.join(RESOURCES, 'licenses'), { recursive: true, force: true })
   await fs.copyFile(NOTICES, path.join(RESOURCES, 'THIRD_PARTY_NOTICES.md'))
   await fs.copyFile(LICENSE, path.join(RESOURCES, 'LICENSE'))
-  await fs.copyFile(LGPL, path.join(RESOURCES, 'licenses', 'LICENSE.lgpl3'))
-  await fs.copyFile(GPL, path.join(RESOURCES, 'licenses', 'COPYING.GPLv3'))
-  await fs.copyFile(LGPL21, path.join(RESOURCES, 'licenses', 'COPYING.LGPLv2.1'))
+  await fs.cp(LICENSES, path.join(RESOURCES, 'licenses'), { recursive: true })
   console.log('[notices] notices and licenses copied to src-tauri/resources')
 }
 
