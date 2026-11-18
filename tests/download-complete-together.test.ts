@@ -40,6 +40,9 @@ vi.mock('@/server/repos/generations', () => {
     getGeneration: async (id: string) => {
       return repo.records.get(id) ?? null
     },
+    loadGeneration: async (id: string) => {
+      return repo.records.get(id) ?? null
+    },
     saveGeneration: async (record: GenerationRecord) => {
       return saveRecord(record)
     },

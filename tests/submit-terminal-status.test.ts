@@ -59,6 +59,9 @@ vi.mock('@/server/repos/generations', () => {
     getGeneration: async () => {
       return control.current
     },
+    loadGeneration: async () => {
+      return control.current
+    },
     saveGeneration: async (record: GenerationRecord) => {
       control.current = { ...record, updatedAt: new Date().toISOString() }
 

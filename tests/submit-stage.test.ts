@@ -69,6 +69,9 @@ vi.mock('@/server/repos/generations', () => {
     getGeneration: async () => {
       return control.current
     },
+    loadGeneration: async () => {
+      return control.current
+    },
     saveGeneration: async (record: GenerationRecord) => {
       if (record.submit?.stage === 'sending') {
         sendGate.enter()

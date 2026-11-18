@@ -2,7 +2,7 @@ import 'server-only'
 
 import type { GenerationRecord } from '@/core/schemas/generation-record'
 
-import { getGeneration, saveGeneration } from '../repos/generations'
+import { loadGeneration, saveGeneration } from '../repos/generations'
 import { withLock } from '../sync/lock'
 import { isSubmitStopped } from './submit-queue'
 
@@ -12,7 +12,7 @@ export async function updateSubmit(
   patch: (record: GenerationRecord) => GenerationRecord | null,
 ): Promise<GenerationRecord | null> {
   return withLock(id, async () => {
-    const record = await getGeneration(id)
+    const record = await loadGeneration(id)
 
     if (!record) {
       return null

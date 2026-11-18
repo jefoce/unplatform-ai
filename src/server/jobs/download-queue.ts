@@ -11,7 +11,12 @@ import { globalState } from '../global-state'
 import { makePreview } from '../media/preview'
 import { downloadPaths } from '../paths'
 import type { JobSnapshot } from '../providers/types'
-import { getGeneration, saveGeneration, updateGeneration } from '../repos/generations'
+import {
+  getGeneration,
+  loadGeneration,
+  saveGeneration,
+  updateGeneration,
+} from '../repos/generations'
 import { withLock } from '../sync/lock'
 import { deleteFinishedResult } from './delete-finished-result'
 import { download, DownloadIntegrityError, type DownloadTask } from './download-file'
@@ -257,7 +262,7 @@ async function completeDownload(params: CompleteDownloadParams): Promise<void> {
  */
 async function saveIfPresent(id: string, patch: Partial<GenerationRecord>): Promise<boolean> {
   return withLock(id, async () => {
-    const current = await getGeneration(id)
+    const current = await loadGeneration(id)
 
     if (!current) {
       return false

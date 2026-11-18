@@ -36,6 +36,17 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
   return store.get(id)
 }
 
+/**
+ * Reads the record file itself, so a cached index cannot feed a locked patch.
+ */
+export async function loadImage(id: string): Promise<ImageRecord | null> {
+  if (!isUuid(id)) {
+    return null
+  }
+
+  return store.read(id)
+}
+
 export async function saveImage(record: ImageRecord): Promise<ImageRecord> {
   const saved: ImageRecord = { ...record, updatedAt: new Date().toISOString() }
 
