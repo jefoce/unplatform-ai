@@ -435,10 +435,19 @@ async function copyServerResources() {
   )
 }
 
-/** Stages the bundled runtime license texts for the Tauri resources mapping. */
+/**
+ * Stages the original license texts for the Tauri resources mapping.
+ */
 async function copyLicenses() {
   await fs.rm(RESOURCES_LICENSES, { recursive: true, force: true })
-  await fs.cp(LICENSES_DIR, RESOURCES_LICENSES, { recursive: true })
+  await fs.mkdir(RESOURCES_LICENSES, { recursive: true })
+  for (const entry of await fs.readdir(LICENSES_DIR, { withFileTypes: true })) {
+    if (!entry.isFile()) continue
+    await fs.copyFile(
+      path.join(LICENSES_DIR, entry.name),
+      path.join(RESOURCES_LICENSES, entry.name),
+    )
+  }
   console.log('[prepare-desktop] licenses copied')
 }
 

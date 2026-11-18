@@ -113,9 +113,9 @@ ffmpeg 9.0.2, profile `minimal`. The binary is copied, never installed.
 
 No component enables `--enable-nonfree`, so the bundled build is redistributable under GPL-2.0-or-later. License texts are in [`licenses/`](licenses): `COPYING.GPLv2` for FFmpeg and x264, `LICENSE.zlib` for zlib, and `LICENSE.mingw-w64.txt` for the static Windows runtime. The Windows build links winpthreads statically (MIT and ZPL-2.1); libgcc is covered by the GCC Runtime Library Exception and needs no row. The pinned source archives and their SHA-256 sums are listed in `versions.env`; release assets include the same archives for each version.
 
-Rust crates are pinned in `src-tauri/Cargo.lock`. The license text of every registry crate is in [`licenses/cargo/`](licenses/cargo), one file per crate and version. The text is generated from the crate sources in the Cargo registry. A crate that ships no license file uses the SPDX License List text from [`licenses/spdx/`](licenses/spdx). Direct crates use MIT or Apache-2.0, except `keyring` (MIT) and `tauri` and its plugins (MIT OR Apache-2.0).
+Rust crates are pinned in `src-tauri/Cargo.lock`. Only crates that ship in the macOS, Windows and Linux installers are listed, with the versions from the resolved tree. Direct crates use MIT or Apache-2.0, except `keyring` (MIT) and `tauri` and its plugins (MIT OR Apache-2.0).
 
-npm package license texts are in [`licenses/npm/`](licenses/npm), one file per package and version. A package that ships no license file uses the SPDX License List text.
+The full text of every npm production package and every shipped Rust crate is in [`THIRD_PARTY_LICENSES.txt.gz`](THIRD_PARTY_LICENSES.txt.gz), next to this file. Identical texts appear once, followed by every package that uses them and the copyright lines from its license file. A package that ships no license file uses the SPDX License List text and is marked. About opens the file uncompressed.
 
 <!-- npm-licenses:start -->
 

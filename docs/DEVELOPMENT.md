@@ -63,7 +63,7 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 | `pnpm desktop:build` | Installers for the current platform: dmg on macOS, NSIS on Windows, AppImage, deb and rpm on Linux |
 | `pnpm ffmpeg:build` | Build the pinned GPL ffmpeg into the local cache |
 | `pnpm node:build` | Build the small-ICU Node sidecar into the local cache |
-| `pnpm notices` | Regenerate npm notices, copy notices and LICENSE into resources |
+| `pnpm notices` | Regenerate the notices and `THIRD_PARTY_LICENSES.txt.gz`, copy them and LICENSE into resources |
 | `pnpm size:report` | Print the bundled app size report and check the budget |
 | `pnpm size:baseline` | Regenerate `scripts/size-baseline.json` from the current bundle |
 | `pnpm smoke` | Run the staged server smoke test |
@@ -289,7 +289,7 @@ On Linux the AppImage needs FUSE 2. Ubuntu 22.04 or Debian 12: `sudo apt install
 9. Prints staged sizes, the archive size and the bytes pruned.
 10. Release builds use `[profile.release]` in `src-tauri/Cargo.toml`: `codegen-units = 1`, `lto = true`, `opt-level = "s"` and `strip = true`. Panic unwinding stays on so the hook keeps writing to `desktop.log`.
 
-`pnpm notices` regenerates `THIRD_PARTY_NOTICES.md` from `pnpm licenses list --prod --json` and the installed sharp-libvips bundle. It writes the license text of every npm package to `licenses/npm/<package>-<version>.txt` and of every registry crate in `src-tauri/Cargo.lock` to `licenses/cargo/<crate>-<version>.txt`. A package that ships no license file uses the text in `licenses/spdx/`. It then copies the notices, `LICENSE` and `licenses/` into `src-tauri/resources`. `prepare-desktop.mjs` copies `licenses/` again. `desktop:prepare` runs both. `pnpm notices --check` fails when a section or a license text is stale or missing. Cargo texts are verified against the registry sources when they exist, otherwise the check verifies the file set against `Cargo.lock`.
+`pnpm notices` regenerates `THIRD_PARTY_NOTICES.md` from `pnpm licenses list --prod --json` and the installed sharp-libvips bundle. It also writes `THIRD_PARTY_LICENSES.txt` and its deterministic gzip `THIRD_PARTY_LICENSES.txt.gz`: every license text once, followed by the npm production packages and the Rust crates that ship in the three release targets. Cargo comes from `cargo tree -e normal,no-proc-macro` per target, read from the registry sources, so dev, build and proc-macro crates stay out. A package that ships no license file uses the SPDX License List text and is marked. It then copies the notices, the archive, `LICENSE` and the original `licenses/` texts into `src-tauri/resources`. `prepare-desktop.mjs` copies `licenses/` again. `desktop:prepare` runs both. `pnpm notices --check` fails when a section is stale, a shipped package has no text, or the text and gzip bytes differ from a fresh generation.
 
 `pnpm smoke` runs `scripts/smoke-server.mjs` against the staged target: starts the sidecar with a temp `STORAGE_ROOT`, opens a session, answers the @@upai-secrets bridge in memory (no file-backend override on macOS or Windows), links a fixture image, submits a Wan 3.0 frames job in mock mode, fetches the video and thumb, then shuts down and checks `server.lock` is gone. Run it after `pnpm desktop:prepare`. Pass `--target <triple>` to test another staged platform. The file backend itself is Linux only.
 

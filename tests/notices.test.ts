@@ -7,9 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   checkAppLicense,
   checkBundled,
-  checkCargoLicenseTexts,
   checkLicenseLinks,
-  checkNpmLicenseTexts,
   checkNpmSection,
   gstreamerSection,
   libvipsBundle,
@@ -149,14 +147,21 @@ describe('third-party notices', () => {
     }
   })
 
-  it('ships a license text for every npm production package', async () => {
-    await expect(checkNpmLicenseTexts()).resolves.toBeUndefined()
-  })
+  it('ships every third-party text in one compressed archive', () => {
+    const files = fs.readdirSync(path.resolve('licenses')).sort()
 
-  it('ships a license text for every registry crate in Cargo.lock', async () => {
-    const lock = fs.readFileSync(path.resolve('src-tauri/Cargo.lock'), 'utf8')
+    expect(files).toEqual([
+      'COPYING.GPLv2',
+      'COPYING.GPLv3',
+      'COPYING.LGPLv2.1',
+      'COPYING.x264',
+      'LICENSE.lgpl3',
+      'LICENSE.mingw-w64.txt',
+      'LICENSE.node',
+      'LICENSE.zlib',
+    ])
 
-    await expect(checkCargoLicenseTexts(lock)).resolves.toBeUndefined()
+    expect(fs.existsSync(path.resolve('THIRD_PARTY_LICENSES.txt.gz'))).toBe(true)
   })
 })
 
@@ -210,6 +215,10 @@ describe('third-party notices bundle', () => {
 
     expect(TAURI_CONFIG.bundle.resources['resources/THIRD_PARTY_NOTICES.md']).toBe(
       'THIRD_PARTY_NOTICES.md',
+    )
+
+    expect(TAURI_CONFIG.bundle.resources['resources/THIRD_PARTY_LICENSES.txt.gz']).toBe(
+      'THIRD_PARTY_LICENSES.txt.gz',
     )
   })
 })

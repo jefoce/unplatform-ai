@@ -1,70 +1,81 @@
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
+import { gunzipSync } from 'node:zlib'
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  cargoPackages,
-  checkCargoLicenseTexts,
-  checkLicenseTexts,
-  sourceOfferSection,
-} from '../scripts/notices.mjs'
+import { checkLicenseDocument, sourceOfferSection } from '../scripts/notices.mjs'
 
 const RELEASE_DRAFT = path.resolve('.github/scripts/release-draft.sh')
+const ARCHIVE = path.resolve('THIRD_PARTY_LICENSES.txt.gz')
+const SEPARATOR = '='.repeat(80)
 
-describe('third-party license texts', () => {
-  it('fails the npm check when a committed text is removed', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'notices-npm-'))
+/**
+ * Committed archive decompressed as UTF-8.
+ */
+function archiveText(): string {
+  return gunzipSync(fs.readFileSync(ARCHIVE)).toString('utf8')
+}
 
-    const entries = new Map([
-      ['kept.txt', 'text'],
-      ['removed.txt', 'text'],
-    ])
+/**
+ * Small document in the generated format, one package and one text block.
+ */
+function fixtureDocument(body: string): string {
+  return [
+    'Third-party license texts',
+    '=========================',
+    '',
+    'Contents',
+    '--------',
+    '',
+    'Package | Version | Text',
+    '------- | ------- | ----',
+    'left-pad | 1.3.0 | 1',
+    '',
+    SEPARATOR,
+    '1. MIT License',
+    SEPARATOR,
+    '',
+    'Packages:',
+    '  left-pad 1.3.0',
+    '    Copyright (c) 2018 Example',
+    '',
+    body,
+    '',
+  ].join('\n')
+}
 
-    try {
-      fs.writeFileSync(path.join(dir, 'kept.txt'), 'text')
+describe('third-party license archive', () => {
+  it('ships a deterministic gzip that decompresses to the committed text', () => {
+    const raw = fs.readFileSync(ARCHIVE)
+    const text = archiveText()
 
-      await expect(checkLicenseTexts(entries, dir, 'licenses/npm')).rejects.toThrow(
-        'licenses/npm/removed.txt is missing',
-      )
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
+    expect(raw.subarray(0, 2)).toEqual(Buffer.from([0x1f, 0x8b]))
+    expect(text).toBe(fs.readFileSync(path.resolve('THIRD_PARTY_LICENSES.txt'), 'utf8'))
   })
 
-  it('fails the cargo check when a crate text is removed', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'notices-cargo-'))
+  it('lists react from npm and tauri from cargo', () => {
+    const text = archiveText()
 
-    const lock = [
-      '[[package]]',
-      'name = "serde"',
-      'version = "1.0.0"',
-      'source = "registry+https://github.com/rust-lang/crates.io-index"',
-    ].join('\n')
-
-    try {
-      await expect(checkCargoLicenseTexts(lock, dir)).rejects.toThrow(
-        'licenses/cargo/serde-1.0.0.txt is missing',
-      )
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
+    expect(text).toMatch(/^react\s+\| \d+\.\d+\.\d+\s+\| +\d+$/m)
+    expect(text).toMatch(/^tauri\s+\| \d+\.\d+\.\d+\s+\| +\d+$/m)
+    expect(text).not.toMatch(/^serde_derive\s+\|/m)
   })
 
-  it('drops workspace crates from the cargo check', () => {
-    const lock = [
-      '[[package]]',
-      'name = "app"',
-      'version = "0.5.2"',
-      '',
-      '[[package]]',
-      'name = "serde"',
-      'version = "1.0.0"',
-      'source = "registry+https://github.com/rust-lang/crates.io-index"',
-    ].join('\n')
+  it('gives every table of contents package a text block', () => {
+    expect(() => {
+      checkLicenseDocument(archiveText())
+    }).not.toThrow()
+  })
 
-    expect(cargoPackages(lock)).toEqual([{ name: 'serde', version: '1.0.0' }])
+  it('fails when a license text block is removed', () => {
+    expect(() => {
+      checkLicenseDocument(fixtureDocument('Permission is hereby granted, free of charge.'))
+    }).not.toThrow()
+
+    expect(() => {
+      checkLicenseDocument(fixtureDocument(''))
+    }).toThrow('has no license text')
   })
 })
 
