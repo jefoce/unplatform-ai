@@ -24,11 +24,12 @@ const BodySchema = z.object({
 /** Copies a finished video to a user-chosen absolute path. */
 export async function POST(request: Request, { params }: IdRouteContext): Promise<Response> {
   try {
+    assertLocalRequest(request)
+
     if (!desktopMode() || !isDesktopMode()) {
       return jsonError({ status: 404, error: 'Not found' })
     }
 
-    assertLocalRequest(request)
     const body = BodySchema.safeParse(await readJsonBody(request))
 
     if (!body.success) {

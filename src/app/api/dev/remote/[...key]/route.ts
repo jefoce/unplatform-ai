@@ -7,6 +7,7 @@ import { mockObjectPath, verifyMockSignature } from '@/server/storage/mock-store
 export const dynamic = 'force-dynamic'
 
 async function serve(request: Request, { params }: KeyRouteContext): Promise<Response> {
+  assertLocalRequest(request, { session: false })
   const { key } = await params
 
   return handle(request, key)
@@ -21,7 +22,6 @@ async function handle(request: Request, keyParts: string[]): Promise<Response> {
   }
 
   try {
-    assertLocalRequest(request, { session: false })
     const key = keyParts.join('/')
     const url = new URL(request.url)
     const exp = Number(url.searchParams.get('exp'))

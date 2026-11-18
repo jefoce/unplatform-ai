@@ -17,12 +17,12 @@ const BodySchema = z.union([ExportFileSchema, ExportFolderSchema])
 
 /** Desktop parent only: registers the path or folder its dialog returned. */
 export async function POST(request: Request) {
-  if (!desktopMode()) {
-    return jsonError({ status: 404, error: 'Not found' })
-  }
-
   try {
     assertLocalRequest(request)
+
+    if (!desktopMode()) {
+      return jsonError({ status: 404, error: 'Not found' })
+    }
 
     if (!parentSecretMatches(request.headers.get('x-unplatform-ai-parent'))) {
       return jsonError({ status: 403, error: 'Forbidden' })
