@@ -259,6 +259,49 @@ describe('POST /api/generations/export-batch duplicates', () => {
     expect(body.duplicates).toHaveLength(1)
     expect(await readdir(dir)).toEqual(['seedance.mp4'])
   })
+
+  it('writes nothing on a second export of three outputs', async () => {
+    const dir = await grantedDir()
+    const ids: string[] = []
+
+    rememberExportFolder(dir, 2)
+
+    for (let index = 1; index <= 3; index += 1) {
+      const id = randomUUID()
+
+      ids.push(id)
+      await writeFile(path.join(downloads, `${id}.json`), JSON.stringify(record(id)))
+      await writeFile(path.join(downloads, `${id}.mp4`), `bytes-${index}`)
+    }
+
+    const first = (await (await POST(exportRequest({ ids, dir }))).json()) as {
+      saved: string[]
+      duplicates: string[]
+    }
+
+    expect(first.saved).toHaveLength(3)
+    expect(first.duplicates).toEqual([])
+
+    expect((await readdir(dir)).sort()).toEqual([
+      'seedance-2.mp4',
+      'seedance-3.mp4',
+      'seedance.mp4',
+    ])
+
+    const second = (await (await POST(exportRequest({ ids, dir }))).json()) as {
+      saved: string[]
+      duplicates: string[]
+    }
+
+    expect(second.saved).toEqual([])
+    expect(second.duplicates).toHaveLength(3)
+
+    expect((await readdir(dir)).sort()).toEqual([
+      'seedance-2.mp4',
+      'seedance-3.mp4',
+      'seedance.mp4',
+    ])
+  })
 })
 
 describe('copyUnique', () => {
@@ -317,6 +360,37 @@ describe('copyUnique', () => {
 
     expect(result.isDuplicate).toBe(false)
     expect(path.basename(result.path)).toBe('seedance-2.mp4')
+  })
+
+  it('finds the identical file after a gap in the numbered family', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'clip.mp4'), 'first')
+    await writeFile(path.join(dir, 'clip-3.mp4'), videoBytes)
+
+    const result = await copyUnique({ source, dir, base: 'clip', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(true)
+    expect(path.basename(result.path)).toBe('clip-3.mp4')
+    expect((await readdir(dir)).sort()).toEqual(['clip-3.mp4', 'clip.mp4'])
+  })
+
+  it('skips a same-size variant with other bytes and matches the next one', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+    const otherBytes = Buffer.alloc(videoBytes.length, 1)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'clip.mp4'), otherBytes)
+    await writeFile(path.join(dir, 'clip-2.mp4'), videoBytes)
+
+    const result = await copyUnique({ source, dir, base: 'clip', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(true)
+    expect(path.basename(result.path)).toBe('clip-2.mp4')
+    expect(await readFile(path.join(dir, 'clip.mp4'))).toEqual(otherBytes)
   })
 
   describe.skipIf(process.platform === 'win32')('a symlink at the target name', () => {

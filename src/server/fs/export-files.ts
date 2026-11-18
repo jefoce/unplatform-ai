@@ -6,7 +6,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 
-import { isNil } from 'lodash-es'
+import { escapeRegExp, isNil } from 'lodash-es'
 
 import { commitFile } from '@/server/fs/atomic-file'
 import { downloadPaths } from '@/server/paths'
@@ -90,9 +90,11 @@ export async function copyAtomic(source: string, target: string): Promise<void> 
   }
 }
 
-/** Copies without overwriting. False when the target already exists. */
-export async function copyExclusive(source: string, target: string): Promise<boolean> {
-  const isTargetPresent = await fs.access(target).then(
+/**
+ * True when the path exists, a symlink pointing nowhere included.
+ */
+async function pathExists(target: string): Promise<boolean> {
+  return fs.access(target).then(
     () => {
       return true
     },
@@ -100,8 +102,13 @@ export async function copyExclusive(source: string, target: string): Promise<boo
       return false
     },
   )
+}
 
-  if (isTargetPresent) {
+/**
+ * Copies without overwriting. False when the target already exists.
+ */
+export async function copyExclusive(source: string, target: string): Promise<boolean> {
+  if (await pathExists(target)) {
     return false
   }
 
@@ -169,23 +176,75 @@ interface CopyUniqueResult {
   isDuplicate: boolean
 }
 
-/** First free `name.ext`, `name-2.ext`, ..., or the identical file already there. */
-export async function copyUnique(params: CopyUniqueParams): Promise<CopyUniqueResult> {
-  const { source, dir, base, ext } = params
-  const existing = path.join(dir, `${base}.${ext}`)
+interface FamilyIndexesParams {
+  dir: string
+  base: string
+  ext: string
+}
 
-  if (await isSameFile(existing, source)) {
-    return { path: existing, isDuplicate: true }
+/**
+ * Existing indexes of the family `name.ext`, `name-2.ext`, ... in ascending order.
+ */
+async function familyIndexes(params: FamilyIndexesParams): Promise<number[]> {
+  const { dir, base, ext } = params
+  const family = new RegExp(`^${escapeRegExp(base)}(?:-(\\d+))?\\.${escapeRegExp(ext)}$`)
+  const names = await fs.readdir(dir)
+  const indexes: number[] = []
+
+  for (const name of names) {
+    const match = family.exec(name)
+
+    if (isNil(match)) {
+      continue
+    }
+
+    indexes.push(Number(match[1] ?? 1))
   }
 
-  for (let index = 1; index < 1000; index += 1) {
-    const name = index === 1 ? `${base}.${ext}` : `${base}-${index}.${ext}`
-    const target = path.join(dir, name)
+  return indexes.sort((first, second) => {
+    return first - second
+  })
+}
+
+/**
+ * Identical file among `name.ext`, `name-2.ext`, ... or the first free one.
+ */
+export async function copyUnique(params: CopyUniqueParams): Promise<CopyUniqueResult> {
+  const { source, dir, base, ext } = params
+  const indexes = await familyIndexes({ dir, base, ext })
+
+  const nameOf = (index: number): string => {
+    if (index === 1) {
+      return `${base}.${ext}`
+    }
+
+    return `${base}-${index}.${ext}`
+  }
+
+  // Every output of one model shares a base, so a gap must not hide later variants.
+  for (const index of indexes) {
+    const target = path.join(dir, nameOf(index))
+
+    if (await isSameFile(target, source)) {
+      return { path: target, isDuplicate: true }
+    }
+  }
+
+  const used = new Set(indexes)
+
+  for (let index = 1; ; index += 1) {
+    if (used.has(index)) {
+      continue
+    }
+
+    const target = path.join(dir, nameOf(index))
 
     if (await copyExclusive(source, target)) {
       return { path: target, isDuplicate: false }
     }
-  }
 
-  throw new Error('Too many files with the same name')
+    if (await isSameFile(target, source)) {
+      return { path: target, isDuplicate: true }
+    }
+  }
 }
