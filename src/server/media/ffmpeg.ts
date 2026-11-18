@@ -75,7 +75,7 @@ let hasLogged = false
 /** Reports the ffmpeg binary once per process. */
 export function assertFfmpeg(): FfmpegStatus {
   const path = ffmpegPath()
-  const hasBinary = !isEmpty(path) && existsSync(path)
+  const hasBinary = !isEmpty(path) && existsSync(/*turbopackIgnore: true*/ path)
 
   if (!hasLogged) {
     hasLogged = true
@@ -106,7 +106,7 @@ function execFfmpeg(params: ExecFfmpegParams): Promise<ExecFfmpegResult> {
 
   return new Promise((resolve, reject) => {
     const child = execFile(
-      bin.path,
+      /*turbopackIgnore: true*/ bin.path,
       args,
       {
         maxBuffer: MAX_BUFFER,

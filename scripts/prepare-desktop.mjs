@@ -244,6 +244,52 @@ async function assertStandaloneBuild(nextDir) {
   }
 }
 
+const DIRTY_TRACE_DIRS = ['.git/', '.e2e-tmp/', '.cache/', 'node_modules/.cache/']
+const DIRTY_TRACE_FILES = new Set(['diff.txt', '.DS_Store'])
+
+/**
+ * Trace entries climb from the trace file to the repo root, so drop the leading `../`.
+ */
+function traceRelative(entry) {
+  let relative = entry.replaceAll('\\', '/')
+  while (relative.startsWith('../')) {
+    relative = relative.slice(3)
+  }
+  return relative.startsWith('./') ? relative.slice(2) : relative
+}
+
+function isDirtyTraceEntry(relative) {
+  if (DIRTY_TRACE_FILES.has(relative)) return true
+  return DIRTY_TRACE_DIRS.some((dir) => relative.startsWith(dir))
+}
+
+/**
+ * Fails when the instrumentation trace includes repo scratch data. Shows the count and five entries.
+ */
+async function assertCleanInstrumentationTrace(nftPath) {
+  let text
+
+  try {
+    text = await fs.readFile(nftPath, 'utf8')
+  } catch {
+    fail(`Missing ${nftPath}. Run pnpm build first.`)
+  }
+
+  const data = JSON.parse(text)
+  const files = Array.isArray(data?.files) ? data.files : null
+  if (!files) fail(`${nftPath} has no files array. Run pnpm build first.`)
+
+  const offenders = files.filter((entry) => isDirtyTraceEntry(traceRelative(entry)))
+  if (offenders.length === 0) return
+
+  const sample = offenders.slice(0, 5).map(traceRelative)
+  fail(
+    `Instrumentation trace includes ${offenders.length} repo scratch entries, the standalone build would ship them:\n` +
+      sample.join('\n') +
+      '\nFind the dynamic path read that traced the repo root and make it static.',
+  )
+}
+
 /**
  * Relative paths of every file under `dir`, with forward slashes.
  */
@@ -328,6 +374,7 @@ async function copyServerResources() {
   const standalone = path.join(nextDir, 'standalone')
 
   await assertStandaloneBuild(nextDir)
+  await assertCleanInstrumentationTrace(path.join(nextDir, 'server', 'instrumentation.js.nft.json'))
 
   const missingChunks = await missingRouteChunks(standalone)
   if (missingChunks.length > 0) {
@@ -1096,6 +1143,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 }
 
 export {
+  assertCleanInstrumentationTrace,
   assertStandaloneBuild,
   compareStagedServer,
   missingRouteChunks,

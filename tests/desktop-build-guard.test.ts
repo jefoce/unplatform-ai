@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { acquire, assertFree, LOCK_PATH, release } from '../scripts/build-lock.mjs'
 import {
+  assertCleanInstrumentationTrace,
   assertStandaloneBuild,
   compareStagedServer,
   missingRouteChunks,
@@ -159,6 +160,60 @@ describe('missingRouteChunks', () => {
     await writeFile(standalone, '.next/server/chunks/present.js', 'present')
 
     await expect(missingRouteChunks(standalone)).resolves.toEqual([])
+  })
+})
+
+describe('assertCleanInstrumentationTrace', () => {
+  it('fails and lists an entry under .git', async () => {
+    const root = await tempDir()
+    const nftPath = path.join(root, 'instrumentation.js.nft.json')
+
+    await writeFile(
+      root,
+      'instrumentation.js.nft.json',
+      JSON.stringify({ files: ['../../.git/hooks/x', '../../server/chunks/a.js'] }),
+    )
+
+    const message = await messageOf(assertCleanInstrumentationTrace(nftPath))
+
+    expect(message).toContain('.git/hooks/x')
+    expect(message).toContain('1')
+  })
+
+  it('fails for scratch files and caches', async () => {
+    const root = await tempDir()
+    const nftPath = path.join(root, 'instrumentation.js.nft.json')
+
+    await writeFile(
+      root,
+      'instrumentation.js.nft.json',
+      JSON.stringify({
+        files: [
+          '../../diff.txt',
+          '../../.DS_Store',
+          '../../.e2e-tmp/bin/otool',
+          '../../.cache/x.json',
+          '../../node_modules/.cache/x.js',
+        ],
+      }),
+    )
+
+    const message = await messageOf(assertCleanInstrumentationTrace(nftPath))
+
+    expect(message).toContain('5')
+  })
+
+  it('accepts a clean trace', async () => {
+    const root = await tempDir()
+    const nftPath = path.join(root, 'instrumentation.js.nft.json')
+
+    await writeFile(
+      root,
+      'instrumentation.js.nft.json',
+      JSON.stringify({ files: ['../../server/chunks/a.js', '../../node_modules/next/x.js'] }),
+    )
+
+    await expect(assertCleanInstrumentationTrace(nftPath)).resolves.toBeUndefined()
   })
 })
 

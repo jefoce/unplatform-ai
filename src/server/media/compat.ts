@@ -61,7 +61,7 @@ export async function getCompatMedia(params: GetCompatMediaParams): Promise<Comp
 
   const ext = kind === 'video' ? 'mp4' : 'm4a'
   const key = createHash('sha1').update(ref).digest('hex')
-  const filePath = path.join(COMPAT_DIR, `${key}.${ext}`)
+  const filePath = path.join(/*turbopackIgnore: true*/ COMPAT_DIR, `${key}.${ext}`)
   const failedPath = `${filePath}.failed`
   const contentType: CompatContentType = kind === 'video' ? 'video/mp4' : 'audio/mp4'
 
@@ -242,7 +242,10 @@ function convertArgs(params: ConvertArgsParams): string[] {
 async function convert(params: ConvertParams): Promise<void> {
   const { source, kind, filePath, ext } = params
 
-  const temp = path.join(COMPAT_DIR, `${path.basename(filePath, `.${ext}`)}${tempSuffix()}.${ext}`)
+  const temp = path.join(
+    /*turbopackIgnore: true*/ COMPAT_DIR,
+    `${path.basename(filePath, `.${ext}`)}${tempSuffix()}.${ext}`,
+  )
 
   const args = convertArgs({ kind, source, temp })
   const probe = await probeMedia(source)

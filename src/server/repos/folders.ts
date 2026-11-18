@@ -204,7 +204,7 @@ export async function listFolderFiles(params: ListFolderFilesParams): Promise<Fo
   const files: FolderFile[] = []
 
   for (const entry of visible) {
-    const full = path.join(current, entry.name)
+    const full = path.join(/*turbopackIgnore: true*/ current, entry.name)
     const rel = relOf(entry.name)
     const outcome = await classifyEntry({ entry, full, rel, rootReal })
 
@@ -216,7 +216,7 @@ export async function listFolderFiles(params: ListFolderFilesParams): Promise<Fo
       continue
     }
 
-    const real = await fs.realpath(full).catch(() => {
+    const real = await fs.realpath(/*turbopackIgnore: true*/ full).catch(() => {
       return null
     })
 
