@@ -10,6 +10,9 @@ import { escapeRegExp, isNil } from 'lodash-es'
 
 import { commitFile } from '@/server/fs/atomic-file'
 import { downloadPaths } from '@/server/paths'
+import { withLock } from '@/server/sync/lock'
+
+const TEMP_SUFFIX = /\.tmp-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 /** Existing absolute path of the record's video, or null. */
 export async function videoSource(id: string): Promise<string | null> {
@@ -56,38 +59,54 @@ export async function exportDir(dir: string): Promise<string | null> {
   return resolved
 }
 
-/** Removes temps a previous attempt left for this exact target. Touches nothing else. */
+/**
+ * Removes regular v4 temps a previous attempt left for this exact target.
+ */
 async function removeTargetTemps(target: string): Promise<void> {
   const dir = path.dirname(target)
-  const prefix = `${path.basename(target)}.tmp-`
+  const ownTemp = new RegExp(`^${escapeRegExp(path.basename(target))}${TEMP_SUFFIX.source}`)
 
   const names: string[] = await fs.readdir(dir).catch(() => {
     return []
   })
 
   for (const name of names) {
-    if (!name.startsWith(prefix)) {
+    if (!ownTemp.test(name)) {
       continue
     }
 
-    await fs.unlink(path.join(dir, name)).catch(() => {})
+    const file = path.join(dir, name)
+
+    const stats = await fs.lstat(file).catch(() => {
+      return null
+    })
+
+    if (isNil(stats) || !stats.isFile()) {
+      continue
+    }
+
+    await fs.unlink(file).catch(() => {})
   }
 }
 
-/** Copies through a fsynced temp file, so a crash never leaves a partial export. */
+/**
+ * Copies through a fsynced temp file, so a crash never leaves a partial export.
+ */
 export async function copyAtomic(source: string, target: string): Promise<void> {
-  await removeTargetTemps(target)
+  await withLock(`export:${target}`, async () => {
+    await removeTargetTemps(target)
 
-  const temp = `${target}.tmp-${randomUUID()}`
+    const temp = `${target}.tmp-${randomUUID()}`
 
-  try {
-    await fs.copyFile(source, temp)
-    await commitFile({ temp, target })
-  } catch (error) {
-    await fs.unlink(temp).catch(() => {})
+    try {
+      await fs.copyFile(source, temp)
+      await commitFile({ temp, target })
+    } catch (error) {
+      await fs.unlink(temp).catch(() => {})
 
-    throw error
-  }
+      throw error
+    }
+  })
 }
 
 /**
@@ -108,28 +127,30 @@ async function pathExists(target: string): Promise<boolean> {
  * Copies without overwriting. False when the target already exists.
  */
 export async function copyExclusive(source: string, target: string): Promise<boolean> {
-  if (await pathExists(target)) {
-    return false
-  }
-
-  await removeTargetTemps(target)
-
-  const temp = `${target}.tmp-${randomUUID()}`
-
-  try {
-    await fs.copyFile(source, temp)
-    await commitFile({ temp, target, isExclusive: true })
-
-    return true
-  } catch (error) {
-    await fs.unlink(temp).catch(() => {})
-
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+  return withLock(`export:${target}`, async () => {
+    if (await pathExists(target)) {
       return false
     }
 
-    throw error
-  }
+    await removeTargetTemps(target)
+
+    const temp = `${target}.tmp-${randomUUID()}`
+
+    try {
+      await fs.copyFile(source, temp)
+      await commitFile({ temp, target, isExclusive: true })
+
+      return true
+    } catch (error) {
+      await fs.unlink(temp).catch(() => {})
+
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        return false
+      }
+
+      throw error
+    }
+  })
 }
 
 /** SHA-256 of the file, streamed so a long video never sits in memory. */
