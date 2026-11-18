@@ -165,6 +165,8 @@ pub async fn boot(app: &AppHandle<Wry>) -> Result<(), String> {
         port,
         token: token.clone(),
     });
+    // Kept so a failed update install can start the sidecar again.
+    *app.state::<State>().launch.lock().unwrap() = Some(launch.clone());
 
     let window = create_window(
         app,
@@ -755,7 +757,11 @@ fn prune_runtime(version: &str) {
         };
         if let Err(error) = result {
             append_log(
-                format!("[unplatform-ai] could not prune {}: {error}", path.display()).as_bytes(),
+                format!(
+                    "[unplatform-ai] could not prune {}: {error}",
+                    path.display()
+                )
+                .as_bytes(),
             );
         }
     }
