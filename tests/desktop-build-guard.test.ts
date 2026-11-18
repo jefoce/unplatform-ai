@@ -6,7 +6,11 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { acquire, assertFree, LOCK_PATH, release } from '../scripts/build-lock.mjs'
-import { assertStandaloneBuild, compareStagedServer } from '../scripts/prepare-desktop.mjs'
+import {
+  assertStandaloneBuild,
+  compareStagedServer,
+  missingRouteChunks,
+} from '../scripts/prepare-desktop.mjs'
 
 const roots: string[] = []
 
@@ -125,6 +129,36 @@ describe('compareStagedServer', () => {
     await writeFile(staged, 'chunks/a.js', 'a')
 
     await expect(compareStagedServer(source, staged)).resolves.toBeUndefined()
+  })
+})
+
+describe('missingRouteChunks', () => {
+  it('lists a chunk a route references but the standalone output lacks', async () => {
+    const standalone = await tempDir()
+
+    await writeFile(
+      standalone,
+      '.next/server/app/api/health/route.js',
+      'R.c("server/chunks/present.js")\nR.c("server/chunks/missing.js")\n',
+    )
+
+    await writeFile(standalone, '.next/server/chunks/present.js', 'present')
+
+    await expect(missingRouteChunks(standalone)).resolves.toEqual(['server/chunks/missing.js'])
+  })
+
+  it('accepts a standalone output that has every referenced chunk', async () => {
+    const standalone = await tempDir()
+
+    await writeFile(
+      standalone,
+      '.next/server/app/api/health/route.js',
+      'R.c("server/chunks/present.js")\n',
+    )
+
+    await writeFile(standalone, '.next/server/chunks/present.js', 'present')
+
+    await expect(missingRouteChunks(standalone)).resolves.toEqual([])
   })
 })
 

@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
   serverExternalPackages: ['sharp', '@napi-rs/keyring'],
+  // Next skips chunks under .next/server/chunks when it traces a route, so list them again.
+  outputFileTracingIncludes: {
+    '/*': ['.next/server/chunks/**'],
+  },
   outputFileTracingExcludes: {
     '*': [
       // Env files hold secrets. This keeps .env.local out of .next/standalone, but Turbopack applies
@@ -19,6 +23,9 @@ const nextConfig: NextConfig = {
       // .env.example can still appear there.
       '.env*',
       '**/.env*',
+      // The project trace picks up the whole repo. VCS and editor metadata never ship.
+      '.git/**',
+      '.idea/**',
       '.e2e-tmp/**',
       '**/*.map',
       '**/*.d.ts',

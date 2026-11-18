@@ -103,6 +103,14 @@ describe('standalone trace excludes', () => {
   })
 })
 
+describe('standalone trace includes', () => {
+  it('copies every server chunk a route references', () => {
+    const includes = nextConfig.outputFileTracingIncludes?.['/*'] ?? []
+
+    expect(includes).toContain('.next/server/chunks/**')
+  })
+})
+
 describe('desktop shell policy', () => {
   it('uses the app CSP and grants only the bound sidecar origin', () => {
     const config = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'))

@@ -295,11 +295,48 @@ async function compareStagedServer(sourceDir, stagedDir) {
   )
 }
 
+const CHUNK_REFERENCE = /server\/chunks\/[^"'\\\s)]+/g
+
+/**
+ * Chunk files that a route references but the standalone output does not contain.
+ */
+async function missingRouteChunks(standaloneDir) {
+  const serverDir = path.join(standaloneDir, '.next', 'server')
+  const routes = (await listFiles(serverDir)).filter((file) => {
+    return file.startsWith('app/') && file.endsWith('/route.js')
+  })
+  const missing = new Set()
+
+  for (const route of routes) {
+    const text = await fs.readFile(path.join(serverDir, route), 'utf8')
+
+    for (const [reference] of text.matchAll(CHUNK_REFERENCE)) {
+      const exists = await fs.access(path.join(standaloneDir, '.next', reference)).then(
+        () => true,
+        () => false,
+      )
+
+      if (!exists) missing.add(reference)
+    }
+  }
+
+  return [...missing].sort()
+}
+
 async function copyServerResources() {
   const nextDir = path.join(ROOT, '.next')
   const standalone = path.join(nextDir, 'standalone')
 
   await assertStandaloneBuild(nextDir)
+
+  const missingChunks = await missingRouteChunks(standalone)
+  if (missingChunks.length > 0) {
+    fail(
+      `Standalone output is missing ${missingChunks.length} server chunks that routes reference:\n` +
+        missingChunks.join('\n') +
+        '\nAdd outputFileTracingIncludes for .next/server/chunks in next.config.ts and run pnpm build again.',
+    )
+  }
 
   const excluded = new Set([
     '.cache',
@@ -1058,4 +1095,11 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   }
 }
 
-export { assertStandaloneBuild, compareStagedServer, packArchive, stageSidecar, unpackArchive }
+export {
+  assertStandaloneBuild,
+  compareStagedServer,
+  missingRouteChunks,
+  packArchive,
+  stageSidecar,
+  unpackArchive,
+}
