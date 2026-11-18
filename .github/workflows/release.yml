@@ -322,6 +322,8 @@ jobs:
       contents: write
       # Only the reuse path pushes sidecars. Job permissions cannot be conditional.
       packages: write
+    # Restrict this environment to releases and v*-rc.* in the repository settings.
+    environment: release
     if: |
       !cancelled() &&
       needs.version.result == 'success' &&
@@ -487,6 +489,9 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: node scripts/smoke-server.mjs --target "$TARGET"
+      # Measured: the CLI stops with "A public key has been found, but no private
+      # key" after bundling when createUpdaterArtifacts is true, so the key stays
+      # on this signing step inside the protected job.
       - name: Build installers
         shell: bash
         env:
@@ -495,6 +500,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target "$TARGET" --config src-tauri/tauri.release.conf.json
+      # Re-packs the app archive, so it signs it again with the same step env.
       - name: Compress downloads
         if: runner.os == 'macOS'
         env:

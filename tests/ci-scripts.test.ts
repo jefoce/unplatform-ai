@@ -568,6 +568,57 @@ describe('workflow checkouts', () => {
   })
 })
 
+/**
+ * Job name and block for every job in the release workflow.
+ */
+function releaseJobs() {
+  const text = fs.readFileSync(path.resolve('.github/workflows/release.yml'), 'utf8')
+  const section = text.slice(text.search(/^jobs:\s*$/m))
+  const jobs = [...section.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)]
+
+  return jobs.map((job, index) => {
+    return {
+      name: job[1] ?? '',
+      block: section.slice(job.index ?? 0, jobs[index + 1]?.index ?? section.length),
+    }
+  })
+}
+
+describe('release signing key', () => {
+  const text = fs.readFileSync(path.resolve('.github/workflows/release.yml'), 'utf8')
+  const jobs = releaseJobs()
+
+  it('keeps the signing secrets out of workflow-level env', () => {
+    const envBlock = text.match(/^env:\n((?: {2}[^\n]*\n)+)/m)?.[1] ?? ''
+
+    const signing = envBlock.split(/\r?\n/).filter((line) => {
+      return /^\s+TAURI_SIGNING_/.test(line)
+    })
+
+    expect(signing).toEqual([])
+  })
+
+  it('gates the tauri build job behind the release environment', () => {
+    const build = jobs.find((job) => {
+      return job.block.includes('pnpm tauri build')
+    })
+
+    expect(build?.block).toMatch(/^ {4}environment:\s*release\s*$/m)
+  })
+
+  it('references the signing secrets from the build job only', () => {
+    const holders = jobs.filter((job) => {
+      return job.block.includes('TAURI_SIGNING_PRIVATE_KEY')
+    })
+
+    expect(
+      holders.map((job) => {
+        return job.name
+      }),
+    ).toEqual(['build'])
+  })
+})
+
 describe('Rust tests', () => {
   it.each(WORKFLOW_FILES)('%s runs cargo test', (file) => {
     const text = fs.readFileSync(path.resolve(file), 'utf8')
