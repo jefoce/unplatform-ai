@@ -5,6 +5,10 @@ import { CUSTOM_FORBIDDEN_MESSAGE, CUSTOM_TOKEN_MESSAGE } from '@/core/providers
 
 const ENDPOINT_ID = 'ep1'
 
+const probeState = vi.hoisted(() => {
+  return { hasEndpoint: false, runHealthProbe: vi.fn() }
+})
+
 const endpoints = vi.hoisted(() => {
   return [
     {
@@ -29,10 +33,14 @@ const endpoints = vi.hoisted(() => {
   ]
 })
 
+vi.mock('@/server/providers/custom/health', () => {
+  return { runHealthProbe: probeState.runHealthProbe }
+})
+
 vi.mock('@/server/providers/custom/endpoint-source', () => {
   return {
     getEndpoint: async () => {
-      return null
+      return probeState.hasEndpoint ? (endpoints[0] ?? null) : null
     },
     getEndpointsSync: () => {
       return endpoints
@@ -63,6 +71,8 @@ const {
 
 beforeEach(() => {
   resetHealth()
+  probeState.hasEndpoint = false
+  probeState.runHealthProbe.mockReset()
 })
 
 describe('endpoint usability', () => {
@@ -96,6 +106,33 @@ describe('await endpoint usability', () => {
     setEndpointHealth({ endpointId: ENDPOINT_ID, status: 'unreachable', message: 'Down' })
 
     await expect(awaitEndpointUsable(ENDPOINT_ID, 1000)).resolves.toBe(false)
+  })
+})
+
+describe('await endpoint reprobe', () => {
+  it('reprobes an offline endpoint once and reopens it', async () => {
+    probeState.hasEndpoint = true
+    setEndpointHealth({ endpointId: ENDPOINT_ID, status: 'unreachable', message: 'Down' })
+
+    probeState.runHealthProbe.mockImplementation(async (endpoint: { id: string }) => {
+      recordHealthOk(endpoint.id)
+
+      return { ok: true, health: { server: 'ComfyUI', server_version: '0.3.0' } }
+    })
+
+    await expect(awaitEndpointUsable(ENDPOINT_ID, 1000)).resolves.toBe(true)
+    await expect(awaitEndpointUsable(ENDPOINT_ID, 1000)).resolves.toBe(true)
+
+    expect(probeState.runHealthProbe).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips the probe while the endpoint is online and fresh', async () => {
+    probeState.hasEndpoint = true
+    recordHealthOk(ENDPOINT_ID)
+
+    await expect(awaitEndpointUsable(ENDPOINT_ID, 1000)).resolves.toBe(true)
+
+    expect(probeState.runHealthProbe).not.toHaveBeenCalled()
   })
 })
 

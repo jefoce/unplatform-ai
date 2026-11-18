@@ -330,7 +330,38 @@ export function endpointBlockReason(endpointId: string): string | null {
   return CATALOG_UNREACHABLE_REASON
 }
 
-/** Waits up to `timeoutMs` only while the boot probe has no result yet. */
+/**
+ * True only for an ok state inside the health max age.
+ */
+function hasFreshOkHealth(endpointId: string): boolean {
+  const health = getHealth(endpointId)
+
+  if (isNil(health)) {
+    return false
+  }
+
+  return health.state === 'ok' && isHealthFresh(health)
+}
+
+/**
+ * A stale or offline endpoint gets one probe through the shared dedupe.
+ */
+async function reprobeEndpoint(endpointId: string): Promise<void> {
+  registerEndpointHealthListener()
+
+  const endpoint = await getEndpoint(endpointId)
+
+  if (isNil(endpoint)) {
+    return
+  }
+
+  await runHealthProbe(endpoint)
+}
+
+/**
+ * Waits up to `timeoutMs` only while the boot probe has no result yet.
+ * A stale or offline state is reprobed once before the answer.
+ */
 export async function awaitEndpointUsable(
   endpointId: string,
   timeoutMs: number = CUSTOM_CHECK_TIMEOUT_MS,
@@ -340,6 +371,16 @@ export async function awaitEndpointUsable(
   while (endpointPhase(endpointId) === 'checking' && Date.now() < deadline) {
     await delay(100)
   }
+
+  if (hasFreshOkHealth(endpointId)) {
+    return true
+  }
+
+  if (endpointPhase(endpointId) === 'checking') {
+    return false
+  }
+
+  await reprobeEndpoint(endpointId)
 
   return isEndpointUsable(endpointId)
 }

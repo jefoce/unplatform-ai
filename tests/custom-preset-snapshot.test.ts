@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
   return {
     loadDraft: vi.fn(),
     getEndpoint: vi.fn(),
+    runHealthProbe: vi.fn(),
     saveGeneration: vi.fn(),
     saveImage: vi.fn(),
   }
@@ -41,6 +42,10 @@ vi.mock('@/server/jobs/submit-queue', () => {
 
 vi.mock('@/server/jobs/image-submit-queue', () => {
   return { startImageSubmit: async () => {} }
+})
+
+vi.mock('@/server/providers/custom/health', () => {
+  return { runHealthProbe: mocks.runHealthProbe }
 })
 
 vi.mock('@/server/providers/custom/endpoint-source', () => {
@@ -158,10 +163,12 @@ beforeEach(() => {
   recordHealthOk(ENDPOINT.id)
   mocks.loadDraft.mockReset()
   mocks.getEndpoint.mockReset()
+  mocks.runHealthProbe.mockReset()
   mocks.saveGeneration.mockReset()
   mocks.saveImage.mockReset()
 
   mocks.getEndpoint.mockResolvedValue(ENDPOINT)
+  mocks.runHealthProbe.mockResolvedValue({ ok: false })
 
   mocks.saveGeneration.mockImplementation(async (record: GenerationRecord) => {
     return record
