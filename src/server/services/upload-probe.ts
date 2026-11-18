@@ -9,7 +9,7 @@ import type { UploadItem } from '@/core/schemas/upload-item'
 
 import { UploadError } from '../errors'
 import { probeMedia } from '../media/ffmpeg'
-import sharp, { SHARP_INPUT_OPTIONS, sharpQueue } from '../media/sharp'
+import sharp, { sharpQueue } from '../media/sharp'
 
 export function assertSupported(ext: string): MediaKind {
   if (ext === '.heic' || ext === '.heif') {
@@ -30,9 +30,10 @@ export async function probe(
   kind: MediaKind,
 ): Promise<Pick<UploadItem, 'width' | 'height' | 'durationSec'>> {
   if (kind === 'image') {
+    // Metadata reads the header only. The pixel cap is enforced below, so sharp must not throw first.
     const meta = await sharpQueue
       .run(() => {
-        return sharp(media, SHARP_INPUT_OPTIONS).metadata()
+        return sharp(media, { limitInputPixels: false }).metadata()
       })
       .catch(() => {
         return null

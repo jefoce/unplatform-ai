@@ -14,7 +14,7 @@ import { type LinkMode, type UploadItem } from '@/core/schemas/upload-item'
 import { inputIds } from '@/core/submit-state'
 
 import { UploadError } from '../errors'
-import { removeFile, writeJsonAtomic } from '../fs/json-file'
+import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { removeEncoded } from '../media/image-cache'
 import { downloadPaths, STORAGE_TMP_DIR, uploadPaths } from '../paths'
@@ -123,6 +123,7 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
       }
     }
 
+    const meta = await probe(target, kind)
     const id = randomUUID()
     const paths = uploadPaths(id, ext)
     const linkMode = await linkOrCopy(target, paths.media)
@@ -138,13 +139,13 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
       linkMode,
       sizeBytes: size,
       createdAt: new Date().toISOString(),
-      ...(await probe(paths.media, kind)),
+      ...meta,
     }
 
     try {
       await writeJsonAtomic({ file: paths.json, data: item })
     } catch (error) {
-      await removeFile(paths.media)
+      await removeOwnedFile(paths.media)
 
       throw error
     }
