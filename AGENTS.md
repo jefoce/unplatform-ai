@@ -46,6 +46,7 @@ Agents run shell commands in a macOS sandbox. Three things work differently ther
 - Error texts and hints describe the current model only. Never suggest a specific other model.
 - Change a preset only with a source link (provider docs or a real-key test) in the commit message and in a comment next to the value.
 - Do not add a dependency for something the stdlib or an installed package already does.
+- Never run `pnpm build` and `pnpm desktop:build` or `tauri build` at the same time. Both write `.next`, and the desktop build holds `.desktop-build.lock` so `next build` and `next dev` refuse while it runs.
 - Never delete outside `STORAGE_ROOT`. Never use recursive rm.
 - No focus rings. Keyboard focus uses the `:focus-visible` hover UI, never `focus-visible:ring-*`. Mouse clicks do not leave buttons focused (`usePointerBlur`), and menus return focus to the trigger only on keyboard close.
 

@@ -207,13 +207,99 @@ function describeSize(bytes) {
   return `${(bytes / MIB).toFixed(1)} MB`
 }
 
-async function copyServerResources() {
-  const standalone = path.join(ROOT, '.next', 'standalone')
+/**
+ * Reads a BUILD_ID file, or null when it is missing.
+ */
+async function readBuildId(file) {
   try {
-    await fs.access(path.join(standalone, 'server.js'))
+    return (await fs.readFile(file, 'utf8')).trim()
   } catch {
-    fail('Missing .next/standalone. Run pnpm build first.')
+    return null
   }
+}
+
+/**
+ * Fails unless the standalone output is complete and came from the same `.next` tree.
+ */
+async function assertStandaloneBuild(nextDir) {
+  const standalone = path.join(nextDir, 'standalone')
+  const required = [path.join(standalone, 'server.js'), path.join(standalone, '.next', 'BUILD_ID')]
+
+  for (const file of required) {
+    const exists = await fs.access(file).then(
+      () => true,
+      () => false,
+    )
+    if (!exists) fail(`Missing ${file}. Run pnpm build first.`)
+  }
+
+  const buildId = await readBuildId(path.join(nextDir, 'BUILD_ID'))
+  if (!buildId) fail(`Missing ${path.join(nextDir, 'BUILD_ID')}. Run pnpm build first.`)
+
+  const standaloneId = await readBuildId(path.join(standalone, '.next', 'BUILD_ID'))
+  if (standaloneId !== buildId) {
+    fail(
+      `BUILD_ID mismatch. .next has ${buildId}, standalone has ${standaloneId}. Run pnpm build again.`,
+    )
+  }
+}
+
+/**
+ * Relative paths of every file under `dir`, with forward slashes.
+ */
+async function listFiles(dir, relative = '') {
+  let entries
+
+  try {
+    entries = await fs.readdir(path.join(dir, relative), { withFileTypes: true })
+  } catch (error) {
+    if (error.code === 'ENOENT') return []
+    throw error
+  }
+
+  const files = []
+
+  for (const entry of entries) {
+    const next = relative === '' ? entry.name : `${relative}/${entry.name}`
+
+    if (entry.isDirectory()) {
+      files.push(...(await listFiles(dir, next)))
+    } else {
+      files.push(next)
+    }
+  }
+
+  return files
+}
+
+/**
+ * Fails listing every file that differs between the traced and the staged server.
+ */
+async function compareStagedServer(sourceDir, stagedDir) {
+  const [source, staged] = await Promise.all([listFiles(sourceDir), listFiles(stagedDir)])
+  const sourceSet = new Set(source)
+  const stagedSet = new Set(staged)
+  const missing = source.filter((file) => !stagedSet.has(file)).sort()
+  const extra = staged.filter((file) => !sourceSet.has(file)).sort()
+
+  if (missing.length === 0 && extra.length === 0) return
+
+  const lines = [
+    ...missing.map((file) => `missing: ${file}`),
+    ...extra.map((file) => `extra: ${file}`),
+  ]
+
+  fail(
+    `Staged .next/server differs from the standalone output (${missing.length} missing, ${extra.length} extra):\n` +
+      lines.join('\n'),
+  )
+}
+
+async function copyServerResources() {
+  const nextDir = path.join(ROOT, '.next')
+  const standalone = path.join(nextDir, 'standalone')
+
+  await assertStandaloneBuild(nextDir)
 
   const excluded = new Set([
     '.cache',
@@ -258,6 +344,11 @@ async function copyServerResources() {
   } catch {
     // No public directory in this project.
   }
+
+  await compareStagedServer(
+    path.join(standalone, '.next', 'server'),
+    path.join(RESOURCES_DIR, '.next', 'server'),
+  )
 }
 
 /** Stages the bundled runtime license texts for the Tauri resources mapping. */
@@ -967,4 +1058,4 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   }
 }
 
-export { packArchive, stageSidecar, unpackArchive }
+export { assertStandaloneBuild, compareStagedServer, packArchive, stageSidecar, unpackArchive }

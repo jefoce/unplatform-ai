@@ -44,6 +44,9 @@ yarn-error.log*
 # local storage
 .cache/
 
+# desktop build lock
+/.desktop-build.lock
+
 # tauri
 src-tauri/binaries/
 src-tauri/resources/

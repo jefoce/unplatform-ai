@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next'
 
 import packageJson from './package.json'
+import { assertFree } from './scripts/build-lock.mjs'
+
+// A concurrent build corrupts .next, so refuse while the desktop build holds the lock.
+assertFree()
 
 const nextConfig: NextConfig = {
   output: 'standalone',
