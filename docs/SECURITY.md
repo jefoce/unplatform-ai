@@ -43,7 +43,8 @@ The app CSP is built once in `src/lib/csp.ts` (`buildAppCsp`). `src/proxy.ts` at
 
 - Origin pin. A saved `baseUrl` is reduced to scheme, host and port. Every request is built from that origin. Redirects are refused. The caller abort signal and a timeout are combined.
 - http and LAN are allowed only for a saved origin. Custom API requests use `customRequest`, pinned to the endpoint origin, and never `safeFetchProviderUrl`. A custom media URL from `job.urls` is downloaded through `safeFetchProviderUrl`, so it must be https and resolve to a public address. The protocol content route is pinned to the endpoint origin.
-- Tokens. `CUSTOM_ENDPOINT_TOKENS` holds compact JSON `{ endpointId: token }`, capped at 2048 characters. Each secret name is its own keychain or `secrets.json` item, migrated from the old single JSON item on first use. The UI shows the last four characters. The value is never logged.
+- Tokens. `CUSTOM_ENDPOINT_TOKENS` holds compact JSON `{ endpointId: token }` and is one keychain value like the rest, so it shares the same 2048 byte cap. The UI shows the last four characters. The value is never logged.
+- Keychain layout. macOS and Linux keep one keychain item, `secrets`, with every name in one JSON map, and the app caps no item there. Windows Credential Manager rejects a blob above 2560 bytes, so each name is its own item on Windows. Every value is capped at 2048 bytes on write and on read. Migration runs on the first read: macOS and Linux merge leftover per-name items into the single item after a verified read-back and then delete them, Windows copies the old single item into per-name items and drops it only when every write worked. A corrupt item is an error, never an empty map, and a later save never overwrites it. An oversized per-name item is also an error, and one failed per-name read fails the whole read.
 - Uploads. Custom video and audio go to the pack `/api/v1/uploads` with a HEAD dedupe and the health size cap and quota. Images and frames stay data URLs. Custom endpoints never use R2.
 - Pack peer policy. A loopback peer is always accepted. A LAN peer needs `allow_lan`, or `allow_remote` plus a token. A public peer needs `allow_remote` plus a token. The 403 text names the fix.
 - Delete. Deleting an endpoint removes its token and cached model list. Non-final jobs fail with `upai:endpoint_removed`. No cancel call is sent.
@@ -51,7 +52,7 @@ The app CSP is built once in `src/lib/csp.ts` (`buildAppCsp`). `src/proxy.ts` at
 
 ## 5. Updates
 
-`latest.json` comes over HTTPS from GitHub and carries one signature per installer. It is not itself signed. The shell checks the downloaded installer against the Ed25519 public key embedded in `tauri.conf.json`, so a changed manifest can only point at files that fail the check. The plugin installs only a version newer than the running one. A download that fails the check is rejected, and the update stops the server and restarts the app. `UPAI_UPDATE_ENDPOINT` changes which manifest is read, never the key.
+`latest.json` comes over HTTPS from GitHub and carries one signature per installer. It is not itself signed. The shell checks the downloaded installer against the Ed25519 public key embedded in `tauri.conf.json`, so a changed manifest can only point at files that fail the check. The plugin installs only a version newer than the running one. A download that fails the check is rejected, and the update stops the server and restarts the app. An install that fails also stops the server. The shell then clears the stop flags, starts the sidecar again and waits for it to report ready before the UI receives the error, so the app stays usable on the current version. The raw installer error goes to the desktop log, the UI shows one plain line, and a failed restart is appended to that line. `UPAI_UPDATE_ENDPOINT` changes which manifest is read, never the key.
 
 The private signing key lives only in the GitHub secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and in the owner's password manager. It is never in the repo or on a build runner outside a release job.
 
@@ -67,6 +68,7 @@ A lost or leaked key cannot be replaced for an installed app, because the embedd
 - The R2 token can read and write the configured bucket. Create a token scoped to that bucket only.
 - Custom endpoints over plain http are unencrypted on the LAN. Use a token and a trusted network.
 - Custom endpoint tokens share the same keychain or file protection as provider keys.
+- 0.5.1 read a `secrets` keychain item longer than 2048 bytes as missing, so the next save replaced the other names with the one being written. Those values are gone and must be entered again. 0.5.2 reads an item of any size.
 
 ## 7. Reporting
 
