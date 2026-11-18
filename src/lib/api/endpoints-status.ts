@@ -9,6 +9,7 @@ import {
   EndpointTestResultSchema,
 } from '@/core/api/endpoints'
 import {
+  CATALOG_CHECK_FAILED_REASON,
   CATALOG_MISSING_REASON,
   type CatalogEntry,
   catalogEntryReason,
@@ -172,9 +173,15 @@ function timeoutReason(signal: AbortSignal): Promise<string> {
 }
 
 async function checkPreset(presetId: string): Promise<string | null> {
-  await refreshCatalog()
+  let catalog: ModelCatalog
 
-  const catalog = await fetcher<ModelCatalog>(CATALOG_PATH)
+  // A failed catalog read must never surface its response text, which can name ids.
+  try {
+    await refreshCatalog()
+    catalog = await fetcher<ModelCatalog>(CATALOG_PATH)
+  } catch {
+    return CATALOG_CHECK_FAILED_REASON
+  }
 
   const entry = catalog.entries.find((item) => {
     return item.presetId === presetId
