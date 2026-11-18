@@ -17,7 +17,7 @@ import { UploadError } from '../errors'
 import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { removeEncoded } from '../media/image-cache'
-import { downloadPaths, STORAGE_TMP_DIR, uploadPaths } from '../paths'
+import { downloadPaths, STORAGE_TMP_DIR, tempSuffix, uploadPaths } from '../paths'
 import { getGeneration, listActiveGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
 import { listUploadRecords, loadUploadRecord, rememberUpload } from '../repos/upload-record'
@@ -62,7 +62,7 @@ export async function createFileUpload(params: CreateFileUploadParams): Promise<
       return existing
     }
 
-    const temp = path.join(STORAGE_TMP_DIR, `upload-probe-${randomUUID()}${ext}`)
+    const temp = path.join(STORAGE_TMP_DIR, `upload-probe${tempSuffix()}${ext}`)
 
     await fs.mkdir(STORAGE_TMP_DIR, { recursive: true, mode: 0o700 })
     await fs.writeFile(temp, bytes, { mode: 0o600 })

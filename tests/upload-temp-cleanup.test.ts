@@ -100,4 +100,40 @@ describe('multipart temp cleanup', () => {
     expect(names).not.toContain(path.basename(old))
     expect(names).toContain(path.basename(fresh))
   })
+
+  it('keeps sweeping after an unlink fails', async () => {
+    const failing = path.join(tmpDir, `upload-${Date.now()}-fail.tmp-`)
+    const later = path.join(tmpDir, `upload-${Date.now()}-later.tmp-`)
+    const oldTime = new Date(Date.now() - 2 * 60 * 60 * 1000)
+
+    await fs.writeFile(failing, 'old')
+    await fs.writeFile(later, 'old')
+    await fs.utimes(failing, oldTime, oldTime)
+    await fs.utimes(later, oldTime, oldTime)
+
+    const realUnlink = fs.unlink.bind(fs)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    vi.spyOn(fs, 'unlink').mockImplementation(async (file) => {
+      if (file === failing) {
+        const error: NodeJS.ErrnoException = new Error('EACCES: permission denied')
+
+        error.code = 'EACCES'
+
+        throw error
+      }
+
+      await realUnlink(file)
+    })
+
+    await cleanupStale()
+
+    const names = await fs.readdir(tmpDir)
+
+    expect(names).toContain(path.basename(failing))
+    expect(names).not.toContain(path.basename(later))
+    expect(warn).toHaveBeenCalled()
+
+    vi.restoreAllMocks()
+  })
 })

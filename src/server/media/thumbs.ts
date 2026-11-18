@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -20,7 +20,7 @@ import type { MediaKind } from '@/core/media/media-types'
 import { HttpError } from '../errors'
 import { writeFileAtomic } from '../fs/atomic-file'
 import { isOwnedName, removeOwnedFile } from '../fs/json-file'
-import { THUMBS_DIR } from '../paths'
+import { tempSuffix, THUMBS_DIR } from '../paths'
 import { createLimiter } from '../sync/limiter'
 import { extractPosterFrame } from './poster-frame'
 import { encodeWebpUnderCap } from './webp-cap'
@@ -156,7 +156,7 @@ interface RenderVideoParams {
 
 async function renderVideo(params: RenderVideoParams): Promise<Buffer> {
   const { absPath, hash, width } = params
-  const frame = path.join(THUMBS_DIR, `${hash}.${randomUUID()}.tmp.png`)
+  const frame = path.join(THUMBS_DIR, `${hash}${tempSuffix()}.png`)
 
   try {
     await extractPosterFrame({ videoPath: absPath, width, outPath: frame })

@@ -8,6 +8,7 @@ import {
   DATA_DIR,
   DOWNLOADS_DIR,
   IMAGES_DIR,
+  isTempName,
   STORAGE_TMP_DIR,
   THUMBS_DIR,
   UPLOADS_DIR,
@@ -43,7 +44,7 @@ async function removeTemps(dir: string): Promise<number> {
   let removed = 0
 
   for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.includes('.tmp-')) {
+    if (!entry.isFile() || !isTempName(entry.name)) {
       continue
     }
 
@@ -58,8 +59,10 @@ async function removeTemps(dir: string): Promise<number> {
 
       await fs.unlink(file)
       removed += 1
-    } catch {
-      // Vanished between readdir and unlink.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(`[unplatform-ai] temp cleanup failed for ${entry.name}`, error)
+      }
     }
   }
 
