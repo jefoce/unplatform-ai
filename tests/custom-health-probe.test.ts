@@ -141,3 +141,63 @@ describe('custom health probe', () => {
     expect(states).toEqual(['unreachable'])
   })
 })
+
+describe('custom health probe dedupe by token', () => {
+  it('runs one probe for two endpoints on one origin with the same token', async () => {
+    tokenState.value = 'shared-token'
+
+    const deferred = Promise.withResolvers<Response>()
+
+    const fetchMock = vi.fn<typeof fetch>(() => {
+      return deferred.promise
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = runHealthProbe({ ...ENDPOINT, id: 'ep1' })
+    const second = runHealthProbe({ ...ENDPOINT, id: 'ep2' })
+
+    deferred.resolve(healthResponse())
+
+    const [firstProbe, secondProbe] = await Promise.all([first, second])
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(secondProbe).toBe(firstProbe)
+  })
+
+  it('runs a second probe when the token rotated between calls', async () => {
+    tokenState.value = 'old-token'
+
+    const responses: Array<{ resolve: (response: Response) => void }> = []
+
+    const fetchMock = vi.fn<typeof fetch>(() => {
+      const deferred = Promise.withResolvers<Response>()
+
+      responses.push(deferred)
+
+      return deferred.promise
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = runHealthProbe(ENDPOINT)
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    tokenState.value = 'new-token'
+
+    const second = runHealthProbe(ENDPOINT)
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    for (const deferred of responses) {
+      deferred.resolve(healthResponse())
+    }
+
+    await Promise.all([first, second])
+  })
+})

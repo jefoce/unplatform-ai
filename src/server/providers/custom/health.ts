@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { createHash } from 'node:crypto'
+
 import { isNil } from 'lodash-es'
 
 import { FETCH_TIMEOUTS } from '@/core/constants'
@@ -9,7 +11,9 @@ import { CUSTOM_PROTOCOL_MESSAGE } from '@/core/providers/custom-messages'
 import type { CustomEndpoint } from '@/core/schemas/custom-endpoint'
 import type { TestResult } from '@/core/types'
 
+import { secretsReady } from '../../secrets'
 import { ProviderError } from '../provider-error'
+import { getEndpointToken } from './endpoint-source'
 import { healthStateOf, protocolError } from './errors'
 import { type CustomHealthOutcome, emitCustomHealth } from './health-events'
 import {
@@ -40,7 +44,9 @@ const pendingProbes = new Map<string, Promise<HealthProbe>>()
 /** The request timeout plus a margin, so a probe that ignores abort still settles. */
 const HEALTH_PROBE_DEADLINE_MS = FETCH_TIMEOUTS.meta + 2_000
 
-/** Null for an invalid base URL, so the probe reports it like any network failure. */
+/**
+ * Null for an invalid base URL, so the probe reports it like any network failure.
+ */
 function probeOrigin(endpoint: CustomEndpoint): string | null {
   try {
     return endpointOrigin(endpoint)
@@ -49,15 +55,40 @@ function probeOrigin(endpoint: CustomEndpoint): string | null {
   }
 }
 
-/** One health call, shared by concurrent callers on the same origin. */
-export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthProbe> {
+/**
+ * Origin plus a token hash, so one origin shares a probe only with the same credential.
+ */
+async function probeKey(endpoint: CustomEndpoint): Promise<string | null> {
   const origin = probeOrigin(endpoint)
 
   if (isNil(origin)) {
+    return null
+  }
+
+  await secretsReady()
+
+  const token = getEndpointToken(endpoint.id)
+
+  if (isNil(token)) {
+    return origin
+  }
+
+  const tokenHash = createHash('sha256').update(token).digest('hex')
+
+  return `${origin}\u0000${tokenHash}`
+}
+
+/**
+ * One health call, shared by concurrent callers on the same origin and token.
+ */
+export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthProbe> {
+  const key = await probeKey(endpoint)
+
+  if (isNil(key)) {
     return probeEndpoint(endpoint)
   }
 
-  const pending = pendingProbes.get(origin)
+  const pending = pendingProbes.get(key)
 
   if (!isNil(pending)) {
     return pending
@@ -65,12 +96,12 @@ export async function runHealthProbe(endpoint: CustomEndpoint): Promise<HealthPr
 
   const probe = probeEndpoint(endpoint)
 
-  pendingProbes.set(origin, probe)
+  pendingProbes.set(key, probe)
 
   try {
     return await probe
   } finally {
-    pendingProbes.delete(origin)
+    pendingProbes.delete(key)
   }
 }
 
