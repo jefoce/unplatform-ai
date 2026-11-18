@@ -60,6 +60,7 @@ let testService: typeof EndpointTestService
 let healthService: typeof EndpointHealthService
 let repo: typeof EndpointsRepo
 let secrets: SecretsModule
+let testIndex = 0
 
 beforeAll(async () => {
   secrets = await loadSecrets()
@@ -80,6 +81,7 @@ beforeEach(async () => {
 
   healthService.__resetEndpointHealthForTests()
   testService.__resetEndpointTestsForTests()
+  testIndex += 1
 })
 
 afterEach(() => {
@@ -349,7 +351,7 @@ describe('running jobs', () => {
     await fs.mkdir(downloads, { recursive: true })
     await fs.writeFile(path.join(downloads, `${recordId}.json`), JSON.stringify(record))
 
-    const future = new Date(Date.now() + 5000)
+    const future = new Date(Date.now() + testIndex * 1000 + 5000)
 
     await fs.utimes(downloads, future, future)
 
@@ -409,7 +411,7 @@ describe('running jobs', () => {
     await write('66666666-6666-4666-8666-666666666662', secondId, 'in_progress')
     await write('66666666-6666-4666-8666-666666666663', secondId, 'completed')
 
-    const future = new Date(Date.now() + 5000)
+    const future = new Date(Date.now() + testIndex * 1000 + 5000)
 
     await fs.utimes(downloads, future, future)
 
