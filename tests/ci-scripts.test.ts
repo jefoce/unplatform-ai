@@ -497,6 +497,57 @@ function ciYamlFiles(dir: string): string[] {
 
 const CI_YAML_FILES = [...ciYamlFiles('.github/workflows'), ...ciYamlFiles('.github/actions')]
 
+/**
+ * Node job runner images from the release matrix, keyed by target.
+ */
+function releaseNodeRunners(): Map<string, string> {
+  const text = fs.readFileSync(path.resolve('.github/workflows/release.yml'), 'utf8')
+  const nodeJob = text.split(/\n {2}node:\n/)[1]?.split(/\n {2}[a-z][\w-]*:\n/)[0] ?? ''
+  const pairs = [...nodeJob.matchAll(/-\s*runner:\s*(\S+)[^\n]*\n\s*target:\s*(\S+)/g)]
+
+  return new Map(
+    pairs.flatMap((match): [string, string][] => {
+      const [, runner, target] = match
+
+      if (isNil(runner) || isNil(target)) {
+        return []
+      }
+
+      return [[target, runner]]
+    }),
+  )
+}
+
+const TARGET_RUNNERS = [
+  'aarch64-apple-darwin',
+  'x86_64-unknown-linux-gnu',
+  'x86_64-pc-windows-msvc',
+] as const
+
+describe('target runners', () => {
+  it('maps the Windows target to windows-2025', () => {
+    const result = runScript({ script: 'target-runners.sh', args: ['x86_64-pc-windows-msvc'] })
+
+    expect(result.stdout.trim()).toBe('ubuntu-22.04 windows-2025')
+    expect(releaseNodeRunners().get('x86_64-pc-windows-msvc')).toBe('windows-2025')
+  })
+
+  it.each(TARGET_RUNNERS)('uses the node runner from the release matrix for %s', (target) => {
+    const result = runScript({ script: 'target-runners.sh', args: [target] })
+    const nodeRunner = result.stdout.trim().split(/\s+/)[1]
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(nodeRunner, target).toBe(releaseNodeRunners().get(target))
+  })
+
+  it('rejects an unknown target', () => {
+    const result = runScript({ script: 'target-runners.sh', args: ['unknown-target'] })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('::error::unsupported target unknown-target')
+  })
+})
+
 describe('runner images', () => {
   it.each(CI_YAML_FILES)('%s pins a fixed runner image', (file) => {
     const text = fs.readFileSync(path.resolve(file), 'utf8')
