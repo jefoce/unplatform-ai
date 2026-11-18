@@ -13,6 +13,10 @@ lto = true
 opt-level = "s"
 strip = true
 
+[features]
+# Off by default. Only an e2e build may forward the mock and E2E switches to the sidecar.
+e2e = []
+
 [build-dependencies]
 tauri-build = { version = "2.7.3", features = [] }
 

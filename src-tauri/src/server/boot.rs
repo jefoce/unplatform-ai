@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::{
     collections::HashSet,
+    ffi::{OsStr, OsString},
     fs::{self, File},
     io::{self, ErrorKind, Write},
     net::TcpListener,
@@ -429,6 +430,34 @@ fn enable_linux_gpu(window: &WebviewWindow<Wry>) {
     }
 }
 
+/// Env names a release sidecar never receives.
+const MOCK_ENV_NAMES: [&str; 4] = [
+    "OPENROUTER_MOCK",
+    "REMOTE_MOCK",
+    "CUSTOM_ENDPOINT_MOCK",
+    "E2E",
+];
+
+/// Drops the mock and e2e switches unless the build enables the `e2e` feature.
+fn sidecar_env<I, S>(envs: I, strip_mocks: bool) -> Vec<(S, S)>
+where
+    I: IntoIterator<Item = (S, S)>,
+    S: AsRef<OsStr>,
+{
+    let envs = envs.into_iter();
+
+    if !strip_mocks {
+        return envs.collect();
+    }
+
+    envs.filter(|(name, _)| {
+        let name = name.as_ref().to_str().unwrap_or_default();
+
+        !MOCK_ENV_NAMES.contains(&name) && !name.starts_with("E2E_")
+    })
+    .collect()
+}
+
 pub(crate) fn spawn_child(
     app: &AppHandle<Wry>,
     launch: &Launch,
@@ -446,7 +475,7 @@ pub(crate) fn spawn_child(
         &parent_secret,
         &launch.boot_nonce,
     )?;
-    let envs = vec![
+    let explicit = vec![
         ("PORT".to_string(), launch.port.to_string()),
         ("HOSTNAME".to_string(), "127.0.0.1".to_string()),
         (
@@ -460,6 +489,15 @@ pub(crate) fn spawn_child(
             ffmpeg_path()?.to_string_lossy().into_owned(),
         ),
     ];
+    // The inherited env is forwarded by hand so the release build can drop mock switches.
+    let envs = sidecar_env(
+        std::env::vars_os().chain(
+            explicit
+                .into_iter()
+                .map(|(key, value)| (OsString::from(key), OsString::from(value))),
+        ),
+        !cfg!(feature = "e2e"),
+    );
     let state = app.state::<State>();
     state.spawn_count.fetch_add(1, Ordering::SeqCst);
     let (receiver, child) = app
@@ -468,6 +506,7 @@ pub(crate) fn spawn_child(
         .map_err(|error| format!("resolve sidecar: {error}"))?
         .args(["server.js"])
         .current_dir(&launch.runtime_dir)
+        .env_clear()
         .envs(envs)
         .spawn()
         .map_err(|error| format!("spawn sidecar: {error}"))?;
@@ -848,8 +887,8 @@ pub(crate) fn health(port: u16) -> Option<Health> {
 #[cfg(test)]
 mod tests {
     use super::{
-        clamp_bounds, extract_failure, free_port, is_ours, next_port, session_url, stage_runtime,
-        Health, LockInfo, MonitorRect,
+        clamp_bounds, extract_failure, free_port, is_ours, next_port, session_url, sidecar_env,
+        stage_runtime, Health, LockInfo, MonitorRect,
     };
     use crate::settings::WindowBounds;
     use std::{
@@ -916,6 +955,42 @@ mod tests {
 
         assert!(bounds.x.is_none());
         assert!(bounds.y.is_none());
+    }
+
+    #[test]
+    fn strips_mock_and_e2e_env_from_a_release_sidecar() {
+        let envs = sidecar_env(
+            vec![
+                ("OPENROUTER_MOCK", "1"),
+                ("REMOTE_MOCK", "1"),
+                ("CUSTOM_ENDPOINT_MOCK", "1"),
+                ("E2E", "1"),
+                ("E2E_BASE_URL", "http://127.0.0.1:3000"),
+                ("STORAGE_ROOT", "/data"),
+            ],
+            true,
+        );
+
+        assert_eq!(envs, vec![("STORAGE_ROOT", "/data")]);
+    }
+
+    #[test]
+    fn keeps_mock_and_e2e_env_for_an_e2e_sidecar() {
+        let envs = sidecar_env(
+            vec![
+                ("OPENROUTER_MOCK", "1"),
+                ("REMOTE_MOCK", "1"),
+                ("CUSTOM_ENDPOINT_MOCK", "1"),
+                ("E2E", "1"),
+                ("E2E_BASE_URL", "http://127.0.0.1:3000"),
+                ("STORAGE_ROOT", "/data"),
+            ],
+            false,
+        );
+
+        assert_eq!(envs.len(), 6);
+        assert!(envs.contains(&("E2E_BASE_URL", "http://127.0.0.1:3000")));
+        assert!(envs.contains(&("STORAGE_ROOT", "/data")));
     }
 
     #[test]
