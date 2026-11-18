@@ -853,6 +853,7 @@ mod tests {
     };
     use crate::settings::WindowBounds;
     use std::{
+        collections::HashSet,
         fs,
         io::{self, ErrorKind},
         path::Path,
@@ -1017,7 +1018,7 @@ mod tests {
         );
         assert_eq!(fs::read(runtime.join("server.js")).unwrap(), b"kept");
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1033,7 +1034,7 @@ mod tests {
 
         assert!(runtime.join("server.js").is_file());
         assert!(!runtime.join("runtime").exists());
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1074,7 +1075,7 @@ mod tests {
             "second"
         );
         assert_eq!(fs::read(runtime.join("server.js")).unwrap(), b"new");
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1090,7 +1091,7 @@ mod tests {
         assert!(!runtime.exists());
         assert!(!root.join("runtime/evil.txt").exists());
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1104,7 +1105,7 @@ mod tests {
 
         assert!(error.contains("unsafe path"), "{error}");
         assert!(!runtime.exists());
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[cfg(unix)]
@@ -1120,7 +1121,7 @@ mod tests {
         assert!(error.contains("escapes the runtime"), "{error}");
         assert!(!runtime.exists());
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1140,7 +1141,7 @@ mod tests {
         assert!(error.contains("extract"), "{error}");
         assert!(!runtime.exists());
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[cfg(unix)]
@@ -1161,15 +1162,42 @@ mod tests {
         let mode = fs::metadata(&path).unwrap().permissions().mode();
 
         assert_eq!(mode & 0o777, 0o600);
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
+
+    #[test]
+    fn separates_roots_from_one_clock_reading() {
+        let first = unique_root_at(0);
+        let second = unique_root_at(0);
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn keeps_a_thousand_roots_from_one_clock_reading_distinct() {
+        let roots: HashSet<_> = (0..1000).map(|_| unique_root_at(0)).collect();
+
+        assert_eq!(roots.len(), 1000);
+    }
+
+    static NEXT_ROOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
     fn unique_root() -> std::path::PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("cf-stage-{}-{nanos}", std::process::id()))
+        unique_root_at(nanos)
+    }
+
+    fn unique_root_at(now_nanos: u128) -> std::path::PathBuf {
+        let seq = NEXT_ROOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        std::env::temp_dir().join(format!("cf-stage-{}-{now_nanos}-{seq}", std::process::id()))
+    }
+
+    fn remove_root(root: &Path) {
+        // A root another test already removed is fine.
+        let _ = fs::remove_dir_all(root);
     }
 
     fn write_bundle(dir: &std::path::Path, build_id: &str, server: &[u8]) {
