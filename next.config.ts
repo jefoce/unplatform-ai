@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['sharp', '@napi-rs/keyring'],
   outputFileTracingExcludes: {
     '*': [
+      // Env files hold secrets. This keeps .env.local out of .next/standalone, but Turbopack applies
+      // the exclude per route trace and copies instrumentation.js.nft.json unfiltered, so
+      // .env.example can still appear there.
+      '.env*',
+      '**/.env*',
       '.e2e-tmp/**',
       '**/*.map',
       '**/*.d.ts',

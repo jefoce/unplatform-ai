@@ -94,6 +94,15 @@ describe('response headers', () => {
   })
 })
 
+describe('standalone trace excludes', () => {
+  it('excludes env files from the traced output', () => {
+    const excludes = nextConfig.outputFileTracingExcludes?.['*'] ?? []
+
+    expect(excludes).toContain('.env*')
+    expect(excludes).toContain('**/.env*')
+  })
+})
+
 describe('desktop shell policy', () => {
   it('uses the app CSP and grants only the bound sidecar origin', () => {
     const config = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'))
