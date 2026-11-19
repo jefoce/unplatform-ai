@@ -85,10 +85,6 @@ The app checks 15 seconds after launch, then every 12 hours, and shows a notice 
 
 On macOS, the first launch after an update asks for keychain access once. Choose **Always Allow**.
 
-Version 0.1.0 has no updater. Install 0.2.0 by hand once from the Releases page. Later versions update themselves.
-
-Coming from 0.3.x? Update through the 0.3.2 bridge first. It moves your history, settings and key, then 0.4.0 arrives from the new [Releases page](https://github.com/jefoce/unplatform-ai/releases/latest). The data folder used by 0.3.x moved to `.unplatform-ai`, and 0.4.0 does not read the old one. If you install 0.4.0 by hand without 0.3.2, re-enter your key in Settings.
-
 ## Messages your computer may show
 
 The app is not signed with a paid certificate yet, so your system asks more questions than usual. They are all normal.

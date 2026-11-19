@@ -14,6 +14,8 @@
 - A failed upload check leaves no stray file behind.
 - The catalog error no longer shows the raw custom id.
 - An endpoint that comes back is usable again without waiting for the next health check.
+- Third-party license texts ship with the app as one file, opened from Settings > About.
+- A brief failure to read the endpoint list no longer fails running jobs.
 
 ## 0.5.1 - 2026-11-16
 

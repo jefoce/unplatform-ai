@@ -1,5 +1,3 @@
-/* eslint-disable max-lines -- guide checks share one documentation suite */
-
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -274,15 +272,6 @@ describe('storage and code maps', () => {
 })
 
 describe('documentation text', () => {
-  it('explains the data folder move', () => {
-    const readme = fs.readFileSync(file('README.md'), 'utf8')
-
-    expect(readme).toContain('0.3.2 bridge')
-    expect(readme).toContain('The data folder used by 0.3.x')
-    expect(readme).toContain('.unplatform-ai')
-    expect(readme).toContain('does not read the old one')
-  })
-
   it('keeps the affiliation disclaimer', () => {
     const readme = fs.readFileSync(file('README.md'), 'utf8').replaceAll(/\s+/g, ' ')
 
