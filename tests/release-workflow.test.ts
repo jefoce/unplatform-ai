@@ -75,6 +75,17 @@ describe('release build job', () => {
     expect(tested).toBeLessThan(staged)
   })
 
+  it('stages sidecar placeholders before cargo test', () => {
+    const placeholders = build.indexOf('name: Sidecar placeholders for cargo test')
+
+    expect(placeholders).toBeGreaterThan(-1)
+    expect(placeholders).toBeLessThan(tested)
+
+    expect(build.slice(placeholders, tested)).toContain(
+      'src-tauri/binaries/unplatform-ai-server-$TARGET$suffix',
+    )
+  })
+
   it('smokes the built app on macOS', () => {
     const smoke = build.indexOf('SMOKE_APP:')
 

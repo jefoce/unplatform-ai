@@ -475,6 +475,23 @@ jobs:
         if: needs.node.result == 'skipped' && (inputs.reuse_sidecars_run_id || vars.SIDECARS_RUN_ID) == ''
         shell: bash
         run: echo "ALLOW_OFFICIAL_NODE=1" >> "$GITHUB_ENV"
+      # tauri-build needs every bundle path from tauri.conf.json, and only
+      # desktop:prepare writes the sidecars. Checks uses zero-byte placeholders.
+      - name: Sidecar placeholders for cargo test
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          suffix=""
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            suffix=".exe"
+          fi
+          mkdir -p src-tauri/binaries
+          touch "src-tauri/binaries/unplatform-ai-server-$TARGET$suffix" "src-tauri/binaries/ffmpeg-$TARGET$suffix"
+          if [[ "$RUNNER_OS" != "Windows" ]]; then
+            chmod +x "src-tauri/binaries/unplatform-ai-server-$TARGET$suffix" "src-tauri/binaries/ffmpeg-$TARGET$suffix"
+          fi
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Stage server
         run: pnpm desktop:prepare
