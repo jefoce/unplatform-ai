@@ -32,10 +32,12 @@ const BUILD_ONLY = new Set([
   'FFMPEG_PROFILE',
   'NODE_BINARY',
   'UPAI_PREPARED',
+  'UNPLATFORM_DESKTOP_BUILD',
   'TAURI_ENV_TARGET_TRIPLE',
   'TAURI_SIGNING_PRIVATE_KEY',
   'UPAI_BUILD_WORK_DIR',
   'CARGO_TARGET_DIR',
+  'CARGO_HOME',
 ])
 
 /** Framework, runtime and injected names that are not user-facing app config. */

@@ -82,6 +82,9 @@ vi.mock('@/server/repos/generations', () => {
     getGeneration: async (id: string) => {
       return mock.videoById.get(id) ?? null
     },
+    loadGeneration: async (id: string) => {
+      return mock.videoById.get(id) ?? null
+    },
     saveGeneration: saveVideo,
     updateGeneration: async (
       id: string,
@@ -117,6 +120,9 @@ vi.mock('@/server/repos/generations', () => {
 vi.mock('@/server/repos/images', () => {
   return {
     getImage: async (id: string) => {
+      return mock.imageById.get(id) ?? null
+    },
+    loadImage: async (id: string) => {
       return mock.imageById.get(id) ?? null
     },
     saveImage: saveImageRecord,

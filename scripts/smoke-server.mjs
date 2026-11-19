@@ -5,12 +5,15 @@ import fs from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { zstdDecompressSync } from 'node:zlib'
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const TAURI_DIR = path.join(ROOT, 'src-tauri')
 const BINARIES_DIR = path.join(TAURI_DIR, 'binaries')
 const RESOURCES_DIR = path.join(TAURI_DIR, 'resources', 'server')
+const APP_BUNDLE_DIRS = ['release', 'cargo/release']
+const CHUNK_REFERENCE = /server\/chunks\/[^"'\\\s)]+/g
 const SESSION_COOKIE = 'upai_session'
 const HEALTH_TIMEOUT_MS = 60_000
 const COMPLETE_TIMEOUT_MS = 90_000
@@ -108,6 +111,143 @@ async function logTail(file, count) {
   return text.split(/\r?\n/).filter(Boolean).slice(-count)
 }
 
+/**
+ * True when `file` exists.
+ */
+async function exists(file) {
+  return fs.access(file).then(
+    () => true,
+    () => false,
+  )
+}
+
+/**
+ * Route and instrumentation files under a Next build root.
+ */
+async function entryFiles(root) {
+  const serverDir = path.join(root, 'server')
+  const entries = await fs
+    .readdir(serverDir, { recursive: true, withFileTypes: true })
+    .catch((error) => {
+      if (error.code === 'ENOENT') {
+        return []
+      }
+
+      throw error
+    })
+
+  return entries
+    .filter((entry) => {
+      if (!entry.isFile()) {
+        return false
+      }
+
+      const file = path.relative(serverDir, path.join(entry.parentPath, entry.name))
+      const relative = file.split(path.sep).join('/')
+
+      return (
+        relative === 'instrumentation.js' ||
+        (relative.startsWith('app/') && relative.endsWith('/route.js'))
+      )
+    })
+    .map((entry) => path.join(entry.parentPath, entry.name))
+}
+
+/**
+ * Chunk files that route and instrumentation files reference.
+ */
+export async function bundleChunkRefs(root) {
+  const refs = new Set()
+
+  for (const file of await entryFiles(root)) {
+    const text = await fs.readFile(file, 'utf8')
+
+    for (const [reference] of text.matchAll(CHUNK_REFERENCE)) {
+      refs.add(reference)
+    }
+  }
+
+  return [...refs].sort()
+}
+
+/**
+ * Referenced chunks that the build root does not contain.
+ */
+export async function missingBundleChunks(root) {
+  const missing = []
+
+  for (const reference of await bundleChunkRefs(root)) {
+    if (!(await exists(path.join(root, reference)))) {
+      missing.push(reference)
+    }
+  }
+
+  return missing
+}
+
+/**
+ * Built macOS app from SMOKE_APP or the Tauri bundle output.
+ */
+async function findApp() {
+  const configured = process.env.SMOKE_APP
+  if (configured) {
+    const app = path.resolve(configured)
+    if (!(await exists(app))) {
+      throw new Error(`SMOKE_APP does not exist: ${app}`)
+    }
+
+    return app
+  }
+
+  for (const dir of APP_BUNDLE_DIRS) {
+    const macOSDir = path.join(TAURI_DIR, 'target', dir, 'bundle', 'macos')
+    const names = await fs.readdir(macOSDir).catch(() => [])
+    const app = names.find((name) => name.endsWith('.app'))
+    if (app) {
+      return path.join(macOSDir, app)
+    }
+  }
+
+  throw new Error(
+    'No built app found. Run pnpm tauri build --bundles app first, ' +
+      'or set SMOKE_APP, or set SMOKE_STAGED=1 for the staged tree.',
+  )
+}
+
+/**
+ * Extracts the zstd server archive of an app into `dir`.
+ */
+async function extractServer(app, dir) {
+  const archive = path.join(app, 'Contents', 'Resources', 'server.tar.zst')
+  const tarFile = path.join(dir, 'server.tar')
+
+  await fs.writeFile(tarFile, zstdDecompressSync(await fs.readFile(archive)))
+  execFileSync('/usr/bin/tar', ['-xf', tarFile, '-C', dir], { stdio: 'pipe' })
+  await fs.rm(tarFile, { force: true })
+}
+
+/**
+ * Fails unless the archive matches the app build id and holds every referenced chunk.
+ */
+async function assertAppBundle(app, root) {
+  const resources = path.join(app, 'Contents', 'Resources')
+  const expected = (await fs.readFile(path.join(resources, 'server.build-id'), 'utf8')).trim()
+  const actual = (await fs.readFile(path.join(root, '.next', 'BUILD_ID'), 'utf8')).trim()
+
+  if (expected !== actual) {
+    throw new Error(`server.build-id is ${expected} but the archive has ${actual}`)
+  }
+
+  const missing = await missingBundleChunks(path.join(root, '.next'))
+  if (missing.length > 0) {
+    throw new Error(
+      `The bundled server is missing ${missing.length} referenced chunk(s):\n${missing.join('\n')}`,
+    )
+  }
+
+  return actual
+}
+
 function envFor(root, port, ffmpeg) {
   const env = { ...process.env }
   for (const name of Object.keys(env)) {
@@ -132,15 +272,12 @@ async function main() {
   const triple = targetTriple()
   const windows = triple.includes('windows')
   const exe = windows ? '.exe' : ''
-  const serverBinary = path.join(BINARIES_DIR, `unplatform-ai-server-${triple}${exe}`)
-  const ffmpeg = path.join(BINARIES_DIR, `ffmpeg-${triple}${exe}`)
-  const serverJs = path.join(RESOURCES_DIR, 'server.js')
-
-  for (const file of [serverBinary, ffmpeg, serverJs]) {
-    await fs.access(file).catch(() => {
-      throw new Error(`Missing ${path.relative(ROOT, file)}. Run pnpm desktop:prepare first.`)
-    })
-  }
+  const staged = process.env.SMOKE_STAGED === '1'
+  let serverRoot = RESOURCES_DIR
+  let serverBinary = path.join(BINARIES_DIR, `unplatform-ai-server-${triple}${exe}`)
+  let ffmpeg = path.join(BINARIES_DIR, `ffmpeg-${triple}${exe}`)
+  let appPath = null
+  let extractRoot = null
 
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-smoke-'))
   const logsDir = path.join(root, 'logs')
@@ -152,6 +289,28 @@ async function main() {
   let lastRecord = null
 
   try {
+    let buildId = ''
+
+    if (staged) {
+      for (const file of [serverBinary, ffmpeg, path.join(serverRoot, 'server.js')]) {
+        await fs.access(file).catch(() => {
+          throw new Error(`Missing ${path.relative(ROOT, file)}. Run pnpm desktop:prepare first.`)
+        })
+      }
+      buildId = await fs
+        .readFile(path.join(serverRoot, '.next', 'BUILD_ID'), 'utf8')
+        .then((text) => text.trim())
+        .catch(() => 'unknown')
+    } else {
+      appPath = await findApp()
+      extractRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'upai-smoke-app-'))
+      await extractServer(appPath, extractRoot)
+      serverRoot = extractRoot
+      serverBinary = path.join(appPath, 'Contents', 'MacOS', `unplatform-ai-server${exe}`)
+      ffmpeg = path.join(appPath, 'Contents', 'MacOS', `ffmpeg${exe}`)
+      buildId = await assertAppBundle(appPath, serverRoot)
+    }
+
     execFileSync(
       ffmpeg,
       ['-f', 'lavfi', '-i', 'color=c=red:s=640x480', '-frames:v', '1', '-y', fixture],
@@ -164,7 +323,7 @@ async function main() {
     const base = `http://127.0.0.1:${port}`
     await fs.mkdir(logsDir, { recursive: true })
     child = spawn(serverBinary, ['server.js'], {
-      cwd: RESOURCES_DIR,
+      cwd: serverRoot,
       env: envFor(root, port, ffmpeg),
       stdio: ['pipe', 'pipe', 'pipe'],
     })
@@ -398,6 +557,8 @@ async function main() {
     )
     if (lockExists) throw new Error('server.lock was not removed')
 
+    console.log(`[smoke] source: ${appPath ?? path.relative(ROOT, serverRoot)}`)
+    console.log(`[smoke] build id: ${buildId}`)
     console.log(
       `[smoke] ${triple}: health, session, secrets, settings test, link, frames job, media, thumb, shutdown`,
     )
@@ -412,13 +573,16 @@ async function main() {
     throw error
   } finally {
     if (child && child.exitCode === null) child.kill()
+    if (extractRoot) await fs.rm(extractRoot, { recursive: true, force: true })
     await fs.rm(root, { recursive: true, force: true })
   }
 }
 
-try {
-  await main()
-} catch (error) {
-  console.error(`[smoke] ${error.message}`)
-  process.exit(1)
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    await main()
+  } catch (error) {
+    console.error(`[smoke] ${error.message}`)
+    process.exit(1)
+  }
 }

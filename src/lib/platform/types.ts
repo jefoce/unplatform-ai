@@ -45,8 +45,15 @@ export interface Platform {
   /** Opens the bundled third-party notices on desktop, the GitHub copy in the browser. */
   openNotices(): Promise<void>
 
-  /** Opens the bundled license on desktop, the GitHub copy in the browser. */
+  /**
+   * Opens the bundled license on desktop, the GitHub copy in the browser.
+   */
   openLicense(): Promise<void>
+
+  /**
+   * Opens the uncompressed third-party license texts.
+   */
+  openThirdPartyLicenses(): Promise<void>
 
   /** Native confirm dialog, false when dismissed. */
   confirm(message: string): Promise<boolean>

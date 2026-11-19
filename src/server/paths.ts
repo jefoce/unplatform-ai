@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -10,7 +11,10 @@ import { isNonEmptyString } from '@/core/guards'
 const envRoot = process.env.STORAGE_ROOT?.trim()
 const defaultRoot = path.join(os.homedir(), '.unplatform-ai')
 
-/** Same root for browser and desktop. STORAGE_ROOT overrides it (tests, custom setups). */
+/**
+ * Same root for browser and desktop.
+ * STORAGE_ROOT overrides it (tests, custom setups).
+ */
 export const STORAGE_ROOT = storageRoot()
 
 function storageRoot(): string {
@@ -28,7 +32,10 @@ export const DOWNLOADS_DIR = path.join(STORAGE_ROOT, 'downloads')
 export const IMAGES_DIR = path.join(STORAGE_ROOT, 'images')
 export const UPLOADS_DIR = path.join(STORAGE_ROOT, 'uploads')
 
-/** Scratch files for uploads and probes. Never served. */
+/**
+ * Scratch files for uploads and probes.
+ * Never served.
+ */
 export const STORAGE_TMP_DIR = path.join(STORAGE_ROOT, 'tmp')
 export const DATA_DIR = path.join(STORAGE_ROOT, 'data')
 
@@ -109,11 +116,30 @@ export function imageTempPath(params: ImageFileParams): string {
   return path.join(IMAGES_DIR, `${id}-${index}.tmp-${ext}`)
 }
 
+/**
+ * Suffix for an in-flight file.
+ * Every sweep deletes a name that contains it.
+ */
+export function tempSuffix(): string {
+  return `.tmp-${randomUUID()}`
+}
+
+/**
+ * Matches current temp names.
+ * Also matches the legacy `.tmp.` marker until those files age out.
+ */
+export function isTempName(name: string): boolean {
+  return name.includes('.tmp-') || name.includes('.tmp.')
+}
+
 interface CleanupResult {
   removed: number
 }
 
-/** Deletes stale `*.part` and `*.tmp-*` files. Skips symlinks. */
+/**
+ * Deletes stale `*.part` and temp files.
+ * Skips symlinks.
+ */
 export async function cleanupStale(): Promise<CleanupResult> {
   const cutoff = Date.now() - UPLOAD_CLEANUP_MS
 
@@ -125,6 +151,12 @@ export async function cleanupStale(): Promise<CleanupResult> {
   ])
 
   return { removed: downloads + images + uploads + temps }
+}
+
+function logCleanupError(name: string, error: unknown): void {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    console.warn(`[unplatform-ai] temp cleanup failed for ${name}`, error)
+  }
 }
 
 async function removeStale(dir: string, cutoff: number): Promise<number> {
@@ -139,7 +171,7 @@ async function removeStale(dir: string, cutoff: number): Promise<number> {
       continue
     }
 
-    if (!entry.name.endsWith('.part') && !entry.name.includes('.tmp-')) {
+    if (!entry.name.endsWith('.part') && !isTempName(entry.name)) {
       continue
     }
 
@@ -154,8 +186,8 @@ async function removeStale(dir: string, cutoff: number): Promise<number> {
 
       await fs.unlink(file)
       removed += 1
-    } catch {
-      // File vanished between readdir and unlink.
+    } catch (error) {
+      logCleanupError(entry.name, error)
     }
   }
 

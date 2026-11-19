@@ -12,6 +12,7 @@ fn main() {
             "log_client_error",
             "choose_export_path",
             "choose_export_folder",
+            "open_third_party_licenses",
         ]));
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
 }

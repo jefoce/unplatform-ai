@@ -613,6 +613,12 @@ Slider 3 totals 830 + 840 = 1670px, more than the 1518px reference. Media keeps 
 
 The details panel stops shrinking at 240px wide and 280px tall. Below that the media box caps at the remaining row width and stays 16:9, so narrow windows keep the same layout without horizontal overflow. Media aligns to the top when it is shorter than the details panel.
 
+## 2026-11-18 - Export temp cleanup
+
+The only delete outside `STORAGE_ROOT` is the export temp file. Export cleanup removes only a regular file in the target folder named `<target>.tmp-<uuid v4>`. A directory or a loose `.tmp-` name stays.
+
+Why: the export folder belongs to the user. A loose prefix match could delete a file the user named `clip.mp4.tmp-notes`. The uuid suffix is the exact shape the export writer creates. Two exports to one base name serialize per target path, so one cleanup never removes the other's live temp.
+
 ## Deferred on purpose
 
 | Item | Why not now | Bring it back when |

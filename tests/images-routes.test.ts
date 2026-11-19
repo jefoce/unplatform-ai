@@ -17,6 +17,7 @@ import { withLock } from '../src/server/sync/lock'
 
 const ROOT = path.join(os.tmpdir(), `cf-images-routes-${process.pid}-${Date.now()}`)
 const IMAGES = path.join(ROOT, 'images')
+const UPLOADS = path.join(ROOT, 'uploads')
 const PREVIOUS_ROOT = process.env.STORAGE_ROOT
 
 process.env.STORAGE_ROOT = ROOT
@@ -172,12 +173,13 @@ beforeAll(async () => {
 beforeEach(async () => {
   await fs.rm(ROOT, { recursive: true, force: true })
   await fs.mkdir(IMAGES, { recursive: true })
-  await fs.mkdir(path.join(ROOT, 'uploads'), { recursive: true })
+  await fs.mkdir(UPLOADS, { recursive: true })
 
   testIndex += 1
   const stamp = new Date(Date.now() + testIndex * 1000)
 
   await fs.utimes(IMAGES, stamp, stamp)
+  await fs.utimes(UPLOADS, stamp, stamp)
   await repo.listImages()
   startImageSubmit.mockClear()
   pricingGate.isGated = false

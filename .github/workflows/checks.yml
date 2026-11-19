@@ -9,7 +9,7 @@ permissions:
 jobs:
   rust:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,6 +25,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
+      - uses: ./.github/actions/setup-pnpm
       - name: Sidecar placeholder
         run: |
           # tauri-build copies every bundle path from tauri.conf.json, so the CI
@@ -34,11 +35,15 @@ jobs:
           touch src-tauri/binaries/unplatform-ai-server-"$target" src-tauri/binaries/ffmpeg-"$target"
           chmod +x src-tauri/binaries/unplatform-ai-server-"$target" src-tauri/binaries/ffmpeg-"$target"
           touch src-tauri/resources/THIRD_PARTY_NOTICES.md src-tauri/resources/LICENSE
+      - name: Fetch cargo sources
+        run: cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+      - name: Notices
+        run: pnpm notices
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
   desktop:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,6 +60,8 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
+      - name: Fetch cargo sources
+        run: cargo fetch --locked --manifest-path src-tauri/Cargo.toml
       - uses: ./.github/actions/setup-pnpm
       - name: Cache ffmpeg downloads and build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -72,7 +79,8 @@ jobs:
       - run: pnpm desktop:prepare
       - name: Prepared runtime requires
         run: pnpm check:standalone -- src-tauri/resources/server
-      - run: pnpm smoke
+      - name: Smoke the staged server
+        run: SMOKE_STAGED=1 pnpm smoke
       - name: Build the desktop shell without a bundle
         env:
           UPAI_PREPARED: 1
@@ -80,17 +88,25 @@ jobs:
 
   checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm deps
       - run: pnpm format:check
       - run: pnpm knip
+      - name: Fetch cargo sources
+        run: cargo fetch --locked --manifest-path src-tauri/Cargo.toml
       - name: Notices
         if: github.actor != 'dependabot[bot]' || github.base_ref != 'releases'
         run: pnpm notices --check
@@ -103,7 +119,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -124,6 +140,10 @@ jobs:
           mkdir -p src-tauri/binaries src-tauri/resources/licenses src-tauri/resources/server-archive
           touch src-tauri/binaries/unplatform-ai-server-"$target".exe src-tauri/binaries/ffmpeg-"$target".exe
           touch src-tauri/resources/THIRD_PARTY_NOTICES.md src-tauri/resources/LICENSE
+      - name: Fetch cargo sources
+        run: cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+      - name: Notices
+        run: pnpm notices
       - run: pnpm test
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 

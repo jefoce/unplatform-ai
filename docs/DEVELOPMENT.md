@@ -63,10 +63,10 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 | `pnpm desktop:build` | Installers for the current platform: dmg on macOS, NSIS on Windows, AppImage, deb and rpm on Linux |
 | `pnpm ffmpeg:build` | Build the pinned GPL ffmpeg into the local cache |
 | `pnpm node:build` | Build the small-ICU Node sidecar into the local cache |
-| `pnpm notices` | Regenerate npm notices, copy notices and LICENSE into resources |
+| `pnpm notices` | Regenerate the notices and `THIRD_PARTY_LICENSES.txt.gz`, copy them and LICENSE into resources |
 | `pnpm size:report` | Print the bundled app size report and check the budget |
 | `pnpm size:baseline` | Regenerate `scripts/size-baseline.json` from the current bundle |
-| `pnpm smoke` | Run the staged server smoke test |
+| `pnpm smoke` | Run the smoke test against the bundled app. `SMOKE_STAGED=1` runs the staged tree instead |
 | `pnpm tauri` | Pass a command to the Tauri CLI |
 
 ## 4. Mock modes
@@ -207,6 +207,8 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `E2E` | `1` uses the file chooser stub at `$STORAGE_ROOT/e2e-choose.txt` during e2e runs |
 | `WRITE_IMAGE_PRICE_FIXTURE` | `1` rewrites the image price fixture during the drift test |
 | `FFMPEG_PATH` | ffmpeg binary for the dev server and smoke runs |
+| `SMOKE_APP` | Built app the smoke test extracts, default the newest `src-tauri/target/{release,cargo/release}/bundle/macos` app |
+| `SMOKE_STAGED` | `1` smokes the staged tree from `pnpm desktop:prepare` instead of the bundled app |
 | `APP_ORIGIN` | Origin used by mock remote links |
 
 Env values override stored keys and are read-only in Settings.
@@ -233,7 +235,9 @@ pnpm vitest
 
 `pnpm lint` runs ESLint. `pnpm knip` reports unused files, exports and dependencies, and is part of the gate and CI.
 
-`.github/workflows/ci.yml` runs on pushes to `releases` and on pull requests. Version branches run CI through their open pull request, so a branch with an open pull request does not run twice. Concurrency group `ci-<ref>` cancels a superseded run. It calls `.github/workflows/checks.yml` (typecheck, lint, deps, format, knip, test, build) and runs a `workflows` job that lints the pipeline itself. `.github/workflows/audit.yml` runs `pnpm audit --prod --audit-level high` and `cargo audit` on a weekly schedule and on pull requests that touch `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.toml` or `src-tauri/Cargo.lock`, where they block. Tag pushes go to the release workflow, which runs the same checks once for `v*-rc.*`.
+`.github/workflows/ci.yml` runs on pushes to `releases` and on pull requests. Version branches run CI through their open pull request, so a branch with an open pull request does not run twice. Concurrency group `ci-<ref>` cancels a superseded run. It calls `.github/workflows/checks.yml` (typecheck, lint, deps, format, knip, notices, test, build) and runs a `workflows` job that lints the pipeline itself. `.github/workflows/audit.yml` runs `pnpm audit --prod --audit-level high` and `cargo audit` on a weekly schedule and on pull requests that touch `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.toml` or `src-tauri/Cargo.lock`, where they block. Tag pushes go to the release workflow, which runs the same checks once for `v*-rc.*`.
+
+The `checks`, `rust` and `windows` jobs run `cargo fetch --locked` before `pnpm notices`, because the license document reads the registry sources of all three release targets. `rust` and `windows` also run `pnpm notices` before `cargo test`. The `desktop` job fetches the cargo sources before `desktop:prepare` and smokes the staged tree with `SMOKE_STAGED=1`.
 
 The `workflows` job runs actionlint through its pinned Docker image, shellcheck over `.github/scripts/*.sh`, `scripts/ffmpeg/*.sh`, `scripts/node/*.sh` and `scripts/generate-header.sh`, and zizmor 1.31.1 at `--min-severity medium --min-confidence high`. actionlint also shellchecks every `run:` block. `.github/workflows/catalog-drift.yml` runs the live catalog test weekly.
 
@@ -276,6 +280,10 @@ Dependabot opens one grouped monthly pull request for npm, cargo and GitHub Acti
 
 On Linux the AppImage needs FUSE 2. Ubuntu 22.04 or Debian 12: `sudo apt install libfuse2`. Ubuntu 24.04 or newer: `sudo apt install libfuse2t64`. Install exactly that package, not `fuse`, which replaces `fuse3`. Without FUSE, run `./unplatform-ai-*-linux-x64.AppImage --appimage-extract-and-run`.
 
+`pnpm desktop:build` holds `.desktop-build.lock` (pid and start time) for the whole build. Never run `pnpm build`, `next build`, `next dev` or `tauri build` while that pid is alive, because two builds corrupt `.next`. Do not delete a live lock. `next.config.ts` refuses to build while the pid is alive, and the desktop build removes a lock whose pid is gone, so a dead pid is stale and safe to drop.
+
+Next 16.4.2 leaves `.next/server/chunks/**` out of route traces (Next issue #95816). `next.config.ts` lists them again with `outputFileTracingIncludes` `'/*': ['.next/server/chunks/**']`, and `prepare-desktop.mjs` fails when a route references a chunk the standalone output lacks. Remove both when Next copies the chunks itself.
+
 `pnpm desktop:prepare` runs a Next build, then `scripts/prepare-desktop.mjs`:
 
 1. Copies `.next/standalone` and `.next/static` into `src-tauri/resources/server`, skipping env files, docs, sources, tests and build caches.
@@ -289,9 +297,9 @@ On Linux the AppImage needs FUSE 2. Ubuntu 22.04 or Debian 12: `sudo apt install
 9. Prints staged sizes, the archive size and the bytes pruned.
 10. Release builds use `[profile.release]` in `src-tauri/Cargo.toml`: `codegen-units = 1`, `lto = true`, `opt-level = "s"` and `strip = true`. Panic unwinding stays on so the hook keeps writing to `desktop.log`.
 
-`pnpm notices` regenerates the npm section of `THIRD_PARTY_NOTICES.md` from `pnpm licenses list --prod --json`, then copies it and `LICENSE` into `src-tauri/resources`. `prepare-desktop.mjs` copies `licenses/` into `src-tauri/resources/licenses`. `desktop:prepare` runs both.
+`pnpm notices` regenerates `THIRD_PARTY_NOTICES.md` from `pnpm licenses list --prod --json` and the installed sharp-libvips bundle. It also writes `THIRD_PARTY_LICENSES.txt` and its deterministic gzip `THIRD_PARTY_LICENSES.txt.gz` (level 9, zero modification time): every license text once, followed by the npm production packages and the Rust crates that ship in the three release targets. Cargo comes from `cargo tree -e normal,no-proc-macro` per target, read from the registry sources, so dev, build and proc-macro crates stay out. A package that ships no license file uses the SPDX License List text and is marked. It then copies the notices, the archive, `LICENSE` and the original `licenses/` texts into `src-tauri/resources`. `prepare-desktop.mjs` copies `licenses/` again. `desktop:prepare` runs both. `pnpm notices --check` fails when a section is stale, a shipped package has no text, or the archive does not decompress to the fresh text. It also requires a zero mtime in the gzip header.
 
-`pnpm smoke` runs `scripts/smoke-server.mjs` against the staged target: starts the sidecar with a temp `STORAGE_ROOT`, opens a session, answers the @@upai-secrets bridge in memory (no file-backend override on macOS or Windows), links a fixture image, submits a Wan 3.0 frames job in mock mode, fetches the video and thumb, then shuts down and checks `server.lock` is gone. Run it after `pnpm desktop:prepare`. Pass `--target <triple>` to test another staged platform. The file backend itself is Linux only.
+`pnpm smoke` runs `scripts/smoke-server.mjs` against the built app by default: it finds the newest `src-tauri/target/{release,cargo/release}/bundle/macos` app or `SMOKE_APP`, extracts `Contents/Resources/server.tar.zst`, checks `server.build-id` against the extracted `.next/BUILD_ID`, then checks that every route chunk reference exists. It starts the sidecar with a temp `STORAGE_ROOT`, opens a session, answers the @@upai-secrets bridge in memory (no file-backend override on macOS or Windows), links a fixture image, submits a Wan 3.0 frames job in mock mode, fetches the video and thumb, then shuts down and checks `server.lock` is gone. `SMOKE_STAGED=1` smokes the staged tree instead, after `pnpm desktop:prepare`. Pass `--target <triple>` to test another staged platform. The file backend itself is Linux only.
 
 Sidecars: `unplatform-ai-server-<target-triple>` is the Node runtime, `ffmpeg-<target-triple>` is ffmpeg. Every platform lists both in `bundle.externalBin` from `tauri.conf.json`, so Tauri copies them beside the app binary and ad-hoc signs them on macOS. The shell injects `PORT`, `HOSTNAME=127.0.0.1`, `APP_TOKEN_FILE`, `PARENT_PID` and `FFMPEG_PATH`, always spawns the `unplatform-ai-server` sidecar and points `FFMPEG_PATH` at the bundled ffmpeg.
 
@@ -420,7 +428,7 @@ Then open `http://127.0.0.1:47821/session#t=test`.
 
 ## 18. Release checklist
 
-`.github/workflows/release.yml` runs on pushes to `releases`, on `v*-rc.*` tags and on manual `workflow_dispatch` with a `tag` input. A `draft` job creates one draft release before any build. The `ffmpeg` and `node` jobs pull their sidecar from GHCR or build and push it. A `checks` job calls `checks.yml` once in parallel with the sidecar jobs. Build jobs download artifacts (or a reused run), verify sidecars, stage the server, run the smoke test, build installers, rename them `unplatform-ai-<version>-<platform>-<arch><suffix>` and upload them by release id. The checksums job reads ffmpeg sources from GHCR first and from the run artifact second, then uploads `SHA256SUMS.txt` and the archives by release id. On a push to `releases`, the `tag` job creates and pushes `vX.Y.Z` only after every job passed. Every oras push carries `org.opencontainers.image.source` linking the package to this repo.
+`.github/workflows/release.yml` runs on pushes to `releases`, on `v*-rc.*` tags and on manual `workflow_dispatch` with a `tag` input. A `draft` job creates one draft release before any build. The `ffmpeg` and `node` jobs pull their sidecar from GHCR or build and push it. A `checks` job calls `checks.yml` once in parallel with the sidecar jobs. Build jobs install the dependencies, fetch the cargo sources, generate the notices, download artifacts (or a reused run), verify sidecars, run `cargo test`, stage the server, build installers, smoke the built app on macOS and the staged tree on Windows and Linux, rename them `unplatform-ai-<version>-<platform>-<arch><suffix>` and upload them by release id. The checksums job reads ffmpeg sources from GHCR first and from the run artifact second, then uploads `SHA256SUMS.txt` and the archives by release id. On a push to `releases`, the `tag` job creates and pushes `vX.Y.Z` only after every job passed. Every oras push carries `org.opencontainers.image.source` linking the package to this repo.
 
 ### Job graph
 
@@ -441,7 +449,9 @@ checksums + updater-manifest -> tag (releases push only)
 
 "Build installers" runs the repo's pinned `@tauri-apps/cli` through `pnpm tauri build --target <target> --config src-tauri/tauri.release.conf.json`. No third-party action runs the build, so the signing key only reaches the CLI we ship.
 
-`UPAI_PREPARED=1` short-circuits `prepare-desktop.mjs`, which already ran in "Stage server". `tauri.release.conf.json` turns on `createUpdaterArtifacts` and clears `beforeBuildCommand`, so `notices` and `next build` run once, in `pnpm desktop:prepare`, not again inside `tauri build`. Local `pnpm desktop:build` keeps the full `beforeBuildCommand` and stays on the default config.
+`UPAI_PREPARED=1` short-circuits `prepare-desktop.mjs`, which already ran in "Stage server". `notices` runs on its own before the sidecar staging, then `pnpm desktop:prepare` runs it again with `next build`. `tauri.release.conf.json` turns on `createUpdaterArtifacts` and clears `beforeBuildCommand`, so neither runs again inside `tauri build`. Local `pnpm desktop:build` keeps the full `beforeBuildCommand` and stays on the default config.
+
+After the installers are built, macOS smokes the app under `src-tauri/target/<target>/release/bundle/macos` through `SMOKE_APP`, and Windows and Linux smoke the staged tree from "Stage server" with `SMOKE_STAGED=1`.
 
 The ffmpeg job runs "Plan ffmpeg build" (`ffmpeg-plan.sh`) after the GHCR restore and the Linux sources pull. It writes `build` and `out`:
 
@@ -455,9 +465,9 @@ A sources-only rebuild writes to `ffmpeg-rebuild`, never over the verified binar
 
 ### Caches and timeouts
 
-The ffmpeg cache (`~/.cache/unplatform-ai-build/ffmpeg`) restores only when the job builds. The Node cache (`.../node`) restores only on a GHCR miss. The build job's `~/.cache/unplatform-ai-build` cache restores only when no Node artifact exists (`needs.node.result == 'skipped'` and no reuse run), because only then does `prepare-desktop.mjs` download official Node. A GHCR hit skips every cache download.
+The ffmpeg cache (`~/.cache/unplatform-ai-build/ffmpeg`) restores only when the job builds. The Node cache (`.../node`) restores only on a GHCR miss. The build job's `~/.cache/unplatform-ai-build` cache restores only when no Node artifact exists (`needs.node.result == 'skipped'` and no reuse run), because only then does `prepare-desktop.mjs` download official Node. A GHCR hit skips every cache download. Every job that generates or checks notices restores `rust-cache`, which caches `~/.cargo/registry` keyed on `src-tauri/Cargo.lock`, then runs `cargo fetch --locked` before `pnpm notices`. The `checks` job carries the Rust toolchain for that fetch.
 
-The build job has a 90-minute timeout, sized for a cold `rust-cache` on Windows: `pnpm install`, the tests, `desktop:prepare`, the smoke test and a release build with `lto = true` and `codegen-units = 1`.
+The build job has a 120-minute timeout, sized for a cold `rust-cache` on Windows: `pnpm install`, `cargo fetch`, `pnpm notices`, the tests, `cargo test`, `desktop:prepare`, the smoke test and a release build with `lto = true` and `codegen-units = 1`.
 
 ### Composite actions
 
@@ -481,7 +491,7 @@ Each script takes arguments and runs with `set -euo pipefail`. Expressions reach
 | `ghcr-pull.sh` | `<ref> <dir> <required-file>...` |
 | `ghcr-push.sh` | `<ref> <dir> <file>...` (`FORCE` in the environment) |
 | `release-draft.sh` | `TAG` and `PRERELEASE` in the environment |
-| `release-version.sh` | `TAG_INPUT` and the `GITHUB_*` environment |
+| `release-version.sh` | `TAG_INPUT` (leading `v` optional, the `tag` output always has it) and the `GITHUB_*` environment |
 | `rename-installers.sh` | `<bundle> <version> <target> <dist>` |
 | `sidecar-binary.sh` | `<name> <target> [exe]` |
 | `sidecar-key.sh` | `<name> <target> <runner> [profile]` |
@@ -512,7 +522,7 @@ For the 0.4.0 repository move, publish in this order: old tags (not `v0.4.0`), o
 
 1. Branch `X.Y.Z` from `releases`, bump `package.json`, `src-tauri/Cargo.toml` and `Cargo.lock`, and open `## X.Y.Z - unreleased` in `CHANGELOG.md`. Apply open Dependabot updates on the new version branch. Replace `unreleased` with the date in the last commit before the PR.
 2. Run `pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pnpm test && pnpm build`, then `pnpm desktop:build` and `pnpm smoke`.
-3. Manual rc runs: `workflow_dispatch` with `tag: vX.Y.Z-rc.N`, use `reuse_sidecars_run_id` or `force_rebuild_sidecars` only when needed.
+3. Manual rc runs: `workflow_dispatch` with `tag: X.Y.Z-rc.N`. The leading `v` is optional, the output tag always has it. Use `reuse_sidecars_run_id` or `force_rebuild_sidecars` only when needed.
 4. Install the draft assets on real machines: mock run, real cheap-model run, history, Settings Test, no secrets in logs. On macOS also check the required `xattr -dr com.apple.quarantine` install step on the downloaded dmg. Then the update test: install the previous rc, start it with `UPAI_UPDATE_ENDPOINT` pointing at the new rc's `latest.json`, press **Install and restart**. Check the macOS keychain prompt once, run `xattr -l` on the installed app and find no quarantine line, check the Windows relaunch and the AppImage replace.
 5. Open the pull request titled `X.Y.Z`, `pr-version` checks version, title, Cargo, lock and CHANGELOG.
 6. Squash merge into `releases`. The workflow runs and creates `vX.Y.Z` only after every job passes.

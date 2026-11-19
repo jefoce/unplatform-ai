@@ -39,6 +39,17 @@ export async function getGeneration(id: string): Promise<GenerationRecord | null
   return store.get(id)
 }
 
+/**
+ * Reads the record file itself, so a cached index cannot feed a locked patch.
+ */
+export async function loadGeneration(id: string): Promise<GenerationRecord | null> {
+  if (!isUuid(id)) {
+    return null
+  }
+
+  return store.read(id)
+}
+
 export async function saveGeneration(record: GenerationRecord): Promise<GenerationRecord> {
   const saved: GenerationRecord = { ...record, updatedAt: new Date().toISOString() }
 
@@ -73,7 +84,7 @@ export async function updateGeneration(
   patch: (record: GenerationRecord) => GenerationRecord | null,
 ): Promise<GenerationRecord | null> {
   return withLock(id, async () => {
-    const current = await getGeneration(id)
+    const current = await loadGeneration(id)
 
     if (isNil(current)) {
       return null

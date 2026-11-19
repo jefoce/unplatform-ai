@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.2 - 2026-11-19
+
+### Fixed
+
+- A saved key set larger than 2048 bytes is read again instead of appearing empty after an update.
+- A key lost under 0.5.1 cannot be recovered by the app and must be entered again. If the system keychain still holds the earlier entry, the key comes back on its own.
+- A failed update install restarts the server instead of leaving the app dead.
+- A second export to the same folder writes no duplicates, and every numbered name is checked.
+- A record that keeps failing to poll now expires instead of holding every active slot.
+- One bad entry in a custom model list no longer hides every other model.
+- An unknown provider status no longer marks an endpoint offline.
+- A failed upload check leaves no stray file behind.
+- The catalog error no longer shows the raw custom id.
+- An endpoint that comes back is usable again without waiting for the next health check.
+- Third-party license texts ship with the app as one file, opened from Settings > About.
+- A brief failure to read the endpoint list no longer fails running jobs.
+
 ## 0.5.1 - 2026-11-16
 
 ### Fixed

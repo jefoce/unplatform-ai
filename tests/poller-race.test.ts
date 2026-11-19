@@ -109,6 +109,9 @@ vi.mock('@/server/repos/generations', () => {
 
       return snapshot
     },
+    loadGeneration: async () => {
+      return control.current
+    },
     saveGeneration: write,
     updateGeneration: async (
       _id: string,

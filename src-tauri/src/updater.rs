@@ -1,4 +1,7 @@
-use crate::server::{confirm_quit, logs::append_desktop_log, pending_work, stop_server};
+use crate::server::{
+    clear_stop_flags, confirm_quit, logs::append_desktop_log, pending_work, restart_sidecar,
+    stop_server, wait_sidecar_ready,
+};
 use crate::settings;
 use serde::Serialize;
 use std::sync::Mutex;
@@ -77,11 +80,39 @@ pub(crate) async fn update_check(app: AppHandle<Wry>) -> Result<Option<Available
     Ok(update.map(available_update))
 }
 
-/// Logs the raw installer error, returns the line the UI may show. Never restarts.
+/// Logs the raw installer error, returns the line the UI may show.
 fn install_failure(error: &str, log: impl FnOnce(String)) -> String {
     log(format!("[unplatform-ai] update install failed: {error}"));
 
     INSTALL_FAILED.to_string()
+}
+
+/// Runs the recovery only when the install failed.
+fn finish_install<F>(install_error: Option<String>, recover: F) -> Result<(), String>
+where
+    F: FnOnce(String) -> Result<(), String>,
+{
+    match install_error {
+        Some(error) => recover(error),
+        None => Ok(()),
+    }
+}
+
+/// Starts the sidecar again after the stop that precedes every install.
+/// The install error stays in the result, even when the restart also fails.
+fn recover_server_after_failed_install(
+    install_error: String,
+    clear_flags: impl FnOnce(),
+    spawn: impl FnOnce() -> Result<(), String>,
+    wait_ready: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    clear_flags();
+    match spawn().and_then(|()| wait_ready()) {
+        Ok(()) => Err(install_error),
+        Err(cause) => Err(format!(
+            "{install_error} The server did not restart: {cause}"
+        )),
+    }
 }
 
 #[tauri::command]
@@ -147,11 +178,25 @@ pub(crate) async fn update_install(
     let installed = tauri::async_runtime::spawn_blocking(move || update.install(bytes))
         .await
         .map_err(|error| format!("Update install task failed: {error}"))?;
-    if let Err(error) = installed {
-        return Err(install_failure(&error.to_string(), |line| {
+    let install_error = installed.err().map(|error| {
+        install_failure(&error.to_string(), |line| {
             append_desktop_log(line.as_bytes());
-        }));
-    }
+        })
+    });
+    let handle = app.clone();
+    let recovered = tauri::async_runtime::spawn_blocking(move || {
+        finish_install(install_error, |error| {
+            recover_server_after_failed_install(
+                error,
+                || clear_stop_flags(&handle),
+                || restart_sidecar(&handle),
+                || wait_sidecar_ready(&handle),
+            )
+        })
+    })
+    .await
+    .map_err(|error| format!("Update recovery task failed: {error}"))?;
+    recovered?;
 
     #[cfg(target_os = "macos")]
     clear_quarantine();
@@ -199,9 +244,7 @@ fn available_update(update: Update) -> AvailableUpdate {
 
 fn take_cached(state: &UpdateState, version: &str) -> Option<Vec<u8>> {
     let mut cache = state.downloaded.lock().unwrap();
-    let is_match = cache
-        .as_ref()
-        .is_some_and(|(cached, _)| cached == version);
+    let is_match = cache.as_ref().is_some_and(|(cached, _)| cached == version);
     if !is_match {
         return None;
     }
@@ -209,7 +252,10 @@ fn take_cached(state: &UpdateState, version: &str) -> Option<Vec<u8>> {
     cache.take().map(|(_, bytes)| bytes)
 }
 
-fn send_progress(channel: &Channel<UpdateProgress>, progress: UpdateProgress) -> Result<(), String> {
+fn send_progress(
+    channel: &Channel<UpdateProgress>,
+    progress: UpdateProgress,
+) -> Result<(), String> {
     channel
         .send(progress)
         .map_err(|error| format!("Update progress: {error}"))
@@ -295,7 +341,83 @@ fn current_bundle() -> Option<std::path::PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{install_failure, INSTALL_FAILED};
+    use super::{
+        finish_install, install_failure, recover_server_after_failed_install, INSTALL_FAILED,
+    };
+    use std::cell::Cell;
+
+    #[test]
+    fn a_failed_install_restarts_the_server() {
+        let shutting_down = Cell::new(true);
+        let exiting = Cell::new(true);
+        let spawns = Cell::new(0);
+        let waits = Cell::new(0);
+
+        let outcome = finish_install(Some(INSTALL_FAILED.to_string()), |error| {
+            recover_server_after_failed_install(
+                error,
+                || {
+                    shutting_down.set(false);
+                    exiting.set(false);
+                },
+                || {
+                    spawns.set(spawns.get() + 1);
+                    Ok(())
+                },
+                || {
+                    waits.set(waits.get() + 1);
+                    Ok(())
+                },
+            )
+        });
+
+        assert!(!shutting_down.get());
+        assert!(!exiting.get());
+        assert_eq!(spawns.get(), 1);
+        assert_eq!(waits.get(), 1);
+        assert_eq!(outcome, Err(INSTALL_FAILED.to_string()));
+    }
+
+    #[test]
+    fn a_successful_install_does_not_restart_the_server() {
+        let spawns = Cell::new(0);
+
+        let outcome = finish_install(None, |_error| {
+            spawns.set(spawns.get() + 1);
+            Ok(())
+        });
+
+        assert_eq!(outcome, Ok(()));
+        assert_eq!(spawns.get(), 0);
+    }
+
+    #[test]
+    fn a_failed_restart_keeps_both_errors() {
+        let outcome = recover_server_after_failed_install(
+            INSTALL_FAILED.to_string(),
+            || {},
+            || Err("spawn sidecar: missing binary".to_string()),
+            || Ok(()),
+        );
+
+        let error = outcome.expect_err("install failure");
+        assert!(error.contains(INSTALL_FAILED));
+        assert!(error.contains("missing binary"));
+    }
+
+    #[test]
+    fn a_missing_ready_keeps_both_errors() {
+        let outcome = recover_server_after_failed_install(
+            INSTALL_FAILED.to_string(),
+            || {},
+            || Ok(()),
+            || Err("The server did not become ready".to_string()),
+        );
+
+        let error = outcome.expect_err("install failure");
+        assert!(error.contains(INSTALL_FAILED));
+        assert!(error.contains("did not become ready"));
+    }
 
     /// The UI gets the friendly line, never the raw installer reason.
     #[test]

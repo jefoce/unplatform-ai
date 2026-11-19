@@ -53,17 +53,61 @@ function jobTimeouts(text: string): Record<string, number> {
 describe('release build job', () => {
   const text = fs.readFileSync(path.resolve(WORKFLOW), 'utf8')
   const build = jobBlock(text, 'build')
-  const staged = build.indexOf('name: Stage server')
+  const fetched = build.indexOf('cargo fetch --locked --manifest-path src-tauri/Cargo.toml')
+  const notices = build.indexOf('run: pnpm notices')
   const tested = build.indexOf('cargo test --manifest-path src-tauri/Cargo.toml')
+  const staged = build.indexOf('name: Stage server')
+  const built = build.indexOf('pnpm tauri build')
 
   it('tests Rust inside the matrix build job', () => {
     expect(build).toContain('matrix:')
     expect(tested).toBeGreaterThan(-1)
   })
 
-  it('runs cargo test after the server is staged', () => {
+  it('fetches cargo sources and runs notices before cargo test', () => {
+    expect(fetched).toBeGreaterThan(-1)
+    expect(notices).toBeGreaterThan(fetched)
+    expect(tested).toBeGreaterThan(notices)
+  })
+
+  it('runs cargo test before staging the server', () => {
     expect(staged).toBeGreaterThan(-1)
-    expect(tested).toBeGreaterThan(staged)
+    expect(tested).toBeLessThan(staged)
+  })
+
+  it('stages sidecar placeholders before cargo test', () => {
+    const placeholders = build.indexOf('name: Sidecar placeholders for cargo test')
+
+    expect(placeholders).toBeGreaterThan(-1)
+    expect(placeholders).toBeLessThan(tested)
+
+    expect(build.slice(placeholders, tested)).toContain(
+      'src-tauri/binaries/unplatform-ai-server-$TARGET$suffix',
+    )
+  })
+
+  it('creates the server-archive resource directory before cargo test', () => {
+    const placeholders = build.indexOf('name: Sidecar placeholders for cargo test')
+
+    expect(placeholders).toBeGreaterThan(-1)
+    expect(placeholders).toBeLessThan(tested)
+
+    expect(build.slice(placeholders, tested)).toContain('src-tauri/resources/server-archive')
+  })
+
+  it('smokes the built app on macOS', () => {
+    const smoke = build.indexOf('SMOKE_APP:')
+
+    expect(smoke).toBeGreaterThan(built)
+
+    expect(build.slice(smoke, smoke + 120)).toContain(
+      'src-tauri/target/${{ matrix.target }}/release/bundle/macos/Unplatform AI.app',
+    )
+  })
+
+  it('smokes the staged server on Windows and Linux', () => {
+    expect(build).toContain("if: runner.os != 'macOS'")
+    expect(build).toContain('SMOKE_STAGED=1 pnpm smoke')
   })
 })
 
@@ -76,7 +120,7 @@ describe('release workflow timeouts', () => {
       draft: 5,
       ffmpeg: 90,
       node: 330,
-      build: 90,
+      build: 120,
       checksums: 10,
       'updater-manifest': 10,
       tag: 5,

@@ -14,11 +14,12 @@ const BodySchema = z.object({
 /** Delays the model catalog response for the loading-state e2e case. Dev and e2e only. */
 export async function POST(request: Request): Promise<Response> {
   try {
+    assertLocalRequest(request)
+
     if (!isCustomEndpointMockMode()) {
       return jsonError({ status: 404, error: 'Not found' })
     }
 
-    assertLocalRequest(request)
     const body = BodySchema.safeParse(await readJsonBody(request))
 
     if (!body.success) {

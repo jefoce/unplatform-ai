@@ -5,6 +5,7 @@ import type { ExportEntry } from '@/core/api/export'
 import { HISTORY_BATCH_MAX } from '@/core/constants'
 import { modelBase, promptSlug } from '@/core/media/file-names'
 import { copyUnique, videoSource } from '@/server/fs/export-files'
+import { errorResponse } from '@/server/http'
 import { getGeneration } from '@/server/repos/generations'
 import { assertLocalRequest } from '@/server/request-guard'
 import { runExportBatch } from '@/server/services/export-batch'
@@ -18,17 +19,20 @@ type Body = z.infer<typeof BodySchema>
 
 /** Copies each finished video into a real directory, never overwriting. */
 export async function POST(request: Request): Promise<Response> {
-  return runExportBatch({
-    request,
-    assertRequest: (request) => {
-      assertLocalRequest(request)
-    },
-    schema: BodySchema,
-    items: (body: Body) => {
-      return body.ids
-    },
-    exportEntry,
-  })
+  try {
+    assertLocalRequest(request)
+
+    return await runExportBatch({
+      request,
+      schema: BodySchema,
+      items: (body: Body) => {
+        return body.ids
+      },
+      exportEntry,
+    })
+  } catch (error) {
+    return errorResponse(error)
+  }
 }
 
 async function exportEntry(id: string, dir: string): Promise<ExportEntry> {

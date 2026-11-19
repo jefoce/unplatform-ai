@@ -86,15 +86,33 @@ const VERSION_CASES: VersionCase[] = [
     expected: { version: '0.2.0', tag: 'v0.2.0-rc.1', prerelease: 'true' },
   },
   {
+    name: 'accepts a dispatch rc tag without the v prefix',
+    subject: '0.2.0',
+    env: { GITHUB_EVENT_NAME: 'workflow_dispatch', TAG_INPUT: '0.2.0-rc.1' },
+    expected: { version: '0.2.0', tag: 'v0.2.0-rc.1', prerelease: 'true' },
+  },
+  {
     name: 'rejects a dispatch tag from another version',
     subject: '0.2.0',
     env: { GITHUB_EVENT_NAME: 'workflow_dispatch', TAG_INPUT: 'v0.2.1-rc.1' },
     error: 'does not match version 0.2.0',
   },
   {
+    name: 'rejects a dispatch rc tag without the v prefix from another version',
+    subject: '0.2.0',
+    env: { GITHUB_EVENT_NAME: 'workflow_dispatch', TAG_INPUT: '0.2.1-rc.1' },
+    error: 'does not match version 0.2.0',
+  },
+  {
     name: 'accepts an rc tag push',
     subject: 'unrelated subject',
     env: { GITHUB_REF_TYPE: 'tag', GITHUB_REF_NAME: 'v0.2.0-rc.2' },
+    expected: { version: '0.2.0', tag: 'v0.2.0-rc.2', prerelease: 'true' },
+  },
+  {
+    name: 'accepts an rc tag push without the v prefix',
+    subject: 'unrelated subject',
+    env: { GITHUB_REF_TYPE: 'tag', GITHUB_REF_NAME: '0.2.0-rc.2' },
     expected: { version: '0.2.0', tag: 'v0.2.0-rc.2', prerelease: 'true' },
   },
   {
@@ -497,6 +515,57 @@ function ciYamlFiles(dir: string): string[] {
 
 const CI_YAML_FILES = [...ciYamlFiles('.github/workflows'), ...ciYamlFiles('.github/actions')]
 
+/**
+ * Node job runner images from the release matrix, keyed by target.
+ */
+function releaseNodeRunners(): Map<string, string> {
+  const text = fs.readFileSync(path.resolve('.github/workflows/release.yml'), 'utf8')
+  const nodeJob = text.split(/\n {2}node:\n/)[1]?.split(/\n {2}[a-z][\w-]*:\n/)[0] ?? ''
+  const pairs = [...nodeJob.matchAll(/-\s*runner:\s*(\S+)[^\n]*\n\s*target:\s*(\S+)/g)]
+
+  return new Map(
+    pairs.flatMap((match): [string, string][] => {
+      const [, runner, target] = match
+
+      if (isNil(runner) || isNil(target)) {
+        return []
+      }
+
+      return [[target, runner]]
+    }),
+  )
+}
+
+const TARGET_RUNNERS = [
+  'aarch64-apple-darwin',
+  'x86_64-unknown-linux-gnu',
+  'x86_64-pc-windows-msvc',
+] as const
+
+describe('target runners', () => {
+  it('maps the Windows target to windows-2025', () => {
+    const result = runScript({ script: 'target-runners.sh', args: ['x86_64-pc-windows-msvc'] })
+
+    expect(result.stdout.trim()).toBe('ubuntu-22.04 windows-2025')
+    expect(releaseNodeRunners().get('x86_64-pc-windows-msvc')).toBe('windows-2025')
+  })
+
+  it.each(TARGET_RUNNERS)('uses the node runner from the release matrix for %s', (target) => {
+    const result = runScript({ script: 'target-runners.sh', args: [target] })
+    const nodeRunner = result.stdout.trim().split(/\s+/)[1]
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(nodeRunner, target).toBe(releaseNodeRunners().get(target))
+  })
+
+  it('rejects an unknown target', () => {
+    const result = runScript({ script: 'target-runners.sh', args: ['unknown-target'] })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('::error::unsupported target unknown-target')
+  })
+})
+
 describe('runner images', () => {
   it.each(CI_YAML_FILES)('%s pins a fixed runner image', (file) => {
     const text = fs.readFileSync(path.resolve(file), 'utf8')
@@ -517,11 +586,115 @@ describe('workflow checkouts', () => {
   })
 })
 
+/**
+ * Job name and block for every job in a workflow.
+ */
+function workflowJobs(file: string) {
+  const text = fs.readFileSync(path.resolve(file), 'utf8')
+  const section = text.slice(text.search(/^jobs:\s*$/m))
+  const jobs = [...section.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)]
+
+  return jobs.map((job, index) => {
+    return {
+      name: job[1] ?? '',
+      block: section.slice(job.index ?? 0, jobs[index + 1]?.index ?? section.length),
+    }
+  })
+}
+
+describe('release signing key', () => {
+  const text = fs.readFileSync(path.resolve('.github/workflows/release.yml'), 'utf8')
+  const jobs = workflowJobs('.github/workflows/release.yml')
+
+  it('keeps the signing secrets out of workflow-level env', () => {
+    const envBlock = text.match(/^env:\n((?: {2}[^\n]*\n)+)/m)?.[1] ?? ''
+
+    const signing = envBlock.split(/\r?\n/).filter((line) => {
+      return /^\s+TAURI_SIGNING_/.test(line)
+    })
+
+    expect(signing).toEqual([])
+  })
+
+  it('gates the tauri build job behind the release environment', () => {
+    const build = jobs.find((job) => {
+      return job.block.includes('pnpm tauri build')
+    })
+
+    expect(build?.block).toMatch(/^ {4}environment:\s*release\s*$/m)
+  })
+
+  it('references the signing secrets from the build job only', () => {
+    const holders = jobs.filter((job) => {
+      return job.block.includes('TAURI_SIGNING_PRIVATE_KEY')
+    })
+
+    expect(
+      holders.map((job) => {
+        return job.name
+      }),
+    ).toEqual(['build'])
+  })
+})
+
 describe('Rust tests', () => {
   it.each(WORKFLOW_FILES)('%s runs cargo test', (file) => {
     const text = fs.readFileSync(path.resolve(file), 'utf8')
 
     expect(text).toContain('cargo test --manifest-path src-tauri/Cargo.toml')
+  })
+})
+
+describe('checks notices', () => {
+  const jobs = workflowJobs('.github/workflows/checks.yml')
+
+  it('fetches cargo sources before every notices run', () => {
+    const notices = jobs.filter((job) => {
+      return job.block.includes('pnpm notices')
+    })
+
+    expect(
+      notices.map((job) => {
+        return job.name
+      }),
+    ).toEqual(['rust', 'checks', 'windows'])
+
+    for (const job of notices) {
+      const fetch = job.block.indexOf('cargo fetch --locked --manifest-path src-tauri/Cargo.toml')
+
+      expect(fetch, job.name).toBeGreaterThan(-1)
+      expect(fetch, job.name).toBeLessThan(job.block.indexOf('pnpm notices'))
+    }
+  })
+
+  it('runs notices before cargo test in the Rust jobs', () => {
+    for (const name of ['rust', 'windows']) {
+      const block =
+        jobs.find((job) => {
+          return job.name === name
+        })?.block ?? ''
+
+      const notices = block.indexOf('pnpm notices')
+
+      expect(notices, name).toBeGreaterThan(-1)
+
+      expect(notices, name).toBeLessThan(
+        block.indexOf('cargo test --manifest-path src-tauri/Cargo.toml'),
+      )
+    }
+  })
+
+  it('smokes the staged server in the desktop job', () => {
+    const desktop =
+      jobs.find((job) => {
+        return job.name === 'desktop'
+      })?.block ?? ''
+
+    expect(desktop).toContain('SMOKE_STAGED=1 pnpm smoke')
+
+    expect(desktop.indexOf('SMOKE_STAGED=1 pnpm smoke')).toBeGreaterThan(
+      desktop.indexOf('pnpm desktop:prepare'),
+    )
   })
 })
 

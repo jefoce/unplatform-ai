@@ -4,7 +4,7 @@ import { INTERRUPT_SENDING_TEXT } from '@/core/provider-errors/app'
 import type { ImageRecord } from '@/core/schemas/image-record'
 
 import { providerStatusOf } from '../providers/provider-error'
-import { getImage, saveImage } from '../repos/images'
+import { loadImage, saveImage } from '../repos/images'
 import { withLock } from '../sync/lock'
 import { errorText, isUncertain } from './image-calls'
 
@@ -14,7 +14,7 @@ export async function updateImage(
   patch: (record: ImageRecord) => ImageRecord | null,
 ): Promise<ImageRecord | null> {
   return withLock(id, async () => {
-    const record = await getImage(id)
+    const record = await loadImage(id)
 
     if (!record) {
       return null

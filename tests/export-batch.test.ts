@@ -45,7 +45,7 @@ vi.mock('@/server/session', () => {
 })
 
 const { POST } = await import('@/app/api/generations/export-batch/route')
-const { copyUnique, exportDir } = await import('@/server/fs/export-files')
+const { copyExclusive, copyUnique, exportDir } = await import('@/server/fs/export-files')
 
 const downloads = path.join(root, 'downloads')
 const videoBytes = Buffer.from('fake-mp4-bytes')
@@ -259,6 +259,49 @@ describe('POST /api/generations/export-batch duplicates', () => {
     expect(body.duplicates).toHaveLength(1)
     expect(await readdir(dir)).toEqual(['seedance.mp4'])
   })
+
+  it('writes nothing on a second export of three outputs', async () => {
+    const dir = await grantedDir()
+    const ids: string[] = []
+
+    rememberExportFolder(dir, 2)
+
+    for (let index = 1; index <= 3; index += 1) {
+      const id = randomUUID()
+
+      ids.push(id)
+      await writeFile(path.join(downloads, `${id}.json`), JSON.stringify(record(id)))
+      await writeFile(path.join(downloads, `${id}.mp4`), `bytes-${index}`)
+    }
+
+    const first = (await (await POST(exportRequest({ ids, dir }))).json()) as {
+      saved: string[]
+      duplicates: string[]
+    }
+
+    expect(first.saved).toHaveLength(3)
+    expect(first.duplicates).toEqual([])
+
+    expect((await readdir(dir)).sort()).toEqual([
+      'seedance-2.mp4',
+      'seedance-3.mp4',
+      'seedance.mp4',
+    ])
+
+    const second = (await (await POST(exportRequest({ ids, dir }))).json()) as {
+      saved: string[]
+      duplicates: string[]
+    }
+
+    expect(second.saved).toEqual([])
+    expect(second.duplicates).toHaveLength(3)
+
+    expect((await readdir(dir)).sort()).toEqual([
+      'seedance-2.mp4',
+      'seedance-3.mp4',
+      'seedance.mp4',
+    ])
+  })
 })
 
 describe('copyUnique', () => {
@@ -319,6 +362,37 @@ describe('copyUnique', () => {
     expect(path.basename(result.path)).toBe('seedance-2.mp4')
   })
 
+  it('finds the identical file after a gap in the numbered family', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'clip.mp4'), 'first')
+    await writeFile(path.join(dir, 'clip-3.mp4'), videoBytes)
+
+    const result = await copyUnique({ source, dir, base: 'clip', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(true)
+    expect(path.basename(result.path)).toBe('clip-3.mp4')
+    expect((await readdir(dir)).sort()).toEqual(['clip-3.mp4', 'clip.mp4'])
+  })
+
+  it('skips a same-size variant with other bytes and matches the next one', async () => {
+    const dir = await grantedDir()
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+    const otherBytes = Buffer.alloc(videoBytes.length, 1)
+
+    await writeFile(source, videoBytes)
+    await writeFile(path.join(dir, 'clip.mp4'), otherBytes)
+    await writeFile(path.join(dir, 'clip-2.mp4'), videoBytes)
+
+    const result = await copyUnique({ source, dir, base: 'clip', ext: 'mp4' })
+
+    expect(result.isDuplicate).toBe(true)
+    expect(path.basename(result.path)).toBe('clip-2.mp4')
+    expect(await readFile(path.join(dir, 'clip.mp4'))).toEqual(otherBytes)
+  })
+
   describe.skipIf(process.platform === 'win32')('a symlink at the target name', () => {
     it('is not hashed and gets the next free name', async () => {
       const dir = await grantedDir()
@@ -332,6 +406,85 @@ describe('copyUnique', () => {
       expect(result.isDuplicate).toBe(false)
       expect(path.basename(result.path)).toBe('seedance-2.mp4')
     })
+  })
+})
+
+describe('export temp cleanup', () => {
+  it('keeps a regular file whose name is not a v4 temp', async () => {
+    const dir = await grantedDir()
+    const target = path.join(dir, 'clip.mp4')
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+    const notes = `${target}.tmp-notes`
+
+    await writeFile(source, videoBytes)
+    await writeFile(notes, 'keep')
+
+    expect(await copyExclusive(source, target)).toBe(true)
+    expect(await readFile(notes, 'utf8')).toBe('keep')
+  })
+
+  it('removes a stale temp that carries a v4 uuid', async () => {
+    const dir = await grantedDir()
+    const target = path.join(dir, 'clip.mp4')
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+    const stale = `${target}.tmp-${randomUUID()}`
+
+    await writeFile(source, videoBytes)
+    await writeFile(stale, 'stale')
+
+    expect(await copyExclusive(source, target)).toBe(true)
+    expect(await readdir(dir)).toEqual(['clip.mp4'])
+  })
+
+  it('never removes a directory that looks like a temp', async () => {
+    const dir = await grantedDir()
+    const target = path.join(dir, 'clip.mp4')
+    const source = path.join(root, `source-${randomUUID()}.mp4`)
+    const staleDir = `${target}.tmp-${randomUUID()}`
+
+    await writeFile(source, videoBytes)
+    await mkdir(staleDir)
+
+    expect(await copyExclusive(source, target)).toBe(true)
+    expect((await stat(staleDir)).isDirectory()).toBe(true)
+  })
+
+  it('lets concurrent exports of one base name all finish without temps', async () => {
+    const dir = await grantedDir()
+
+    const sources = await Promise.all(
+      Array.from({ length: 5 }, async (_, index) => {
+        const source = path.join(root, `source-${randomUUID()}.mp4`)
+
+        await writeFile(source, `bytes-${index}`)
+
+        return source
+      }),
+    )
+
+    const results = await Promise.all(
+      sources.map((source) => {
+        return copyUnique({ source, dir, base: 'seedance', ext: 'mp4' })
+      }),
+    )
+
+    const names = results.map((result) => {
+      return path.basename(result.path)
+    })
+
+    expect(
+      results.every((result) => {
+        return !result.isDuplicate
+      }),
+    ).toBe(true)
+
+    expect(new Set(names).size).toBe(sources.length)
+
+    const temps = (await readdir(dir)).filter((name) => {
+      return name.includes('.tmp-')
+    })
+
+    expect(temps).toEqual([])
   })
 })
 

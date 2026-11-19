@@ -1,8 +1,5 @@
 import 'server-only'
 
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
-
 import type { ZodType } from 'zod'
 
 import {
@@ -16,7 +13,19 @@ import {
   UpaiModelListSchema,
 } from '@/core/protocol/upai'
 
-const FIXTURES_DIR = path.join(process.cwd(), 'docs/protocol/upai-1/fixtures')
+import errorComfyUnavailableFixture from '../../../../docs/protocol/upai-1/fixtures/error-comfy_unavailable.json'
+import errorJobFailedFixture from '../../../../docs/protocol/upai-1/fixtures/error-job_failed.json'
+import errorModelNotFoundFixture from '../../../../docs/protocol/upai-1/fixtures/error-model_not_found.json'
+import errorWorkflowInvalidFixture from '../../../../docs/protocol/upai-1/fixtures/error-workflow_invalid.json'
+import healthFixture from '../../../../docs/protocol/upai-1/fixtures/health.json'
+import jobCancelledFixture from '../../../../docs/protocol/upai-1/fixtures/job-cancelled.json'
+import jobCompletedFixture from '../../../../docs/protocol/upai-1/fixtures/job-completed.json'
+import jobFailedFixture from '../../../../docs/protocol/upai-1/fixtures/job-failed.json'
+import jobInProgressFixture from '../../../../docs/protocol/upai-1/fixtures/job-in_progress.json'
+import jobPendingFixture from '../../../../docs/protocol/upai-1/fixtures/job-pending.json'
+import imageModelsFixture from '../../../../docs/protocol/upai-1/fixtures/models-image.json'
+import invalidModelsFixture from '../../../../docs/protocol/upai-1/fixtures/models-invalid.json'
+import videoModelsFixture from '../../../../docs/protocol/upai-1/fixtures/models-video.json'
 
 interface CustomMockJobs {
   pending: UpaiJob
@@ -57,41 +66,38 @@ export function customMockFixtures(): CustomMockFixtures {
 
 function loadFixtures(): CustomMockFixtures {
   return {
-    health: readFixture(UpaiHealthSchema, 'health.json'),
-    videoModels: readModels('models-video.json'),
-    imageModels: readModels('models-image.json'),
-    invalidModels: readModels('models-invalid.json'),
+    health: readFixture(UpaiHealthSchema, healthFixture),
+    videoModels: readModels(videoModelsFixture),
+    imageModels: readModels(imageModelsFixture),
+    invalidModels: readModels(invalidModelsFixture),
     jobs: {
-      pending: readJob('job-pending.json'),
-      inProgress: readJob('job-in_progress.json'),
-      completed: readJob('job-completed.json'),
-      failed: readJob('job-failed.json'),
-      cancelled: readJob('job-cancelled.json'),
+      pending: readJob(jobPendingFixture),
+      inProgress: readJob(jobInProgressFixture),
+      completed: readJob(jobCompletedFixture),
+      failed: readJob(jobFailedFixture),
+      cancelled: readJob(jobCancelledFixture),
     },
     errors: {
-      unavailable: readError('error-comfy_unavailable.json'),
-      workflowInvalid: readError('error-workflow_invalid.json'),
-      modelNotFound: readError('error-model_not_found.json'),
-      jobFailed: readError('error-job_failed.json'),
+      unavailable: readError(errorComfyUnavailableFixture),
+      workflowInvalid: readError(errorWorkflowInvalidFixture),
+      modelNotFound: readError(errorModelNotFoundFixture),
+      jobFailed: readError(errorJobFailedFixture),
     },
   }
 }
 
-function readFixture<T>(schema: ZodType<T>, file: string): T {
-  const text = readFileSync(path.join(FIXTURES_DIR, file), 'utf8')
-  const raw: unknown = JSON.parse(text)
-
-  return schema.parse(raw)
+function readFixture<T>(schema: ZodType<T>, data: unknown): T {
+  return schema.parse(data)
 }
 
-function readModels(file: string): readonly UpaiModel[] {
-  return readFixture(UpaiModelListSchema, file).data
+function readModels(data: unknown): readonly UpaiModel[] {
+  return readFixture(UpaiModelListSchema, data).data
 }
 
-function readJob(file: string): UpaiJob {
-  return readFixture(UpaiJobSchema, file)
+function readJob(data: unknown): UpaiJob {
+  return readFixture(UpaiJobSchema, data)
 }
 
-function readError(file: string): UpaiError {
-  return readFixture(UpaiErrorResponseSchema, file).error
+function readError(data: unknown): UpaiError {
+  return readFixture(UpaiErrorResponseSchema, data).error
 }

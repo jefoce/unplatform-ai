@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::{
     collections::HashSet,
+    ffi::{OsStr, OsString},
     fs::{self, File},
     io::{self, ErrorKind, Write},
     net::TcpListener,
@@ -165,6 +166,8 @@ pub async fn boot(app: &AppHandle<Wry>) -> Result<(), String> {
         port,
         token: token.clone(),
     });
+    // Kept so a failed update install can start the sidecar again.
+    *app.state::<State>().launch.lock().unwrap() = Some(launch.clone());
 
     let window = create_window(
         app,
@@ -427,6 +430,34 @@ fn enable_linux_gpu(window: &WebviewWindow<Wry>) {
     }
 }
 
+/// Env names a release sidecar never receives.
+const MOCK_ENV_NAMES: [&str; 4] = [
+    "OPENROUTER_MOCK",
+    "REMOTE_MOCK",
+    "CUSTOM_ENDPOINT_MOCK",
+    "E2E",
+];
+
+/// Drops the mock and e2e switches unless the build enables the `e2e` feature.
+fn sidecar_env<I, S>(envs: I, strip_mocks: bool) -> Vec<(S, S)>
+where
+    I: IntoIterator<Item = (S, S)>,
+    S: AsRef<OsStr>,
+{
+    let envs = envs.into_iter();
+
+    if !strip_mocks {
+        return envs.collect();
+    }
+
+    envs.filter(|(name, _)| {
+        let name = name.as_ref().to_str().unwrap_or_default();
+
+        !MOCK_ENV_NAMES.contains(&name) && !name.starts_with("E2E_")
+    })
+    .collect()
+}
+
 pub(crate) fn spawn_child(
     app: &AppHandle<Wry>,
     launch: &Launch,
@@ -444,7 +475,7 @@ pub(crate) fn spawn_child(
         &parent_secret,
         &launch.boot_nonce,
     )?;
-    let envs = vec![
+    let explicit = vec![
         ("PORT".to_string(), launch.port.to_string()),
         ("HOSTNAME".to_string(), "127.0.0.1".to_string()),
         (
@@ -458,6 +489,15 @@ pub(crate) fn spawn_child(
             ffmpeg_path()?.to_string_lossy().into_owned(),
         ),
     ];
+    // The inherited env is forwarded by hand so the release build can drop mock switches.
+    let envs = sidecar_env(
+        std::env::vars_os().chain(
+            explicit
+                .into_iter()
+                .map(|(key, value)| (OsString::from(key), OsString::from(value))),
+        ),
+        !cfg!(feature = "e2e"),
+    );
     let state = app.state::<State>();
     state.spawn_count.fetch_add(1, Ordering::SeqCst);
     let (receiver, child) = app
@@ -466,6 +506,7 @@ pub(crate) fn spawn_child(
         .map_err(|error| format!("resolve sidecar: {error}"))?
         .args(["server.js"])
         .current_dir(&launch.runtime_dir)
+        .env_clear()
         .envs(envs)
         .spawn()
         .map_err(|error| format!("spawn sidecar: {error}"))?;
@@ -755,7 +796,11 @@ fn prune_runtime(version: &str) {
         };
         if let Err(error) = result {
             append_log(
-                format!("[unplatform-ai] could not prune {}: {error}", path.display()).as_bytes(),
+                format!(
+                    "[unplatform-ai] could not prune {}: {error}",
+                    path.display()
+                )
+                .as_bytes(),
             );
         }
     }
@@ -842,11 +887,12 @@ pub(crate) fn health(port: u16) -> Option<Health> {
 #[cfg(test)]
 mod tests {
     use super::{
-        clamp_bounds, extract_failure, free_port, is_ours, next_port, session_url, stage_runtime,
-        Health, LockInfo, MonitorRect,
+        clamp_bounds, extract_failure, free_port, is_ours, next_port, session_url, sidecar_env,
+        stage_runtime, Health, LockInfo, MonitorRect,
     };
     use crate::settings::WindowBounds;
     use std::{
+        collections::HashSet,
         fs,
         io::{self, ErrorKind},
         path::Path,
@@ -909,6 +955,42 @@ mod tests {
 
         assert!(bounds.x.is_none());
         assert!(bounds.y.is_none());
+    }
+
+    #[test]
+    fn strips_mock_and_e2e_env_from_a_release_sidecar() {
+        let envs = sidecar_env(
+            vec![
+                ("OPENROUTER_MOCK", "1"),
+                ("REMOTE_MOCK", "1"),
+                ("CUSTOM_ENDPOINT_MOCK", "1"),
+                ("E2E", "1"),
+                ("E2E_BASE_URL", "http://127.0.0.1:3000"),
+                ("STORAGE_ROOT", "/data"),
+            ],
+            true,
+        );
+
+        assert_eq!(envs, vec![("STORAGE_ROOT", "/data")]);
+    }
+
+    #[test]
+    fn keeps_mock_and_e2e_env_for_an_e2e_sidecar() {
+        let envs = sidecar_env(
+            vec![
+                ("OPENROUTER_MOCK", "1"),
+                ("REMOTE_MOCK", "1"),
+                ("CUSTOM_ENDPOINT_MOCK", "1"),
+                ("E2E", "1"),
+                ("E2E_BASE_URL", "http://127.0.0.1:3000"),
+                ("STORAGE_ROOT", "/data"),
+            ],
+            false,
+        );
+
+        assert_eq!(envs.len(), 6);
+        assert!(envs.contains(&("E2E_BASE_URL", "http://127.0.0.1:3000")));
+        assert!(envs.contains(&("STORAGE_ROOT", "/data")));
     }
 
     #[test]
@@ -1011,7 +1093,7 @@ mod tests {
         );
         assert_eq!(fs::read(runtime.join("server.js")).unwrap(), b"kept");
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1027,7 +1109,7 @@ mod tests {
 
         assert!(runtime.join("server.js").is_file());
         assert!(!runtime.join("runtime").exists());
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1068,7 +1150,7 @@ mod tests {
             "second"
         );
         assert_eq!(fs::read(runtime.join("server.js")).unwrap(), b"new");
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1084,7 +1166,7 @@ mod tests {
         assert!(!runtime.exists());
         assert!(!root.join("runtime/evil.txt").exists());
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1098,7 +1180,7 @@ mod tests {
 
         assert!(error.contains("unsafe path"), "{error}");
         assert!(!runtime.exists());
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[cfg(unix)]
@@ -1114,7 +1196,7 @@ mod tests {
         assert!(error.contains("escapes the runtime"), "{error}");
         assert!(!runtime.exists());
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[test]
@@ -1134,7 +1216,7 @@ mod tests {
         assert!(error.contains("extract"), "{error}");
         assert!(!runtime.exists());
         assert!(!has_staging(&root.join("runtime")));
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
 
     #[cfg(unix)]
@@ -1155,15 +1237,42 @@ mod tests {
         let mode = fs::metadata(&path).unwrap().permissions().mode();
 
         assert_eq!(mode & 0o777, 0o600);
-        fs::remove_dir_all(&root).unwrap();
+        remove_root(&root);
     }
+
+    #[test]
+    fn separates_roots_from_one_clock_reading() {
+        let first = unique_root_at(0);
+        let second = unique_root_at(0);
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn keeps_a_thousand_roots_from_one_clock_reading_distinct() {
+        let roots: HashSet<_> = (0..1000).map(|_| unique_root_at(0)).collect();
+
+        assert_eq!(roots.len(), 1000);
+    }
+
+    static NEXT_ROOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
     fn unique_root() -> std::path::PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("cf-stage-{}-{nanos}", std::process::id()))
+        unique_root_at(nanos)
+    }
+
+    fn unique_root_at(now_nanos: u128) -> std::path::PathBuf {
+        let seq = NEXT_ROOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        std::env::temp_dir().join(format!("cf-stage-{}-{now_nanos}-{seq}", std::process::id()))
+    }
+
+    fn remove_root(root: &Path) {
+        // A root another test already removed is fine.
+        let _ = fs::remove_dir_all(root);
     }
 
     fn write_bundle(dir: &std::path::Path, build_id: &str, server: &[u8]) {

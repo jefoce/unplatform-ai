@@ -210,6 +210,10 @@ export const desktopPlatform: Platform = {
     await openResource('LICENSE')
   },
 
+  openThirdPartyLicenses: async () => {
+    await invokeChecked('open_third_party_licenses')
+  },
+
   confirm: async (message: string) => {
     return ask(message, { title: 'Unplatform AI', kind: 'warning' })
   },

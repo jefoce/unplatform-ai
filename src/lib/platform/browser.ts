@@ -17,6 +17,7 @@ import type { AppInfo, InstallResult } from './update-schemas'
 const RELEASE_URL = 'https://github.com/jefoce/unplatform-ai/releases/latest'
 const NOTICES_URL = 'https://github.com/jefoce/unplatform-ai/blob/HEAD/THIRD_PARTY_NOTICES.md'
 const LICENSE_URL = 'https://github.com/jefoce/unplatform-ai/blob/HEAD/LICENSE'
+const LICENSES_URL = 'https://github.com/jefoce/unplatform-ai/raw/HEAD/THIRD_PARTY_LICENSES.txt'
 
 /** Download URL built from the record alone, no history feature import. */
 function downloadUrl(record: GenerationRecord): string {
@@ -93,6 +94,10 @@ export const browserPlatform: Platform = {
 
   openLicense: async () => {
     window.open(LICENSE_URL, '_blank', 'noopener')
+  },
+
+  openThirdPartyLicenses: async () => {
+    window.open(LICENSES_URL, '_blank', 'noopener')
   },
 
   confirm: async (message: string) => {

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { CUSTOM_ERROR_RULES } from '@/core/presets/custom/errors'
+import { UpaiJobSchema } from '@/core/protocol/upai'
 import { friendlyError } from '@/core/provider-errors'
 import { STATUS_HELP, statusHelpKey } from '@/core/status-help'
 import { isCustomActiveRecord } from '@/features/history/status/status-tone'
 import { endpointOfflineView, videoStatusView } from '@/features/history/status/status-view'
 
+import jobInProgressFixture from '../docs/protocol/upai-1/fixtures/job-in_progress.json'
 import { storedRecord } from './helpers/stored-record'
 
 const SOURCE = {
@@ -75,6 +77,30 @@ describe('custom job progress', () => {
 
     expect(statusHelpKey(record)).toBe('waiting_comfyui')
     expect(STATUS_HELP.waiting_comfyui.label).toBe('Waiting for ComfyUI')
+  })
+
+  it('shows the local pending text for an unknown waiting value', () => {
+    const job = UpaiJobSchema.parse({
+      ...jobInProgressFixture,
+      status: 'pending',
+      progress: { ...jobInProgressFixture.progress, percent: 100, waiting_on: 'new_queue' },
+    })
+
+    const record = custom({
+      status: 'pending',
+      progress: {
+        percent: 100,
+        queuePosition: null,
+        waitingOn: job.progress?.waiting_on ?? null,
+      },
+    })
+
+    expect(statusHelpKey(record)).toBe('pending')
+
+    const view = videoStatusView(record)
+
+    expect(view.label).toBe('Processing 100%')
+    expect(view.label).not.toContain('new_queue')
   })
 
   it('shows the queue position when the pack reports one', () => {

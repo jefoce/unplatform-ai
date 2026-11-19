@@ -224,6 +224,9 @@ fn switch_port(app: &AppHandle<Wry>, launch: &mut Launch, allowed_port: &AtomicU
     if let Some(runtime) = app.state::<State>().runtime.lock().unwrap().as_mut() {
         runtime.port = port;
     }
+    if let Some(stored) = app.state::<State>().launch.lock().unwrap().as_mut() {
+        *stored = launch.clone();
+    }
     if let Err(error) = settings::update(|desktop| desktop.port = port) {
         append_log(format!("[unplatform-ai] could not save port {port}: {error}").as_bytes());
     }

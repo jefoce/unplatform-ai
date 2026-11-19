@@ -60,6 +60,9 @@ export const platform = {
   openLicense: async (): Promise<void> => {
     return (await impl()).openLicense()
   },
+  openThirdPartyLicenses: async (): Promise<void> => {
+    return (await impl()).openThirdPartyLicenses()
+  },
   confirm: async (message: string): Promise<boolean> => {
     return (await impl()).confirm(message)
   },

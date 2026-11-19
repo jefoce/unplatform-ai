@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -11,7 +11,7 @@ import type { MediaKind } from '@/core/media/media-types'
 
 import { retryOnWindowsLock } from '../fs/atomic-file'
 import { isOwnedName, removeOwnedFile } from '../fs/json-file'
-import { COMPAT_DIR } from '../paths'
+import { COMPAT_DIR, tempSuffix } from '../paths'
 import { createLimiter } from '../sync/limiter'
 import { withLock } from '../sync/lock'
 import { probeMedia, runFfmpeg } from './ffmpeg'
@@ -61,7 +61,7 @@ export async function getCompatMedia(params: GetCompatMediaParams): Promise<Comp
 
   const ext = kind === 'video' ? 'mp4' : 'm4a'
   const key = createHash('sha1').update(ref).digest('hex')
-  const filePath = path.join(COMPAT_DIR, `${key}.${ext}`)
+  const filePath = path.join(/*turbopackIgnore: true*/ COMPAT_DIR, `${key}.${ext}`)
   const failedPath = `${filePath}.failed`
   const contentType: CompatContentType = kind === 'video' ? 'video/mp4' : 'audio/mp4'
 
@@ -243,8 +243,8 @@ async function convert(params: ConvertParams): Promise<void> {
   const { source, kind, filePath, ext } = params
 
   const temp = path.join(
-    COMPAT_DIR,
-    `${path.basename(filePath, `.${ext}`)}.${randomUUID()}.tmp.${ext}`,
+    /*turbopackIgnore: true*/ COMPAT_DIR,
+    `${path.basename(filePath, `.${ext}`)}${tempSuffix()}.${ext}`,
   )
 
   const args = convertArgs({ kind, source, temp })

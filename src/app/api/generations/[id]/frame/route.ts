@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -12,7 +11,7 @@ import {
   zodError,
 } from '@/server/http'
 import { extractBoundaryFrame } from '@/server/media/ffmpeg'
-import { downloadPaths, DOWNLOADS_DIR } from '@/server/paths'
+import { downloadPaths, DOWNLOADS_DIR, tempSuffix } from '@/server/paths'
 import { getGeneration } from '@/server/repos/generations'
 import { assertLocalRequest, readJsonBody } from '@/server/request-guard'
 import { createFileUpload } from '@/server/services/uploads'
@@ -53,7 +52,7 @@ export async function POST(request: Request, { params }: IdRouteContext) {
       return jsonError({ status: 409, error: 'Video is not ready' })
     }
 
-    const temp = path.join(DOWNLOADS_DIR, `${record.id}.frame-${randomUUID()}.tmp.png`)
+    const temp = path.join(DOWNLOADS_DIR, `${record.id}.frame${tempSuffix()}.png`)
 
     try {
       try {

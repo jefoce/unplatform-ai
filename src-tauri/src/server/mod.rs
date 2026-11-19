@@ -17,9 +17,11 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_shell::process::CommandChild;
 
 pub use boot::boot;
-pub use shutdown::{emergency_cleanup, shutdown_then_exit};
 pub(crate) use shutdown::stop_server;
-pub(crate) use shutdown::{confirm_quit, pending_work};
+pub(crate) use shutdown::{
+    clear_stop_flags, confirm_quit, pending_work, restart_sidecar, wait_sidecar_ready,
+};
+pub use shutdown::{emergency_cleanup, shutdown_then_exit};
 
 pub(crate) const HEALTH_TIMEOUT: Duration = Duration::from_millis(500);
 pub(crate) const READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -30,6 +32,8 @@ pub(crate) const LOG_LIMIT: u64 = 5 * 1024 * 1024;
 pub struct State {
     pub(crate) child: Mutex<Option<CommandChild>>,
     pub(crate) runtime: Mutex<Option<RuntimeInfo>>,
+    /// Launch values kept so a failed update install can start the sidecar again.
+    pub(crate) launch: Mutex<Option<boot::Launch>>,
     /// Shared with the sidecar, so the webview cannot register export paths.
     pub(crate) parent_secret: Mutex<Option<String>>,
     /// Port the webview may navigate to. Updated when the sidecar respawns.

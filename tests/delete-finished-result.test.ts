@@ -65,6 +65,9 @@ vi.mock('@/server/repos/generations', () => {
     getGeneration: async (id: string) => {
       return state.generations.get(id) ?? null
     },
+    loadGeneration: async (id: string) => {
+      return state.generations.get(id) ?? null
+    },
     saveGeneration: async (record: GenerationRecord) => {
       if (state.failGenerationSave) {
         throw new Error('save failed')
@@ -105,6 +108,9 @@ vi.mock('@/server/repos/generations', () => {
 vi.mock('@/server/repos/images', () => {
   return {
     getImage: async (id: string) => {
+      return state.images.get(id) ?? null
+    },
+    loadImage: async (id: string) => {
       return state.images.get(id) ?? null
     },
     saveImage: async (record: ImageRecord) => {

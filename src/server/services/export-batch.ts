@@ -17,24 +17,24 @@ interface ExportBody {
 
 interface ExportBatchParams<Body extends ExportBody, Item> {
   request: Request
-  assertRequest: (request: Request) => void
   schema: ZodType<Body>
   items: (body: Body) => Item[]
   exportEntry: (item: Item, dir: string) => Promise<ExportEntry>
 }
 
-/** Desktop-only export: gate, folder grant and the shared saved/skipped loop. */
+/**
+ * Desktop-only export: desktop gate, folder grant and the shared saved/skipped loop.
+ */
 export async function runExportBatch<Body extends ExportBody, Item>(
   params: ExportBatchParams<Body, Item>,
 ): Promise<Response> {
-  const { request, assertRequest, schema, items, exportEntry } = params
+  const { request, schema, items, exportEntry } = params
 
   try {
     if (!desktopMode() || !isDesktopMode()) {
       return jsonError({ status: 404, error: 'Not found' })
     }
 
-    assertRequest(request)
     const body = schema.safeParse(await readJsonBody(request))
 
     if (!body.success) {

@@ -16,11 +16,12 @@ const BodySchema = z.object({
 /** Switches one demo endpoint between ready and unreachable. Dev and e2e only. */
 export async function POST(request: Request): Promise<Response> {
   try {
+    assertLocalRequest(request)
+
     if (!isCustomEndpointMockMode()) {
       return jsonError({ status: 404, error: 'Not found' })
     }
 
-    assertLocalRequest(request)
     const body = BodySchema.safeParse(await readJsonBody(request))
 
     if (!body.success) {

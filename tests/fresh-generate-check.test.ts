@@ -1,8 +1,13 @@
+import { isNil } from 'lodash-es'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { freshPresetReason } from '@/lib/api/endpoints-status'
 
-import type { CatalogEntry, ModelCatalog } from '../src/core/catalog'
+import {
+  CATALOG_CHECK_FAILED_REASON,
+  type CatalogEntry,
+  type ModelCatalog,
+} from '../src/core/catalog'
 
 const PRESET_ID = 'custom.cu1.wan22'
 
@@ -38,6 +43,7 @@ function json(body: unknown): Response {
 
 interface FetchRoutes {
   catalog: ModelCatalog
+  catalogFailure?: string
   endpointStatus?: string
   test?: { ok: boolean; error?: string | null }
 }
@@ -47,6 +53,15 @@ function stubFetch(routes: FetchRoutes): ReturnType<typeof vi.fn> {
     const url = String(input)
 
     if (url.startsWith('/api/models')) {
+      if (!isNil(routes.catalogFailure)) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: routes.catalogFailure }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
+
       return Promise.resolve(json(routes.catalog))
     }
 
@@ -155,6 +170,15 @@ describe('fresh generate check', () => {
     })
 
     expect(urls).not.toContain('/api/endpoints/test')
+  })
+
+  it('replaces a failed catalog GET with a generic reason', async () => {
+    stubFetch({ catalog: catalog([]), catalogFailure: `${PRESET_ID} could not be loaded` })
+
+    const reason = await freshPresetReason(PRESET_ID)
+
+    expect(reason).toBe(CATALOG_CHECK_FAILED_REASON)
+    expect(reason ?? '').not.toContain(PRESET_ID)
   })
 
   it('refreshes a custom catalog automatically before reading the model', async () => {

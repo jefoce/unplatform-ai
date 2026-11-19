@@ -146,6 +146,23 @@ describe('third-party notices', () => {
       fs.rmdirSync(dir)
     }
   })
+
+  it('ships every third-party text in one compressed archive', () => {
+    const files = fs.readdirSync(path.resolve('licenses')).sort()
+
+    expect(files).toEqual([
+      'COPYING.GPLv2',
+      'COPYING.GPLv3',
+      'COPYING.LGPLv2.1',
+      'COPYING.x264',
+      'LICENSE.lgpl3',
+      'LICENSE.mingw-w64.txt',
+      'LICENSE.node',
+      'LICENSE.zlib',
+    ])
+
+    expect(fs.existsSync(path.resolve('THIRD_PARTY_LICENSES.txt.gz'))).toBe(true)
+  })
 })
 
 describe('third-party notices bundle', () => {
@@ -198,6 +215,10 @@ describe('third-party notices bundle', () => {
 
     expect(TAURI_CONFIG.bundle.resources['resources/THIRD_PARTY_NOTICES.md']).toBe(
       'THIRD_PARTY_NOTICES.md',
+    )
+
+    expect(TAURI_CONFIG.bundle.resources['resources/THIRD_PARTY_LICENSES.txt.gz']).toBe(
+      'THIRD_PARTY_LICENSES.txt.gz',
     )
   })
 })

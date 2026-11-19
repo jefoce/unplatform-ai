@@ -40,6 +40,7 @@
     "resources": {
       "resources/server-archive/": "",
       "resources/THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "resources/THIRD_PARTY_LICENSES.txt.gz": "THIRD_PARTY_LICENSES.txt.gz",
       "resources/LICENSE": "LICENSE",
       "resources/licenses/": "licenses/"
     },

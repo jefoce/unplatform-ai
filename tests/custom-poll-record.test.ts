@@ -110,6 +110,8 @@ const SOURCE = {
 
 function customRecord(id: string, estimatedUsd: number): GenerationRecord {
   return storedRecord(id, {
+    // A fresh record, so the age bound never decides these cases.
+    createdAt: new Date().toISOString(),
     provider: 'custom',
     status: 'in_progress',
     source: SOURCE,

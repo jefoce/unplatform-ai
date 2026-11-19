@@ -3,6 +3,7 @@ use super::shutdown_waits::{DOWNLOAD_WAIT_MS, IMAGE_WAIT_MS};
 use super::{
     boot::{self, Health},
     shutdown_waits::WORK_WAIT_MS,
+    supervisor::supervise,
     RuntimeInfo, State, SHUTDOWN_TIMEOUT,
 };
 use crate::settings;
@@ -138,9 +139,7 @@ pub fn emergency_cleanup(app: &AppHandle<Wry>) {
     let waiting = runtime
         .as_ref()
         .and_then(|runtime| boot::health(runtime.port))
-        .is_some_and(|health| {
-            health.sending + health.image_sending + health.downloading > 0
-        });
+        .is_some_and(|health| health.sending + health.image_sending + health.downloading > 0);
 
     if let Some(runtime) = runtime {
         request_shutdown(&runtime, Duration::from_secs(2));
@@ -315,6 +314,42 @@ pub(crate) async fn stop_server(app: &AppHandle<Wry>, wait_work: bool) {
         let _ = child.kill();
     }
     state.exiting.store(true, Ordering::SeqCst);
+}
+
+/// Clears the flags the update stop set, so a restarted sidecar may run and respawn.
+pub(crate) fn clear_stop_flags(app: &AppHandle<Wry>) {
+    let state = app.state::<State>();
+    state.shutting_down.store(false, Ordering::SeqCst);
+    state.exiting.store(false, Ordering::SeqCst);
+}
+
+/// Starts the sidecar again after the stop that precedes an update install.
+pub(crate) fn restart_sidecar(app: &AppHandle<Wry>) -> Result<(), String> {
+    let launch = app.state::<State>().launch.lock().unwrap().clone();
+    let Some(launch) = launch else {
+        return Err("The server launch values are missing.".to_string());
+    };
+    let receiver = boot::spawn_child(app, &launch)?;
+    let allowed_port = app.state::<State>().allowed_port.clone();
+    tauri::async_runtime::spawn(supervise(app.clone(), launch, receiver, allowed_port));
+    Ok(())
+}
+
+/// Blocks until the restarted sidecar reports ready for this launch.
+pub(crate) fn wait_sidecar_ready(app: &AppHandle<Wry>) -> Result<(), String> {
+    let state = app.state::<State>();
+    let boot_nonce = state
+        .launch
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|launch| launch.boot_nonce.clone());
+    let Some(boot_nonce) = boot_nonce else {
+        return Err("The server launch values are missing.".to_string());
+    };
+    boot::wait_for_ready(state.allowed_port.clone(), &boot_nonce)
+        .map(|_port| ())
+        .ok_or_else(|| "The server did not become ready.".to_string())
 }
 
 /// Stops the sidecar, then exits. The quit path keeps its work wait.

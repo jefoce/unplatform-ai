@@ -14,10 +14,10 @@ import { type LinkMode, type UploadItem } from '@/core/schemas/upload-item'
 import { inputIds } from '@/core/submit-state'
 
 import { UploadError } from '../errors'
-import { removeFile, writeJsonAtomic } from '../fs/json-file'
+import { removeOwnedFile, writeJsonAtomic } from '../fs/json-file'
 import { isUuid } from '../fs/media-ref'
 import { removeEncoded } from '../media/image-cache'
-import { downloadPaths, STORAGE_TMP_DIR, uploadPaths } from '../paths'
+import { downloadPaths, STORAGE_TMP_DIR, tempSuffix, uploadPaths } from '../paths'
 import { getGeneration, listActiveGenerations } from '../repos/generations'
 import { listImages } from '../repos/images'
 import { listUploadRecords, loadUploadRecord, rememberUpload } from '../repos/upload-record'
@@ -62,7 +62,7 @@ export async function createFileUpload(params: CreateFileUploadParams): Promise<
       return existing
     }
 
-    const temp = path.join(STORAGE_TMP_DIR, `upload-probe-${randomUUID()}${ext}`)
+    const temp = path.join(STORAGE_TMP_DIR, `upload-probe${tempSuffix()}${ext}`)
 
     await fs.mkdir(STORAGE_TMP_DIR, { recursive: true, mode: 0o700 })
     await fs.writeFile(temp, bytes, { mode: 0o600 })
@@ -123,6 +123,7 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
       }
     }
 
+    const meta = await probe(target, kind)
     const id = randomUUID()
     const paths = uploadPaths(id, ext)
     const linkMode = await linkOrCopy(target, paths.media)
@@ -138,13 +139,13 @@ export async function createLinkUpload(params: LinkUploadParams): Promise<Upload
       linkMode,
       sizeBytes: size,
       createdAt: new Date().toISOString(),
-      ...(await probe(paths.media, kind)),
+      ...meta,
     }
 
     try {
       await writeJsonAtomic({ file: paths.json, data: item })
     } catch (error) {
-      await removeFile(paths.media)
+      await removeOwnedFile(paths.media)
 
       throw error
     }

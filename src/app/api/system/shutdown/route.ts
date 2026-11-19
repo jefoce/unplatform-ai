@@ -7,12 +7,12 @@ import { shutdownServer } from '@/server/shutdown'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
-  if (!desktopMode()) {
-    return jsonError({ status: 404, error: 'Not found' })
-  }
-
   try {
     assertLocalRequest(request)
+
+    if (!desktopMode()) {
+      return jsonError({ status: 404, error: 'Not found' })
+    }
   } catch (error) {
     return errorResponse(error)
   }

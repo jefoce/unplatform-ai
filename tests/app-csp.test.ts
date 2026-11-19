@@ -94,6 +94,23 @@ describe('response headers', () => {
   })
 })
 
+describe('standalone trace excludes', () => {
+  it('excludes env files from the traced output', () => {
+    const excludes = nextConfig.outputFileTracingExcludes?.['*'] ?? []
+
+    expect(excludes).toContain('.env*')
+    expect(excludes).toContain('**/.env*')
+  })
+})
+
+describe('standalone trace includes', () => {
+  it('copies every server chunk a route references', () => {
+    const includes = nextConfig.outputFileTracingIncludes?.['/*'] ?? []
+
+    expect(includes).toContain('.next/server/chunks/**')
+  })
+})
+
 describe('desktop shell policy', () => {
   it('uses the app CSP and grants only the bound sidecar origin', () => {
     const config = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'))

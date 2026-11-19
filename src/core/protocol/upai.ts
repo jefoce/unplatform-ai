@@ -237,7 +237,8 @@ export const UpaiJobProgressSchema = z
     value: z.number().int().nullish(),
     max: z.number().int().nullish(),
     queue_position: z.number().int().nullish(),
-    waiting_on: z.enum(UPAI_WAITING_ON).nullish(),
+    // A future waiting value becomes null, so the view keeps its local text.
+    waiting_on: z.enum(UPAI_WAITING_ON).nullish().catch(null),
   })
   .loose()
 
@@ -250,9 +251,11 @@ export type UpaiJobUsage = z.infer<typeof UpaiJobUsageSchema>
 export const UpaiJobSchema = z
   .object({
     id: z.string().regex(UUID_V4_PATTERN),
-    kind: z.enum(UPAI_JOB_KINDS),
+    // A future kind is ignored, no code branches on it.
+    kind: z.string(),
     model: z.string(),
-    status: z.enum(UPAI_JOB_STATUSES),
+    // A future status stays pending, so a new value cannot fail or finish a job.
+    status: z.enum(UPAI_JOB_STATUSES).catch('pending'),
     progress: UpaiJobProgressSchema.nullable(),
     seed: z.number().int().min(0).max(2147483647).nullable(),
     urls: z.array(z.url()).nullable(),

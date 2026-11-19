@@ -12,6 +12,14 @@ pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pn
 - Before reporting that a UI change works or that a UI bug exists: `rm -rf .next`, check in `pnpm dev`, and rebuild the desktop bundle for desktop checks. A stale cache already caused one false bug report.
 - Report what was verified and what was not. Measured numbers say "measured", guesses say "estimate".
 
+## In the opencode sandbox
+
+Agents run shell commands in a macOS sandbox. Three things work differently there:
+
+- `pnpm desktop:build` stops at the DMG step (`hdiutil` cannot run in the sandbox). Build the app with `pnpm tauri build --bundles app`, then pack it with the `dmg_pack` tool. That DMG is plain UDZO, not the styled ULMO release image, so its size is not comparable to `scripts/size-baseline.json`. Report the release DMG and `pnpm size:report` as not verified.
+- Chrome cannot start in the sandbox. Run e2e against the harness Chrome: `E2E_CDP_PORT=9222 node tests/e2e/run.mjs ...`.
+- Temp files go to `$TMPDIR`, never into the repo or `~/.cache`.
+
 ## Git
 
 - Work on the branch named after the next version, without `v` (`0.1.1`). Create it locally if it does not exist. Never commit to `releases`.
@@ -38,6 +46,7 @@ pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pn
 - Error texts and hints describe the current model only. Never suggest a specific other model.
 - Change a preset only with a source link (provider docs or a real-key test) in the commit message and in a comment next to the value.
 - Do not add a dependency for something the stdlib or an installed package already does.
+- Never run `pnpm build` and `pnpm desktop:build` or `tauri build` at the same time. Both write `.next`, and the desktop build holds `.desktop-build.lock` so `next build` and `next dev` refuse while it runs.
 - Never delete outside `STORAGE_ROOT`. Never use recursive rm.
 - No focus rings. Keyboard focus uses the `:focus-visible` hover UI, never `focus-visible:ring-*`. Mouse clicks do not leave buttons focused (`usePointerBlur`), and menus return focus to the trigger only on keyboard close.
 

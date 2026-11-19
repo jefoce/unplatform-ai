@@ -39,6 +39,13 @@ interface RequestParams {
   token?: string
 }
 
+async function browserToken(): Promise<string> {
+  const { browserSessionUrl } = await import('@/server/session')
+  const url = browserSessionUrl()
+
+  return url?.split('#t=')[1] ?? ''
+}
+
 function makeRequest(params: RequestParams): Request {
   const { body, secret = PARENT_SECRET, token = TOKEN } = params
 
@@ -115,7 +122,8 @@ describe('POST /api/system/export-path', () => {
 
   it('404s in browser mode', async () => {
     const { POST } = await load('', '')
-    const response = await POST(makeRequest({ body: { path: '/tmp/browser.mp4' } }))
+    const token = await browserToken()
+    const response = await POST(makeRequest({ body: { path: '/tmp/browser.mp4' }, token }))
 
     expect(response.status).toBe(404)
   })

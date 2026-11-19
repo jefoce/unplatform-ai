@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next'
 
 import packageJson from './package.json'
+import { assertFree } from './scripts/build-lock.mjs'
+
+// A concurrent build corrupts .next, so refuse while the desktop build holds the lock.
+assertFree()
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -8,8 +12,20 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
   serverExternalPackages: ['sharp', '@napi-rs/keyring'],
+  // Next skips chunks under .next/server/chunks when it traces a route, so list them again.
+  outputFileTracingIncludes: {
+    '/*': ['.next/server/chunks/**'],
+  },
   outputFileTracingExcludes: {
     '*': [
+      // Env files hold secrets. This keeps .env.local out of .next/standalone, but Turbopack applies
+      // the exclude per route trace and copies instrumentation.js.nft.json unfiltered, so
+      // .env.example can still appear there.
+      '.env*',
+      '**/.env*',
+      // The project trace picks up the whole repo. VCS and editor metadata never ship.
+      '.git/**',
+      '.idea/**',
       '.e2e-tmp/**',
       '**/*.map',
       '**/*.d.ts',

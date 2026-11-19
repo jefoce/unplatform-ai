@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AboutSection } from '@/features/updates/AboutSection'
 
 const platformMock = vi.hoisted(() => {
-  return { openExternal: vi.fn(), openNotices: vi.fn() }
+  return {
+    openExternal: vi.fn(),
+    openNotices: vi.fn(),
+    openThirdPartyLicenses: vi.fn(async () => {}),
+  }
 })
 
 vi.mock('@/lib/platform', () => {
@@ -14,6 +18,7 @@ vi.mock('@/lib/platform', () => {
 
 afterEach(() => {
   cleanup()
+  vi.clearAllMocks()
 })
 
 describe('AboutSection links', () => {
@@ -24,11 +29,20 @@ describe('AboutSection links', () => {
       screen.getByRole('button', { name: 'Licensed under AGPL-3.0' }),
       screen.getByRole('button', { name: 'Source code' }),
       screen.getByRole('button', { name: 'Third-party notices' }),
+      screen.getByRole('button', { name: 'Third-party licenses' }),
     ]
 
     for (const link of links) {
       expect(link.classList.contains('focus-visible:text-fg')).toBe(true)
       expect(link.classList.contains('focus-visible:underline')).toBe(true)
     }
+  })
+
+  it('opens the bundled third-party licenses', () => {
+    render(<AboutSection version="0.5.0" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Third-party licenses' }))
+
+    expect(platformMock.openThirdPartyLicenses).toHaveBeenCalledTimes(1)
   })
 })

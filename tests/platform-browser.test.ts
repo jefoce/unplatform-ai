@@ -51,6 +51,24 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+describe('browser third-party licenses', () => {
+  it('opens the committed license text on GitHub', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => {
+      return null
+    })
+
+    const { browserPlatform } = await import('@/lib/platform/browser')
+
+    await browserPlatform.openThirdPartyLicenses()
+
+    expect(open).toHaveBeenCalledWith(
+      'https://github.com/jefoce/unplatform-ai/raw/HEAD/THIRD_PARTY_LICENSES.txt',
+      '_blank',
+      'noopener',
+    )
+  })
+})
+
 describe('browser saveVideo', () => {
   it('starts one download and reports it saved', async () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})

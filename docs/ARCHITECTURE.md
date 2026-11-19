@@ -272,13 +272,15 @@ Adding a model:
 
 The media caps use `createLimiter` (`src/server/sync/limiter.ts`). `globalState` keeps one singleton per process even when Next loads a module twice. `server.lock` prevents two servers from sharing one data folder. Health returns the boot nonce publicly, and a live owner with the same nonce makes the new process exit with code 75. A stale lock is replaced.
 
-Update checks run 15 s after launch, then every 12 h while auto-check is on (`UPDATE_CHECK_DELAY_MS`, `UPDATE_CHECK_INTERVAL_MS`). The toast and Settings share one install action, which keeps the downloaded bytes for a retry after cancel.
+Update checks run 15 s after launch, then every 12 h while auto-check is on (`UPDATE_CHECK_DELAY_MS`, `UPDATE_CHECK_INTERVAL_MS`). The toast and Settings share one install action, which keeps the downloaded bytes for a retry after cancel. Every install stops the server first. A failed install clears the stop flags, starts the sidecar again and waits for ready before the error reaches the UI, so the app stays usable on the running version. A failed restart is appended to the same message, and the raw installer error goes only to the desktop log.
 
 ## 9. Secrets and session
 
 Lookup order per key: environment variable, then the OS keychain or desktop bridge, then `secrets.json`. Env values are read-only in Settings. `getSecret` reads memory only, and `onSecretsChange` clears dependent caches such as the R2 store.
 
-Desktop uses a bridge to the Rust shell over newline-delimited JSON on stdin/stdout. Node never calls the keychain in desktop mode. The webview never receives key values, only status with the last four characters. macOS and Linux keep one keychain item, Windows keeps one Credential Manager item per secret, and each value is capped at 2048 bytes.
+Desktop uses a bridge to the Rust shell over newline-delimited JSON on stdin/stdout. Node never calls the keychain in desktop mode. The webview never receives key values, only status with the last four characters.
+
+macOS and Linux keep one keychain item, `secrets`, with every name in one JSON map, and the app caps no item there. Windows Credential Manager rejects a blob above 2560 bytes, so Windows keeps one item per name. Every value is capped at 2048 bytes on write and on read. Migration runs on the first read: macOS and Linux merge leftover per-name items into the single item after a verified read-back and then delete them, Windows copies the old single item into per-name items and drops it only when every write worked. A corrupt item is a read error, never an empty map, and a later save never overwrites it. An oversized per-name item is also an error, and one failed per-name read fails the whole read.
 
 Desktop writes one 0600 JSON file with the session token, the parent secret and the boot nonce, passes its path in `APP_TOKEN_FILE`, and the server reads and deletes it at boot. Browser mode mints a token at boot and prints `http://127.0.0.1:<port>/session#t=<token>` once. Writes without a session return 401 in every mode. Only the parent secret can register a save-dialog path. The shell then opens `/session#t=<token>`. The fragment never reaches the server: the page POSTs the token to `/api/session`, gets an HttpOnly `SameSite=Strict` cookie, and replaces the URL with `/`. `assertLocalRequest` enforces host, origin, `sec-fetch-site`, JSON content type and the session. Health and session routes opt out of the session check.
 
@@ -444,6 +446,7 @@ The capped WebP encoder in `src/server/media/webp-cap.ts` encodes at quality 86,
 | Same file in two generations | One upload, `putOnce` shares the object | remote inputs |
 | Output link expired before download | Record becomes `expired` | download queue |
 | Preferred desktop port busy | App picks a free port and saves it | Tauri boot |
+| Update install fails | Sidecar restarts and must report ready, one plain error reaches the UI | `updater.rs` |
 | Keychain prompt waiting | Desktop bridge times out after 60 s, Settings shows the wait | bridge, Settings |
 
 ## 13. Error handling

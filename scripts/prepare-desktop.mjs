@@ -207,12 +207,182 @@ function describeSize(bytes) {
   return `${(bytes / MIB).toFixed(1)} MB`
 }
 
-async function copyServerResources() {
-  const standalone = path.join(ROOT, '.next', 'standalone')
+/**
+ * Reads a BUILD_ID file, or null when it is missing.
+ */
+async function readBuildId(file) {
   try {
-    await fs.access(path.join(standalone, 'server.js'))
+    return (await fs.readFile(file, 'utf8')).trim()
   } catch {
-    fail('Missing .next/standalone. Run pnpm build first.')
+    return null
+  }
+}
+
+/**
+ * Fails unless the standalone output is complete and came from the same `.next` tree.
+ */
+async function assertStandaloneBuild(nextDir) {
+  const standalone = path.join(nextDir, 'standalone')
+  const required = [path.join(standalone, 'server.js'), path.join(standalone, '.next', 'BUILD_ID')]
+
+  for (const file of required) {
+    const exists = await fs.access(file).then(
+      () => true,
+      () => false,
+    )
+    if (!exists) fail(`Missing ${file}. Run pnpm build first.`)
+  }
+
+  const buildId = await readBuildId(path.join(nextDir, 'BUILD_ID'))
+  if (!buildId) fail(`Missing ${path.join(nextDir, 'BUILD_ID')}. Run pnpm build first.`)
+
+  const standaloneId = await readBuildId(path.join(standalone, '.next', 'BUILD_ID'))
+  if (standaloneId !== buildId) {
+    fail(
+      `BUILD_ID mismatch. .next has ${buildId}, standalone has ${standaloneId}. Run pnpm build again.`,
+    )
+  }
+}
+
+const DIRTY_TRACE_DIRS = ['.git/', '.e2e-tmp/', '.cache/', 'node_modules/.cache/']
+const DIRTY_TRACE_FILES = new Set(['diff.txt', '.DS_Store'])
+
+/**
+ * Trace entries climb from the trace file to the repo root, so drop the leading `../`.
+ */
+function traceRelative(entry) {
+  let relative = entry.replaceAll('\\', '/')
+  while (relative.startsWith('../')) {
+    relative = relative.slice(3)
+  }
+  return relative.startsWith('./') ? relative.slice(2) : relative
+}
+
+function isDirtyTraceEntry(relative) {
+  if (DIRTY_TRACE_FILES.has(relative)) return true
+  return DIRTY_TRACE_DIRS.some((dir) => relative.startsWith(dir))
+}
+
+/**
+ * Fails when the instrumentation trace includes repo scratch data. Shows the count and five entries.
+ */
+async function assertCleanInstrumentationTrace(nftPath) {
+  let text
+
+  try {
+    text = await fs.readFile(nftPath, 'utf8')
+  } catch {
+    fail(`Missing ${nftPath}. Run pnpm build first.`)
+  }
+
+  const data = JSON.parse(text)
+  const files = Array.isArray(data?.files) ? data.files : null
+  if (!files) fail(`${nftPath} has no files array. Run pnpm build first.`)
+
+  const offenders = files.filter((entry) => isDirtyTraceEntry(traceRelative(entry)))
+  if (offenders.length === 0) return
+
+  const sample = offenders.slice(0, 5).map(traceRelative)
+  fail(
+    `Instrumentation trace includes ${offenders.length} repo scratch entries, the standalone build would ship them:\n` +
+      sample.join('\n') +
+      '\nFind the dynamic path read that traced the repo root and make it static.',
+  )
+}
+
+/**
+ * Relative paths of every file under `dir`, with forward slashes.
+ */
+async function listFiles(dir, relative = '') {
+  let entries
+
+  try {
+    entries = await fs.readdir(path.join(dir, relative), { withFileTypes: true })
+  } catch (error) {
+    if (error.code === 'ENOENT') return []
+    throw error
+  }
+
+  const files = []
+
+  for (const entry of entries) {
+    const next = relative === '' ? entry.name : `${relative}/${entry.name}`
+
+    if (entry.isDirectory()) {
+      files.push(...(await listFiles(dir, next)))
+    } else {
+      files.push(next)
+    }
+  }
+
+  return files
+}
+
+/**
+ * Fails listing every file that differs between the traced and the staged server.
+ */
+async function compareStagedServer(sourceDir, stagedDir) {
+  const [source, staged] = await Promise.all([listFiles(sourceDir), listFiles(stagedDir)])
+  const sourceSet = new Set(source)
+  const stagedSet = new Set(staged)
+  const missing = source.filter((file) => !stagedSet.has(file)).sort()
+  const extra = staged.filter((file) => !sourceSet.has(file)).sort()
+
+  if (missing.length === 0 && extra.length === 0) return
+
+  const lines = [
+    ...missing.map((file) => `missing: ${file}`),
+    ...extra.map((file) => `extra: ${file}`),
+  ]
+
+  fail(
+    `Staged .next/server differs from the standalone output (${missing.length} missing, ${extra.length} extra):\n` +
+      lines.join('\n'),
+  )
+}
+
+const CHUNK_REFERENCE = /server\/chunks\/[^"'\\\s)]+/g
+
+/**
+ * Chunk files that a route references but the standalone output does not contain.
+ */
+async function missingRouteChunks(standaloneDir) {
+  const serverDir = path.join(standaloneDir, '.next', 'server')
+  const routes = (await listFiles(serverDir)).filter((file) => {
+    return file.startsWith('app/') && file.endsWith('/route.js')
+  })
+  const missing = new Set()
+
+  for (const route of routes) {
+    const text = await fs.readFile(path.join(serverDir, route), 'utf8')
+
+    for (const [reference] of text.matchAll(CHUNK_REFERENCE)) {
+      const exists = await fs.access(path.join(standaloneDir, '.next', reference)).then(
+        () => true,
+        () => false,
+      )
+
+      if (!exists) missing.add(reference)
+    }
+  }
+
+  return [...missing].sort()
+}
+
+async function copyServerResources() {
+  const nextDir = path.join(ROOT, '.next')
+  const standalone = path.join(nextDir, 'standalone')
+
+  await assertStandaloneBuild(nextDir)
+  await assertCleanInstrumentationTrace(path.join(nextDir, 'server', 'instrumentation.js.nft.json'))
+
+  const missingChunks = await missingRouteChunks(standalone)
+  if (missingChunks.length > 0) {
+    fail(
+      `Standalone output is missing ${missingChunks.length} server chunks that routes reference:\n` +
+        missingChunks.join('\n') +
+        '\nAdd outputFileTracingIncludes for .next/server/chunks in next.config.ts and run pnpm build again.',
+    )
   }
 
   const excluded = new Set([
@@ -258,12 +428,26 @@ async function copyServerResources() {
   } catch {
     // No public directory in this project.
   }
+
+  await compareStagedServer(
+    path.join(standalone, '.next', 'server'),
+    path.join(RESOURCES_DIR, '.next', 'server'),
+  )
 }
 
-/** Stages the bundled runtime license texts for the Tauri resources mapping. */
+/**
+ * Stages the original license texts for the Tauri resources mapping.
+ */
 async function copyLicenses() {
   await fs.rm(RESOURCES_LICENSES, { recursive: true, force: true })
-  await fs.cp(LICENSES_DIR, RESOURCES_LICENSES, { recursive: true })
+  await fs.mkdir(RESOURCES_LICENSES, { recursive: true })
+  for (const entry of await fs.readdir(LICENSES_DIR, { withFileTypes: true })) {
+    if (!entry.isFile()) continue
+    await fs.copyFile(
+      path.join(LICENSES_DIR, entry.name),
+      path.join(RESOURCES_LICENSES, entry.name),
+    )
+  }
   console.log('[prepare-desktop] licenses copied')
 }
 
@@ -967,4 +1151,12 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   }
 }
 
-export { packArchive, stageSidecar, unpackArchive }
+export {
+  assertCleanInstrumentationTrace,
+  assertStandaloneBuild,
+  compareStagedServer,
+  missingRouteChunks,
+  packArchive,
+  stageSidecar,
+  unpackArchive,
+}

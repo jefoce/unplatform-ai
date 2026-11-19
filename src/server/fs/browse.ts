@@ -32,7 +32,7 @@ export async function browseDirectories(input: BrowseInput): Promise<BrowseResul
   let real: string
 
   try {
-    real = await fs.realpath(requested)
+    real = await fs.realpath(/*turbopackIgnore: true*/ requested)
   } catch {
     throw new BrowseError(404, 'Path not found')
   }
