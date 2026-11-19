@@ -24,7 +24,7 @@ on:
         type: boolean
         default: false
       tag:
-        description: Release tag (v<version>-rc.N)
+        description: Release tag (<version>-rc.N, leading v optional)
         required: true
         type: string
 

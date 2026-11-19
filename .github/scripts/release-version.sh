@@ -8,10 +8,12 @@ version=$(node -p "require('./package.json').version")
 if [[ "${GITHUB_EVENT_NAME:-}" == "workflow_dispatch" ]]; then
   tag=${TAG_INPUT:-}
   [[ -n "$tag" ]] || { echo "::error::tag input is required" >&2; exit 1; }
+  [[ "$tag" == v* ]] || tag="v$tag"
   [[ "$tag" == "v$version-rc."* ]] || { echo "::error::$tag does not match version $version" >&2; exit 1; }
   prerelease=true
 elif [[ "${GITHUB_REF_TYPE:-}" == tag ]]; then
   tag=${GITHUB_REF_NAME:-}
+  [[ "$tag" == v* ]] || tag="v$tag"
   [[ "$tag" == "v$version-rc."* ]] || { echo "::error::$tag does not match version $version" >&2; exit 1; }
   prerelease=true
 else

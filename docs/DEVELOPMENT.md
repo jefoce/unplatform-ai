@@ -491,7 +491,7 @@ Each script takes arguments and runs with `set -euo pipefail`. Expressions reach
 | `ghcr-pull.sh` | `<ref> <dir> <required-file>...` |
 | `ghcr-push.sh` | `<ref> <dir> <file>...` (`FORCE` in the environment) |
 | `release-draft.sh` | `TAG` and `PRERELEASE` in the environment |
-| `release-version.sh` | `TAG_INPUT` and the `GITHUB_*` environment |
+| `release-version.sh` | `TAG_INPUT` (leading `v` optional, the `tag` output always has it) and the `GITHUB_*` environment |
 | `rename-installers.sh` | `<bundle> <version> <target> <dist>` |
 | `sidecar-binary.sh` | `<name> <target> [exe]` |
 | `sidecar-key.sh` | `<name> <target> <runner> [profile]` |
@@ -522,7 +522,7 @@ For the 0.4.0 repository move, publish in this order: old tags (not `v0.4.0`), o
 
 1. Branch `X.Y.Z` from `releases`, bump `package.json`, `src-tauri/Cargo.toml` and `Cargo.lock`, and open `## X.Y.Z - unreleased` in `CHANGELOG.md`. Apply open Dependabot updates on the new version branch. Replace `unreleased` with the date in the last commit before the PR.
 2. Run `pnpm typecheck && pnpm lint && pnpm deps && pnpm format:check && pnpm knip && pnpm test && pnpm build`, then `pnpm desktop:build` and `pnpm smoke`.
-3. Manual rc runs: `workflow_dispatch` with `tag: vX.Y.Z-rc.N`, use `reuse_sidecars_run_id` or `force_rebuild_sidecars` only when needed.
+3. Manual rc runs: `workflow_dispatch` with `tag: X.Y.Z-rc.N`. The leading `v` is optional, the output tag always has it. Use `reuse_sidecars_run_id` or `force_rebuild_sidecars` only when needed.
 4. Install the draft assets on real machines: mock run, real cheap-model run, history, Settings Test, no secrets in logs. On macOS also check the required `xattr -dr com.apple.quarantine` install step on the downloaded dmg. Then the update test: install the previous rc, start it with `UPAI_UPDATE_ENDPOINT` pointing at the new rc's `latest.json`, press **Install and restart**. Check the macOS keychain prompt once, run `xattr -l` on the installed app and find no quarantine line, check the Windows relaunch and the AppImage replace.
 5. Open the pull request titled `X.Y.Z`, `pr-version` checks version, title, Cargo, lock and CHANGELOG.
 6. Squash merge into `releases`. The workflow runs and creates `vX.Y.Z` only after every job passes.

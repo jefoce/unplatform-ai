@@ -86,15 +86,33 @@ const VERSION_CASES: VersionCase[] = [
     expected: { version: '0.2.0', tag: 'v0.2.0-rc.1', prerelease: 'true' },
   },
   {
+    name: 'accepts a dispatch rc tag without the v prefix',
+    subject: '0.2.0',
+    env: { GITHUB_EVENT_NAME: 'workflow_dispatch', TAG_INPUT: '0.2.0-rc.1' },
+    expected: { version: '0.2.0', tag: 'v0.2.0-rc.1', prerelease: 'true' },
+  },
+  {
     name: 'rejects a dispatch tag from another version',
     subject: '0.2.0',
     env: { GITHUB_EVENT_NAME: 'workflow_dispatch', TAG_INPUT: 'v0.2.1-rc.1' },
     error: 'does not match version 0.2.0',
   },
   {
+    name: 'rejects a dispatch rc tag without the v prefix from another version',
+    subject: '0.2.0',
+    env: { GITHUB_EVENT_NAME: 'workflow_dispatch', TAG_INPUT: '0.2.1-rc.1' },
+    error: 'does not match version 0.2.0',
+  },
+  {
     name: 'accepts an rc tag push',
     subject: 'unrelated subject',
     env: { GITHUB_REF_TYPE: 'tag', GITHUB_REF_NAME: 'v0.2.0-rc.2' },
+    expected: { version: '0.2.0', tag: 'v0.2.0-rc.2', prerelease: 'true' },
+  },
+  {
+    name: 'accepts an rc tag push without the v prefix',
+    subject: 'unrelated subject',
+    env: { GITHUB_REF_TYPE: 'tag', GITHUB_REF_NAME: '0.2.0-rc.2' },
     expected: { version: '0.2.0', tag: 'v0.2.0-rc.2', prerelease: 'true' },
   },
   {
