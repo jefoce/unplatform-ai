@@ -316,7 +316,7 @@ jobs:
     env:
       # Step-level if: reads job-level env, not env set on the same step.
       REUSE_SIDECARS_RUN_ID: ${{ inputs.reuse_sidecars_run_id || vars.SIDECARS_RUN_ID }}
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       actions: read
       contents: write

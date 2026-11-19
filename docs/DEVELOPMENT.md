@@ -467,7 +467,7 @@ A sources-only rebuild writes to `ffmpeg-rebuild`, never over the verified binar
 
 The ffmpeg cache (`~/.cache/unplatform-ai-build/ffmpeg`) restores only when the job builds. The Node cache (`.../node`) restores only on a GHCR miss. The build job's `~/.cache/unplatform-ai-build` cache restores only when no Node artifact exists (`needs.node.result == 'skipped'` and no reuse run), because only then does `prepare-desktop.mjs` download official Node. A GHCR hit skips every cache download. Every job that generates or checks notices restores `rust-cache`, which caches `~/.cargo/registry` keyed on `src-tauri/Cargo.lock`, then runs `cargo fetch --locked` before `pnpm notices`. The `checks` job carries the Rust toolchain for that fetch.
 
-The build job has a 90-minute timeout, sized for a cold `rust-cache` on Windows: `pnpm install`, `cargo fetch`, `pnpm notices`, the tests, `cargo test`, `desktop:prepare`, the smoke test and a release build with `lto = true` and `codegen-units = 1`.
+The build job has a 120-minute timeout, sized for a cold `rust-cache` on Windows: `pnpm install`, `cargo fetch`, `pnpm notices`, the tests, `cargo test`, `desktop:prepare`, the smoke test and a release build with `lto = true` and `codegen-units = 1`.
 
 ### Composite actions
 

@@ -100,7 +100,7 @@ describe('release workflow timeouts', () => {
       draft: 5,
       ffmpeg: 90,
       node: 330,
-      build: 90,
+      build: 120,
       checksums: 10,
       'updater-manifest': 10,
       tag: 5,
