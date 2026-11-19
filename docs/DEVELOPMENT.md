@@ -66,7 +66,7 @@ The desktop app and `pnpm dev` both use `~/.unplatform-ai` by default and share 
 | `pnpm notices` | Regenerate the notices and `THIRD_PARTY_LICENSES.txt.gz`, copy them and LICENSE into resources |
 | `pnpm size:report` | Print the bundled app size report and check the budget |
 | `pnpm size:baseline` | Regenerate `scripts/size-baseline.json` from the current bundle |
-| `pnpm smoke` | Run the staged server smoke test |
+| `pnpm smoke` | Run the smoke test against the bundled app. `SMOKE_STAGED=1` runs the staged tree instead |
 | `pnpm tauri` | Pass a command to the Tauri CLI |
 
 ## 4. Mock modes
@@ -207,6 +207,8 @@ Image bounds: `IMAGE_COUNT_MAX` caps images in one request, `IMAGE_SUBMIT_PARALL
 | `E2E` | `1` uses the file chooser stub at `$STORAGE_ROOT/e2e-choose.txt` during e2e runs |
 | `WRITE_IMAGE_PRICE_FIXTURE` | `1` rewrites the image price fixture during the drift test |
 | `FFMPEG_PATH` | ffmpeg binary for the dev server and smoke runs |
+| `SMOKE_APP` | Built app the smoke test extracts, default the newest `src-tauri/target/{release,cargo/release}/bundle/macos` app |
+| `SMOKE_STAGED` | `1` smokes the staged tree from `pnpm desktop:prepare` instead of the bundled app |
 | `APP_ORIGIN` | Origin used by mock remote links |
 
 Env values override stored keys and are read-only in Settings.
