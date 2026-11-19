@@ -569,10 +569,10 @@ describe('workflow checkouts', () => {
 })
 
 /**
- * Job name and block for every job in the release workflow.
+ * Job name and block for every job in a workflow.
  */
-function releaseJobs() {
-  const text = fs.readFileSync(path.resolve('.github/workflows/release.yml'), 'utf8')
+function workflowJobs(file: string) {
+  const text = fs.readFileSync(path.resolve(file), 'utf8')
   const section = text.slice(text.search(/^jobs:\s*$/m))
   const jobs = [...section.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)]
 
@@ -586,7 +586,7 @@ function releaseJobs() {
 
 describe('release signing key', () => {
   const text = fs.readFileSync(path.resolve('.github/workflows/release.yml'), 'utf8')
-  const jobs = releaseJobs()
+  const jobs = workflowJobs('.github/workflows/release.yml')
 
   it('keeps the signing secrets out of workflow-level env', () => {
     const envBlock = text.match(/^env:\n((?: {2}[^\n]*\n)+)/m)?.[1] ?? ''
@@ -624,6 +624,59 @@ describe('Rust tests', () => {
     const text = fs.readFileSync(path.resolve(file), 'utf8')
 
     expect(text).toContain('cargo test --manifest-path src-tauri/Cargo.toml')
+  })
+})
+
+describe('checks notices', () => {
+  const jobs = workflowJobs('.github/workflows/checks.yml')
+
+  it('fetches cargo sources before every notices run', () => {
+    const notices = jobs.filter((job) => {
+      return job.block.includes('pnpm notices')
+    })
+
+    expect(
+      notices.map((job) => {
+        return job.name
+      }),
+    ).toEqual(['rust', 'checks', 'windows'])
+
+    for (const job of notices) {
+      const fetch = job.block.indexOf('cargo fetch --locked --manifest-path src-tauri/Cargo.toml')
+
+      expect(fetch, job.name).toBeGreaterThan(-1)
+      expect(fetch, job.name).toBeLessThan(job.block.indexOf('pnpm notices'))
+    }
+  })
+
+  it('runs notices before cargo test in the Rust jobs', () => {
+    for (const name of ['rust', 'windows']) {
+      const block =
+        jobs.find((job) => {
+          return job.name === name
+        })?.block ?? ''
+
+      const notices = block.indexOf('pnpm notices')
+
+      expect(notices, name).toBeGreaterThan(-1)
+
+      expect(notices, name).toBeLessThan(
+        block.indexOf('cargo test --manifest-path src-tauri/Cargo.toml'),
+      )
+    }
+  })
+
+  it('smokes the staged server in the desktop job', () => {
+    const desktop =
+      jobs.find((job) => {
+        return job.name === 'desktop'
+      })?.block ?? ''
+
+    expect(desktop).toContain('SMOKE_STAGED=1 pnpm smoke')
+
+    expect(desktop.indexOf('SMOKE_STAGED=1 pnpm smoke')).toBeGreaterThan(
+      desktop.indexOf('pnpm desktop:prepare'),
+    )
   })
 })
 

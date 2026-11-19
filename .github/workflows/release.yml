@@ -394,6 +394,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
             gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
       - run: pnpm install --frozen-lockfile
+      - name: Fetch cargo sources
+        run: cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+      - name: Notices
+        run: pnpm notices
       - run: pnpm test
       - name: Download ffmpeg sidecar
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -471,6 +475,7 @@ jobs:
         if: needs.node.result == 'skipped' && (inputs.reuse_sidecars_run_id || vars.SIDECARS_RUN_ID) == ''
         shell: bash
         run: echo "ALLOW_OFFICIAL_NODE=1" >> "$GITHUB_ENV"
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Stage server
         run: pnpm desktop:prepare
         env:
@@ -484,11 +489,6 @@ jobs:
           bash .github/scripts/check-macos-sidecar.sh \
             "src-tauri/binaries/unplatform-ai-server-$TARGET" \
             "src-tauri/binaries/ffmpeg-$TARGET"
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
-      - name: Smoke test packaged server
-        env:
-          TARGET: ${{ matrix.target }}
-        run: node scripts/smoke-server.mjs --target "$TARGET"
       # Measured: the CLI stops with "A public key has been found, but no private
       # key" after bundling when createUpdaterArtifacts is true, so the key stays
       # on this signing step inside the protected job.
@@ -500,6 +500,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target "$TARGET" --config src-tauri/tauri.release.conf.json
+      - name: Smoke the built app
+        if: runner.os == 'macOS'
+        env:
+          SMOKE_APP: src-tauri/target/${{ matrix.target }}/release/bundle/macos/Unplatform AI.app
+        run: pnpm smoke
+      - name: Smoke the staged server
+        if: runner.os != 'macOS'
+        shell: bash
+        run: SMOKE_STAGED=1 pnpm smoke
       # Re-packs the app archive, so it signs it again with the same step env.
       - name: Compress downloads
         if: runner.os == 'macOS'
