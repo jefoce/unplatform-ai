@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { gzipSync } from 'node:zlib'
+import { gzipSync, gunzipSync } from 'node:zlib'
 
 import sharp from 'sharp'
 
@@ -605,7 +605,25 @@ export function checkLicenseDocument(text) {
 }
 
 /**
- * Committed text and archive must match a fresh generation byte for byte.
+ * Archive must decompress to the expected license text.
+ * Compressed bytes differ across zlib builds, the text does not.
+ */
+export function checkLicenseArchiveContent(archive, expected) {
+  if (archive.length < 10 || archive.readUInt32LE(4) !== 0) {
+    throw new Error('THIRD_PARTY_LICENSES.txt.gz has a timestamp, run pnpm notices')
+  }
+
+  let text
+  try {
+    text = gunzipSync(archive).toString('utf8')
+  } catch (error) {
+    throw new Error('THIRD_PARTY_LICENSES.txt.gz is corrupt, run pnpm notices', { cause: error })
+  }
+  if (text !== expected) throw new Error('THIRD_PARTY_LICENSES.txt.gz is stale, run pnpm notices')
+}
+
+/**
+ * Committed text and archive must match a fresh generation.
  */
 export async function checkLicenseArchive(params = {}) {
   const { textPath = TEXT, archivePath = ARCHIVE } = params
@@ -619,9 +637,7 @@ export async function checkLicenseArchive(params = {}) {
 
   const archive = await fs.readFile(archivePath).catch(() => null)
   if (archive === null) throw new Error('THIRD_PARTY_LICENSES.txt.gz is missing, run pnpm notices')
-  if (!archive.equals(gzipText(expected))) {
-    throw new Error('THIRD_PARTY_LICENSES.txt.gz is stale, run pnpm notices')
-  }
+  checkLicenseArchiveContent(archive, expected)
 }
 
 /**

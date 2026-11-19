@@ -1,10 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { gunzipSync } from 'node:zlib'
+import { gunzipSync, gzipSync } from 'node:zlib'
 
 import { describe, expect, it } from 'vitest'
 
-import { checkLicenseDocument, sourceOfferSection } from '../scripts/notices.mjs'
+import {
+  checkLicenseArchiveContent,
+  checkLicenseDocument,
+  sourceOfferSection,
+} from '../scripts/notices.mjs'
 
 const RELEASE_DRAFT = path.resolve('.github/scripts/release-draft.sh')
 const ARCHIVE = path.resolve('THIRD_PARTY_LICENSES.txt.gz')
@@ -76,6 +80,41 @@ describe('third-party license archive', () => {
     expect(() => {
       checkLicenseDocument(fixtureDocument(''))
     }).toThrow('has no license text')
+  })
+})
+
+describe('third-party license archive check', () => {
+  const sample = fixtureDocument('Permission is hereby granted, free of charge.')
+
+  /**
+   * Sample gzipped at one level, like a runner with a different zlib build.
+   */
+  function sampleArchive(level: number): Buffer {
+    return gzipSync(Buffer.from(sample, 'utf8'), { level })
+  }
+
+  it('accepts the same text from another zlib build', () => {
+    const fast = sampleArchive(1)
+    const best = sampleArchive(9)
+    const foreign = Buffer.from(best)
+
+    foreign[9] = 3 // OS byte: Unix instead of the current host
+
+    expect(fast.equals(best)).toBe(false)
+
+    for (const archive of [fast, best, foreign]) {
+      expect(() => {
+        checkLicenseArchiveContent(archive, sample)
+      }).not.toThrow()
+    }
+  })
+
+  it('fails when the archive holds another text', () => {
+    const stale = gzipSync(Buffer.from(fixtureDocument(''), 'utf8'), { level: 9 })
+
+    expect(() => {
+      checkLicenseArchiveContent(stale, sample)
+    }).toThrow('is stale')
   })
 })
 
