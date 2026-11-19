@@ -86,6 +86,15 @@ describe('release build job', () => {
     )
   })
 
+  it('creates the server-archive resource directory before cargo test', () => {
+    const placeholders = build.indexOf('name: Sidecar placeholders for cargo test')
+
+    expect(placeholders).toBeGreaterThan(-1)
+    expect(placeholders).toBeLessThan(tested)
+
+    expect(build.slice(placeholders, tested)).toContain('src-tauri/resources/server-archive')
+  })
+
   it('smokes the built app on macOS', () => {
     const smoke = build.indexOf('SMOKE_APP:')
 

@@ -487,7 +487,7 @@ jobs:
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             suffix=".exe"
           fi
-          mkdir -p src-tauri/binaries
+          mkdir -p src-tauri/binaries src-tauri/resources/server-archive
           touch "src-tauri/binaries/unplatform-ai-server-$TARGET$suffix" "src-tauri/binaries/ffmpeg-$TARGET$suffix"
           if [[ "$RUNNER_OS" != "Windows" ]]; then
             chmod +x "src-tauri/binaries/unplatform-ai-server-$TARGET$suffix" "src-tauri/binaries/ffmpeg-$TARGET$suffix"
